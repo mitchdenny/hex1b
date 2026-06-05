@@ -7,6 +7,7 @@ namespace Hex1b.Tests;
 /// Comprehensive integration tests for TreeWidget keyboard navigation, mouse interaction,
 /// rendering in borders, clipping, and visual output verification.
 /// </summary>
+[DoNotParallelize]
 [TestClass]
 public class TreeIntegrationTests
 {

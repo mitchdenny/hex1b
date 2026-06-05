@@ -121,17 +121,15 @@ public static class TestSvgHelper
     /// <param name="content">The file content.</param>
     public static void AttachFile(string name, string content)
     {
-        // Attach to MSTest test context - will throw if name is duplicate
-        { var __tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), name); System.IO.File.WriteAllText(__tmp, content); TestContext.Current?.AddResultFile(__tmp); }
-
         // Build path: TestResults/{type}/{TestClass}_{TestName}_{attachment}
         var testContext = TestContext.Current;
-        var testClass = testContext.FullyQualifiedTestClassName ?? "UnknownClass";
-        var testMethodName = testContext.TestName ?? "UnknownMethod";
-        
-        // Get test display name which includes theory parameters
-        var testDisplayName = testContext.TestName ?? testMethodName;
-        
+        var testClass = testContext?.FullyQualifiedTestClassName ?? "UnknownClass";
+        var testMethodName = testContext?.TestName ?? "UnknownMethod";
+
+        // Get test display name which includes theory parameters (TestName by itself
+        // is just the bare method name for parameterized tests).
+        var testDisplayName = testContext?.TestDisplayName ?? testMethodName;
+
         // Extract just the method part with parameters if it's a theory
         var methodWithParams = testDisplayName;
         if (methodWithParams.Contains('.'))
@@ -142,6 +140,24 @@ public static class TestSvgHelper
         // Sanitize for filesystem
         var sanitizedClass = SanitizeFileName(testClass);
         var sanitizedMethod = SanitizeFileName(methodWithParams);
+
+        // Flatten: {TestClass}_{TestMethod}_{attachment}. This name must be unique across
+        // every concurrently running test so the temp-path write below does not collide
+        // when MSTest parallelizes tests across classes (or data rows within a class).
+        // If sanitization stripped or truncated characters that distinguish data rows of
+        // a parameterized test, append a short stable hash to keep paths unique.
+        var uniqueMethod = sanitizedMethod;
+        if (sanitizedMethod != methodWithParams)
+        {
+            uniqueMethod = $"{sanitizedMethod}_{ShortHash(methodWithParams)}";
+        }
+        var flattenedName = $"{sanitizedClass}_{uniqueMethod}_{name}";
+
+        // Attach to MSTest test context (writes a copy to the temp dir under the unique
+        // flattened name so parallel tests writing the same logical attachment do not race).
+        var tempPath = Path.Combine(Path.GetTempPath(), flattenedName);
+        File.WriteAllText(tempPath, content);
+        testContext?.AddResultFile(tempPath);
 
         // Determine output subdirectory based on file type
         var extension = Path.GetExtension(name).ToLowerInvariant();
@@ -157,11 +173,21 @@ public static class TestSvgHelper
         var assemblyDir = Path.GetDirectoryName(typeof(TestSvgHelper).Assembly.Location)!;
         var outputDir = Path.Combine(assemblyDir, "TestResults", subDir);
         Directory.CreateDirectory(outputDir);
-        
-        // Flatten: {TestClass}_{TestMethod}_{attachment}
-        var flattenedName = $"{sanitizedClass}_{sanitizedMethod}_{name}";
+
         var filePath = Path.Combine(outputDir, flattenedName);
         File.WriteAllText(filePath, content);
+    }
+
+    /// <summary>
+    /// Returns the first 8 hex characters of a SHA256 hash of <paramref name="value"/>.
+    /// Used to disambiguate file paths for parameterized test data rows whose identifying
+    /// characters (parentheses, commas, quotes, etc.) are stripped/escaped by the file-name
+    /// sanitizer or truncated by its 200-character cap.
+    /// </summary>
+    private static string ShortHash(string value)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes, 0, 4).ToLowerInvariant();
     }
 
     /// <summary>

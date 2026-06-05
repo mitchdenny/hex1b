@@ -4,6 +4,7 @@ using System.Text.Json;
 
 namespace Hex1b.Tool.Tests;
 
+[DoNotParallelize]
 [TestClass]
 public class RecordingProtocolTests
 {

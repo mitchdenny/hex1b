@@ -2,6 +2,7 @@ namespace Hex1b.Tests;
 
 using Hex1b.Animation;
 
+[DoNotParallelize]
 [TestClass]
 public class AnimationTimerTests
 {

@@ -23,6 +23,7 @@ namespace Hex1b.Tests.Flow;
 /// resize-handling discipline without being noised up by the inner app's
 /// continuous render output.
 /// </remarks>
+[DoNotParallelize]
 [TestClass]
 public class FlowRunnerResizeHarnessTests
 {

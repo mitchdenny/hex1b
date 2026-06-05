@@ -18,6 +18,7 @@ namespace Hex1b.Tests;
 /// of ReadThreadProc/WriteThreadProc. The cached copy remains valid and correctly
 /// reflects cancellation even after the source is disposed.
 /// </summary>
+[DoNotParallelize]
 [TestClass]
 public class WindowsPtyDisposeTests
 {
