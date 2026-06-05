@@ -4,8 +4,8 @@ namespace Hex1b;
 
 /// <summary>
 /// Context passed to an <c>ItemTemplate</c> callback on <see cref="ListWidget{T}"/>.
-/// Exposes the per-row item value alongside the row's current focus and hover
-/// state so the template can decide how to style itself. Derives from
+/// Exposes the per-row item value alongside the row's current focus, selection,
+/// and hover state so the template can decide how to style itself. Derives from
 /// <see cref="WidgetContext{TParentWidget}"/> so the usual fluent extension methods
 /// (<c>context.Text(...)</c>, <c>context.VStack(...)</c>, etc.) are available inside the
 /// builder.
@@ -22,6 +22,13 @@ public sealed class ListItemContext<T> : WidgetContext<ListWidget<T>>
     /// <summary>True when this row is the list's currently focused (cursor) row.</summary>
     public bool IsFocused { get; }
 
+    /// <summary>
+    /// True when the list's multi-select feature is enabled and this row is part
+    /// of the checked set. Always <c>false</c> when multi-select is off — the
+    /// cursor row is reported through <see cref="IsFocused"/>, not here.
+    /// </summary>
+    public bool IsSelected { get; }
+
     /// <summary>True when the list itself currently holds keyboard focus.</summary>
     public bool OwnerHasFocus { get; }
 
@@ -37,7 +44,14 @@ public sealed class ListItemContext<T> : WidgetContext<ListWidget<T>>
     /// </summary>
     public bool IsLoaded { get; }
 
-    internal ListItemContext(T item, int index, bool isFocused, bool ownerHasFocus, bool isHovered, bool isLoaded = true)
+    internal ListItemContext(
+        T item,
+        int index,
+        bool isFocused,
+        bool ownerHasFocus,
+        bool isHovered,
+        bool isLoaded = true,
+        bool isSelected = false)
     {
         Item = item;
         Index = index;
@@ -45,5 +59,6 @@ public sealed class ListItemContext<T> : WidgetContext<ListWidget<T>>
         OwnerHasFocus = ownerHasFocus;
         IsHovered = isHovered;
         IsLoaded = isLoaded;
+        IsSelected = isSelected;
     }
 }

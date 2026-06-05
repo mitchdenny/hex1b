@@ -28,4 +28,12 @@ public static class ListTheme
     
     public static readonly Hex1bThemeElement<string> UnselectedIndicator = 
         new($"{nameof(ListTheme)}.{nameof(UnselectedIndicator)}", () => "  ");
+
+    /// <summary>Glyph drawn in front of a checked row when multi-select is enabled.</summary>
+    public static readonly Hex1bThemeElement<string> CheckboxChecked =
+        new($"{nameof(ListTheme)}.{nameof(CheckboxChecked)}", () => "▣ ");
+
+    /// <summary>Glyph drawn in front of an unchecked row when multi-select is enabled.</summary>
+    public static readonly Hex1bThemeElement<string> CheckboxUnchecked =
+        new($"{nameof(ListTheme)}.{nameof(CheckboxUnchecked)}", () => "▢ ");
 }

@@ -182,6 +182,19 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
     /// <summary>Rebindable action: Move selection down by one viewport.</summary>
     public static readonly ActionId PageDown = new($"{nameof(ListWidget<T>)}.{nameof(PageDown)}");
 
+    /// <summary>Rebindable action: Toggle the focused row's checked state. Default binding: Space. Only bound when multi-select is enabled.</summary>
+    public static readonly ActionId ToggleSelection = new($"{nameof(ListWidget<T>)}.{nameof(ToggleSelection)}");
+    /// <summary>Rebindable action: Extend the selection one row up from the anchor. Default binding: Shift+UpArrow. Only bound when multi-select is enabled.</summary>
+    public static readonly ActionId ExtendSelectionUp = new($"{nameof(ListWidget<T>)}.{nameof(ExtendSelectionUp)}");
+    /// <summary>Rebindable action: Extend the selection one row down from the anchor. Default binding: Shift+DownArrow. Only bound when multi-select is enabled.</summary>
+    public static readonly ActionId ExtendSelectionDown = new($"{nameof(ListWidget<T>)}.{nameof(ExtendSelectionDown)}");
+    /// <summary>Rebindable action: Extend the selection to the first row. Default binding: Shift+Home. Only bound when multi-select is enabled.</summary>
+    public static readonly ActionId ExtendSelectionToFirst = new($"{nameof(ListWidget<T>)}.{nameof(ExtendSelectionToFirst)}");
+    /// <summary>Rebindable action: Extend the selection to the last row. Default binding: Shift+End. Only bound when multi-select is enabled.</summary>
+    public static readonly ActionId ExtendSelectionToLast = new($"{nameof(ListWidget<T>)}.{nameof(ExtendSelectionToLast)}");
+    /// <summary>Rebindable action: Select all rows (or deselect all when every row is already selected). Default binding: Ctrl+A. Only bound when multi-select is enabled.</summary>
+    public static readonly ActionId SelectAll = new($"{nameof(ListWidget<T>)}.{nameof(SelectAll)}");
+
     /// <summary>
     /// The initial focused index when the list is first created. Defaults to 0.
     /// Only applied when the node is new.
@@ -220,6 +233,34 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
 
     internal Func<ListFocusChangedEventArgs<T>, Task>? FocusChangedHandler { get; init; }
     internal Func<ListItemActivatedEventArgs<T>, Task>? ItemActivatedHandler { get; init; }
+    internal Func<ListSelectionChangedEventArgs<T>, Task>? SelectionChangedHandler { get; init; }
+
+    /// <summary>
+    /// When <c>true</c>, the list supports multi-select: Space toggles the
+    /// focused row's checked state, Shift+Arrows extend a range, Ctrl+A
+    /// selects (or deselects) all, and rendered rows expose the checked state
+    /// through <see cref="ListItemContext{T}.IsSelected"/>. When the default
+    /// row renderer is in use, a checkbox glyph is drawn in front of each row.
+    /// Set via <c>widget.MultiSelect()</c>.
+    /// </summary>
+    public bool IsMultiSelectEnabled { get; init; }
+
+    /// <summary>
+    /// The initial checked set when the list is first created. Defaults to
+    /// empty. Only applied when the node is new and when multi-select is
+    /// enabled. Use <see cref="SelectedIndices"/> instead for a controlled
+    /// (re-applied every frame) checked set.
+    /// </summary>
+    public IReadOnlyList<int>? InitialSelectedIndices { get; init; }
+
+    /// <summary>
+    /// When set, drives the checked set on every reconciliation rather than
+    /// only at creation time — the controlled-state form of multi-select.
+    /// Indices outside the current item range are silently dropped. Mutually
+    /// exclusive with <see cref="InitialSelectedIndices"/>; if both are set,
+    /// this wins.
+    /// </summary>
+    public IReadOnlyList<int>? SelectedIndices { get; init; }
 
     /// <summary>
     /// Optional virtualized data source. When set, <see cref="Items"/> is
@@ -347,6 +388,7 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
         node.ItemTemplate = Template;
         node.ItemKeySelector = ItemKeySelector;
         node.EmptyBuilder = EmptyBuilder;
+        node.IsMultiSelectEnabled = IsMultiSelectEnabled;
 
         var count = node.EffectiveItemCount;
 
@@ -369,6 +411,26 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
         if (ControlledFocusedIndex is int controlled && count > 0)
         {
             node.FocusedIndex = Math.Clamp(controlled, 0, count - 1);
+        }
+
+        // Multi-select state reconciliation.
+        if (IsMultiSelectEnabled)
+        {
+            if (SelectedIndices is { } controlledSet)
+            {
+                // Controlled mode: replace internal store every frame.
+                node.ApplyControlledSelectedIndices(controlledSet);
+            }
+            else if (isNewNode && InitialSelectedIndices is { } initial)
+            {
+                // Uncontrolled mode: seed once.
+                node.ApplyControlledSelectedIndices(initial);
+            }
+        }
+        else
+        {
+            // Multi-select off — clear any prior checked set.
+            node.ClearSelectedIndicesInternal();
         }
 
         if (FocusChangedHandler is { } focChanged)
@@ -405,6 +467,27 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
         else
         {
             node.ItemActivatedAction = null;
+        }
+
+        if (SelectionChangedHandler is { } selChanged)
+        {
+            node.SelectionChangedAction = (ctx, toggledIndex, isSelected, reason) =>
+            {
+                var indices = node.SelectedIndicesSnapshot;
+                var items = node.MaterializeSelectedItems(indices);
+                T? toggledItem = default;
+                if (toggledIndex >= 0 && node.TryGetEffectiveItem(toggledIndex, out var ti))
+                {
+                    toggledItem = ti;
+                }
+                var args = new ListSelectionChangedEventArgs<T>(
+                    this, node, ctx, indices, items, toggledIndex, toggledItem, isSelected, reason);
+                return selChanged(args);
+            };
+        }
+        else
+        {
+            node.SelectionChangedAction = null;
         }
     }
 
@@ -498,7 +581,8 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
                 isFocused: absoluteIndex == snapshotSelected,
                 ownerHasFocus: snapshotFocused,
                 isHovered: absoluteIndex == snapshotHovered,
-                isLoaded: isLoaded);
+                isLoaded: isLoaded,
+                isSelected: node.IsMultiSelectEnabled && node.IsIndexSelected(absoluteIndex));
 
             var itemWidget = template(itemContext);
             var positionedContext = context.WithChildPosition(windowOffset, windowCount);

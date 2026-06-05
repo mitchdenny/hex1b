@@ -121,12 +121,12 @@ Hex1bWidget BuildUI(RootContext ctx)
     [
         // Left panel: File list
         h.Border(
-            (h.List(castFiles.Select(f => f.Name).ToArray()) with { InitialSelectedIndex = selectedFileIndex })
-                .OnSelectionChanged(async e =>
+            (h.List(castFiles.Select(f => f.Name).ToArray()) with { InitialFocusedIndex = selectedFileIndex })
+                .OnFocusChanged(async e =>
                 {
-                    if (e.SelectedIndex != selectedFileIndex)
+                    if (e.FocusedIndex != selectedFileIndex)
                     {
-                        selectedFileIndex = e.SelectedIndex;
+                        selectedFileIndex = e.FocusedIndex;
                         await LoadRecordingAsync(castFiles[selectedFileIndex].FullName);
                     }
                 })

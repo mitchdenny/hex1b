@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using Hex1b.Composition;
 using Hex1b.Data;
+using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
@@ -443,6 +444,79 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
     #endregion
 
     /// <summary>
+    /// Internal action invoked when the multi-select checked set changes.
+    /// Signature: (ctx, toggledIndex, isSelectedAfter, reason).
+    /// </summary>
+    internal Func<InputBindingActionContext, int, bool, ListSelectionChangeReason, Task>? SelectionChangedAction { get; set; }
+
+    private readonly HashSet<int> _selectedIndices = new();
+    private int _selectionAnchorIndex = -1;
+
+    /// <summary>
+    /// True when this list's multi-select feature is enabled. Reconciled from
+    /// <see cref="ListWidget{T}.IsMultiSelectEnabled"/>. Affects keybindings,
+    /// the default row renderer, and <see cref="ListItemContext{T}.IsSelected"/>.
+    /// </summary>
+    public bool IsMultiSelectEnabled { get; internal set; }
+
+    /// <summary>
+    /// The current checked-set indices (a read-only snapshot). Always empty
+    /// when <see cref="IsMultiSelectEnabled"/> is <c>false</c>.
+    /// </summary>
+    public IReadOnlyCollection<int> SelectedIndices => _selectedIndices;
+
+    internal IReadOnlyList<int> SelectedIndicesSnapshot
+    {
+        get
+        {
+            if (_selectedIndices.Count == 0) return Array.Empty<int>();
+            var arr = new int[_selectedIndices.Count];
+            _selectedIndices.CopyTo(arr);
+            Array.Sort(arr);
+            return arr;
+        }
+    }
+
+    internal bool IsIndexSelected(int index) => _selectedIndices.Contains(index);
+
+    internal void ApplyControlledSelectedIndices(IReadOnlyList<int> indices)
+    {
+        var count = EffectiveItemCount;
+        var before = _selectedIndices.Count;
+        _selectedIndices.Clear();
+        for (int i = 0; i < indices.Count; i++)
+        {
+            var idx = indices[i];
+            if (idx >= 0 && idx < count) _selectedIndices.Add(idx);
+        }
+        if (_selectedIndices.Count != before) MarkDirty();
+    }
+
+    internal void ClearSelectedIndicesInternal()
+    {
+        if (_selectedIndices.Count == 0 && _selectionAnchorIndex < 0) return;
+        _selectedIndices.Clear();
+        _selectionAnchorIndex = -1;
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// Returns a materialised list of items at the given selected indices,
+    /// skipping any indices whose data has not yet been loaded by a
+    /// virtualized data source.
+    /// </summary>
+    internal IReadOnlyList<T> MaterializeSelectedItems(IReadOnlyList<int> indices)
+    {
+        if (indices.Count == 0) return Array.Empty<T>();
+        var list = new List<T>(indices.Count);
+        for (int i = 0; i < indices.Count; i++)
+        {
+            if (TryGetEffectiveItem(indices[i], out var item)) list.Add(item);
+        }
+        return list;
+    }
+
+    /// <summary>
     /// Internal action invoked when selection changes.
     /// </summary>
     internal Func<InputBindingActionContext, Task>? FocusChangedAction { get; set; }
@@ -538,7 +612,13 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
             ListWidget<T>.MoveToFirst,
             ListWidget<T>.MoveToLast,
             ListWidget<T>.PageUp,
-            ListWidget<T>.PageDown);
+            ListWidget<T>.PageDown,
+            ListWidget<T>.ToggleSelection,
+            ListWidget<T>.ExtendSelectionUp,
+            ListWidget<T>.ExtendSelectionDown,
+            ListWidget<T>.ExtendSelectionToFirst,
+            ListWidget<T>.ExtendSelectionToLast,
+            ListWidget<T>.SelectAll);
     }
 
     internal void ConfigureDefaultBindings(
@@ -551,7 +631,13 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
         ActionId moveToFirst,
         ActionId moveToLast,
         ActionId pageUp,
-        ActionId pageDown)
+        ActionId pageDown,
+        ActionId toggleSelection = default,
+        ActionId extendSelectionUp = default,
+        ActionId extendSelectionDown = default,
+        ActionId extendSelectionToFirst = default,
+        ActionId extendSelectionToLast = default,
+        ActionId selectAll = default)
     {
         bindings.Key(Hex1bKey.UpArrow).Triggers(moveUp, MoveUpWithEvent, "Move up");
         bindings.Key(Hex1bKey.DownArrow).Triggers(moveDown, MoveDownWithEvent, "Move down");
@@ -562,7 +648,23 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
         bindings.Key(Hex1bKey.PageDown).Triggers(pageDown, PageDownWithEvent, "Page down");
 
         bindings.Key(Hex1bKey.Enter).Triggers(activate, ActivateItemWithEvent, "Activate item");
-        bindings.Key(Hex1bKey.Spacebar).Triggers(activate, ActivateItemWithEvent, "Activate item");
+
+        // Spacebar binding is mode-dependent. In single-select mode it
+        // activates (mirroring Enter); in multi-select mode it toggles the
+        // focused row's checked state.
+        if (IsMultiSelectEnabled)
+        {
+            bindings.Key(Hex1bKey.Spacebar).Triggers(toggleSelection, ToggleSelectionWithEvent, "Toggle selection");
+            bindings.Shift().Key(Hex1bKey.UpArrow).Triggers(extendSelectionUp, ExtendSelectionUpWithEvent, "Extend selection up");
+            bindings.Shift().Key(Hex1bKey.DownArrow).Triggers(extendSelectionDown, ExtendSelectionDownWithEvent, "Extend selection down");
+            bindings.Shift().Key(Hex1bKey.Home).Triggers(extendSelectionToFirst, ExtendSelectionToFirstWithEvent, "Select to first");
+            bindings.Shift().Key(Hex1bKey.End).Triggers(extendSelectionToLast, ExtendSelectionToLastWithEvent, "Select to last");
+            bindings.Ctrl().Key(Hex1bKey.A).Triggers(selectAll, SelectAllWithEvent, "Select all");
+        }
+        else
+        {
+            bindings.Key(Hex1bKey.Spacebar).Triggers(activate, ActivateItemWithEvent, "Activate item");
+        }
 
         bindings.Mouse(MouseButton.Left).Triggers(activate, MouseSelectAndActivate, "Select and activate item");
 
@@ -715,6 +817,167 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
         var count = EffectiveItemCount;
         if (count == 0 || index < 0 || index >= count) return;
         FocusedIndex = index;
+    }
+
+    // -------------------- Multi-select actions --------------------
+
+    /// <summary>
+    /// Toggle a specific index's membership in the checked set and set the
+    /// range-extension anchor to that index. Returns the new membership state.
+    /// </summary>
+    internal bool ToggleSelectionAt(int index)
+    {
+        if (index < 0 || index >= EffectiveItemCount) return false;
+        bool nowSelected;
+        if (_selectedIndices.Contains(index))
+        {
+            _selectedIndices.Remove(index);
+            nowSelected = false;
+        }
+        else
+        {
+            _selectedIndices.Add(index);
+            nowSelected = true;
+        }
+        _selectionAnchorIndex = index;
+        MarkDirty();
+        return nowSelected;
+    }
+
+    private void EnsureAnchor()
+    {
+        if (_selectionAnchorIndex < 0 || _selectionAnchorIndex >= EffectiveItemCount)
+        {
+            _selectionAnchorIndex = FocusedIndex >= 0 ? FocusedIndex : 0;
+        }
+    }
+
+    /// <summary>
+    /// Select the inclusive range between <see cref="_selectionAnchorIndex"/>
+    /// and <paramref name="toIndex"/>; rows outside the range retain their
+    /// prior membership.
+    /// </summary>
+    internal void ExtendSelectionTo(int toIndex)
+    {
+        var count = EffectiveItemCount;
+        if (count == 0) return;
+        EnsureAnchor();
+        toIndex = Math.Clamp(toIndex, 0, count - 1);
+        var lo = Math.Min(_selectionAnchorIndex, toIndex);
+        var hi = Math.Max(_selectionAnchorIndex, toIndex);
+        for (int i = lo; i <= hi; i++) _selectedIndices.Add(i);
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// Toggle "select all": if every row is already selected, clear the set;
+    /// otherwise add every row. Returns <c>true</c> when the result is "all
+    /// selected".
+    /// </summary>
+    internal bool ToggleSelectAll()
+    {
+        var count = EffectiveItemCount;
+        if (count == 0) return false;
+        if (_selectedIndices.Count == count)
+        {
+            _selectedIndices.Clear();
+            MarkDirty();
+            return false;
+        }
+        for (int i = 0; i < count; i++) _selectedIndices.Add(i);
+        MarkDirty();
+        return true;
+    }
+
+    private async Task ToggleSelectionWithEvent(InputBindingActionContext ctx)
+    {
+        if (!IsMultiSelectEnabled) return;
+        var idx = FocusedIndex;
+        if (idx < 0 || idx >= EffectiveItemCount) return;
+        var nowSelected = ToggleSelectionAt(idx);
+        if (SelectionChangedAction != null)
+        {
+            await EnsureFocusedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await SelectionChangedAction(ctx, idx, nowSelected, ListSelectionChangeReason.Toggle);
+        }
+    }
+
+    private async Task ExtendSelectionUpWithEvent(InputBindingActionContext ctx)
+    {
+        if (!IsMultiSelectEnabled) return;
+        MoveUp();
+        ExtendSelectionTo(FocusedIndex);
+        if (FocusChangedAction != null)
+        {
+            await EnsureFocusedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await FocusChangedAction(ctx);
+        }
+        if (SelectionChangedAction != null)
+        {
+            await SelectionChangedAction(ctx, FocusedIndex, true, ListSelectionChangeReason.ExtendRange);
+        }
+    }
+
+    private async Task ExtendSelectionDownWithEvent(InputBindingActionContext ctx)
+    {
+        if (!IsMultiSelectEnabled) return;
+        MoveDown();
+        ExtendSelectionTo(FocusedIndex);
+        if (FocusChangedAction != null)
+        {
+            await EnsureFocusedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await FocusChangedAction(ctx);
+        }
+        if (SelectionChangedAction != null)
+        {
+            await SelectionChangedAction(ctx, FocusedIndex, true, ListSelectionChangeReason.ExtendRange);
+        }
+    }
+
+    private async Task ExtendSelectionToFirstWithEvent(InputBindingActionContext ctx)
+    {
+        if (!IsMultiSelectEnabled) return;
+        MoveToFirst();
+        ExtendSelectionTo(FocusedIndex);
+        if (FocusChangedAction != null)
+        {
+            await EnsureFocusedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await FocusChangedAction(ctx);
+        }
+        if (SelectionChangedAction != null)
+        {
+            await SelectionChangedAction(ctx, FocusedIndex, true, ListSelectionChangeReason.ExtendRange);
+        }
+    }
+
+    private async Task ExtendSelectionToLastWithEvent(InputBindingActionContext ctx)
+    {
+        if (!IsMultiSelectEnabled) return;
+        MoveToLast();
+        ExtendSelectionTo(FocusedIndex);
+        if (FocusChangedAction != null)
+        {
+            await EnsureFocusedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await FocusChangedAction(ctx);
+        }
+        if (SelectionChangedAction != null)
+        {
+            await SelectionChangedAction(ctx, FocusedIndex, true, ListSelectionChangeReason.ExtendRange);
+        }
+    }
+
+    private async Task SelectAllWithEvent(InputBindingActionContext ctx)
+    {
+        if (!IsMultiSelectEnabled) return;
+        var nowAllSelected = ToggleSelectAll();
+        if (SelectionChangedAction != null)
+        {
+            await SelectionChangedAction(
+                ctx,
+                -1,
+                nowAllSelected,
+                nowAllSelected ? ListSelectionChangeReason.SelectAll : ListSelectionChangeReason.DeselectAll);
+        }
     }
 
     private void EnsureFocusVisible()
@@ -910,6 +1173,13 @@ internal static class ListRenderCore
         var visibleStart = node.ScrollOffset;
         var visibleEnd = Math.Min(node.ScrollOffset + node.VisibleItemCount, node.EffectiveItemCount);
 
+        // Multi-select glyph prefix (rendered between the cursor arrow and the
+        // item text). Empty string when multi-select is off so the layout
+        // remains unchanged for the common single-select case.
+        var multiSelect = node.IsMultiSelectEnabled;
+        var checkedGlyph = multiSelect ? theme.Get(ListTheme.CheckboxChecked) : string.Empty;
+        var uncheckedGlyph = multiSelect ? theme.Get(ListTheme.CheckboxUnchecked) : string.Empty;
+
         for (int i = visibleStart; i < visibleEnd; i++)
         {
             var item = node.TryGetEffectiveItem(i, out var value)
@@ -917,6 +1187,9 @@ internal static class ListRenderCore
                 : LoadingPlaceholder;
             var isSelected = i == node.FocusedIndex;
             var isHoveredItem = i == hoveredItemIndex;
+            var checkbox = multiSelect
+                ? (node.IsIndexSelected(i) ? checkedGlyph : uncheckedGlyph)
+                : string.Empty;
 
             var x = node.Bounds.X;
             var y = node.Bounds.Y + (i - node.ScrollOffset);
@@ -924,19 +1197,19 @@ internal static class ListRenderCore
             string text;
             if (isSelected && node.IsFocused)
             {
-                text = $"{selectedFg.ToForegroundAnsi()}{selectedBg.ToBackgroundAnsi()}{selectedIndicator}{item}{resetToGlobal}";
+                text = $"{selectedFg.ToForegroundAnsi()}{selectedBg.ToBackgroundAnsi()}{selectedIndicator}{checkbox}{item}{resetToGlobal}";
             }
             else if (isHoveredItem && !isSelected)
             {
-                text = $"{hoveredFg.ToForegroundAnsi()}{hoveredBg.ToBackgroundAnsi()}{unselectedIndicator}{item}{resetToGlobal}";
+                text = $"{hoveredFg.ToForegroundAnsi()}{hoveredBg.ToBackgroundAnsi()}{unselectedIndicator}{checkbox}{item}{resetToGlobal}";
             }
             else if (isSelected)
             {
-                text = $"{globalColors}{selectedIndicator}{item}{resetToGlobal}";
+                text = $"{globalColors}{selectedIndicator}{checkbox}{item}{resetToGlobal}";
             }
             else
             {
-                text = $"{globalColors}{unselectedIndicator}{item}{resetToGlobal}";
+                text = $"{globalColors}{unselectedIndicator}{checkbox}{item}{resetToGlobal}";
             }
 
             if (context.CurrentLayoutProvider != null)

@@ -144,4 +144,57 @@ public static class ListExtensions
         this ListWidget<T> widget,
         Func<ListItemActivatedEventArgs<T>, Task> handler)
         => widget with { ItemActivatedHandler = handler };
+
+    /// <summary>
+    /// Enables multi-select on this list. While enabled, Space toggles the
+    /// focused row, Shift+Up/Down/Home/End extend a range from the anchor,
+    /// and Ctrl+A selects (or deselects) all rows. The current checked set is
+    /// surfaced through <see cref="ListItemContext{T}.IsSelected"/> for custom
+    /// templates; the built-in renderer additionally draws a checkbox glyph in
+    /// front of each row.
+    /// </summary>
+    public static ListWidget<T> MultiSelect<T>(this ListWidget<T> widget)
+        => widget with { IsMultiSelectEnabled = true };
+
+    /// <summary>
+    /// Drives the multi-select checked set on every reconciliation
+    /// (controlled mode). The owning composite should hold this collection in
+    /// its own state and replace it inside <see cref="OnSelectionChanged{T}(ListWidget{T}, Action{ListSelectionChangedEventArgs{T}})"/>.
+    /// Indices outside the current item range are silently dropped.
+    /// </summary>
+    public static ListWidget<T> SelectedIndices<T>(
+        this ListWidget<T> widget,
+        IReadOnlyList<int> indices)
+        => widget with { SelectedIndices = indices };
+
+    /// <summary>
+    /// Seeds the multi-select checked set when the list is first created
+    /// (uncontrolled mode). Has no effect once the node already exists; use
+    /// <see cref="SelectedIndices{T}"/> for controlled state.
+    /// </summary>
+    public static ListWidget<T> InitialSelectedIndices<T>(
+        this ListWidget<T> widget,
+        IReadOnlyList<int> indices)
+        => widget with { InitialSelectedIndices = indices };
+
+    /// <summary>
+    /// Sets a synchronous handler invoked when the multi-select checked set
+    /// changes (toggle, range extend, or select-all). The event args expose
+    /// the full <c>SelectedIndices</c>/<c>SelectedItems</c> after the change,
+    /// the index whose state just flipped, and a <see cref="ListSelectionChangeReason"/>
+    /// distinguishing the trigger.
+    /// </summary>
+    public static ListWidget<T> OnSelectionChanged<T>(
+        this ListWidget<T> widget,
+        Action<ListSelectionChangedEventArgs<T>> handler)
+        => widget with { SelectionChangedHandler = args => { handler(args); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Sets an asynchronous handler invoked when the multi-select checked
+    /// set changes.
+    /// </summary>
+    public static ListWidget<T> OnSelectionChanged<T>(
+        this ListWidget<T> widget,
+        Func<ListSelectionChangedEventArgs<T>, Task> handler)
+        => widget with { SelectionChangedHandler = handler };
 }

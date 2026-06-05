@@ -55,7 +55,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 left.Text("FIGlet Fonts"),
                 left.Text("------------"),
                 left.List(fontNames)
-                    .OnSelectionChanged(e => selectedFontIdx = e.SelectedIndex)
+                    .OnFocusChanged(e => selectedFontIdx = e.FocusedIndex)
                     .OnItemActivated(e => selectedFontIdx = e.ActivatedIndex)
                     .FillHeight(),
             ]).FixedWidth(20),

@@ -153,10 +153,12 @@ public static class TableTheme
         new($"{nameof(TableTheme)}.{nameof(CheckboxUncheckedForeground)}", () => Hex1bColor.Default);
     
     /// <summary>
-    /// Foreground color for checked checkbox.
+    /// Foreground color for checked checkbox. Defaults to the surrounding row
+    /// foreground so the selection column blends with the row's theme; override
+    /// this element to introduce an accent colour for checked rows.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> CheckboxCheckedForeground = 
-        new($"{nameof(TableTheme)}.{nameof(CheckboxCheckedForeground)}", () => Hex1bColor.Green);
+        new($"{nameof(TableTheme)}.{nameof(CheckboxCheckedForeground)}", () => Hex1bColor.Default);
     
     /// <summary>
     /// Width of the selection column (including padding).

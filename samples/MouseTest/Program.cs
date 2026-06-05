@@ -126,9 +126,9 @@ Hex1bWidget BuildScenarioPanel(WidgetContext<VStackWidget> v)
             p.Text("Click an item or use arrow keys:"),
             p.Text(""),
             p.List(listItems)
-                .OnSelectionChanged(e => {
-                    selectedItem = e.SelectedText;
-                    lastAction = $"Selected: {e.SelectedText}";
+                .OnFocusChanged(e => {
+                    selectedItem = e.FocusedText;
+                    lastAction = $"Selected: {e.FocusedText}";
                 })
                 .OnItemActivated(e => {
                     lastAction = $"Activated: {e.ActivatedText}";
@@ -156,7 +156,7 @@ try
                         left.Text("Scenarios:"),
                         left.Text("──────────────"),
                         left.List(scenarios)
-                            .OnSelectionChanged(e => selectedScenario = e.SelectedIndex)
+                            .OnFocusChanged(e => selectedScenario = e.FocusedIndex)
                             .OnItemActivated(e => {
                                 selectedScenario = e.ActivatedIndex;
                                 clickCount++;

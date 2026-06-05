@@ -506,7 +506,7 @@ using var terminal = Hex1bTerminal.CreateBuilder()
                     v2.Text("└─────────────────┘"),
                     v2.Text(""),
                     v2.List(scenarios)
-                        .OnSelectionChanged(e => selectedScenario = e.SelectedIndex)
+                        .OnFocusChanged(e => selectedScenario = e.FocusedIndex)
                         .OnItemActivated(e => selectedScenario = e.ActivatedIndex)
                         .FillHeight(),
                     v2.Text(""),

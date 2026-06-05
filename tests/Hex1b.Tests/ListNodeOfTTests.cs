@@ -694,4 +694,225 @@ public class ListNodeOfTTests
     }
 
     #endregion
+
+    #region Multi-select
+
+    private static InputBindingActionContext NewBindingContext()
+        => new(new FocusRing(), null, default);
+
+    private static async Task<(ListNode<int> node, List<ListSelectionChangedEventArgs<int>> events)> CreateMultiSelectListAsync(
+        bool enableHandler = true,
+        IReadOnlyList<int>? controlled = null,
+        IReadOnlyList<int>? initial = null)
+    {
+        var events = new List<ListSelectionChangedEventArgs<int>>();
+        var widget = new ListWidget<int>(Enumerable.Range(0, 5).ToList())
+        {
+            IsMultiSelectEnabled = true,
+            SelectedIndices = controlled,
+            InitialSelectedIndices = initial,
+        };
+        if (enableHandler)
+        {
+            widget = widget with
+            {
+                SelectionChangedHandler = args =>
+                {
+                    events.Add(args);
+                    return Task.CompletedTask;
+                },
+            };
+        }
+        var ctx = ReconcileContext.CreateRoot();
+        var node = (ListNode<int>)await widget.ReconcileAsync(null, ctx);
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 20, 5));
+        node.IsFocused = true;
+        return (node, events);
+    }
+
+    [TestMethod]
+    public async Task MultiSelect_Disabled_SpaceActivatesInsteadOfToggling()
+    {
+        var widget = new ListWidget<int>([1, 2, 3]);
+        var ctx = ReconcileContext.CreateRoot();
+        var node = (ListNode<int>)await widget.ReconcileAsync(null, ctx);
+        node.Arrange(new Rect(0, 0, 20, 3));
+
+        Assert.IsFalse(node.IsMultiSelectEnabled);
+        Assert.AreEqual(0, node.SelectedIndices.Count);
+    }
+
+    [TestMethod]
+    public async Task MultiSelect_Enabled_SpaceTogglesFocusedRow()
+    {
+        var (node, events) = await CreateMultiSelectListAsync();
+        node.FocusedIndex = 2;
+
+        var binding = node.BuildBindings().Bindings
+            .First(b => b.FirstStep.Key == Hex1bKey.Spacebar);
+        await binding.ExecuteAsync(NewBindingContext());
+
+        TestSeq.AreEqual(new[] { 2 }, node.SelectedIndicesSnapshot);
+        Assert.AreEqual(1, events.Count);
+        Assert.AreEqual(ListSelectionChangeReason.Toggle, events[0].Reason);
+        Assert.AreEqual(2, events[0].ToggledIndex);
+        Assert.IsTrue(events[0].IsSelected);
+
+        // Second press deselects.
+        await binding.ExecuteAsync(NewBindingContext());
+        Assert.AreEqual(0, node.SelectedIndicesSnapshot.Count);
+        Assert.AreEqual(2, events.Count);
+        Assert.IsFalse(events[1].IsSelected);
+    }
+
+    [TestMethod]
+    public async Task MultiSelect_ShiftDownArrow_ExtendsRangeFromAnchor()
+    {
+        var (node, events) = await CreateMultiSelectListAsync();
+        node.FocusedIndex = 1;
+
+        // Anchor at row 1.
+        await node.BuildBindings().Bindings
+            .First(b => b.FirstStep.Key == Hex1bKey.Spacebar)
+            .ExecuteAsync(NewBindingContext());
+
+        var shiftDown = node.BuildBindings().Bindings
+            .First(b => b.FirstStep.Key == Hex1bKey.DownArrow && b.FirstStep.Modifiers.HasFlag(Hex1bModifiers.Shift));
+        await shiftDown.ExecuteAsync(NewBindingContext()); // anchor=1, cursor→2 — select [1,2]
+        await shiftDown.ExecuteAsync(NewBindingContext()); // cursor→3 — select [1,2,3]
+
+        TestSeq.AreEqual(new[] { 1, 2, 3 }, node.SelectedIndicesSnapshot);
+        Assert.AreEqual(ListSelectionChangeReason.ExtendRange, events.Last().Reason);
+    }
+
+    [TestMethod]
+    public async Task MultiSelect_CtrlA_SelectsAll_ThenTogglesToDeselectAll()
+    {
+        var (node, events) = await CreateMultiSelectListAsync();
+
+        var ctrlA = node.BuildBindings().Bindings
+            .First(b => b.FirstStep.Key == Hex1bKey.A && b.FirstStep.Modifiers.HasFlag(Hex1bModifiers.Control));
+
+        await ctrlA.ExecuteAsync(NewBindingContext());
+        TestSeq.AreEqual(new[] { 0, 1, 2, 3, 4 }, node.SelectedIndicesSnapshot);
+        Assert.AreEqual(ListSelectionChangeReason.SelectAll, events[0].Reason);
+
+        await ctrlA.ExecuteAsync(NewBindingContext());
+        Assert.AreEqual(0, node.SelectedIndicesSnapshot.Count);
+        Assert.AreEqual(ListSelectionChangeReason.DeselectAll, events[1].Reason);
+    }
+
+    [TestMethod]
+    public async Task MultiSelect_Controlled_WidgetPropOverridesInternalState()
+    {
+        var widget = new ListWidget<int>([0, 1, 2, 3, 4])
+        {
+            IsMultiSelectEnabled = true,
+            SelectedIndices = new[] { 1, 3 },
+        };
+        var ctx = ReconcileContext.CreateRoot();
+        var node = (ListNode<int>)await widget.ReconcileAsync(null, ctx);
+
+        TestSeq.AreEqual(new[] { 1, 3 }, node.SelectedIndicesSnapshot);
+
+        // Re-reconcile with a new controlled set — node state mirrors it.
+        var widget2 = widget with { SelectedIndices = new[] { 0, 4 } };
+        await widget2.ReconcileAsync(node, ctx);
+        TestSeq.AreEqual(new[] { 0, 4 }, node.SelectedIndicesSnapshot);
+    }
+
+    [TestMethod]
+    public async Task MultiSelect_Uncontrolled_InitialSelectedIndicesSeedsOnce()
+    {
+        var (node, _) = await CreateMultiSelectListAsync(initial: new[] { 1, 2 });
+        TestSeq.AreEqual(new[] { 1, 2 }, node.SelectedIndicesSnapshot);
+
+        // Reconcile again with the same uncontrolled widget — initial doesn't reseed.
+        node.FocusedIndex = 4;
+        var widget = new ListWidget<int>(Enumerable.Range(0, 5).ToList())
+        {
+            IsMultiSelectEnabled = true,
+            InitialSelectedIndices = new[] { 1, 2 },
+        };
+        await widget.ReconcileAsync(node, ReconcileContext.CreateRoot());
+        TestSeq.AreEqual(new[] { 1, 2 }, node.SelectedIndicesSnapshot);
+    }
+
+    [TestMethod]
+    public async Task MultiSelect_TurnedOff_ClearsCheckedSet()
+    {
+        var widget = new ListWidget<int>([0, 1, 2])
+        {
+            IsMultiSelectEnabled = true,
+            SelectedIndices = new[] { 0, 2 },
+        };
+        var ctx = ReconcileContext.CreateRoot();
+        var node = (ListNode<int>)await widget.ReconcileAsync(null, ctx);
+        Assert.AreEqual(2, node.SelectedIndicesSnapshot.Count);
+
+        var single = new ListWidget<int>([0, 1, 2]);
+        await single.ReconcileAsync(node, ctx);
+
+        Assert.IsFalse(node.IsMultiSelectEnabled);
+        Assert.AreEqual(0, node.SelectedIndicesSnapshot.Count);
+    }
+
+    [TestMethod]
+    public async Task ItemContext_MultiSelectEnabled_IsSelectedReflectsCheckedSet()
+    {
+        var contexts = new List<ListItemContext<int>>();
+        var widget = new ListWidget<int>([10, 20, 30])
+        {
+            IsMultiSelectEnabled = true,
+            SelectedIndices = new[] { 0, 2 },
+            Template = c => { contexts.Add(c); return new TextBlockWidget(c.Item.ToString()); },
+        };
+        var ctx = ReconcileContext.CreateRoot();
+        var node = (ListNode<int>)await widget.ReconcileAsync(null, ctx);
+        node.Arrange(new Rect(0, 0, 10, 3));
+
+        Assert.AreEqual(3, contexts.Count);
+        Assert.IsTrue(contexts[0].IsSelected);
+        Assert.IsFalse(contexts[1].IsSelected);
+        Assert.IsTrue(contexts[2].IsSelected);
+    }
+
+    [TestMethod]
+    public async Task ItemContext_FocusedRow_IsFocusedTrueIndependentOfChecked()
+    {
+        var contexts = new List<ListItemContext<int>>();
+        var widget = new ListWidget<int>([10, 20, 30])
+        {
+            IsMultiSelectEnabled = true,
+            InitialFocusedIndex = 1,
+            SelectedIndices = new[] { 0 },
+            Template = c => { contexts.Add(c); return new TextBlockWidget(c.Item.ToString()); },
+        };
+        var ctx = ReconcileContext.CreateRoot();
+        await widget.ReconcileAsync(null, ctx);
+
+        // Row 1 is the cursor but not in the checked set.
+        Assert.IsTrue(contexts[1].IsFocused);
+        Assert.IsFalse(contexts[1].IsSelected);
+        // Row 0 is in the checked set but not the cursor.
+        Assert.IsFalse(contexts[0].IsFocused);
+        Assert.IsTrue(contexts[0].IsSelected);
+    }
+
+    [TestMethod]
+    public async Task MultiSelect_NotEnabled_IsSelectedAlwaysFalseInTemplate()
+    {
+        var contexts = new List<ListItemContext<int>>();
+        var widget = new ListWidget<int>([10, 20, 30])
+        {
+            Template = c => { contexts.Add(c); return new TextBlockWidget(c.Item.ToString()); },
+        };
+        var ctx = ReconcileContext.CreateRoot();
+        await widget.ReconcileAsync(null, ctx);
+
+        Assert.IsTrue(contexts.All(c => !c.IsSelected));
+    }
+
+    #endregion
 }
