@@ -202,6 +202,18 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
     public int InitialFocusedIndex { get; init; } = 0;
 
     /// <summary>
+    /// Legacy alias for <see cref="InitialFocusedIndex"/>. Kept source-compatible
+    /// with pre-multi-select code that used <c>InitialSelectedIndex</c>; both
+    /// names target the same backing field.
+    /// </summary>
+    [Obsolete("Use InitialFocusedIndex instead. This alias exists for source compatibility and will be removed in a future release.")]
+    public int InitialSelectedIndex
+    {
+        get => InitialFocusedIndex;
+        init => InitialFocusedIndex = value;
+    }
+
+    /// <summary>
     /// When set, drives the focused index on every reconciliation rather than only
     /// at creation time. Use this to build "controlled" lists whose cursor lives
     /// in an owning composite's state (e.g. a search-filtered selection prompt where
@@ -441,7 +453,31 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
                     node.TryGetEffectiveItem(node.FocusedIndex, out var item))
                 {
                     var args = new ListFocusChangedEventArgs<T>(this, node, ctx, node.FocusedIndex, item);
-                    return focChanged(args);
+                    var result = focChanged(args);
+                    // Also fire SelectionChangedHandler in single-select mode for
+                    // source-compat with pre-multi-select OnSelectionChanged subscribers.
+                    if (!IsMultiSelectEnabled && SelectionChangedHandler is { } sel)
+                    {
+                        var selArgs = new ListSelectionChangedEventArgs<T>(this, node, ctx, node.FocusedIndex, item);
+                        return WhenAll(result, sel(selArgs));
+                    }
+                    return result;
+                }
+                return Task.CompletedTask;
+            };
+        }
+        else if (!IsMultiSelectEnabled && SelectionChangedHandler is { } selCursorOnly)
+        {
+            // No OnFocusChanged subscriber, but a legacy OnSelectionChanged
+            // subscriber exists on a single-select list — fire it as a cursor
+            // change.
+            node.FocusChangedAction = ctx =>
+            {
+                if (node.FocusedIndex >= 0 && node.FocusedIndex < node.EffectiveItemCount &&
+                    node.TryGetEffectiveItem(node.FocusedIndex, out var item))
+                {
+                    var selArgs = new ListSelectionChangedEventArgs<T>(this, node, ctx, node.FocusedIndex, item);
+                    return selCursorOnly(selArgs);
                 }
                 return Task.CompletedTask;
             };
@@ -469,7 +505,10 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
             node.ItemActivatedAction = null;
         }
 
-        if (SelectionChangedHandler is { } selChanged)
+        // SelectionChangedHandler's multi-select wiring is only active when
+        // multi-select is enabled. In single-select mode it's routed through
+        // FocusChangedAction above for source-compat with legacy callers.
+        if (IsMultiSelectEnabled && SelectionChangedHandler is { } selChanged)
         {
             node.SelectionChangedAction = (ctx, toggledIndex, isSelected, reason) =>
             {
@@ -489,6 +528,12 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
         {
             node.SelectionChangedAction = null;
         }
+    }
+
+    private static Task WhenAll(Task a, Task b)
+    {
+        if (a.IsCompletedSuccessfully && b.IsCompletedSuccessfully) return Task.CompletedTask;
+        return Task.WhenAll(a, b);
     }
 
     private protected async Task ReconcileItemNodesAsync(ListNode<T> node, ReconcileContext context)

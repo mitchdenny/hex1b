@@ -45,22 +45,51 @@ public sealed class ListSelectionChangedEventArgs : WidgetEventArgs<ListWidget, 
 /// <typeparam name="T">The item type of the list.</typeparam>
 public sealed class ListSelectionChangedEventArgs<T> : WidgetEventArgs<ListWidget<T>, ListNode<T>>
 {
+    private readonly bool _isMultiSelect;
+    private readonly int _cursorIndex;
+    private readonly T? _cursorItem;
+
+    /// <summary>
+    /// True when this event was raised from a multi-select list
+    /// (<c>widget.MultiSelect()</c>). When <c>false</c>, the event reflects a
+    /// cursor move and only the scalar accessors
+    /// (<see cref="SelectedIndex"/>, <see cref="SelectedItem"/>,
+    /// <see cref="SelectedText"/>) are valid; <see cref="SelectedIndices"/>
+    /// and friends throw.
+    /// </summary>
+    public bool IsMultiSelect => _isMultiSelect;
+
     /// <summary>
     /// The full checked set after this change, in ascending index order.
+    /// Only valid when <see cref="IsMultiSelect"/> is <c>true</c>; throws
+    /// otherwise.
     /// </summary>
-    public IReadOnlyList<int> SelectedIndices { get; }
+    public IReadOnlyList<int> SelectedIndices
+        => _isMultiSelect
+            ? _selectedIndices!
+            : throw new InvalidOperationException(
+                "SelectedIndices is only valid in multi-select mode. " +
+                "Enable multi-select on the list with .MultiSelect() or use the scalar accessors (SelectedIndex/SelectedItem/SelectedText).");
 
     /// <summary>
     /// Materialised items for the indices in <see cref="SelectedIndices"/>.
     /// In virtualized mode, items that are not yet loaded are skipped —
     /// always cross-reference via <see cref="SelectedIndices"/>.Count when
-    /// you need an authoritative count.
+    /// you need an authoritative count. Only valid when
+    /// <see cref="IsMultiSelect"/> is <c>true</c>; throws otherwise.
     /// </summary>
-    public IReadOnlyList<T> SelectedItems { get; }
+    public IReadOnlyList<T> SelectedItems
+        => _isMultiSelect
+            ? _selectedItems!
+            : throw new InvalidOperationException(
+                "SelectedItems is only valid in multi-select mode. " +
+                "Enable multi-select on the list with .MultiSelect() or use the scalar accessors.");
 
     /// <summary>
-    /// The zero-based index of the row whose state just changed, or <c>-1</c>
-    /// when the change affected every row (<see cref="ListSelectionChangeReason.SelectAll"/>,
+    /// The zero-based index of the row whose state just changed (multi-select)
+    /// or the cursor row (single-select).
+    /// In multi-select mode this is <c>-1</c> when the change affected every
+    /// row (<see cref="ListSelectionChangeReason.SelectAll"/>,
     /// <see cref="ListSelectionChangeReason.DeselectAll"/>, or
     /// <see cref="ListSelectionChangeReason.Programmatic"/>).
     /// </summary>
@@ -79,12 +108,60 @@ public sealed class ListSelectionChangedEventArgs<T> : WidgetEventArgs<ListWidge
     /// for <see cref="ListSelectionChangeReason.DeselectAll"/> and
     /// <see cref="ListSelectionChangeReason.Programmatic"/> the value reflects
     /// whether the post-change set is non-empty.
+    /// In single-select (cursor) events this is always <c>true</c>.
     /// </summary>
     public bool IsSelected { get; }
 
     /// <summary>What caused the selection set to change.</summary>
     public ListSelectionChangeReason Reason { get; }
 
+    // -------------------- Legacy scalar accessors --------------------
+    // Pre-multi-select OnSelectionChanged fired on cursor moves and exposed
+    // these. Kept source-compatible by returning the cursor row when the list
+    // is in single-select mode; throw in multi-select so callers don't silently
+    // misread the meaning.
+
+    /// <summary>
+    /// The index of the currently focused (cursor) row. Source-compatible
+    /// with the pre-multi-select event shape — throws when the list is in
+    /// multi-select mode (use <see cref="SelectedIndices"/> there).
+    /// </summary>
+    public int SelectedIndex
+        => _isMultiSelect
+            ? throw new InvalidOperationException(
+                "SelectedIndex is ambiguous in multi-select mode. Use SelectedIndices, ToggledIndex, or subscribe to OnFocusChanged for cursor moves.")
+            : _cursorIndex;
+
+    /// <summary>
+    /// The item at the currently focused (cursor) row. Source-compatible
+    /// with the pre-multi-select event shape — throws when the list is in
+    /// multi-select mode (use <see cref="SelectedItems"/> there).
+    /// </summary>
+    public T? SelectedItem
+        => _isMultiSelect
+            ? throw new InvalidOperationException(
+                "SelectedItem is ambiguous in multi-select mode. Use SelectedItems, ToggledItem, or subscribe to OnFocusChanged for cursor moves.")
+            : _cursorItem;
+
+    /// <summary>
+    /// The string form of the focused (cursor) row's item (via
+    /// <see cref="object.ToString"/>; empty string for <c>null</c>).
+    /// Source-compatible with the pre-multi-select event shape — throws when
+    /// the list is in multi-select mode.
+    /// </summary>
+    public string SelectedText
+        => _isMultiSelect
+            ? throw new InvalidOperationException(
+                "SelectedText is ambiguous in multi-select mode. Project SelectedItems through .ToString() yourself, or subscribe to OnFocusChanged for cursor moves.")
+            : _cursorItem?.ToString() ?? string.Empty;
+
+    private readonly IReadOnlyList<int>? _selectedIndices;
+    private readonly IReadOnlyList<T>? _selectedItems;
+
+    /// <summary>
+    /// Multi-select constructor — used when the checked set changes via
+    /// Toggle / ExtendRange / SelectAll / DeselectAll / Programmatic.
+    /// </summary>
     public ListSelectionChangedEventArgs(
         ListWidget<T> widget,
         ListNode<T> node,
@@ -97,11 +174,38 @@ public sealed class ListSelectionChangedEventArgs<T> : WidgetEventArgs<ListWidge
         ListSelectionChangeReason reason)
         : base(widget, node, context)
     {
-        SelectedIndices = selectedIndices;
-        SelectedItems = selectedItems;
+        _isMultiSelect = true;
+        _selectedIndices = selectedIndices;
+        _selectedItems = selectedItems;
         ToggledIndex = toggledIndex;
         ToggledItem = toggledItem;
         IsSelected = isSelected;
         Reason = reason;
+        _cursorIndex = toggledIndex;
+        _cursorItem = toggledItem;
+    }
+
+    /// <summary>
+    /// Single-select constructor — used when the cursor moves on a list that
+    /// has not opted in to <c>.MultiSelect()</c>. Source-compatibility shim
+    /// so existing <c>OnSelectionChanged</c> subscribers keep firing on
+    /// cursor moves as they did pre-multi-select. The scalar accessors are
+    /// the only valid surface on this shape.
+    /// </summary>
+    public ListSelectionChangedEventArgs(
+        ListWidget<T> widget,
+        ListNode<T> node,
+        InputBindingActionContext context,
+        int cursorIndex,
+        T? cursorItem)
+        : base(widget, node, context)
+    {
+        _isMultiSelect = false;
+        _cursorIndex = cursorIndex;
+        _cursorItem = cursorItem;
+        ToggledIndex = cursorIndex;
+        ToggledItem = cursorItem;
+        IsSelected = true;
+        Reason = ListSelectionChangeReason.Programmatic;
     }
 }

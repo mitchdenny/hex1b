@@ -914,5 +914,89 @@ public class ListNodeOfTTests
         Assert.IsTrue(contexts.All(c => !c.IsSelected));
     }
 
+    [TestMethod]
+    public async Task SingleSelect_OnSelectionChanged_FiresOnCursorMove_LegacyCompat()
+    {
+        // Source-compat: pre-multi-select code that subscribes to
+        // OnSelectionChanged on a vanilla (no .MultiSelect()) list still
+        // receives an event every time the cursor moves.
+        var events = new List<ListSelectionChangedEventArgs<string>>();
+        var widget = new ListWidget<string>(["alpha", "beta", "gamma"])
+            .OnSelectionChanged(e => events.Add(e));
+
+        var ctx = ReconcileContext.CreateRoot();
+        var node = (ListNode<string>)await widget.ReconcileAsync(null, ctx);
+        node.Arrange(new Rect(0, 0, 20, 3));
+
+        var down = node.BuildBindings().Bindings.First(b => b.FirstStep.Key == Hex1bKey.DownArrow);
+        await down.ExecuteAsync(NewBindingContext());
+
+        Assert.AreEqual(1, events.Count);
+        Assert.IsFalse(events[0].IsMultiSelect);
+        Assert.AreEqual(1, events[0].SelectedIndex);
+        Assert.AreEqual("beta", events[0].SelectedItem);
+        Assert.AreEqual("beta", events[0].SelectedText);
+    }
+
+    [TestMethod]
+    public async Task SingleSelect_OnSelectionChanged_PluralAccessorsThrow()
+    {
+        var caught = false;
+        var widget = new ListWidget<string>(["a", "b"])
+            .OnSelectionChanged(e =>
+            {
+                try { _ = e.SelectedIndices; }
+                catch (InvalidOperationException) { caught = true; }
+            });
+        var ctx = ReconcileContext.CreateRoot();
+        var node = (ListNode<string>)await widget.ReconcileAsync(null, ctx);
+        node.Arrange(new Rect(0, 0, 20, 2));
+
+        var down = node.BuildBindings().Bindings.First(b => b.FirstStep.Key == Hex1bKey.DownArrow);
+        await down.ExecuteAsync(NewBindingContext());
+
+        Assert.IsTrue(caught, "SelectedIndices should throw in single-select mode.");
+    }
+
+    [TestMethod]
+    public async Task MultiSelect_OnSelectionChanged_ScalarAccessorsThrow()
+    {
+        var caught = 0;
+        var (node, _) = await CreateMultiSelectListAsync(enableHandler: false);
+        var widget = new ListWidget<int>(Enumerable.Range(0, 5).ToList())
+            .MultiSelect()
+            .OnSelectionChanged(e =>
+            {
+                try { _ = e.SelectedIndex; } catch (InvalidOperationException) { caught++; }
+                try { _ = e.SelectedItem; }  catch (InvalidOperationException) { caught++; }
+                try { _ = e.SelectedText; }  catch (InvalidOperationException) { caught++; }
+            });
+        var ctx = ReconcileContext.CreateRoot();
+        var n = (ListNode<int>)await widget.ReconcileAsync(null, ctx);
+        n.Arrange(new Rect(0, 0, 20, 5));
+        n.IsFocused = true;
+
+        var space = n.BuildBindings().Bindings.First(b => b.FirstStep.Key == Hex1bKey.Spacebar);
+        await space.ExecuteAsync(NewBindingContext());
+
+        Assert.AreEqual(3, caught);
+    }
+
+    [TestMethod]
+    public async Task LegacyInitialSelectedIndex_AliasesInitialFocusedIndex()
+    {
+        // Pre-rename code used `with { InitialSelectedIndex = N }`.
+#pragma warning disable CS0618 // intentional use of obsolete alias
+        var widget = new ListWidget<int>([10, 20, 30, 40])
+        {
+            InitialSelectedIndex = 2,
+        };
+#pragma warning restore CS0618
+        var ctx = ReconcileContext.CreateRoot();
+        var node = (ListNode<int>)await widget.ReconcileAsync(null, ctx);
+
+        Assert.AreEqual(2, node.FocusedIndex);
+    }
+
     #endregion
 }
