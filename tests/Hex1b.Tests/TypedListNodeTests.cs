@@ -200,7 +200,7 @@ public class TypedListNodeTests
         };
 
         using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(ctx.TypedList(items)),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)),
             new Hex1bAppOptions { WorkloadAdapter = workload });
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
@@ -236,7 +236,7 @@ public class TypedListNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.TypedList(items)
+                ctx.List(items)
                     .ItemTemplate(context =>
                     {
                         var prefix = context.IsSelected ? "* " : "  ";
@@ -283,7 +283,7 @@ public class TypedListNodeTests
 
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
-                ctx.TypedList(items)
+                ctx.List(items)
                     .OnSelectionChanged((ListSelectionChangedEventArgs<Country> args) =>
                     {
                         received = args.SelectedItem;

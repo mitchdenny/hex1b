@@ -10,26 +10,6 @@ using Hex1b.Widgets;
 public static class TypedListExtensions
 {
     /// <summary>
-    /// Creates a typed list bound to <paramref name="items"/>. Use
-    /// <see cref="ItemTemplate{T}"/> to render each row as a custom widget tree.
-    /// </summary>
-    /// <remarks>
-    /// Prefer <see cref="ListExtensions.List{TParent,T}"/>; this entry point is
-    /// retained for back-compat with code that called <c>TypedList(...)</c>
-    /// before the rename.
-    /// </remarks>
-    [Obsolete(
-        "TypedList(...) was renamed. Use List<T>(...) (via context.List(items)) " +
-        "instead; it returns the same ListWidget<T>.",
-        DiagnosticId = "HEX1B0101",
-        UrlFormat = "https://github.com/mitchdenny/hex1b/blob/main/docs/diagnostics/{0}.md")]
-    public static ListWidget<T> TypedList<TParent, T>(
-        this WidgetContext<TParent> context,
-        IReadOnlyList<T> items)
-        where TParent : Hex1bWidget
-        => new(items);
-
-    /// <summary>
     /// Sets the per-row template used to render each item. The list itself stops
     /// drawing the selector and selected/hover background — the template owns all
     /// row chrome and styles itself from <see cref="ListItemContext{T}"/>.

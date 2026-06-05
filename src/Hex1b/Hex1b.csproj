@@ -38,7 +38,7 @@
     
     <!-- Additional Package Settings -->
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <NoWarn>$(NoWarn);CS1591;HEX1B0100;HEX1B0101</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;HEX1B0100</NoWarn>
 
     <!--
       Public-surface validation. PackageValidationBaselineVersion lives in the

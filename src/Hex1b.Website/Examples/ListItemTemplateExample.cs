@@ -41,7 +41,7 @@ public class ListItemTemplateExample(ILogger<ListItemTemplateExample> logger) : 
         {
             var ctx = new RootContext();
             return ctx.Border(b => [
-                b.TypedList(countries)
+                b.List(countries)
                     .ItemHeight(2)
                     .ItemKey(c => c.Name)
                     .ItemTemplate(context =>
