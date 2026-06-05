@@ -4,47 +4,46 @@ using System.Diagnostics;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Custom TestMethod attribute that skips Unix PTY exploratory tests on Windows
+/// Condition attribute that skips Unix PTY exploratory tests on Windows
 /// or when the required shell/tool is unavailable.
 /// </summary>
-public sealed class UnixPtyFactAttribute : TestMethodAttribute
+public sealed class UnixPtyConditionAttribute : ConditionBaseAttribute
 {
     private static readonly bool s_bashAvailable = CheckCommandAvailable("bash", "--version");
     private static readonly bool s_nanoAvailable = CheckCommandAvailable("nano", "--version");
 
-    private readonly string? _skipReason;
+    private readonly bool _isConditionMet;
 
-    public UnixPtyFactAttribute(bool requiresNano = false)
+    public UnixPtyConditionAttribute(bool requiresNano = false)
+        : base(ConditionMode.Include)
+    {
+        var skipReason = ComputeSkipReason(requiresNano);
+        _isConditionMet = skipReason is null;
+        IgnoreMessage = skipReason;
+    }
+
+    public override bool IsConditionMet => _isConditionMet;
+
+    public override string GroupName => nameof(UnixPtyConditionAttribute);
+
+    private static string? ComputeSkipReason(bool requiresNano)
     {
         if (OperatingSystem.IsWindows())
         {
-            _skipReason = "Requires Unix PTY behavior; skip on Windows.";
-            return;
+            return "Requires Unix PTY behavior; skip on Windows.";
         }
 
         if (!s_bashAvailable)
         {
-            _skipReason = "bash is not available on this machine.";
-            return;
+            return "bash is not available on this machine.";
         }
 
         if (requiresNano && !s_nanoAvailable)
         {
-            _skipReason = "nano is not available on this machine.";
+            return "nano is not available on this machine.";
         }
-    }
 
-    public override Task<TestResult[]> ExecuteAsync(ITestMethod testMethod)
-    {
-        if (_skipReason is not null)
-        {
-            return Task.FromResult<TestResult[]>([new TestResult
-            {
-                Outcome = UnitTestOutcome.Inconclusive,
-                TestFailureException = new AssertInconclusiveException(_skipReason),
-            }]);
-        }
-        return base.ExecuteAsync(testMethod);
+        return null;
     }
 
     private static bool CheckCommandAvailable(string command, string versionArg)
@@ -419,7 +418,8 @@ public class NanoExploratoryTests
     /// PTY test: Use printf to test escape sequence handling through the PTY pipeline.
     /// This tests if the full PTY -> Hex1bTerminal -> TerminalWidgetHandle pipeline works.
     /// </summary>
-    [UnixPtyFact]
+    [TestMethod]
+    [UnixPtyCondition]
     public async Task Pty_Printf_RendersCorrectly()
     {
         // Arrange
@@ -475,7 +475,8 @@ public class NanoExploratoryTests
     /// <summary>
     /// PTY test: Nano buffer content diagnostic.
     /// </summary>
-    [UnixPtyFact(true)]
+    [TestMethod]
+    [UnixPtyCondition(true)]
     public async Task Nano_BufferContent_Diagnostic()
     {
         // Arrange

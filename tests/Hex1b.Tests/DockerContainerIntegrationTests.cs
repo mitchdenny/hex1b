@@ -3,28 +3,21 @@ using Hex1b.Automation;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Custom TestMethod attribute that marks a test inconclusive when Docker with Linux containers is not available.
+/// Condition attribute that skips a test when Docker with Linux containers is not available.
 /// </summary>
-public sealed class DockerAvailableFactAttribute : TestMethodAttribute
+public sealed class DockerAvailableConditionAttribute : ConditionBaseAttribute
 {
     private static readonly string? s_skipReason = GetSkipReason();
 
-    public DockerAvailableFactAttribute()
+    public DockerAvailableConditionAttribute()
+        : base(ConditionMode.Include)
     {
+        IgnoreMessage = s_skipReason;
     }
 
-    public override Task<TestResult[]> ExecuteAsync(ITestMethod testMethod)
-    {
-        if (s_skipReason is not null)
-        {
-            return Task.FromResult<TestResult[]>([new TestResult
-            {
-                Outcome = UnitTestOutcome.Inconclusive,
-                TestFailureException = new AssertInconclusiveException(s_skipReason),
-            }]);
-        }
-        return base.ExecuteAsync(testMethod);
-    }
+    public override bool IsConditionMet => s_skipReason is null;
+
+    public override string GroupName => nameof(DockerAvailableConditionAttribute);
 
     private static string? GetSkipReason()
     {
@@ -87,9 +80,11 @@ public sealed class DockerAvailableFactAttribute : TestMethodAttribute
     }
 }
 
+[TestClass]
 public class DockerContainerIntegrationTests
 {
-    [DockerAvailableFact]
+    [TestMethod]
+    [DockerAvailableCondition]
     public async Task WithDockerContainer_RunsShellInContainer()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -127,7 +122,8 @@ public class DockerContainerIntegrationTests
         await runTask;
     }
 
-    [DockerAvailableFact]
+    [TestMethod]
+    [DockerAvailableCondition]
     public async Task WithDockerContainer_EnvironmentVariablesPassedToContainer()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -165,7 +161,8 @@ public class DockerContainerIntegrationTests
         await runTask;
     }
 
-    [DockerAvailableFact]
+    [TestMethod]
+    [DockerAvailableCondition]
     public async Task WithDockerContainer_ContainerRemovedAfterDispose()
     {
         string containerName = $"hex1b-test-dispose-{Guid.NewGuid():N}"[..32];
@@ -211,7 +208,8 @@ public class DockerContainerIntegrationTests
         Assert.DoesNotContain(containerName, output);
     }
 
-    [DockerAvailableFact]
+    [TestMethod]
+    [DockerAvailableCondition]
     public async Task WithDockerContainer_DefaultOptions_UsesDefaultImage()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
