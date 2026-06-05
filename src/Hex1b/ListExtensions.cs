@@ -10,8 +10,11 @@ using Hex1b.Widgets;
 public static class ListExtensions
 {
     /// <summary>
-    /// Creates a typed list bound to <paramref name="items"/>. Use
-    /// <see cref="ItemTemplate{T}"/> to render each row as a custom widget tree.
+    /// Creates a typed list bound to <paramref name="items"/>. Pass <c>null</c>
+    /// to construct an empty list (useful when the items will be supplied later
+    /// via <see cref="DataSource{T}(ListWidget{T}, IListDataSource{T})"/> or
+    /// while a parent composite is still resolving its data).
+    /// Use <see cref="ItemTemplate{T}"/> to render each row as a custom widget tree.
     /// </summary>
     /// <remarks>
     /// The non-generic <c>ListWidget</c> previously returned here has been
@@ -22,11 +25,44 @@ public static class ListExtensions
     /// available for direct construction (<c>new ListWidget(items)</c>) but
     /// is marked obsolete.
     /// </remarks>
+    public static ListWidget<T> List<T>(
+        this RootContext context,
+        IReadOnlyList<T>? items)
+        => new(items);
+
+    /// <summary>
+    /// Creates a typed list bound to <paramref name="items"/>. Pass <c>null</c>
+    /// to construct an empty list. Use <see cref="ItemTemplate{T}"/> to render
+    /// each row as a custom widget tree.
+    /// </summary>
     public static ListWidget<T> List<TParent, T>(
         this WidgetContext<TParent> context,
-        IReadOnlyList<T> items)
+        IReadOnlyList<T>? items)
         where TParent : Hex1bWidget
         => new(items);
+
+    /// <summary>
+    /// Creates a virtualized typed list bound to an
+    /// <see cref="IListDataSource{T}"/>. The node fetches only a window of items
+    /// around the visible viewport on each frame and re-fetches when the user
+    /// scrolls or the source raises
+    /// <see cref="System.Collections.Specialized.INotifyCollectionChanged"/>.
+    /// </summary>
+    public static ListWidget<T> List<T>(
+        this RootContext context,
+        IListDataSource<T> dataSource)
+        => new(null) { DataSource = dataSource };
+
+    /// <summary>
+    /// Creates a virtualized typed list bound to an
+    /// <see cref="IListDataSource{T}"/>. See the <see cref="RootContext"/>
+    /// overload for details.
+    /// </summary>
+    public static ListWidget<T> List<TParent, T>(
+        this WidgetContext<TParent> context,
+        IListDataSource<T> dataSource)
+        where TParent : Hex1bWidget
+        => new(null) { DataSource = dataSource };
 
     /// <summary>
     /// Sets the per-row template used to render each item. The list itself stops

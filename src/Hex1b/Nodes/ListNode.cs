@@ -210,6 +210,34 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
     internal int ItemNodesWindowStart { get; set; } = 0;
 
     /// <summary>
+    /// Optional builder for an "empty state" widget rendered in place of the
+    /// list contents when the list is genuinely empty after data has loaded.
+    /// Wired by <see cref="ListWidget{T}.Empty(Func{RootContext, Hex1bWidget})"/>.
+    /// </summary>
+    internal Func<RootContext, Hex1bWidget>? EmptyBuilder { get; set; }
+
+    /// <summary>
+    /// Reconciled child node for the empty-state widget. Owned by the widget's
+    /// reconcile pass; <c>null</c> when no empty builder is set or while data is
+    /// still loading.
+    /// </summary>
+    internal Hex1bNode? EmptyChildNode { get; set; }
+
+    /// <summary>
+    /// True once the item count is known (always true for in-memory lists; for
+    /// virtualized sources, true after the first <see cref="LoadDataAsync"/>
+    /// completes). Used to gate the empty-state widget so it doesn't flash
+    /// while a data source is still resolving.
+    /// </summary>
+    public bool HasLoadedCount => !IsVirtualized || _cachedItemCount.HasValue;
+
+    /// <summary>
+    /// Whether the empty-state widget should currently be shown. True when the
+    /// item count is known AND zero.
+    /// </summary>
+    internal bool ShouldShowEmptyState => HasLoadedCount && EffectiveItemCount == 0;
+
+    /// <summary>
     /// Attempts to resolve the templated child node for an absolute item index.
     /// Returns <c>false</c> for indices outside the currently materialized
     /// window (only possible under virtualization).
@@ -678,6 +706,18 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
         _scrollOffset = Math.Clamp(_scrollOffset, 0, MaxScrollOffset);
         EnsureSelectionVisible();
 
+        // Arrange the empty-state child (if any) to fill the list bounds.
+        if (EmptyChildNode is { } emptyChild && ShouldShowEmptyState)
+        {
+            emptyChild.Measure(new Constraints(0, bounds.Width, 0, bounds.Height));
+            emptyChild.Arrange(bounds);
+        }
+        else if (EmptyChildNode is { } parkedEmpty)
+        {
+            // Park offscreen so it doesn't intercept layout/hit-tests while items are present.
+            parkedEmpty.Arrange(new Rect(bounds.X, bounds.Y, 0, 0));
+        }
+
         // Arrange visible item nodes into their row sub-rects.
         if (ItemNodes.Count > 0)
         {
@@ -702,7 +742,11 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
         }
     }
 
-    public override IEnumerable<Hex1bNode> GetChildren() => ItemNodes;
+    public override IEnumerable<Hex1bNode> GetChildren()
+    {
+        foreach (var item in ItemNodes) yield return item;
+        if (EmptyChildNode is { } empty) yield return empty;
+    }
 
     /// <summary>
     /// Item child nodes are render-only in v1 — the list itself is the only
@@ -720,7 +764,11 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
         ParentLayoutProvider = previousLayout;
         context.CurrentLayoutProvider = this;
 
-        if (ItemTemplate != null && ItemNodes.Count > 0)
+        if (EmptyChildNode is { } emptyChild && ShouldShowEmptyState)
+        {
+            context.RenderChild(emptyChild);
+        }
+        else if (ItemTemplate != null && ItemNodes.Count > 0)
         {
             RenderTemplated(context);
         }

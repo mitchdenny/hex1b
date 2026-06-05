@@ -1,3 +1,4 @@
+using Hex1b.Composition;
 using Hex1b.Data;
 using Hex1b.Events;
 using Hex1b.Input;
@@ -152,7 +153,7 @@ public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
 /// custom rendering via <c>ItemTemplate</c> — see <see cref="ListItemContext{T}"/>.
 /// </summary>
 /// <typeparam name="T">The item type.</typeparam>
-public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
+public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
 {
     /// <summary>Rebindable action: Move selection up.</summary>
     public static readonly ActionId MoveUp = new($"{nameof(ListWidget<T>)}.{nameof(MoveUp)}");
@@ -216,6 +217,23 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
     /// </summary>
     internal IListDataSource<T>? DataSource { get; init; }
 
+    /// <summary>
+    /// Optional builder for an "empty state" widget shown when the list resolves
+    /// to zero items after data has loaded. When a <see cref="DataSource"/> is
+    /// set the empty widget is suppressed until the initial item-count load
+    /// completes so it doesn't flash while data is still in flight.
+    /// </summary>
+    internal Func<RootContext, Hex1bWidget>? EmptyBuilder { get; init; }
+
+    /// <summary>
+    /// Configures an empty-state widget rendered when the list has no items.
+    /// Mirrors <c>TableWidget&lt;TRow&gt;.Empty(...)</c> — pass a builder that
+    /// returns the widget tree to render in place of the list contents.
+    /// </summary>
+    /// <param name="builder">A function that builds the empty-state widget.</param>
+    public ListWidget<T> Empty(Func<RootContext, Hex1bWidget> builder)
+        => this with { EmptyBuilder = builder };
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ListNode<T> ?? CreateNode();
@@ -234,6 +252,7 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
         }
 
         await ReconcileItemNodesAsync(node, context).ConfigureAwait(false);
+        await ReconcileEmptyChildAsync(node, context).ConfigureAwait(false);
 
         if (context.IsNew)
         {
@@ -241,6 +260,34 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
         }
 
         return node;
+    }
+
+    /// <summary>
+    /// Reconciles the optional empty-state child widget. Renders only when the
+    /// list is genuinely empty after data has loaded (see <see cref="ListNode{T}.ShouldShowEmptyState"/>);
+    /// otherwise the prior empty child is dropped and its bounds reported as
+    /// orphaned so any painted region is cleared.
+    /// </summary>
+    private async Task ReconcileEmptyChildAsync(ListNode<T> node, ReconcileContext context)
+    {
+        var shouldShow = EmptyBuilder is not null && node.ShouldShowEmptyState;
+        if (!shouldShow)
+        {
+            if (node.EmptyChildNode is { } orphan)
+            {
+                if (orphan.Bounds.Width > 0 && orphan.Bounds.Height > 0)
+                {
+                    node.AddOrphanedChildBounds(orphan.Bounds);
+                }
+                node.EmptyChildNode = null;
+            }
+            return;
+        }
+
+        var widget = EmptyBuilder!(new RootContext());
+        var childContext = context.WithChildPosition(0, 1);
+        var childNode = await widget.ReconcileAsync(node.EmptyChildNode, childContext).ConfigureAwait(false);
+        node.EmptyChildNode = childNode;
     }
 
     /// <summary>
@@ -278,11 +325,12 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
         // don't overwrite with the (unused) Items facade.
         if (DataSource is null)
         {
-            node.Items = Items;
+            node.Items = Items ?? Array.Empty<T>();
         }
         node.ItemHeight = ItemHeight;
         node.ItemTemplate = Template;
         node.ItemKeySelector = ItemKeySelector;
+        node.EmptyBuilder = EmptyBuilder;
 
         var count = node.EffectiveItemCount;
 

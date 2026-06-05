@@ -531,4 +531,90 @@ public class ListNodeOfTTests
     }
 
     #endregion
+
+    #region Nullable Items + Empty builder
+
+    [TestMethod]
+    public void Constructor_NullItems_TreatedAsEmpty()
+    {
+        var widget = new ListWidget<int>(null);
+        Assert.IsNull(widget.Items);
+    }
+
+    [TestMethod]
+    public async Task NullItems_ReconcileTreatsAsEmpty()
+    {
+        var widget = new ListWidget<int>(null);
+        var ctx = ReconcileContext.CreateRoot();
+        var node = (ListNode<int>)await widget.ReconcileAsync(null, ctx);
+
+        Assert.AreEqual(0, node.EffectiveItemCount);
+        Assert.IsTrue(node.HasLoadedCount, "Non-virtualized lists always report count as loaded.");
+        Assert.IsTrue(node.ShouldShowEmptyState);
+    }
+
+    [TestMethod]
+    public async Task EmptyBuilder_RendersWhenItemsZero()
+    {
+        var widget = new ListWidget<int>(Array.Empty<int>())
+            .Empty(_ => new Hex1b.Widgets.TextBlockWidget("Nothing to see here"));
+
+        var ctx = ReconcileContext.CreateRoot();
+        var node = (ListNode<int>)await widget.ReconcileAsync(null, ctx);
+
+        Assert.IsNotNull(node.EmptyChildNode, "Empty child should be reconciled when count is 0.");
+    }
+
+    [TestMethod]
+    public async Task EmptyBuilder_SuppressedWhenItemsPresent()
+    {
+        var widget = new ListWidget<int>(new[] { 1, 2, 3 })
+            .Empty(_ => new Hex1b.Widgets.TextBlockWidget("(empty)"));
+
+        var ctx = ReconcileContext.CreateRoot();
+        var node = (ListNode<int>)await widget.ReconcileAsync(null, ctx);
+
+        Assert.IsNull(node.EmptyChildNode, "Empty child should not be reconciled when items are present.");
+    }
+
+    [TestMethod]
+    public async Task EmptyBuilder_DataSourceNotLoaded_DoesNotFlashEmpty()
+    {
+        // Virtualized data source whose count is unknown at construction time.
+        var source = new CountingDataSource<int>(Array.Empty<int>());
+        // Force the node into a virtualized state where the count is not yet cached
+        // by reconciling without an explicit pre-load.
+        var node = new ListNode<int>();
+
+        // Even though no items will ever be returned, before the first load completes
+        // HasLoadedCount must be false so the empty widget doesn't flash.
+        node.DataSource = source;
+
+        Assert.IsFalse(node.HasLoadedCount, "Before first load, count should be unknown.");
+        Assert.IsFalse(node.ShouldShowEmptyState, "Empty state must not show before first load.");
+
+        // After load completes and the source really is empty, empty state should be shown.
+        await node.LoadDataAsync(0, 50);
+        Assert.IsTrue(node.HasLoadedCount);
+        Assert.IsTrue(node.ShouldShowEmptyState);
+    }
+
+    [TestMethod]
+    public async Task EmptyBuilder_TransitionToNonEmpty_DropsEmptyChild()
+    {
+        var widget1 = new ListWidget<int>(Array.Empty<int>())
+            .Empty(_ => new Hex1b.Widgets.TextBlockWidget("(empty)"));
+        var ctx = ReconcileContext.CreateRoot();
+        var node = (ListNode<int>)await widget1.ReconcileAsync(null, ctx);
+        Assert.IsNotNull(node.EmptyChildNode);
+
+        // Now reconcile with items present — empty child should be dropped.
+        var widget2 = new ListWidget<int>(new[] { 1, 2, 3 })
+            .Empty(_ => new Hex1b.Widgets.TextBlockWidget("(empty)"));
+        await widget2.ReconcileAsync(node, ctx);
+
+        Assert.IsNull(node.EmptyChildNode);
+    }
+
+    #endregion
 }
