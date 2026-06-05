@@ -24,7 +24,6 @@ namespace Hex1b.Tests;
 ///   [114] InsertChar 'x' (docLen=4, cursor=3)
 ///   ...
 /// </summary>
-[DoNotParallelize]
 [TestClass]
 public class EditorFuzzTests
 {

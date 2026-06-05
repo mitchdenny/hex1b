@@ -17,7 +17,6 @@ namespace Hex1b.Tests;
 ///
 /// The fix: batch all piece tree mutations, call RebuildCaches() once at the end.
 /// </summary>
-[DoNotParallelize]
 [TestClass]
 public class MultiCursorPerformanceTests
 {
