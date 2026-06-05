@@ -7,13 +7,13 @@ using Hex1b.Widgets;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Tests for <see cref="ListWidget{T}"/> / <see cref="TypedListNode{T}"/>:
+/// Tests for <see cref="ListWidget{T}"/> / <see cref="ListNode{T}"/>:
 /// generic-item behavior, ItemHeight layout math, mouse hit-test with multi-row
 /// items, hover invalidation, key-based child reuse, typed event args, and
 /// template-mode rendering parity.
 /// </summary>
 [TestClass]
-public class TypedListNodeTests
+public class ListNodeOfTTests
 {
     private sealed record Country(string Name, string Capital)
     {
@@ -25,7 +25,7 @@ public class TypedListNodeTests
     [TestMethod]
     public void ItemHeight_VisibleCount_DividesViewportHeight()
     {
-        var node = new TypedListNode<string>
+        var node = new ListNode<string>
         {
             Items = ["a", "b", "c", "d", "e"],
             ItemHeight = 2,
@@ -39,7 +39,7 @@ public class TypedListNodeTests
     [TestMethod]
     public void Measure_WithItemHeightGreaterThanOne_AccountsForRowsPerItem()
     {
-        var node = new TypedListNode<string>
+        var node = new ListNode<string>
         {
             Items = ["a", "b", "c"],
             ItemHeight = 3,
@@ -53,7 +53,7 @@ public class TypedListNodeTests
     [TestMethod]
     public void HandleMouseClick_WithItemHeightTwo_SelectsCorrectItem()
     {
-        var node = new TypedListNode<string>
+        var node = new ListNode<string>
         {
             Items = ["a", "b", "c", "d"],
             ItemHeight = 2,
@@ -71,7 +71,7 @@ public class TypedListNodeTests
     [TestMethod]
     public void HandleMouseClick_OutsideItems_DoesNotChangeSelection()
     {
-        var node = new TypedListNode<string>
+        var node = new ListNode<string>
         {
             Items = ["a", "b"],
             ItemHeight = 2,
@@ -93,7 +93,7 @@ public class TypedListNodeTests
     [TestMethod]
     public void OnHoverMove_UpdatesHoveredItemIndexFromMouseY()
     {
-        var node = new TypedListNode<string>
+        var node = new ListNode<string>
         {
             Items = ["a", "b", "c", "d"],
             ItemHeight = 2,
@@ -109,7 +109,7 @@ public class TypedListNodeTests
     [TestMethod]
     public void IsHovered_SetFalse_ResetsHoveredItemIndex()
     {
-        var node = new TypedListNode<string>
+        var node = new ListNode<string>
         {
             Items = ["a", "b"],
             ItemHeight = 1,
@@ -127,7 +127,7 @@ public class TypedListNodeTests
     [TestMethod]
     public void OnHoverMove_OutsideViewport_ClearsHoveredItemIndex()
     {
-        var node = new TypedListNode<string>
+        var node = new ListNode<string>
         {
             Items = ["a", "b"],
             ItemHeight = 1,
@@ -149,7 +149,7 @@ public class TypedListNodeTests
     [TestMethod]
     public void SelectedItem_ReturnsTypedValue()
     {
-        var node = new TypedListNode<Country>
+        var node = new ListNode<Country>
         {
             Items =
             [
@@ -167,7 +167,7 @@ public class TypedListNodeTests
     [TestMethod]
     public void MoveDown_Wraps_OnTypedItems()
     {
-        var node = new TypedListNode<Country>
+        var node = new ListNode<Country>
         {
             Items =
             [
@@ -336,7 +336,7 @@ public class TypedListNodeTests
     [TestMethod]
     public void EmptyList_WithTemplate_DoesNotThrow()
     {
-        var node = new TypedListNode<Country>
+        var node = new ListNode<Country>
         {
             Items = [],
             ItemHeight = 1,
@@ -367,7 +367,7 @@ public class TypedListNodeTests
     [TestMethod]
     public void InitialSelectedIndex_AppliedOnNewNode()
     {
-        var node = new TypedListNode<string>
+        var node = new ListNode<string>
         {
             Items = ["a", "b", "c"],
             SelectedIndex = 2,
@@ -419,7 +419,7 @@ public class TypedListNodeTests
     public async Task DataSource_LoadDataAsync_PopulatesCacheAndCount()
     {
         var source = new CountingDataSource<int>(Enumerable.Range(0, 1000).ToList());
-        var node = new TypedListNode<int> { DataSource = source };
+        var node = new ListNode<int> { DataSource = source };
 
         await node.LoadDataAsync(0, 50);
 
@@ -438,7 +438,7 @@ public class TypedListNodeTests
     public async Task DataSource_LoadDataAsync_SkipsFetchWhenRangeCached()
     {
         var source = new CountingDataSource<int>(Enumerable.Range(0, 100).ToList());
-        var node = new TypedListNode<int> { DataSource = source };
+        var node = new ListNode<int> { DataSource = source };
 
         await node.LoadDataAsync(0, 50);
         await node.LoadDataAsync(10, 20); // inside (0, 50)
@@ -453,7 +453,7 @@ public class TypedListNodeTests
         var widget = new ListWidget<int>(Array.Empty<int>()).DataSource(source);
 
         var ctx = ReconcileContext.CreateRoot();
-        var node = (TypedListNode<int>)await widget.ReconcileAsync(null, ctx);
+        var node = (ListNode<int>)await widget.ReconcileAsync(null, ctx);
 
         Assert.AreEqual(100_000, node.EffectiveItemCount);
         // Only the initial 50-item window should have been fetched, never the
@@ -469,7 +469,7 @@ public class TypedListNodeTests
     {
         var source = new CountingDataSource<string>(
             Enumerable.Range(0, 200).Select(i => $"item-{i}").ToList());
-        var node = new TypedListNode<string> { DataSource = source };
+        var node = new ListNode<string> { DataSource = source };
 
         await node.LoadDataAsync(0, 50);
         node.SelectedIndex = 25;
@@ -483,7 +483,7 @@ public class TypedListNodeTests
     {
         var source = new CountingDataSource<string>(
             Enumerable.Range(0, 1000).Select(i => $"item-{i}").ToList());
-        var node = new TypedListNode<string> { DataSource = source };
+        var node = new ListNode<string> { DataSource = source };
 
         await node.LoadDataAsync(0, 50);
 
@@ -502,7 +502,7 @@ public class TypedListNodeTests
         var inner = new System.Collections.ObjectModel.ObservableCollection<int>(Enumerable.Range(0, 10));
         var source = new Hex1b.Data.ListDataSource<int>(inner);
         var invalidated = 0;
-        var node = new TypedListNode<int>
+        var node = new ListNode<int>
         {
             InvalidateCallback = () => invalidated++,
             DataSource = source,

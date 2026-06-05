@@ -218,7 +218,7 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
-        var node = existingNode as TypedListNode<T> ?? CreateNode();
+        var node = existingNode as ListNode<T> ?? CreateNode();
         var isNewNode = existingNode is null || existingNode.GetType() != GetExpectedNodeType();
 
         // Wire the invalidate callback BEFORE swapping in a data source so the
@@ -248,7 +248,7 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
     /// data on hand. Mirrors <c>TableWidget</c>'s first-load + visible-window
     /// fetch pattern.
     /// </summary>
-    private static async Task EnsureDataLoadedAsync(TypedListNode<T> node, ReconcileContext context)
+    private static async Task EnsureDataLoadedAsync(ListNode<T> node, ReconcileContext context)
     {
         // First load — count + initial window.
         if (node.EffectiveItemCount == 0)
@@ -269,9 +269,9 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
     /// their specialized node so casts in user-facing tests and event args stay
     /// strongly typed.
     /// </summary>
-    private protected virtual TypedListNode<T> CreateNode() => new();
+    private protected virtual ListNode<T> CreateNode() => new();
 
-    private protected void ApplyState(TypedListNode<T> node, ReconcileContext context, bool isNewNode)
+    private protected void ApplyState(ListNode<T> node, ReconcileContext context, bool isNewNode)
     {
         node.SourceWidget = this;
         // When a DataSource is set the node manages its own items from the cache;
@@ -344,7 +344,7 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
         }
     }
 
-    private protected async Task ReconcileItemNodesAsync(TypedListNode<T> node, ReconcileContext context)
+    private protected async Task ReconcileItemNodesAsync(ListNode<T> node, ReconcileContext context)
     {
         if (Template is null)
         {
@@ -459,5 +459,5 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
         node.ItemNodesWindowStart = windowStart;
     }
 
-    internal override Type GetExpectedNodeType() => typeof(TypedListNode<T>);
+    internal override Type GetExpectedNodeType() => typeof(ListNode<T>);
 }

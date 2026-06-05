@@ -8,7 +8,7 @@ namespace Hex1b.Events;
 /// (Enter, Space, or click).
 /// </summary>
 /// <typeparam name="T">The item type of the list.</typeparam>
-public sealed class ListItemActivatedEventArgs<T> : WidgetEventArgs<ListWidget<T>, TypedListNode<T>>
+public sealed class ListItemActivatedEventArgs<T> : WidgetEventArgs<ListWidget<T>, ListNode<T>>
 {
     /// <summary>
     /// The index of the activated item.
@@ -28,7 +28,7 @@ public sealed class ListItemActivatedEventArgs<T> : WidgetEventArgs<ListWidget<T
 
     public ListItemActivatedEventArgs(
         ListWidget<T> widget,
-        TypedListNode<T> node,
+        ListNode<T> node,
         InputBindingActionContext context,
         int activatedIndex,
         T activatedItem)

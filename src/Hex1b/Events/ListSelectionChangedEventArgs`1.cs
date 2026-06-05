@@ -8,7 +8,7 @@ namespace Hex1b.Events;
 /// Carries the typed item value rather than just its string representation.
 /// </summary>
 /// <typeparam name="T">The item type of the list.</typeparam>
-public sealed class ListSelectionChangedEventArgs<T> : WidgetEventArgs<ListWidget<T>, TypedListNode<T>>
+public sealed class ListSelectionChangedEventArgs<T> : WidgetEventArgs<ListWidget<T>, ListNode<T>>
 {
     /// <summary>
     /// The index of the newly selected item.
@@ -28,7 +28,7 @@ public sealed class ListSelectionChangedEventArgs<T> : WidgetEventArgs<ListWidge
 
     public ListSelectionChangedEventArgs(
         ListWidget<T> widget,
-        TypedListNode<T> node,
+        ListNode<T> node,
         InputBindingActionContext context,
         int selectedIndex,
         T selectedItem)
