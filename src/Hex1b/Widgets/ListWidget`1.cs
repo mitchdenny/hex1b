@@ -1,3 +1,4 @@
+using Hex1b.Data;
 using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Nodes;
@@ -62,12 +63,35 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
     internal Func<ListSelectionChangedEventArgs<T>, Task>? SelectionChangedHandler { get; init; }
     internal Func<ListItemActivatedEventArgs<T>, Task>? ItemActivatedHandler { get; init; }
 
+    /// <summary>
+    /// Optional virtualized data source. When set, <see cref="Items"/> is
+    /// ignored; the node fetches only a window of items around the visible
+    /// viewport on each frame and re-fetches when the user scrolls or the
+    /// source raises
+    /// <see cref="System.Collections.Specialized.INotifyCollectionChanged"/>.
+    /// Use <see cref="ListDataSource{T}"/> to wrap an in-memory list, or
+    /// implement <see cref="IListDataSource{T}"/> for a remote or paged
+    /// source.
+    /// </summary>
+    internal IListDataSource<T>? DataSource { get; init; }
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TypedListNode<T> ?? CreateNode();
         var isNewNode = existingNode is null || existingNode.GetType() != GetExpectedNodeType();
 
+        // Wire the invalidate callback BEFORE swapping in a data source so the
+        // initial INotifyCollectionChanged subscription has somewhere to dispatch.
+        node.InvalidateCallback = context.InvalidateCallback;
+        node.DataSource = DataSource;
+
         ApplyState(node, context, isNewNode);
+
+        if (DataSource is not null)
+        {
+            await EnsureDataLoadedAsync(node, context).ConfigureAwait(false);
+        }
+
         await ReconcileItemNodesAsync(node, context).ConfigureAwait(false);
 
         if (context.IsNew)
@@ -76,6 +100,27 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
         }
 
         return node;
+    }
+
+    /// <summary>
+    /// Loads the visible window from the data source so the next render has
+    /// data on hand. Mirrors <c>TableWidget</c>'s first-load + visible-window
+    /// fetch pattern.
+    /// </summary>
+    private static async Task EnsureDataLoadedAsync(TypedListNode<T> node, ReconcileContext context)
+    {
+        // First load — count + initial window.
+        if (node.EffectiveItemCount == 0)
+        {
+            await node.LoadDataAsync(0, 50, context.CancellationToken).ConfigureAwait(false);
+        }
+
+        var totalCount = node.EffectiveItemCount;
+        if (totalCount == 0) return;
+
+        var (windowStart, windowEnd) = node.GetVisibleWindow(totalCount);
+        var rangeCount = Math.Max(50, windowEnd - windowStart);
+        await node.LoadDataAsync(windowStart, rangeCount, context.CancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -88,39 +133,47 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
     private protected void ApplyState(TypedListNode<T> node, ReconcileContext context, bool isNewNode)
     {
         node.SourceWidget = this;
-        node.Items = Items;
+        // When a DataSource is set the node manages its own items from the cache;
+        // don't overwrite with the (unused) Items facade.
+        if (DataSource is null)
+        {
+            node.Items = Items;
+        }
         node.ItemHeight = ItemHeight;
         node.ItemTemplate = Template;
         node.ItemKeySelector = ItemKeySelector;
 
+        var count = node.EffectiveItemCount;
+
         // Apply initial selection for new nodes; clamp otherwise.
-        if (isNewNode && Items.Count > 0)
+        if (isNewNode && count > 0)
         {
-            node.SelectedIndex = Math.Clamp(InitialSelectedIndex, 0, Items.Count - 1);
+            node.SelectedIndex = Math.Clamp(InitialSelectedIndex, 0, count - 1);
         }
-        else if (node.SelectedIndex >= Items.Count && Items.Count > 0)
+        else if (node.SelectedIndex >= count && count > 0)
         {
-            node.SelectedIndex = Items.Count - 1;
+            node.SelectedIndex = count - 1;
         }
-        else if (Items.Count == 0)
+        else if (count == 0)
         {
             node.SelectedIndex = 0;
         }
 
         // Controlled selection wins after the clamp pass so the owning composite
         // can override the node's persisted choice on every frame.
-        if (ControlledSelectedIndex is int controlled && Items.Count > 0)
+        if (ControlledSelectedIndex is int controlled && count > 0)
         {
-            node.SelectedIndex = Math.Clamp(controlled, 0, Items.Count - 1);
+            node.SelectedIndex = Math.Clamp(controlled, 0, count - 1);
         }
 
         if (SelectionChangedHandler is { } selChanged)
         {
             node.SelectionChangedAction = ctx =>
             {
-                if (node.SelectedIndex >= 0 && node.SelectedIndex < node.Items.Count)
+                if (node.SelectedIndex >= 0 && node.SelectedIndex < node.EffectiveItemCount &&
+                    node.TryGetEffectiveItem(node.SelectedIndex, out var item))
                 {
-                    var args = new ListSelectionChangedEventArgs<T>(this, node, ctx, node.SelectedIndex, node.Items[node.SelectedIndex]);
+                    var args = new ListSelectionChangedEventArgs<T>(this, node, ctx, node.SelectedIndex, item);
                     return selChanged(args);
                 }
                 return Task.CompletedTask;
@@ -135,9 +188,10 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
         {
             node.ItemActivatedAction = ctx =>
             {
-                if (node.SelectedIndex >= 0 && node.SelectedIndex < node.Items.Count)
+                if (node.SelectedIndex >= 0 && node.SelectedIndex < node.EffectiveItemCount &&
+                    node.TryGetEffectiveItem(node.SelectedIndex, out var item))
                 {
-                    var args = new ListItemActivatedEventArgs<T>(this, node, ctx, node.SelectedIndex, node.Items[node.SelectedIndex]);
+                    var args = new ListItemActivatedEventArgs<T>(this, node, ctx, node.SelectedIndex, item);
                     return activated(args);
                 }
                 return Task.CompletedTask;
@@ -165,6 +219,7 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
                     }
                 }
                 node.ItemNodes = new List<Hex1bNode>();
+                node.ItemNodesWindowStart = 0;
             }
             return;
         }
@@ -174,30 +229,48 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
         var snapshotFocused = node.IsFocused;
         var snapshotHovered = node.IsHovered ? node.HoveredItemIndex : -1;
 
+        // Compute the range of absolute indices we will materialise this frame.
+        // Non-virtualized: the entire list. Virtualized: visible + buffer.
+        int windowStart, windowEnd;
+        var totalCount = node.EffectiveItemCount;
+        if (DataSource is null)
+        {
+            windowStart = 0;
+            windowEnd = totalCount;
+        }
+        else
+        {
+            (windowStart, windowEnd) = node.GetVisibleWindow(totalCount);
+        }
+        var windowCount = Math.Max(0, windowEnd - windowStart);
+
         // Build a key -> old-node map when a key selector is supplied so reused
         // nodes preserve template-local state even after reorder/filter.
         Dictionary<object, Hex1bNode>? oldByKey = null;
-        if (ItemKeySelector is not null && node.ItemNodes.Count > 0)
+        var oldNodes = node.ItemNodes;
+        var oldWindowStart = node.ItemNodesWindowStart;
+        if (ItemKeySelector is not null && oldNodes.Count > 0)
         {
-            oldByKey = new Dictionary<object, Hex1bNode>(node.ItemNodes.Count);
-            for (int i = 0; i < node.ItemNodes.Count && i < node.Items.Count; i++)
+            oldByKey = new Dictionary<object, Hex1bNode>(oldNodes.Count);
+            for (int i = 0; i < oldNodes.Count; i++)
             {
-                var oldKey = ItemKeySelector(node.Items[i]);
-                // First-write-wins to be safe if a key appears more than once.
-                oldByKey.TryAdd(oldKey, node.ItemNodes[i]);
+                var absoluteIndex = oldWindowStart + i;
+                if (!node.TryGetEffectiveItem(absoluteIndex, out var oldItem)) continue;
+                var oldKey = ItemKeySelector(oldItem);
+                oldByKey.TryAdd(oldKey, oldNodes[i]);
             }
         }
 
-        var oldNodes = node.ItemNodes;
-        var newNodes = new List<Hex1bNode>(Items.Count);
+        var newNodes = new List<Hex1bNode>(windowCount);
         var reused = new HashSet<Hex1bNode>(ReferenceEqualityComparer.Instance);
 
-        for (int i = 0; i < Items.Count; i++)
+        for (int windowOffset = 0; windowOffset < windowCount; windowOffset++)
         {
-            var item = Items[i];
-            Hex1bNode? existingChild = null;
+            var absoluteIndex = windowStart + windowOffset;
+            var isLoaded = node.TryGetEffectiveItem(absoluteIndex, out var item);
 
-            if (ItemKeySelector is not null && oldByKey is not null)
+            Hex1bNode? existingChild = null;
+            if (ItemKeySelector is not null && oldByKey is not null && isLoaded)
             {
                 var key = ItemKeySelector(item);
                 if (oldByKey.TryGetValue(key, out var match))
@@ -205,20 +278,25 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
                     existingChild = match;
                 }
             }
-            else if (i < oldNodes.Count)
+            else
             {
-                existingChild = oldNodes[i];
+                var oldOffset = absoluteIndex - oldWindowStart;
+                if (oldOffset >= 0 && oldOffset < oldNodes.Count)
+                {
+                    existingChild = oldNodes[oldOffset];
+                }
             }
 
             var itemContext = new ListItemContext<T>(
-                item,
-                i,
-                isSelected: i == snapshotSelected,
+                item!,
+                absoluteIndex,
+                isSelected: absoluteIndex == snapshotSelected,
                 isFocused: snapshotFocused,
-                isHovered: i == snapshotHovered);
+                isHovered: absoluteIndex == snapshotHovered,
+                isLoaded: isLoaded);
 
             var itemWidget = template(itemContext);
-            var positionedContext = context.WithChildPosition(i, Items.Count);
+            var positionedContext = context.WithChildPosition(windowOffset, windowCount);
             var reconciled = await positionedContext.ReconcileChildAsync(existingChild, itemWidget, node).ConfigureAwait(false);
             if (reconciled is not null)
             {
@@ -237,6 +315,7 @@ public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
         }
 
         node.ItemNodes = newNodes;
+        node.ItemNodesWindowStart = windowStart;
     }
 
     internal override Type GetExpectedNodeType() => typeof(TypedListNode<T>);

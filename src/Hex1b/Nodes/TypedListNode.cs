@@ -1,4 +1,6 @@
+using System.Collections.Specialized;
 using Hex1b.Composition;
+using Hex1b.Data;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
@@ -133,30 +135,38 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
     /// <summary>
     /// The maximum scroll offset based on item count and visible item count.
     /// </summary>
-    public int MaxScrollOffset => Math.Max(0, Items.Count - VisibleItemCount);
+    public int MaxScrollOffset => Math.Max(0, EffectiveItemCount - VisibleItemCount);
 
     /// <summary>
     /// Whether the list needs scrolling (more items than fit in the viewport).
     /// </summary>
-    public bool IsScrollable => Items.Count > VisibleItemCount && VisibleItemCount > 0;
+    public bool IsScrollable => EffectiveItemCount > VisibleItemCount && VisibleItemCount > 0;
 
     /// <summary>
-    /// The currently selected item, or <c>default</c> if the list is empty.
+    /// The currently selected item, or <c>default</c> if the list is empty or
+    /// the selected row hasn't been loaded yet (virtualized mode).
     /// </summary>
-    public T? SelectedItem => SelectedIndex >= 0 && SelectedIndex < Items.Count
-        ? Items[SelectedIndex]
-        : default;
+    public T? SelectedItem
+    {
+        get
+        {
+            if (SelectedIndex < 0 || SelectedIndex >= EffectiveItemCount) return default;
+            return TryGetEffectiveItem(SelectedIndex, out var item) ? item : default;
+        }
+    }
 
     /// <summary>
     /// The text of the currently selected item (via <see cref="object.ToString"/>),
-    /// or <c>null</c> if the list is empty.
+    /// or <c>null</c> if the list is empty / not yet loaded.
     /// </summary>
     public string? SelectedText
     {
         get
         {
-            if (SelectedIndex < 0 || SelectedIndex >= Items.Count) return null;
-            return Items[SelectedIndex]?.ToString() ?? string.Empty;
+            if (SelectedIndex < 0 || SelectedIndex >= EffectiveItemCount) return null;
+            return TryGetEffectiveItem(SelectedIndex, out var item)
+                ? item?.ToString() ?? string.Empty
+                : null;
         }
     }
 
@@ -184,10 +194,225 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
     internal Func<T, object>? ItemKeySelector { get; set; }
 
     /// <summary>
-    /// Reconciled per-row child nodes. Populated when <see cref="ItemTemplate"/>
-    /// is set; otherwise empty.
+    /// Reconciled per-row child nodes. In non-virtualized mode this holds one
+    /// node per item (<c>ItemNodes[i]</c> corresponds to absolute index <c>i</c>).
+    /// In virtualized mode this holds only the window
+    /// <c>[ItemNodesWindowStart, ItemNodesWindowStart + ItemNodes.Count)</c>;
+    /// callers must map absolute indices through
+    /// <see cref="TryGetItemNode(int, out Hex1bNode)"/>.
     /// </summary>
     internal List<Hex1bNode> ItemNodes { get; set; } = new();
+
+    /// <summary>
+    /// Absolute item index that <c>ItemNodes[0]</c> corresponds to. Always 0 in
+    /// non-virtualized mode.
+    /// </summary>
+    internal int ItemNodesWindowStart { get; set; } = 0;
+
+    /// <summary>
+    /// Attempts to resolve the templated child node for an absolute item index.
+    /// Returns <c>false</c> for indices outside the currently materialized
+    /// window (only possible under virtualization).
+    /// </summary>
+    internal bool TryGetItemNode(int absoluteIndex, out Hex1bNode node)
+    {
+        var offset = absoluteIndex - ItemNodesWindowStart;
+        if (offset >= 0 && offset < ItemNodes.Count)
+        {
+            node = ItemNodes[offset];
+            return true;
+        }
+        node = null!;
+        return false;
+    }
+
+    #region Virtualized data source
+
+    /// <summary>Buffer of rows above/below the visible viewport to pre-load.</summary>
+    internal const int VirtualizationBuffer = 5;
+
+    private IListDataSource<T>? _dataSource;
+    private INotifyCollectionChanged? _subscribedDataSource;
+    private IReadOnlyList<T>? _cachedItems;
+    private int? _cachedItemCount;
+    private (int Start, int End)? _cachedRange;
+    private CancellationTokenSource? _loadCts;
+
+    /// <summary>
+    /// Optional virtualized data source. When set, <see cref="Items"/> is
+    /// ignored and the node materialises only a window of items around the
+    /// visible viewport on each frame. Subscribes to
+    /// <see cref="INotifyCollectionChanged"/> if the source supports it.
+    /// </summary>
+    public IListDataSource<T>? DataSource
+    {
+        get => _dataSource;
+        set
+        {
+            if (ReferenceEquals(_dataSource, value)) return;
+            UnsubscribeFromDataSource();
+            _dataSource = value;
+            _cachedItems = null;
+            _cachedItemCount = null;
+            _cachedRange = null;
+            if (_dataSource is not null) SubscribeToDataSource();
+            MarkDirty();
+        }
+    }
+
+    /// <summary>Invalidate callback wired from <c>ReconcileContext</c>.</summary>
+    internal Action? InvalidateCallback { get; set; }
+
+    /// <summary>Whether the node is operating in virtualized mode.</summary>
+    public bool IsVirtualized => _dataSource is not null;
+
+    /// <summary>
+    /// The total number of items, either from the in-memory <see cref="Items"/>
+    /// list or the cached count from <see cref="DataSource"/>. Returns 0 until
+    /// the first async count completes.
+    /// </summary>
+    public int EffectiveItemCount => IsVirtualized ? (_cachedItemCount ?? 0) : Items.Count;
+
+    /// <summary>
+    /// Attempts to resolve an item by absolute index. Returns <c>false</c> for
+    /// indices not currently cached (virtualized mode only). In non-virtualized
+    /// mode this always succeeds when <paramref name="absoluteIndex"/> is in
+    /// range.
+    /// </summary>
+    public bool TryGetEffectiveItem(int absoluteIndex, out T item)
+    {
+        if (IsVirtualized)
+        {
+            if (_cachedItems is null || !_cachedRange.HasValue)
+            {
+                item = default!;
+                return false;
+            }
+            var (start, end) = _cachedRange.Value;
+            var offset = absoluteIndex - start;
+            if (offset < 0 || offset >= _cachedItems.Count || absoluteIndex >= end)
+            {
+                item = default!;
+                return false;
+            }
+            item = _cachedItems[offset];
+            return true;
+        }
+
+        if (absoluteIndex < 0 || absoluteIndex >= Items.Count)
+        {
+            item = default!;
+            return false;
+        }
+        item = Items[absoluteIndex];
+        return true;
+    }
+
+    /// <summary>
+    /// Computes the absolute range of rows to materialize for the current
+    /// scroll position: visible window plus <see cref="VirtualizationBuffer"/>
+    /// rows above and below. Used by both data-source pre-fetch and templated
+    /// child reconciliation.
+    /// </summary>
+    public (int Start, int End) GetVisibleWindow(int totalCount)
+    {
+        if (totalCount == 0) return (0, 0);
+        var visible = Math.Max(1, VisibleItemCount);
+        var start = Math.Max(0, _scrollOffset - VirtualizationBuffer);
+        var end = Math.Min(totalCount, _scrollOffset + visible + VirtualizationBuffer);
+        return (start, end);
+    }
+
+    /// <summary>
+    /// Loads <paramref name="count"/> items starting at
+    /// <paramref name="startIndex"/> from the data source, cancelling any
+    /// in-flight load. No-op when no <see cref="DataSource"/> is set.
+    /// </summary>
+    public async ValueTask LoadDataAsync(int startIndex, int count, CancellationToken cancellationToken = default)
+    {
+        if (_dataSource is null) return;
+
+        if (!_cachedItemCount.HasValue)
+        {
+            _cachedItemCount = await _dataSource.GetItemCountAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        // Already covered by the existing cache.
+        if (_cachedRange is { } range && _cachedItems is not null &&
+            range.Start <= startIndex && range.End >= startIndex + count)
+        {
+            return;
+        }
+
+        if (_loadCts is not null)
+        {
+            await _loadCts.CancelAsync().ConfigureAwait(false);
+            _loadCts.Dispose();
+        }
+        _loadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var token = _loadCts.Token;
+
+        try
+        {
+            var fetched = await _dataSource.GetItemsAsync(startIndex, count, token).ConfigureAwait(false);
+            if (token.IsCancellationRequested) return;
+
+            _cachedItems = fetched;
+            _cachedRange = (startIndex, startIndex + fetched.Count);
+            MarkDirty();
+            InvalidateCallback?.Invoke();
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer load; nothing to do.
+        }
+    }
+
+    /// <summary>
+    /// Ensures the currently selected item is loaded before a selection event
+    /// fires. Called from selection/activation handlers so user code reading
+    /// <see cref="SelectedItem"/> never sees <c>default(T)</c> for an un-loaded
+    /// row. No-op in non-virtualized mode.
+    /// </summary>
+    internal async ValueTask EnsureSelectedItemLoadedAsync(CancellationToken cancellationToken = default)
+    {
+        if (!IsVirtualized) return;
+        if (TryGetEffectiveItem(_selectedIndex, out _)) return;
+
+        // Load a small window around the selection so subsequent moves are quick.
+        var window = Math.Max(1, VisibleItemCount + VirtualizationBuffer * 2);
+        var start = Math.Max(0, _selectedIndex - VirtualizationBuffer);
+        await LoadDataAsync(start, window, cancellationToken).ConfigureAwait(false);
+    }
+
+    private void SubscribeToDataSource()
+    {
+        _subscribedDataSource = _dataSource;
+        if (_subscribedDataSource is not null)
+        {
+            _subscribedDataSource.CollectionChanged += OnDataSourceCollectionChanged;
+        }
+    }
+
+    private void UnsubscribeFromDataSource()
+    {
+        if (_subscribedDataSource is not null)
+        {
+            _subscribedDataSource.CollectionChanged -= OnDataSourceCollectionChanged;
+            _subscribedDataSource = null;
+        }
+    }
+
+    private void OnDataSourceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        _cachedItems = null;
+        _cachedItemCount = null;
+        _cachedRange = null;
+        MarkDirty();
+        InvalidateCallback?.Invoke();
+    }
+
+    #endregion
 
     /// <summary>
     /// Internal action invoked when selection changes.
@@ -236,7 +461,8 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
 
     public override void OnHoverMove(int mouseX, int mouseY)
     {
-        if (Items.Count == 0 || _itemHeight <= 0)
+        var count = EffectiveItemCount;
+        if (count == 0 || _itemHeight <= 0)
         {
             HoveredItemIndex = -1;
             return;
@@ -250,7 +476,7 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
         }
 
         var idx = (localY / _itemHeight) + _scrollOffset;
-        HoveredItemIndex = idx >= 0 && idx < Items.Count ? idx : -1;
+        HoveredItemIndex = idx >= 0 && idx < count ? idx : -1;
     }
 
     #region ILayoutProvider
@@ -308,10 +534,12 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
         var localY = ctx.MouseY - Bounds.Y;
         var itemIndex = (localY / Math.Max(1, _itemHeight)) + _scrollOffset;
 
-        if (itemIndex >= 0 && itemIndex < Items.Count)
+        if (itemIndex >= 0 && itemIndex < EffectiveItemCount)
         {
             var previousIndex = SelectedIndex;
             SetSelection(itemIndex);
+
+            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
 
             if (previousIndex != SelectedIndex && SelectionChangedAction != null)
             {
@@ -329,6 +557,7 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
     {
         if (ItemActivatedAction != null)
         {
+            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
             await ItemActivatedAction(ctx);
         }
     }
@@ -338,6 +567,7 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
         MoveUp();
         if (SelectionChangedAction != null)
         {
+            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
             await SelectionChangedAction(ctx);
         }
     }
@@ -347,32 +577,37 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
         MoveDown();
         if (SelectionChangedAction != null)
         {
+            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
             await SelectionChangedAction(ctx);
         }
     }
 
     internal void MoveUp()
     {
-        if (Items.Count == 0) return;
-        SelectedIndex = SelectedIndex <= 0 ? Items.Count - 1 : SelectedIndex - 1;
+        var count = EffectiveItemCount;
+        if (count == 0) return;
+        SelectedIndex = SelectedIndex <= 0 ? count - 1 : SelectedIndex - 1;
     }
 
     internal void MoveDown()
     {
-        if (Items.Count == 0) return;
-        SelectedIndex = (SelectedIndex + 1) % Items.Count;
+        var count = EffectiveItemCount;
+        if (count == 0) return;
+        SelectedIndex = (SelectedIndex + 1) % count;
     }
 
     internal void SetSelection(int index)
     {
-        if (Items.Count == 0 || index < 0 || index >= Items.Count) return;
+        var count = EffectiveItemCount;
+        if (count == 0 || index < 0 || index >= count) return;
         SelectedIndex = index;
     }
 
     private void EnsureSelectionVisible()
     {
         var visible = VisibleItemCount;
-        if (visible <= 0 || Items.Count == 0) return;
+        var count = EffectiveItemCount;
+        if (visible <= 0 || count == 0) return;
 
         if (SelectedIndex < _scrollOffset)
         {
@@ -389,7 +624,7 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
     public override InputResult HandleMouseClick(int localX, int localY, Hex1bMouseEvent mouseEvent)
     {
         var itemIndex = (localY / Math.Max(1, _itemHeight)) + _scrollOffset;
-        if (itemIndex >= 0 && itemIndex < Items.Count)
+        if (itemIndex >= 0 && itemIndex < EffectiveItemCount)
         {
             SetSelection(itemIndex);
             return InputResult.Handled;
@@ -399,18 +634,37 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
 
     protected override Size MeasureCore(Constraints constraints)
     {
-        // Width: longest item label + indicator (default path) OR template's natural width.
-        // For simplicity (and parity with the previous behavior), use the string-projected
-        // width even when a template is present — this is just the "preferred" size; the
-        // outer layout typically constrains via FillHeight/FillWidth or a fixed cell.
-        var maxWidth = 0;
-        for (int i = 0; i < Items.Count; i++)
+        int maxWidth;
+        var count = EffectiveItemCount;
+
+        if (IsVirtualized)
         {
-            var len = (Items[i]?.ToString()?.Length ?? 0) + 2; // "> " indicator
-            if (len > maxWidth) maxWidth = len;
+            // Cannot walk the whole virtual collection. Measure from cached
+            // items only — the visible window is always materialised so this
+            // produces a stable width for what's currently on screen.
+            maxWidth = 0;
+            if (_cachedItems is not null && _cachedRange is { } range)
+            {
+                for (int i = 0; i < _cachedItems.Count; i++)
+                {
+                    var len = (_cachedItems[i]?.ToString()?.Length ?? 0) + 2;
+                    if (len > maxWidth) maxWidth = len;
+                }
+            }
+            if (maxWidth == 0) maxWidth = constraints.MinWidth;
+        }
+        else
+        {
+            // Width: longest item label + indicator (default path) OR template's natural width.
+            maxWidth = 0;
+            for (int i = 0; i < Items.Count; i++)
+            {
+                var len = (Items[i]?.ToString()?.Length ?? 0) + 2; // "> " indicator
+                if (len > maxWidth) maxWidth = len;
+            }
         }
 
-        var height = Math.Max(Items.Count * Math.Max(1, _itemHeight), 1);
+        var height = Math.Max(count * Math.Max(1, _itemHeight), 1);
         var constrainedSize = constraints.Constrain(new Size(maxWidth, height));
         _viewportHeight = constrainedSize.Height;
         return constrainedSize;
@@ -431,7 +685,8 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
             var rowHeight = Math.Max(1, _itemHeight);
             for (int i = 0; i < ItemNodes.Count; i++)
             {
-                if (i < _scrollOffset || i >= _scrollOffset + visible)
+                var absoluteIndex = ItemNodesWindowStart + i;
+                if (absoluteIndex < _scrollOffset || absoluteIndex >= _scrollOffset + visible)
                 {
                     // Park offscreen children at a degenerate rect so they don't
                     // intercept hit tests but still get their bounds updated.
@@ -439,9 +694,8 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
                     continue;
                 }
 
-                var rowY = bounds.Y + (i - _scrollOffset) * rowHeight;
+                var rowY = bounds.Y + (absoluteIndex - _scrollOffset) * rowHeight;
                 var rowRect = new Rect(bounds.X, rowY, bounds.Width, rowHeight);
-                // Measure to give the template a chance to size itself within the row.
                 ItemNodes[i].Measure(new Constraints(0, bounds.Width, 0, rowHeight));
                 ItemNodes[i].Arrange(rowRect);
             }
@@ -482,11 +736,14 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
     private void RenderTemplated(Hex1bRenderContext context)
     {
         var visibleStart = _scrollOffset;
-        var visibleEnd = Math.Min(_scrollOffset + VisibleItemCount, ItemNodes.Count);
+        var visibleEnd = Math.Min(_scrollOffset + VisibleItemCount, EffectiveItemCount);
 
         for (int i = visibleStart; i < visibleEnd; i++)
         {
-            context.RenderChild(ItemNodes[i]);
+            if (TryGetItemNode(i, out var child))
+            {
+                context.RenderChild(child);
+            }
         }
     }
 }
@@ -499,6 +756,8 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
 /// </summary>
 internal static class ListRenderCore
 {
+    private const string LoadingPlaceholder = "…";
+
     public static void RenderDefault<T>(TypedListNode<T> node, Hex1bRenderContext context)
     {
         var theme = context.Theme;
@@ -515,11 +774,13 @@ internal static class ListRenderCore
         var hoveredItemIndex = node.IsHovered ? node.HoveredItemIndex : -1;
 
         var visibleStart = node.ScrollOffset;
-        var visibleEnd = Math.Min(node.ScrollOffset + node.VisibleItemCount, node.Items.Count);
+        var visibleEnd = Math.Min(node.ScrollOffset + node.VisibleItemCount, node.EffectiveItemCount);
 
         for (int i = visibleStart; i < visibleEnd; i++)
         {
-            var item = node.Items[i]?.ToString() ?? string.Empty;
+            var item = node.TryGetEffectiveItem(i, out var value)
+                ? value?.ToString() ?? string.Empty
+                : LoadingPlaceholder;
             var isSelected = i == node.SelectedIndex;
             var isHoveredItem = i == hoveredItemIndex;
 

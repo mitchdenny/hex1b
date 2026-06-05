@@ -1,5 +1,6 @@
 namespace Hex1b;
 
+using Hex1b.Data;
 using Hex1b.Events;
 using Hex1b.Widgets;
 
@@ -74,6 +75,38 @@ public static class TypedListExtensions
         this ListWidget<T> widget,
         int index)
         => widget with { ControlledSelectedIndex = index };
+
+    /// <summary>
+    /// Binds the list to a virtualized <see cref="IListDataSource{T}"/> instead
+    /// of an in-memory <c>Items</c> collection. The node fetches only a window
+    /// of items around the visible viewport on each frame and re-fetches when
+    /// the user scrolls or the source raises
+    /// <see cref="System.Collections.Specialized.INotifyCollectionChanged"/>.
+    /// Use this for very large datasets (search results, paged APIs, indexed
+    /// files) where materialising the full list isn't practical.
+    /// </summary>
+    /// <remarks>
+    /// When a data source is bound the widget's <c>Items</c> is ignored — pass
+    /// <see cref="Array.Empty{T}()"/> at construction. Item templates work
+    /// with virtualization; templates can branch on
+    /// <see cref="ListItemContext{T}.IsLoaded"/> to render a placeholder for
+    /// in-flight rows.
+    /// </remarks>
+    public static ListWidget<T> DataSource<T>(
+        this ListWidget<T> widget,
+        IListDataSource<T> dataSource)
+        => widget with { DataSource = dataSource };
+
+    /// <summary>
+    /// Convenience overload that wraps <paramref name="items"/> in a
+    /// <see cref="ListDataSource{T}"/>. Forwards
+    /// <see cref="System.Collections.Specialized.INotifyCollectionChanged"/>
+    /// when the inner list supports it.
+    /// </summary>
+    public static ListWidget<T> DataSource<T>(
+        this ListWidget<T> widget,
+        IReadOnlyList<T> items)
+        => widget with { DataSource = new ListDataSource<T>(items) };
 
     /// <summary>
     /// Sets a synchronous handler invoked when the selection changes.

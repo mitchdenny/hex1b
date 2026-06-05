@@ -28,12 +28,22 @@ public sealed class ListItemContext<T> : WidgetContext<ListWidget<T>>
     /// <summary>True when the mouse is currently hovering over this row.</summary>
     public bool IsHovered { get; }
 
-    internal ListItemContext(T item, int index, bool isSelected, bool isFocused, bool isHovered)
+    /// <summary>
+    /// True when <see cref="Item"/> was materialised from the data source for
+    /// this row. Always <c>true</c> in non-virtualized mode. In virtualized
+    /// mode this is <c>false</c> only for rows whose data is still in-flight —
+    /// templates can branch on this to render a placeholder (e.g. a loading
+    /// spinner) instead of dereferencing a possibly <c>default(T)</c> item.
+    /// </summary>
+    public bool IsLoaded { get; }
+
+    internal ListItemContext(T item, int index, bool isSelected, bool isFocused, bool isHovered, bool isLoaded = true)
     {
         Item = item;
         Index = index;
         IsSelected = isSelected;
         IsFocused = isFocused;
         IsHovered = isHovered;
+        IsLoaded = isLoaded;
     }
 }

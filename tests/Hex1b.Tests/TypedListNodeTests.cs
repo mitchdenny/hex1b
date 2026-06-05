@@ -378,4 +378,157 @@ public class TypedListNodeTests
     }
 
     #endregion
+
+    #region Virtualized DataSource
+
+    /// <summary>
+    /// Synthetic data source that records how many ranges were requested so
+    /// tests can verify the node didn't materialise the entire collection.
+    /// </summary>
+    private sealed class CountingDataSource<T>(IReadOnlyList<T> items) : Hex1b.Data.IListDataSource<T>
+    {
+        public int CountCallCount { get; private set; }
+        public int FetchCallCount { get; private set; }
+        public List<(int Start, int Count)> RequestedRanges { get; } = new();
+
+#pragma warning disable CS0067
+        public event System.Collections.Specialized.NotifyCollectionChangedEventHandler? CollectionChanged;
+#pragma warning restore CS0067
+
+        public ValueTask<int> GetItemCountAsync(CancellationToken cancellationToken = default)
+        {
+            CountCallCount++;
+            return ValueTask.FromResult(items.Count);
+        }
+
+        public ValueTask<IReadOnlyList<T>> GetItemsAsync(int startIndex, int count, CancellationToken cancellationToken = default)
+        {
+            FetchCallCount++;
+            RequestedRanges.Add((startIndex, count));
+            var actual = Math.Min(count, Math.Max(0, items.Count - startIndex));
+            var window = new T[actual];
+            for (int i = 0; i < actual; i++) window[i] = items[startIndex + i];
+            return ValueTask.FromResult<IReadOnlyList<T>>(window);
+        }
+
+        public ValueTask<int?> GetIndexForKeyAsync(object? key, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult<int?>(null);
+    }
+
+    [TestMethod]
+    public async Task DataSource_LoadDataAsync_PopulatesCacheAndCount()
+    {
+        var source = new CountingDataSource<int>(Enumerable.Range(0, 1000).ToList());
+        var node = new TypedListNode<int> { DataSource = source };
+
+        await node.LoadDataAsync(0, 50);
+
+        Assert.IsTrue(node.IsVirtualized);
+        Assert.AreEqual(1000, node.EffectiveItemCount);
+        Assert.AreEqual(1, source.CountCallCount);
+        Assert.AreEqual(1, source.FetchCallCount);
+        Assert.IsTrue(node.TryGetEffectiveItem(0, out var v0));
+        Assert.AreEqual(0, v0);
+        Assert.IsTrue(node.TryGetEffectiveItem(49, out var v49));
+        Assert.AreEqual(49, v49);
+        Assert.IsFalse(node.TryGetEffectiveItem(500, out _));
+    }
+
+    [TestMethod]
+    public async Task DataSource_LoadDataAsync_SkipsFetchWhenRangeCached()
+    {
+        var source = new CountingDataSource<int>(Enumerable.Range(0, 100).ToList());
+        var node = new TypedListNode<int> { DataSource = source };
+
+        await node.LoadDataAsync(0, 50);
+        await node.LoadDataAsync(10, 20); // inside (0, 50)
+
+        Assert.AreEqual(1, source.FetchCallCount, "Second load should hit the cache.");
+    }
+
+    [TestMethod]
+    public async Task DataSource_DoesNotMaterialiseEntireCollection_OnReconcile()
+    {
+        var source = new CountingDataSource<int>(Enumerable.Range(0, 100_000).ToList());
+        var widget = new ListWidget<int>(Array.Empty<int>()).DataSource(source);
+
+        var ctx = ReconcileContext.CreateRoot();
+        var node = (TypedListNode<int>)await widget.ReconcileAsync(null, ctx);
+
+        Assert.AreEqual(100_000, node.EffectiveItemCount);
+        // Only the initial 50-item window should have been fetched, never the
+        // entire 100k collection.
+        Assert.IsTrue(source.RequestedRanges.All(r => r.Count <= 1000),
+            $"Expected windowed loads only, got: {string.Join(",", source.RequestedRanges.Select(r => $"({r.Start},{r.Count})"))}");
+        Assert.IsTrue(source.RequestedRanges.Sum(r => r.Count) < 1000,
+            "Total fetched items should be a small window, not the whole collection.");
+    }
+
+    [TestMethod]
+    public async Task DataSource_Selection_SelectedItemReadsFromCache()
+    {
+        var source = new CountingDataSource<string>(
+            Enumerable.Range(0, 200).Select(i => $"item-{i}").ToList());
+        var node = new TypedListNode<string> { DataSource = source };
+
+        await node.LoadDataAsync(0, 50);
+        node.SelectedIndex = 25;
+
+        Assert.AreEqual("item-25", node.SelectedItem);
+        Assert.AreEqual("item-25", node.SelectedText);
+    }
+
+    [TestMethod]
+    public async Task DataSource_SelectionOutsideCache_EnsureLoadedFetchesIt()
+    {
+        var source = new CountingDataSource<string>(
+            Enumerable.Range(0, 1000).Select(i => $"item-{i}").ToList());
+        var node = new TypedListNode<string> { DataSource = source };
+
+        await node.LoadDataAsync(0, 50);
+
+        // Move selection well past the cache window without re-loading first.
+        node.SelectedIndex = 500;
+        Assert.IsNull(node.SelectedItem, "Item shouldn't be loaded yet.");
+
+        await node.EnsureSelectedItemLoadedAsync();
+
+        Assert.AreEqual("item-500", node.SelectedItem);
+    }
+
+    [TestMethod]
+    public void DataSource_OnCollectionChanged_ClearsCacheAndInvalidates()
+    {
+        var inner = new System.Collections.ObjectModel.ObservableCollection<int>(Enumerable.Range(0, 10));
+        var source = new Hex1b.Data.ListDataSource<int>(inner);
+        var invalidated = 0;
+        var node = new TypedListNode<int>
+        {
+            InvalidateCallback = () => invalidated++,
+            DataSource = source,
+        };
+
+        // Prime the cache.
+        node.LoadDataAsync(0, 10).AsTask().Wait();
+        Assert.AreEqual(10, node.EffectiveItemCount);
+
+        inner.Add(99);
+
+        Assert.IsTrue(invalidated > 0, "Collection change should trigger invalidate.");
+        // Cache was cleared — count is no longer known synchronously.
+        Assert.AreEqual(0, node.EffectiveItemCount);
+    }
+
+    [TestMethod]
+    public void ListDataSource_GetItemsAsync_ClampsBeyondEnd()
+    {
+        var src = new Hex1b.Data.ListDataSource<int>(Enumerable.Range(0, 5).ToList());
+        var t = src.GetItemsAsync(3, 10);
+        var window = t.AsTask().Result;
+        Assert.AreEqual(2, window.Count);
+        Assert.AreEqual(3, window[0]);
+        Assert.AreEqual(4, window[1]);
+    }
+
+    #endregion
 }
