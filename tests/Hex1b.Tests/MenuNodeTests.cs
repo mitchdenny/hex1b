@@ -171,6 +171,18 @@ public class MenuNodeTests
         Assert.AreEqual(6, size.Width); // "Open" + 2 padding
         Assert.AreEqual(1, size.Height);
     }
+
+    [TestMethod]
+    public void MenuItemNode_Measure_WideCharacterLabel_UsesDisplayWidth()
+    {
+        var node = new MenuItemNode { Label = "播放", RenderWidth = 0 };
+        var constraints = new Constraints(0, 100, 0, 10);
+
+        var size = node.Measure(constraints);
+
+        Assert.AreEqual(6, size.Width); // CJK label width 4 + 2 padding
+        Assert.AreEqual(1, size.Height);
+    }
     
     [TestMethod]
     public void MenuItemNode_IsFocusable_WhenNotDisabled()
@@ -274,6 +286,38 @@ public class MenuNodeTests
         
         Assert.AreEqual(6, size.Width); // "File" + 2 padding
         Assert.AreEqual(1, size.Height);
+    }
+
+    [TestMethod]
+    public void MenuNode_Measure_WideCharacterLabel_UsesDisplayWidth()
+    {
+        var node = new MenuNode { Label = "媒体" };
+        var constraints = new Constraints(0, 100, 0, 10);
+
+        var size = node.Measure(constraints);
+
+        Assert.AreEqual(6, size.Width); // CJK label width 4 + 2 padding
+        Assert.AreEqual(1, size.Height);
+    }
+
+    [TestMethod]
+    public void MenuPopupNode_Measure_WideCharacterItems_UsesDisplayWidth()
+    {
+        var item = new MenuItemWidget("播放");
+        var submenu = new MenuWidget("搜索", []);
+        var ownerNode = new MenuNode
+        {
+            Label = "媒体",
+            Children = [item, submenu],
+            ChildAccelerators = [(item, null, -1), (submenu, null, -1)]
+        };
+        var popupNode = new MenuPopupNode { OwnerNode = ownerNode };
+        var constraints = new Constraints(0, 100, 0, 10);
+
+        var size = popupNode.Measure(constraints);
+
+        Assert.AreEqual(10, size.Width); // submenu label width 4 + indicator width 2 + padding 2 + border 2
+        Assert.AreEqual(4, size.Height);
     }
     
     [TestMethod]

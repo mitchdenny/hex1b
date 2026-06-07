@@ -450,6 +450,15 @@ public static class DisplayWidth
     }
 
     /// <summary>
+    /// Pads a string to a target terminal display width.
+    /// </summary>
+    internal static string PadRightByDisplayWidth(string text, int targetWidth)
+    {
+        var width = GetStringWidth(text);
+        return width >= targetWidth ? text : text + new string(' ', targetWidth - width);
+    }
+
+    /// <summary>
     /// Slices a string by display width columns, returning the substring that fits.
     /// </summary>
     /// <param name="text">The text to slice.</param>

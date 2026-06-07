@@ -125,7 +125,7 @@ public sealed class LegendNode<T> : Hex1bNode
             // Label
             var x = 2;
             WriteText(surface, x, y, item.Label, labelColor);
-            x += item.Label.Length;
+            x += DisplayWidth.GetStringWidth(item.Label);
 
             // Suffix (value / percentage)
             var suffix = FormatSuffix(item);
@@ -162,19 +162,11 @@ public sealed class LegendNode<T> : Hex1bNode
             x++;
 
             // Label
-            for (int c = 0; c < item.Label.Length && x < width; c++)
-            {
-                surface[x, 0] = new SurfaceCell(item.Label[c].ToString(), labelColor, null);
-                x++;
-            }
+            x += surface.WriteText(x, 0, item.Label, labelColor);
 
             // Suffix
             var suffix = FormatSuffix(item);
-            for (int c = 0; c < suffix.Length && x < width; c++)
-            {
-                surface[x, 0] = new SurfaceCell(suffix[c].ToString(), dimColor, null);
-                x++;
-            }
+            x += surface.WriteText(x, 0, suffix, dimColor);
         }
     }
 
@@ -206,7 +198,7 @@ public sealed class LegendNode<T> : Hex1bNode
     private int MeasureItemWidth(LegendItem item)
     {
         // swatch(1) + space(1) + label + suffix
-        return 2 + item.Label.Length + FormatSuffix(item).Length;
+        return 2 + DisplayWidth.GetStringWidth(item.Label) + DisplayWidth.GetStringWidth(FormatSuffix(item));
     }
 
     private List<LegendItem> ResolveItems()
@@ -236,12 +228,7 @@ public sealed class LegendNode<T> : Hex1bNode
 
     private static void WriteText(Surface surface, int x, int y, string text, Hex1bColor color)
     {
-        if (y < 0 || y >= surface.Height) return;
-        for (int i = 0; i < text.Length && x + i < surface.Width; i++)
-        {
-            if (x + i < 0) continue;
-            surface[x + i, y] = new SurfaceCell(text[i].ToString(), color, null);
-        }
+        surface.WriteText(x, y, text, color);
     }
 
     private static Hex1bColor[] ResolveColors(int count)

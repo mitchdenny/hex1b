@@ -2,6 +2,7 @@ using Hex1b;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Surfaces;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -29,6 +30,28 @@ public class NotificationCardNodeTests
         // Should have non-zero dimensions
         Assert.IsTrue(size.Width > 0, "Width should be positive");
         Assert.IsTrue(size.Height > 0, "Height should be positive");
+    }
+
+    [TestMethod]
+    public void NotificationCardNode_Render_WideCharacterBody_PreservesRightBorder()
+    {
+        var node = new NotificationCardNode
+        {
+            Notification = new Notification("Title", "播放"),
+            Title = "Title",
+            Body = "播放"
+        };
+        var size = node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, size.Width, size.Height));
+
+        var surface = new Surface(size.Width, size.Height);
+        node.Render(new SurfaceRenderContext(surface));
+
+        Assert.AreEqual("播", surface[2, 2].Character);
+        Assert.IsTrue(surface[3, 2].IsContinuation);
+        Assert.AreEqual("放", surface[4, 2].Character);
+        Assert.IsTrue(surface[5, 2].IsContinuation);
+        Assert.AreEqual("▌", surface[size.Width - 1, 2].Character);
     }
 
     [TestMethod]

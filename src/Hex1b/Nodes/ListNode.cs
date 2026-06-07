@@ -1024,7 +1024,7 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
             {
                 for (int i = 0; i < _cachedItems.Count; i++)
                 {
-                    var len = (_cachedItems[i]?.ToString()?.Length ?? 0) + 2;
+                    var len = DisplayWidth.GetStringWidth(_cachedItems[i]?.ToString() ?? string.Empty) + 2;
                     if (len > maxWidth) maxWidth = len;
                 }
             }
@@ -1036,7 +1036,7 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
             maxWidth = 0;
             for (int i = 0; i < Items.Count; i++)
             {
-                var len = (Items[i]?.ToString()?.Length ?? 0) + 2; // "> " indicator
+                var len = DisplayWidth.GetStringWidth(Items[i]?.ToString() ?? string.Empty) + 2; // "> " indicator
                 if (len > maxWidth) maxWidth = len;
             }
         }

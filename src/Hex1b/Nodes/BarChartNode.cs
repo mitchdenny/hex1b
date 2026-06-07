@@ -51,7 +51,7 @@ public sealed class BarChartNode<T> : Hex1bNode
 
         // Calculate layout regions
         var titleHeight = Title is not null ? 1 : 0;
-        var labelWidth = resolved.Categories.Max(c => c.Label.Length) + 1;
+        var labelWidth = resolved.Categories.Max(c => DisplayWidth.GetStringWidth(c.Label)) + 1;
         labelWidth = Math.Min(labelWidth, width / 3); // Cap at 1/3 of width
         var valueWidth = ShowValues ? 8 : 0;
         var barWidth = width - labelWidth - valueWidth;
@@ -434,7 +434,7 @@ public sealed class BarChartNode<T> : Hex1bNode
         // Title
         if (Title is not null && titleHeight > 0)
         {
-            var titleX = Math.Max(0, (totalWidth - Title.Length) / 2);
+            var titleX = Math.Max(0, (totalWidth - DisplayWidth.GetStringWidth(Title)) / 2);
             WriteText(surface, titleX, 0, Title, labelColor);
         }
 
@@ -470,8 +470,8 @@ public sealed class BarChartNode<T> : Hex1bNode
 
             // Label (left-aligned, truncated)
             var label = data.Categories[catIdx].Label;
-            if (label.Length > labelWidth - 1)
-                label = label[..(labelWidth - 1)];
+            if (DisplayWidth.GetStringWidth(label) > labelWidth - 1)
+                label = DisplayWidth.SliceByDisplayWidth(label, 0, labelWidth - 1).text;
             // Center label vertically within the bar's rows
             var labelY = catY + rowsPerCategory / 2;
             WriteText(surface, 0, labelY, label, labelColor);
@@ -491,7 +491,7 @@ public sealed class BarChartNode<T> : Hex1bNode
                     ? "100%"
                     : formatter(displayValue);
                 var valX = labelWidth + barWidth + 1;
-                if (valX + text.Length <= totalWidth)
+                if (valX + DisplayWidth.GetStringWidth(text) <= totalWidth)
                     WriteText(surface, valX, labelY, text, valueColor);
             }
         }
@@ -499,12 +499,7 @@ public sealed class BarChartNode<T> : Hex1bNode
 
     private static void WriteText(Surface surface, int x, int y, string text, Hex1bColor color)
     {
-        if (y < 0 || y >= surface.Height) return;
-        for (int i = 0; i < text.Length && x + i < surface.Width; i++)
-        {
-            if (x + i < 0) continue;
-            surface[x + i, y] = new SurfaceCell(text[i].ToString(), color, null);
-        }
+        surface.WriteText(x, y, text, color);
     }
 
     private static Hex1bColor[] ResolveSeriesColors(IReadOnlyList<string> seriesNames, Hex1bTheme theme)

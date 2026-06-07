@@ -56,6 +56,16 @@ public class LegendNodeTests
     }
 
     [TestMethod]
+    public void Measure_Vertical_WideCharacterLabels_UsesDisplayWidth()
+    {
+        var node = CreateNode([new("播放", 10)]);
+        var size = node.Measure(Constraints.Unbounded);
+
+        Assert.AreEqual(6, size.Width); // "■ " (2) + CJK label width (4)
+        Assert.AreEqual(1, size.Height);
+    }
+
+    [TestMethod]
     public void Measure_Vertical_RespectsMaxHeight()
     {
         var node = CreateNode(SampleData);
@@ -124,6 +134,20 @@ public class LegendNodeTests
         Assert.AreEqual("■", surface[0, 0].Character);
         Assert.AreEqual("■", surface[0, 1].Character);
         Assert.AreEqual("■", surface[0, 2].Character);
+    }
+
+    [TestMethod]
+    public void Render_Vertical_WideCharacterLabel_WritesContinuationCells()
+    {
+        var node = CreateNode([new("播放", 10)]);
+        var (surface, _) = RenderNode(node, 20, 2);
+
+        Assert.AreEqual("播", surface[2, 0].Character);
+        Assert.AreEqual(2, surface[2, 0].DisplayWidth);
+        Assert.IsTrue(surface[3, 0].IsContinuation);
+        Assert.AreEqual("放", surface[4, 0].Character);
+        Assert.AreEqual(2, surface[4, 0].DisplayWidth);
+        Assert.IsTrue(surface[5, 0].IsContinuation);
     }
 
     [TestMethod]

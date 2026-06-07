@@ -321,7 +321,7 @@ public sealed class NotificationCardNode : Hex1bNode
             {
                 if (currentY >= y + height - 1 - (ShowProgressBar && Notification?.TimeoutDuration != null ? 1 : 0) - (ActionButton != null ? 1 : 0)) break;
 
-                var paddedLine = line.PadRight(contentWidth - 2);
+                var paddedLine = DisplayWidth.PadRightByDisplayWidth(line, contentWidth - 2);
                 context.WriteClipped(x, currentY, $"{cardBgFgAnsi}{globalBgAnsi}{leftEdge}{bodyFgAnsi}{cardBgAnsi} {paddedLine} {cardBgFgAnsi}{globalBgAnsi}{rightEdge}{resetCodes}");
                 currentY++;
             }
@@ -420,7 +420,7 @@ public sealed class NotificationCardNode : Hex1bNode
             {
                 currentLine = word;
             }
-            else if (currentLine.Length + 1 + word.Length <= maxWidth)
+            else if (DisplayWidth.GetStringWidth(currentLine) + 1 + DisplayWidth.GetStringWidth(word) <= maxWidth)
             {
                 currentLine += " " + word;
             }

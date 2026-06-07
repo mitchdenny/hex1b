@@ -316,7 +316,7 @@ public sealed class MenuItemNode : Hex1bNode
     protected override Size MeasureCore(Constraints constraints)
     {
         // Item uses the render width set by parent, or label length + padding
-        var width = RenderWidth > 0 ? RenderWidth : Label.Length + 2;
+        var width = RenderWidth > 0 ? RenderWidth : DisplayWidth.GetStringWidth(Label) + 2;
         return constraints.Constrain(new Size(width, 1));
     }
 
@@ -328,7 +328,7 @@ public sealed class MenuItemNode : Hex1bNode
         var width = RenderWidth > 0 ? RenderWidth : Bounds.Width;
         
         // Pad the label to fill the width
-        var paddedLabel = Label.PadRight(width);
+        var paddedLabel = DisplayWidth.PadRightByDisplayWidth(Label, width);
         
         var accelUnderline = theme.Get(MenuItemTheme.AcceleratorUnderline);
         

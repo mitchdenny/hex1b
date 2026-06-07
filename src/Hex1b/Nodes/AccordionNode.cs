@@ -349,7 +349,7 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
         {
             var action = section.LeftActions[iconIdx];
             var iconText = ResolveActionIcon(action, sectionIndex, expandedChevron, collapsedChevron);
-            var iconWidth = iconText.Length;
+            var iconWidth = DisplayWidth.GetStringWidth(iconText);
             _iconHitRegions.Add((x, iconWidth, sectionIndex, iconIdx, true, action));
             context.WriteClipped(x, y, $"{fgCode}{bgCode}{iconText} {resetToGlobal}");
             x += iconWidth + 1;
@@ -361,18 +361,19 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
         var rightIconsWidth = 0;
         foreach (var action in section.RightActions)
         {
-            rightIconsWidth += ResolveActionIcon(action, sectionIndex, expandedChevron, collapsedChevron).Length + 1;
+            rightIconsWidth += DisplayWidth.GetStringWidth(
+                ResolveActionIcon(action, sectionIndex, expandedChevron, collapsedChevron)) + 1;
         }
         maxTitleWidth -= rightIconsWidth;
 
         var title = section.Title;
-        if (title.Length > maxTitleWidth && maxTitleWidth > 0)
+        if (DisplayWidth.GetStringWidth(title) > maxTitleWidth && maxTitleWidth > 0)
         {
-            title = title[..(maxTitleWidth - 1)] + "…";
+            title = DisplayWidth.SliceByDisplayWidth(title, 0, maxTitleWidth - 1).text + "…";
         }
 
         context.WriteClipped(x, y, $"{fgCode}{bgCode}{title}{resetToGlobal}");
-        x += title.Length;
+        x += DisplayWidth.GetStringWidth(title);
 
         // Fill remaining space before right actions
         var rightIconsStartX = header.X + header.Width - rightIconsWidth;
@@ -388,7 +389,7 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
         {
             var action = section.RightActions[iconIdx];
             var iconText = ResolveActionIcon(action, sectionIndex, expandedChevron, collapsedChevron);
-            var iconWidth = iconText.Length;
+            var iconWidth = DisplayWidth.GetStringWidth(iconText);
             context.WriteClipped(x, y, $"{fgCode}{bgCode} {iconText}{resetToGlobal}");
             x += 1; // space before icon
             _iconHitRegions.Add((x, iconWidth, sectionIndex, iconIdx, false, action));

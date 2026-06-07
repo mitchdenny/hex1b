@@ -1,6 +1,7 @@
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Surfaces;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -164,6 +165,28 @@ public class AccordionNodeTests
         // 2 headers (2 rows) + 10 remaining / 2 expanded = 5 each
         // Verify via GetChildren - content nodes would have bounds if set
         Assert.AreEqual(2, node.SectionCount);
+    }
+
+    [TestMethod]
+    public void RenderHeader_WideCharacterRightAction_UsesDisplayWidth()
+    {
+        var action = new AccordionSectionActionBuilder().Icon("搜");
+        var node = new AccordionNode();
+        node.SetSections([
+            new AccordionNode.SectionInfo("播放", [], [action])
+        ]);
+        node.Measure(new Constraints(0, 8, 0, 1));
+        node.Arrange(new Rect(0, 0, 8, 1));
+
+        var surface = new Surface(8, 1);
+        node.Render(new SurfaceRenderContext(surface));
+
+        Assert.AreEqual("播", surface[0, 0].Character);
+        Assert.IsTrue(surface[1, 0].IsContinuation);
+        Assert.AreEqual("放", surface[2, 0].Character);
+        Assert.IsTrue(surface[3, 0].IsContinuation);
+        Assert.AreEqual("搜", surface[6, 0].Character);
+        Assert.IsTrue(surface[7, 0].IsContinuation);
     }
 
     [TestMethod]
