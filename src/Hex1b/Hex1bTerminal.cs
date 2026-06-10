@@ -1060,7 +1060,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             '\r' or '\n' => new Hex1bKeyEvent(Hex1bKey.Enter, token.Character, Hex1bModifiers.None),
             '\t' => new Hex1bKeyEvent(Hex1bKey.Tab, token.Character, Hex1bModifiers.None),
+            // \b (0x08) and DEL (0x7F) are both treated as Backspace. The \b case also falls
+            // inside the Ctrl+A–Z range below, so it must come first.
             '\x7f' or '\b' => new Hex1bKeyEvent(Hex1bKey.Backspace, token.Character, Hex1bModifiers.None),
+            // Ctrl+A (\x01) through Ctrl+Z (\x1A): map to Hex1bKey.A–Z with Control modifier so
+            // that chord bindings like Ctrl+B can fire. The Enter/Tab/Backspace arms above have
+            // already claimed \x0A, \x0D, \x09, and \x08, so those are never reached here.
+            char c when c is >= '\x01' and <= '\x1a' =>
+                new Hex1bKeyEvent((Hex1bKey)((int)Hex1bKey.A + (c - '\x01')), c, Hex1bModifiers.Control),
             _ => null
         };
     }
