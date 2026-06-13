@@ -12,11 +12,17 @@ using Hex1b.Scene.Objects;
 /// </summary>
 public class SceneRenderer
 {
-    private ISceneShader _shader;
+    private readonly ISceneShader _wireframeShader;
+    private readonly ISceneShader _litShader;
+    private readonly ISceneShader _normalShader;
+    private readonly ISceneShader _depthShader;
 
-    public SceneRenderer(ISceneShader? shader = null)
+    public SceneRenderer(ISceneShader? wireframeShader = null, ISceneShader? solidShader = null)
     {
-        _shader = shader ?? new WireframeSceneShader();
+        _wireframeShader = wireframeShader ?? new WireframeSceneShader();
+        _litShader = solidShader ?? new SolidSceneShader();
+        _normalShader = new SolidSceneShader.NormalSceneShader();
+        _depthShader = new SolidSceneShader.DepthSceneShader();
     }
 
     /// <summary>
@@ -30,9 +36,10 @@ public class SceneRenderer
         context.ClearBuffers();
 
         var viewProjMatrix = camera.GetViewProjectionMatrix(context.ViewportWidth, context.ViewportHeight);
+        var lightingState = BuildLightingState(scene);
 
         // Traverse scene and render all meshes
-        RenderSceneObject(scene, camera, viewProjMatrix, context, Matrix4.IdentityMatrix);
+        RenderSceneObject(scene, camera, viewProjMatrix, context, lightingState);
     }
 
     private void RenderSceneObject(
@@ -40,20 +47,20 @@ public class SceneRenderer
         SceneCamera camera,
         Matrix4 viewProjMatrix,
         SceneRasterizerContext context,
-        Matrix4 parentWorldMatrix)
+        SceneLightingState lightingState)
     {
         var worldMatrix = obj.WorldMatrix;
 
         // Render if it's a mesh
         if (obj is SceneMesh mesh)
         {
-            RenderMesh(mesh, worldMatrix, viewProjMatrix, context);
+            RenderMesh(mesh, worldMatrix, viewProjMatrix, context, lightingState);
         }
 
         // Recursively render children
         foreach (var child in obj.Children)
         {
-            RenderSceneObject(child, camera, viewProjMatrix, context, worldMatrix);
+            RenderSceneObject(child, camera, viewProjMatrix, context, lightingState);
         }
     }
 
@@ -61,14 +68,16 @@ public class SceneRenderer
         SceneMesh mesh,
         Matrix4 worldMatrix,
         Matrix4 viewProjMatrix,
-        SceneRasterizerContext context)
+        SceneRasterizerContext context,
+        SceneLightingState lightingState)
     {
         var mvpMatrix = viewProjMatrix * worldMatrix;
 
         // Compute normal matrix (for lighting calculations)
         var normalMatrix = worldMatrix.Transposed(); // Simplified; assumes uniform scale
 
-        _shader.Render(mesh.Geometry, mesh.Material, mvpMatrix, normalMatrix);
+        var shader = SelectShader(mesh.Material);
+        shader.Render(context, mesh.Geometry, mesh.Material, mvpMatrix, normalMatrix, lightingState);
     }
 
     /// <summary>
@@ -81,25 +90,66 @@ public class SceneRenderer
         Matrix4 normalMatrix,
         SceneRasterizerContext context)
     {
-        _shader.Render(geometry, material, mvpMatrix, normalMatrix);
+        var shader = SelectShader(material);
+        shader.Render(context, geometry, material, mvpMatrix, normalMatrix, new SceneLightingState());
     }
-}
 
-/// <summary>
-/// Extension method to make shader.Render easier to call.
-/// </summary>
-internal static class ShaderExtensions
-{
-    public static void Render(
-        this ISceneShader shader,
-        SceneBufferGeometry geometry,
-        BaseSceneMaterial material,
-        Matrix4 mvpMatrix,
-        Matrix4 normalMatrix)
+    private ISceneShader SelectShader(BaseSceneMaterial material)
     {
-        // This is a workaround - create a dummy context just to call the shader
-        // In a real implementation, the context would be passed through
-        var dummyContext = new SceneRasterizerContext(1, 1);
-        shader.Render(dummyContext, geometry, material, mvpMatrix, normalMatrix);
+        if (material is not SceneMeshMaterial meshMaterial)
+        {
+            return _wireframeShader;
+        }
+
+        return meshMaterial.ShadingMode switch
+        {
+            SceneMeshShadingMode.Normal => _normalShader,
+            SceneMeshShadingMode.Depth => _depthShader,
+            _ => _litShader
+        };
+    }
+
+    private static SceneLightingState BuildLightingState(Scene scene)
+    {
+        var ambientColor = Vector3.One;
+        var ambientIntensity = 0.20f;
+        var directionalLights = new List<SceneDirectionalLightState>();
+
+        CollectLights(scene, directionalLights, ref ambientColor, ref ambientIntensity);
+
+        return new SceneLightingState
+        {
+            AmbientColor = ambientColor,
+            AmbientIntensity = ambientIntensity,
+            DirectionalLights = directionalLights
+        };
+    }
+
+    private static void CollectLights(
+        SceneObject obj,
+        List<SceneDirectionalLightState> directionalLights,
+        ref Vector3 ambientColor,
+        ref float ambientIntensity)
+    {
+        switch (obj)
+        {
+            case SceneAmbientLight ambientLight:
+                ambientColor = ambientLight.Color;
+                ambientIntensity = ambientLight.Intensity;
+                break;
+            case SceneDirectionalLight directionalLight:
+                directionalLights.Add(new SceneDirectionalLightState
+                {
+                    Direction = directionalLight.GetDirection(),
+                    Color = directionalLight.Color,
+                    Intensity = directionalLight.Intensity
+                });
+                break;
+        }
+
+        foreach (var child in obj.Children)
+        {
+            CollectLights(child, directionalLights, ref ambientColor, ref ambientIntensity);
+        }
     }
 }

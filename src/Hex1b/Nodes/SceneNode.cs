@@ -2,8 +2,11 @@ namespace Hex1b;
 
 using Hex1b.Layout;
 using Hex1b.Scene.Core;
+using Hex1b.Scene.Materials;
+using Hex1b.Scene.Math;
 using Hex1b.Scene.Objects;
 using Hex1b.Scene.Rendering;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 using SceneClass = Hex1b.Scene.Core.Scene;
 
@@ -52,44 +55,146 @@ public class SceneNode : Hex1bNode
         if (Scene == null || Camera == null)
             return;
 
-        // Create a rasterizer context for this viewport
-        var rasterizerContext = new SceneRasterizerContext(Bounds.Width, Bounds.Height);
+        var solidMode = ContainsSolidMesh(Scene);
+        var rasterWidth = solidMode ? Bounds.Width : Bounds.Width * 2;
+        var rasterHeight = solidMode ? Bounds.Height * 2 : Bounds.Height * 4;
+        var rasterizerContext = new SceneRasterizerContext(rasterWidth, rasterHeight);
 
-        // Render the scene
         _renderer.Render(Scene, Camera, rasterizerContext);
 
-        // Convert raster output to terminal characters
-        RenderRasterToTerminal(context, rasterizerContext);
+        if (solidMode)
+        {
+            RenderHalfBlockToTerminal(context, rasterizerContext);
+            return;
+        }
+
+        RenderBrailleToTerminal(context, rasterizerContext);
     }
 
-    private void RenderRasterToTerminal(Hex1bRenderContext context, SceneRasterizerContext rasterizerContext)
+    private bool ContainsSolidMesh(SceneObject obj)
     {
-        // Simple wireframe rendering using line-drawing characters
-        // This is a placeholder - a real implementation would use more sophisticated ASCII art
+        if (obj is SceneMesh mesh && mesh.Material is SceneMeshMaterial)
+            return true;
 
-        for (int y = 0; y < rasterizerContext.ViewportHeight && y < Bounds.Height; y++)
+        foreach (var child in obj.Children)
         {
-            for (int x = 0; x < rasterizerContext.ViewportWidth && x < Bounds.Width; x++)
+            if (ContainsSolidMesh(child))
+                return true;
+        }
+
+        return false;
+    }
+
+    private void RenderBrailleToTerminal(Hex1bRenderContext context, SceneRasterizerContext rasterizerContext)
+    {
+        var reset = context.Theme.GetResetToGlobalCodes();
+
+        for (var cellY = 0; cellY < Bounds.Height; cellY++)
+        {
+            for (var cellX = 0; cellX < Bounds.Width; cellX++)
             {
-                var pixel = rasterizerContext.GetPixel(x, y);
-                if (pixel.W > 0) // Has content
+                var brailleBits = 0;
+                var colorSum = Vector3.Zero;
+                var colorCount = 0;
+
+                AccumulateBrailleDot(rasterizerContext, (cellX * 2) + 0, (cellY * 4) + 0, 1 << 0, ref brailleBits, ref colorSum, ref colorCount);
+                AccumulateBrailleDot(rasterizerContext, (cellX * 2) + 0, (cellY * 4) + 1, 1 << 1, ref brailleBits, ref colorSum, ref colorCount);
+                AccumulateBrailleDot(rasterizerContext, (cellX * 2) + 0, (cellY * 4) + 2, 1 << 2, ref brailleBits, ref colorSum, ref colorCount);
+                AccumulateBrailleDot(rasterizerContext, (cellX * 2) + 1, (cellY * 4) + 0, 1 << 3, ref brailleBits, ref colorSum, ref colorCount);
+                AccumulateBrailleDot(rasterizerContext, (cellX * 2) + 1, (cellY * 4) + 1, 1 << 4, ref brailleBits, ref colorSum, ref colorCount);
+                AccumulateBrailleDot(rasterizerContext, (cellX * 2) + 1, (cellY * 4) + 2, 1 << 5, ref brailleBits, ref colorSum, ref colorCount);
+                AccumulateBrailleDot(rasterizerContext, (cellX * 2) + 0, (cellY * 4) + 3, 1 << 6, ref brailleBits, ref colorSum, ref colorCount);
+                AccumulateBrailleDot(rasterizerContext, (cellX * 2) + 1, (cellY * 4) + 3, 1 << 7, ref brailleBits, ref colorSum, ref colorCount);
+
+                var output = " ";
+                if (brailleBits != 0)
                 {
-                    // Use different characters based on intensity
-                    var intensity = (pixel.X + pixel.Y + pixel.Z) / 3.0f;
-                    var ch = intensity < 0.25f ? ' ' :
-                             intensity < 0.5f ? '·' :
-                             intensity < 0.75f ? '▪' :
-                             '█';
-
-                    var cellX = Bounds.X + x;
-                    var cellY = Bounds.Y + y;
-
-                    context.WriteClipped(cellX, cellY, ch.ToString());
+                    var averageColor = colorCount > 0 ? colorSum / colorCount : Vector3.One;
+                    var fg = ToHexColor(averageColor);
+                    output = $"{fg.ToForegroundAnsi()}{char.ConvertFromUtf32(0x2800 + brailleBits)}{reset}";
                 }
+
+                context.WriteClipped(Bounds.X + cellX, Bounds.Y + cellY, output);
             }
         }
     }
+
+    private void RenderHalfBlockToTerminal(Hex1bRenderContext context, SceneRasterizerContext rasterizerContext)
+    {
+        var reset = context.Theme.GetResetToGlobalCodes();
+
+        for (var cellY = 0; cellY < Bounds.Height; cellY++)
+        {
+            for (var cellX = 0; cellX < Bounds.Width; cellX++)
+            {
+                var topPixel = GetPixel(rasterizerContext, cellX, (cellY * 2) + 0);
+                var bottomPixel = GetPixel(rasterizerContext, cellX, (cellY * 2) + 1);
+                var topOn = topPixel.W > 0;
+                var bottomOn = bottomPixel.W > 0;
+
+                string ch;
+                if (!topOn && !bottomOn)
+                {
+                    ch = " ";
+                }
+                else if (topOn && bottomOn)
+                {
+                    var fg = ToHexColor(new Vector3(topPixel.X, topPixel.Y, topPixel.Z));
+                    var bg = ToHexColor(new Vector3(bottomPixel.X, bottomPixel.Y, bottomPixel.Z));
+                    ch = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}▀{reset}";
+                }
+                else if (topOn)
+                {
+                    var fg = ToHexColor(new Vector3(topPixel.X, topPixel.Y, topPixel.Z));
+                    ch = $"{fg.ToForegroundAnsi()}▀{reset}";
+                }
+                else
+                {
+                    var fg = ToHexColor(new Vector3(bottomPixel.X, bottomPixel.Y, bottomPixel.Z));
+                    ch = $"{fg.ToForegroundAnsi()}▄{reset}";
+                }
+
+                context.WriteClipped(Bounds.X + cellX, Bounds.Y + cellY, ch);
+            }
+        }
+    }
+
+    private static Vector4 GetPixel(SceneRasterizerContext rasterizerContext, int x, int y)
+    {
+        if (!rasterizerContext.IsInViewport(x, y))
+            return Vector4.Zero;
+        return rasterizerContext.GetPixel(x, y);
+    }
+
+    private static void AccumulateBrailleDot(
+        SceneRasterizerContext rasterizerContext,
+        int x,
+        int y,
+        int bit,
+        ref int brailleBits,
+        ref Vector3 colorSum,
+        ref int colorCount)
+    {
+        if (!rasterizerContext.IsInViewport(x, y))
+            return;
+
+        var pixel = rasterizerContext.GetPixel(x, y);
+        if (pixel.W <= 0)
+            return;
+
+        brailleBits |= bit;
+        colorSum += new Vector3(pixel.X, pixel.Y, pixel.Z);
+        colorCount++;
+    }
+
+    private static Hex1bColor ToHexColor(Vector3 color)
+    {
+        static byte ToByte(float value)
+        {
+            var clamped = value < 0 ? 0 : value > 1 ? 1 : value;
+            return (byte)(clamped * 255.0f);
+        }
+
+        return Hex1bColor.FromRgb(ToByte(color.X), ToByte(color.Y), ToByte(color.Z));
+    }
 }
-
-
-

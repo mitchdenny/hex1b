@@ -42,6 +42,7 @@ public class SceneLineBasicMaterial : BaseSceneMaterial
 public class SceneMeshMaterial : BaseSceneMaterial
 {
     public bool Lit { get; set; } = true; // Use lighting calculations
+    public SceneMeshShadingMode ShadingMode { get; set; } = SceneMeshShadingMode.Lit;
 
     public SceneMeshMaterial() : base()
     {
@@ -50,4 +51,11 @@ public class SceneMeshMaterial : BaseSceneMaterial
     public SceneMeshMaterial(Vector3 color) : base(color)
     {
     }
+}
+
+public enum SceneMeshShadingMode
+{
+    Lit,
+    Normal,
+    Depth
 }

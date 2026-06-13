@@ -138,11 +138,59 @@ public class SceneRasterizerContext
             }
         }
     }
-}
 
-/// <summary>
-/// Helper math functions for rendering.
-/// </summary>
+        /// <summary>
+        /// Rasterize a filled triangle using barycentric coordinates and depth interpolation.
+        /// </summary>
+        public void DrawFilledTriangle(
+            int x0, int y0, float depth0,
+            int x1, int y1, float depth1,
+            int x2, int y2, float depth2,
+            Vector4 color)
+        {
+            var minX = global::System.Math.Max(0, global::System.Math.Min(x0, global::System.Math.Min(x1, x2)));
+            var maxX = global::System.Math.Min(ViewportWidth - 1, global::System.Math.Max(x0, global::System.Math.Max(x1, x2)));
+            var minY = global::System.Math.Max(0, global::System.Math.Min(y0, global::System.Math.Min(y1, y2)));
+            var maxY = global::System.Math.Min(ViewportHeight - 1, global::System.Math.Max(y0, global::System.Math.Max(y1, y2)));
+
+            var area = EdgeFunction(x0, y0, x1, y1, x2, y2);
+            if (MathF.Abs(area) < float.Epsilon)
+                return;
+
+            for (var y = minY; y <= maxY; y++)
+            {
+                for (var x = minX; x <= maxX; x++)
+                {
+                    var w0 = EdgeFunction(x1, y1, x2, y2, x, y);
+                    var w1 = EdgeFunction(x2, y2, x0, y0, x, y);
+                    var w2 = EdgeFunction(x0, y0, x1, y1, x, y);
+
+                    var inside = area > 0
+                        ? (w0 >= 0 && w1 >= 0 && w2 >= 0)
+                        : (w0 <= 0 && w1 <= 0 && w2 <= 0);
+
+                    if (!inside)
+                        continue;
+
+                    w0 /= area;
+                    w1 /= area;
+                    w2 /= area;
+
+                    var depth = (w0 * depth0) + (w1 * depth1) + (w2 * depth2);
+                    SetPixelIfFront(x, y, depth, color);
+                }
+            }
+        }
+
+        private static float EdgeFunction(int ax, int ay, int bx, int by, int px, int py)
+        {
+            return ((px - ax) * (by - ay)) - ((py - ay) * (bx - ax));
+        }
+    }
+
+    /// <summary>
+    /// Helper math functions for rendering.
+    /// </summary>
 internal static class MathHelper
 {
     public static float Lerp(float a, float b, float t)
