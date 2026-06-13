@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Linq;
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Layout;
@@ -10,29 +9,15 @@ using Hex1b.Scene.Math;
 using Hex1b.Scene.Objects;
 using Hex1b.Scene.Rendering;
 using Hex1b.Scene.Textures;
-using Hex1b.Theming;
 using Hex1b.Widgets;
 using SceneClass = Hex1b.Scene.Core.Scene;
 
 var scene = new SceneClass("Scene Demo");
 
-// Create inner scene for texture rendering
-var innerScene = CreateInnerScene();
-var (innerCube, innerTorus, innerCylinder) = GetInnerSceneMeshes(innerScene);
-var innerPerspectiveCamera = new ScenePerspectiveCamera("Inner Perspective");
-var innerSceneWidget = new SceneWidget(innerScene, innerPerspectiveCamera);
-
 var standardRenderables = CreateRenderables();
-var planeRenderable = standardRenderables[^1]; // Last renderable is the plane
-var planeMesh = (SceneMesh)planeRenderable.Mesh;
-var planeTextureMaterial = (SceneTextureMaterial)planeMesh.Material!;
-
-// Only add the plane to the main scene (not the primitive shapes - they're in inner scene)
-scene.AddChild(planeMesh);
-// Also add the wave cloth for comparison (renderables[3])
-if (standardRenderables.Length > 3)
+foreach (var renderable in standardRenderables)
 {
-    scene.AddChild(standardRenderables[3].Mesh);
+    scene.AddChild(renderable.Mesh);
 }
 var metaball = CreateMetaballState();
 var contentMode = SceneContentMode.Primitives;
@@ -60,11 +45,6 @@ var orbitHeight = 1.0f;
 var orbitYawVelocity = 0.0f;
 var orbitZoomVelocity = 0.0f;
 var polygonDetailLevel = PolygonDetailLevel.High;
-
-// Plane rotation animation variables
-var planeRoll = 0.0f;
-var planePitch = 0.0f;
-var planeYaw = 0.0f;
 
 ApplyLightingSetup(cinematicLighting, ambientLight, keyLight, fillLight, standardRenderables, metaball);
 ApplyMaterialMode(renderMode, standardRenderables, metaball);
@@ -112,22 +92,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 item.Update?.Invoke(frameSeconds);
             }
 
-            // Update inner scene objects rotation
-            var innerSpeed = 0.8f;
-            innerCube.Rotation = Quaternion.FromEulerAngles(frameSeconds * innerSpeed * 1.2f, frameSeconds * innerSpeed * 0.8f, frameSeconds * innerSpeed * 0.6f);
-            innerTorus.Rotation = Quaternion.FromEulerAngles(frameSeconds * innerSpeed * 0.9f, frameSeconds * innerSpeed * 1.3f, frameSeconds * innerSpeed * 0.7f);
-            innerCylinder.Rotation = Quaternion.FromEulerAngles(frameSeconds * innerSpeed * 0.7f, frameSeconds * innerSpeed * 0.5f, frameSeconds * innerSpeed * 1.4f);
-
-            // Render inner scene widget to texture and update plane
-            var dynamicTexture = RenderSceneWidgetToTexture(innerSceneWidget, 128, 128);
-            planeTextureMaterial.Texture = dynamicTexture;
-
-            // Update plane rotation on all 3 axes
-            planeRoll += 0.4f * deltaSeconds;
-            planePitch += 0.6f * deltaSeconds;
-            planeYaw += 0.35f * deltaSeconds;
-            planeMesh.Rotation = Quaternion.FromEulerAngles(planeRoll, planePitch, planeYaw);
-
             if (contentMode == SceneContentMode.Metaball)
             {
                 UpdateMetaball(metaball, frameSeconds);
@@ -161,9 +125,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             return ic.Grid(g =>
             {
                 g.Columns.Add(SizeHint.Fill);
-                g.Columns.Add(SizeHint.Fill);
                 g.Rows.Add(SizeHint.Fixed(1));
-                g.Rows.Add(SizeHint.Fill);
                 g.Rows.Add(SizeHint.Fill);
                 g.Rows.Add(SizeHint.Fixed(1));
 
@@ -176,18 +138,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     g.Cell(c => c.Border(b => [b.Scene(scene, activeCamera.Camera)]).Title(sceneTitle))
                         .Row(1).Column(0),
 
-                    g.Cell(c => c.Border(b => [b.Scene(scene, activeCamera.Camera)]).Title(sceneTitle))
-                        .Row(1).Column(1),
-
-                    g.Cell(c => c.Border(b => [b.Scene(scene, activeCamera.Camera)]).Title(sceneTitle))
-                        .Row(2).Column(0),
-
-                    g.Cell(c => c.Border(b => [b.Scene(scene, activeCamera.Camera)]).Title(sceneTitle))
-                        .Row(2).Column(1),
-
                     g.Cell(c => c.Text(
                         " ←/→ orbit   ↑/↓ zoom   drag L/R orbit   wheel/pinch zoom   C camera   W render mode   L light   M scene   P poly detail "))
-                        .Row(3).Column(0)
+                        .Row(2).Column(0)
                 ];
             })
             .RedrawAfter(33);
@@ -360,17 +313,6 @@ static SceneRenderable[] CreateRenderables()
         Rotation = Quaternion.FromEulerAngles(-0.35f, 0.0f, 0.0f)
     };
 
-    // Create a textured plane for testing
-    var planeGeometry = CreatePlaneGeometry(3.0f, 3.0f);
-    var testTexture = CreateTestTexture(128, 128);
-    var textureMaterial = new SceneTextureMaterial(new Vector3(1.0f, 1.0f, 1.0f), testTexture);
-    var planeWire = new SceneLineBasicMaterial(new Vector3(1.0f, 1.0f, 1.0f));
-    var plane = new SceneMesh(planeGeometry, planeWire, "Textured Plane")
-    {
-        Position = new Vector3(0.0f, -2.5f, 0.0f),
-        Material = textureMaterial
-    };
-    
     return
     [
         new SceneRenderable(
@@ -401,67 +343,8 @@ static SceneRenderable[] CreateRenderables()
                 Medium: waveDetails.Medium.Geometry,
                 Low: waveDetails.Low.Geometry),
             detailLevel => activeWaveDetail = waveDetails.Get(detailLevel),
-            timeSeconds => UpdateFabricWave(activeWaveDetail, timeSeconds)),
-        new SceneRenderable(
-            plane,
-            planeWire,
-            textureMaterial,
-            new Vector3(0.0f, 0.0f, 0.0f),
-            new PolygonDetailProfile<SceneBufferGeometry>(
-                High: planeGeometry,
-                Medium: planeGeometry,
-                Low: planeGeometry))
+            timeSeconds => UpdateFabricWave(activeWaveDetail, timeSeconds))
     ];
-}
-
-static SceneClass CreateInnerScene()
-{
-    var innerScene = new SceneClass("Inner Scene");
-    
-    // Create simple geometries with normal visualization
-    var cubeGeom = CreateCubeGeometry();
-    var torusGeom = CreateTorusGeometry(0.95f, 0.32f, 16, 10);
-    var cylinderGeom = CreateCylinderGeometry(0.85f, 2.0f, 16);
-    
-    // All use same material for simplicity (normal debug material will be applied later)
-    var material = new SceneMeshMaterial(Vector3.One);
-    var linemat = new SceneLineBasicMaterial(Vector3.One);
-    
-    // Create meshes positioned in a triangle
-    var cube = new SceneMesh(cubeGeom, linemat, "Inner Cube")
-    {
-        Position = new Vector3(-1.5f, 0.0f, 0.0f),
-        Material = material
-    };
-    
-    var torus = new SceneMesh(torusGeom, linemat, "Inner Torus")
-    {
-        Position = new Vector3(0.0f, 0.0f, -1.5f),
-        Material = material
-    };
-    
-    var cylinder = new SceneMesh(cylinderGeom, linemat, "Inner Cylinder")
-    {
-        Position = new Vector3(1.5f, 0.0f, 0.0f),
-        Material = material
-    };
-    
-    innerScene.AddChild(cube);
-    innerScene.AddChild(torus);
-    innerScene.AddChild(cylinder);
-    
-    // Add basic lighting
-    var ambientLight = new SceneAmbientLight("Ambient") { Intensity = 0.4f };
-    var directionalLight = new SceneDirectionalLight("Key")
-    {
-        Rotation = Quaternion.FromEulerAngles(-0.65f, 0.80f, 0.0f),
-        Intensity = 1.0f
-    };
-    
-    innerScene.AddChild(ambientLight);
-    innerScene.AddChild(directionalLight);
-    
-    return innerScene;
 }
 
 static void ApplyMaterialMode(SceneRenderMode renderMode, SceneRenderable[] standardRenderables, MetaballState metaball)
@@ -721,23 +604,6 @@ static SceneTexture2D CreateTestTexture2(int width = 64, int height = 64)
     
     texture.SetPixels(pixels);
     return texture;
-}
-
-static SceneTexture2D RenderSceneWidgetToTexture(SceneWidget widget, int width = 128, int height = 128)
-{
-    // Render any widget (including SceneWidget) by rendering to terminal and converting to RGB texture
-    var texture = TerminalTextureRenderer.RenderToTexture(widget, width, height);
-    return texture;
-}
-
-static (SceneMesh cube, SceneMesh torus, SceneMesh cylinder) GetInnerSceneMeshes(SceneClass scene)
-{
-    // Extract the inner scene meshes from the scene
-    var meshes = scene.Children.OfType<SceneMesh>().ToList();
-    var cube = meshes.FirstOrDefault(m => m.Name == "Inner Cube") ?? throw new InvalidOperationException("Inner Cube not found");
-    var torus = meshes.FirstOrDefault(m => m.Name == "Inner Torus") ?? throw new InvalidOperationException("Inner Torus not found");
-    var cylinder = meshes.FirstOrDefault(m => m.Name == "Inner Cylinder") ?? throw new InvalidOperationException("Inner Cylinder not found");
-    return (cube, torus, cylinder);
 }
 
 static SceneBufferGeometry CreateCylinderGeometry(float radius, float height, int segments)
