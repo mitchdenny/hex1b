@@ -52,16 +52,16 @@ var polygonDetailLevel = PolygonDetailLevel.High;
 // sampled each frame and projected as a texture onto a plane in the outer scene.
 var innerScene = new SceneClass("Texture Source Scene");
 
-var innerCubeMaterial = new SceneMeshMaterial(new Vector3(0.20f, 0.75f, 0.95f)) { ShadingMode = SceneMeshShadingMode.Lit };
+var innerCubeMaterial = new SceneMeshMaterial(new Vector3(0.20f, 0.75f, 0.95f)) { ShadingMode = SceneMeshShadingMode.Normal };
 var innerCube = new SceneMesh(CreateCubeGeometry(), innerCubeMaterial, "Inner Cube")
 {
     Position = new Vector3(-2.6f, 0.0f, 0.0f)
 };
 
-var innerTorusMaterial = new SceneMeshMaterial(new Vector3(0.95f, 0.45f, 0.20f)) { ShadingMode = SceneMeshShadingMode.Lit };
+var innerTorusMaterial = new SceneMeshMaterial(new Vector3(0.95f, 0.45f, 0.20f)) { ShadingMode = SceneMeshShadingMode.Normal };
 var innerTorus = new SceneMesh(CreateTorusGeometry(0.85f, 0.34f, 36, 18), innerTorusMaterial, "Inner Torus");
 
-var innerCylinderMaterial = new SceneMeshMaterial(new Vector3(0.35f, 0.90f, 0.40f)) { ShadingMode = SceneMeshShadingMode.Lit };
+var innerCylinderMaterial = new SceneMeshMaterial(new Vector3(0.35f, 0.90f, 0.40f)) { ShadingMode = SceneMeshShadingMode.Normal };
 var innerCylinder = new SceneMesh(CreateCylinderGeometry(0.7f, 1.7f, 28), innerCylinderMaterial, "Inner Cylinder")
 {
     Position = new Vector3(2.6f, 0.0f, 0.0f)
