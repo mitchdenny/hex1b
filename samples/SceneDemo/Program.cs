@@ -161,7 +161,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             return ic.Grid(g =>
             {
                 g.Columns.Add(SizeHint.Fill);
+                g.Columns.Add(SizeHint.Fill);
                 g.Rows.Add(SizeHint.Fixed(1));
+                g.Rows.Add(SizeHint.Fill);
                 g.Rows.Add(SizeHint.Fill);
                 g.Rows.Add(SizeHint.Fixed(1));
 
@@ -174,9 +176,18 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     g.Cell(c => c.Border(b => [b.Scene(scene, activeCamera.Camera)]).Title(sceneTitle))
                         .Row(1).Column(0),
 
+                    g.Cell(c => c.Border(b => [b.Scene(scene, activeCamera.Camera)]).Title(sceneTitle))
+                        .Row(1).Column(1),
+
+                    g.Cell(c => c.Border(b => [b.Scene(scene, activeCamera.Camera)]).Title(sceneTitle))
+                        .Row(2).Column(0),
+
+                    g.Cell(c => c.Border(b => [b.Scene(scene, activeCamera.Camera)]).Title(sceneTitle))
+                        .Row(2).Column(1),
+
                     g.Cell(c => c.Text(
                         " ←/→ orbit   ↑/↓ zoom   drag L/R orbit   wheel/pinch zoom   C camera   W render mode   L light   M scene   P poly detail "))
-                        .Row(2).Column(0)
+                        .Row(3).Column(0)
                 ];
             })
             .RedrawAfter(33);
