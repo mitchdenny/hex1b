@@ -313,6 +313,17 @@ static SceneRenderable[] CreateRenderables()
         Rotation = Quaternion.FromEulerAngles(-0.35f, 0.0f, 0.0f)
     };
 
+    // Create a textured plane for testing
+    var planeGeometry = CreatePlaneGeometry(3.0f, 3.0f);
+    var testTexture = CreateTestTexture(128, 128);
+    var textureMaterial = new SceneTextureMaterial(new Vector3(1.0f, 1.0f, 1.0f), testTexture);
+    var planeWire = new SceneLineBasicMaterial(new Vector3(1.0f, 1.0f, 1.0f));
+    var plane = new SceneMesh(planeGeometry, planeWire, "Textured Plane")
+    {
+        Position = new Vector3(0.0f, -2.5f, 0.0f),
+        Material = textureMaterial
+    };
+    
     return
     [
         new SceneRenderable(
@@ -343,7 +354,16 @@ static SceneRenderable[] CreateRenderables()
                 Medium: waveDetails.Medium.Geometry,
                 Low: waveDetails.Low.Geometry),
             detailLevel => activeWaveDetail = waveDetails.Get(detailLevel),
-            timeSeconds => UpdateFabricWave(activeWaveDetail, timeSeconds))
+            timeSeconds => UpdateFabricWave(activeWaveDetail, timeSeconds)),
+        new SceneRenderable(
+            plane,
+            planeWire,
+            textureMaterial,
+            new Vector3(0.0f, 0.0f, 0.0f),
+            new PolygonDetailProfile<SceneBufferGeometry>(
+                High: planeGeometry,
+                Medium: planeGeometry,
+                Low: planeGeometry))
     ];
 }
 
