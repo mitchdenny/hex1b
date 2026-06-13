@@ -714,8 +714,8 @@ static SceneTexture2D CreateTestTexture2(int width = 64, int height = 64)
 
 static SceneTexture2D RenderSceneWidgetToTexture(SceneWidget widget, int width = 128, int height = 128)
 {
-    // Render widget to texture using the static RenderToTexture method
-    var texture = WidgetTextureRenderer.RenderToTexture(widget, width, height);
+    // Render any widget (including SceneWidget) by rendering to terminal and converting to RGB texture
+    var texture = TerminalTextureRenderer.RenderToTexture(widget, width, height);
     return texture;
 }
 

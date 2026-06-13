@@ -5,19 +5,30 @@ using Hex1b.Theming;
 using Hex1b.Widgets;
 
 /// <summary>
-/// Renders Hex1b widgets to SceneTexture2D for use as mesh textures.
-/// Supports dynamic rendering for per-frame texture updates.
+/// Renders any widget to a SceneTexture2D by rendering it to a terminal buffer
+/// and converting terminal cell colors to RGB pixels.
+/// 
+/// This enables any Hex1b widget to be used as a texture on 3D mesh surfaces.
+/// The rendered terminal output is sampled and converted to RGBA32 pixel data.
 /// </summary>
-public class WidgetTextureRenderer
+public class TerminalTextureRenderer
 {
     /// <summary>
-    /// Render a widget to a texture at specified dimensions.
+    /// Render a widget to a texture by converting terminal rendering output to RGB pixels.
     /// </summary>
-    /// <param name="widget">The widget to render</param>
+    /// <remarks>
+    /// Any widget can be rendered:
+    /// - Terminal widgets (Text, Grid, etc) → rendered normally
+    /// - SceneWidget → renders the 3D scene to terminal cells → converted to texture
+    /// - Complex widgets → flattened to terminal output → RGB conversion
+    /// 
+    /// The terminal foreground color of each cell is sampled and converted to RGB.
+    /// </remarks>
+    /// <param name="widget">The widget to render (any Hex1bWidget)</param>
     /// <param name="width">Texture width in terminal cells</param>
     /// <param name="height">Texture height in terminal cells</param>
     /// <param name="theme">Optional theme for rendering (uses default if null)</param>
-    /// <returns>SceneTexture2D with RGBA32 pixel data</returns>
+    /// <returns>SceneTexture2D with RGBA32 pixel data from terminal output</returns>
     public static SceneTexture2D RenderToTexture(
         Hex1bWidget widget, 
         int width, 
