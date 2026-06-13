@@ -9,6 +9,7 @@ using Hex1b.Scene.Math;
 using Hex1b.Scene.Objects;
 using Hex1b.Scene.Rendering;
 using Hex1b.Scene.Textures;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 using SceneClass = Hex1b.Scene.Core.Scene;
 
@@ -623,6 +624,13 @@ static SceneTexture2D CreateTestTexture2(int width = 64, int height = 64)
     }
     
     texture.SetPixels(pixels);
+    return texture;
+}
+
+static SceneTexture2D RenderSceneWidgetToTexture(SceneWidget widget, int width = 128, int height = 128)
+{
+    // Render widget to texture using the static RenderToTexture method
+    var texture = WidgetTextureRenderer.RenderToTexture(widget, width, height);
     return texture;
 }
 
