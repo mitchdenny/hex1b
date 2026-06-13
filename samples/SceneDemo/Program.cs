@@ -200,6 +200,18 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
             UpdateCameraTransforms(cameras, orbitYaw, orbitRadius, orbitHeight);
 
+            if (contentMode == SceneContentMode.TexturedPlane)
+            {
+                // Pin the key light to the active camera so the camera-facing plane
+                // is always fully lit and the projected content reads clearly.
+                var litCamera = cameras[cameraTypeIndex].Camera;
+                keyLight.Rotation = litCamera.Rotation;
+                keyLight.Color = new Vector3(1.0f, 1.0f, 1.0f);
+                keyLight.Intensity = 1.3f;
+                ambientLight.Color = new Vector3(1.0f, 1.0f, 1.0f);
+                ambientLight.Intensity = 0.4f;
+            }
+
             var modeLabel = renderMode switch
             {
                 SceneRenderMode.Wireframe => "Wireframe (Braille)",
@@ -345,6 +357,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 }
 
                 ApplyMaterialMode(renderMode, standardRenderables, metaball);
+                ApplyLightingSetup(cinematicLighting, ambientLight, keyLight, fillLight, standardRenderables, metaball);
                 ApplySceneContent(scene, standardRenderables, metaball, terminalPlaneMesh, contentMode);
                 app.Invalidate();
             }, "Cycle scene content");
