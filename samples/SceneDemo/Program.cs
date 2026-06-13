@@ -124,6 +124,11 @@ _ = Task.Run(async () =>
 });
 
 var terminalTexture = new TerminalTexture(terminalTextureHandle);
+
+// Simpler alternative to the terminal-texture path: render the same inner scene
+// straight to a texture from its camera (no terminal cell buffer in between).
+var sceneRenderTexture = new SceneRenderTexture(innerScene, innerCamera, 120, 64);
+
 var terminalPlaneMaterial = new SceneTextureMaterial(new Vector3(0.85f, 0.86f, 0.95f))
 {
     FilterMode = TextureFilterMode.Nearest
@@ -184,7 +189,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 UpdateMetaball(metaball, frameSeconds);
             }
 
-            if (contentMode == SceneContentMode.TexturedPlane)
+            if (contentMode == SceneContentMode.TexturedPlane || contentMode == SceneContentMode.SceneTexturePlane)
             {
                 // Stand the plane up to face the starting camera (+Z), then gently
                 // tilt back and forth on each axis so it stays mostly front-on and
@@ -194,13 +199,17 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     basePitch + (MathF.Sin(frameSeconds * 0.8f) * 0.32f),
                     MathF.Sin(frameSeconds * 0.6f) * 0.45f,
                     MathF.Sin(frameSeconds * 1.0f) * 0.22f);
-                terminalTexture.Update();
-                terminalPlaneMaterial.Texture = terminalTexture.Texture;
+
+                // TexturedPlane samples a live terminal's cell buffer; SceneTexturePlane
+                // renders the same scene straight to a texture (the simpler path).
+                terminalPlaneMaterial.Texture = contentMode == SceneContentMode.SceneTexturePlane
+                    ? sceneRenderTexture.Update()
+                    : terminalTexture.Update();
             }
 
             UpdateCameraTransforms(cameras, orbitYaw, orbitRadius, orbitHeight);
 
-            if (contentMode == SceneContentMode.TexturedPlane)
+            if (contentMode == SceneContentMode.TexturedPlane || contentMode == SceneContentMode.SceneTexturePlane)
             {
                 // Pin the key light to the active camera so the camera-facing plane
                 // is always fully lit and the projected content reads clearly.
@@ -225,6 +234,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 SceneContentMode.Metaball => "Metaball",
                 SceneContentMode.WaveCloth => "Wave Cloth",
                 SceneContentMode.TexturedPlane => "Terminal Texture",
+                SceneContentMode.SceneTexturePlane => "Scene Texture",
                 _ => "Primitives"
             };
             var sceneTitle = contentMode switch
@@ -232,6 +242,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 SceneContentMode.Metaball => "Morphing Metaball",
                 SceneContentMode.WaveCloth => "Fabric Wave Plane",
                 SceneContentMode.TexturedPlane => "Inner Terminal → Texture → Plane",
+                SceneContentMode.SceneTexturePlane => "Inner Scene → Texture → Plane",
                 _ => "Torus • Cube • Cylinder"
             };
             var polygonLabel = polygonDetailLevel.ToString();
@@ -344,6 +355,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     SceneContentMode.Primitives => SceneContentMode.Metaball,
                     SceneContentMode.Metaball => SceneContentMode.WaveCloth,
                     SceneContentMode.WaveCloth => SceneContentMode.TexturedPlane,
+                    SceneContentMode.TexturedPlane => SceneContentMode.SceneTexturePlane,
                     _ => SceneContentMode.Primitives
                 };
 
@@ -523,7 +535,7 @@ static void ApplySceneContent(
         return;
     }
 
-    if (contentMode == SceneContentMode.TexturedPlane)
+    if (contentMode == SceneContentMode.TexturedPlane || contentMode == SceneContentMode.SceneTexturePlane)
     {
         if (!scene.Children.Contains(terminalPlane))
         {
@@ -1017,7 +1029,8 @@ public enum SceneContentMode
     Primitives,
     Metaball,
     WaveCloth,
-    TexturedPlane
+    TexturedPlane,
+    SceneTexturePlane
 }
 
 public enum SceneRenderMode
