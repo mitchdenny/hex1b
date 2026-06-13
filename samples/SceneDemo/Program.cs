@@ -186,10 +186,14 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
             if (contentMode == SceneContentMode.TexturedPlane)
             {
+                // Stand the plane up to face the starting camera (+Z), then gently
+                // tilt back and forth on each axis so it stays mostly front-on and
+                // well lit rather than tumbling away from view.
+                const float basePitch = MathF.PI / 2.0f;
                 terminalPlaneMesh.Rotation = Quaternion.FromEulerAngles(
-                    frameSeconds * 0.35f,
-                    frameSeconds * 0.55f,
-                    frameSeconds * 0.20f);
+                    basePitch + (MathF.Sin(frameSeconds * 0.8f) * 0.32f),
+                    MathF.Sin(frameSeconds * 0.6f) * 0.45f,
+                    MathF.Sin(frameSeconds * 1.0f) * 0.22f);
                 terminalTexture.Update();
                 terminalPlaneMaterial.Texture = terminalTexture.Texture;
             }
