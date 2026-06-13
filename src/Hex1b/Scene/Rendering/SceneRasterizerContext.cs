@@ -182,6 +182,53 @@ public class SceneRasterizerContext
             }
         }
 
+        /// <summary>
+        /// Rasterize a filled triangle with UV coordinate interpolation for texture sampling.
+        /// </summary>
+        public void DrawFilledTriangleWithUV(
+            int x0, int y0, float depth0, float u0, float v0,
+            int x1, int y1, float depth1, float u1, float v1,
+            int x2, int y2, float depth2, float u2, float v2,
+            Func<float, float, Vector4> sampleColor)
+        {
+            var minX = global::System.Math.Max(0, global::System.Math.Min(x0, global::System.Math.Min(x1, x2)));
+            var maxX = global::System.Math.Min(ViewportWidth - 1, global::System.Math.Max(x0, global::System.Math.Max(x1, x2)));
+            var minY = global::System.Math.Max(0, global::System.Math.Min(y0, global::System.Math.Min(y1, y2)));
+            var maxY = global::System.Math.Min(ViewportHeight - 1, global::System.Math.Max(y0, global::System.Math.Max(y1, y2)));
+
+            var area = EdgeFunction(x0, y0, x1, y1, x2, y2);
+            if (MathF.Abs(area) < float.Epsilon)
+                return;
+
+            for (var y = minY; y <= maxY; y++)
+            {
+                for (var x = minX; x <= maxX; x++)
+                {
+                    var w0 = EdgeFunction(x1, y1, x2, y2, x, y);
+                    var w1 = EdgeFunction(x2, y2, x0, y0, x, y);
+                    var w2 = EdgeFunction(x0, y0, x1, y1, x, y);
+
+                    var inside = area > 0
+                        ? (w0 >= 0 && w1 >= 0 && w2 >= 0)
+                        : (w0 <= 0 && w1 <= 0 && w2 <= 0);
+
+                    if (!inside)
+                        continue;
+
+                    w0 /= area;
+                    w1 /= area;
+                    w2 /= area;
+
+                    var depth = (w0 * depth0) + (w1 * depth1) + (w2 * depth2);
+                    var u = (w0 * u0) + (w1 * u1) + (w2 * u2);
+                    var v = (w0 * v0) + (w1 * v1) + (w2 * v2);
+
+                    var color = sampleColor(u, v);
+                    SetPixelIfFront(x, y, depth, color);
+                }
+            }
+        }
+
         private static float EdgeFunction(int ax, int ay, int bx, int by, int px, int py)
         {
             return ((px - ax) * (by - ay)) - ((py - ay) * (bx - ax));

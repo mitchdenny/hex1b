@@ -2,10 +2,13 @@ using System.Diagnostics;
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Scene.Core;
 using Hex1b.Scene.Geometry;
 using Hex1b.Scene.Materials;
 using Hex1b.Scene.Math;
 using Hex1b.Scene.Objects;
+using Hex1b.Scene.Rendering;
+using Hex1b.Scene.Textures;
 using Hex1b.Widgets;
 using SceneClass = Hex1b.Scene.Core.Scene;
 
@@ -525,6 +528,84 @@ static SceneBufferGeometry CreateCubeGeometry()
     return geometry;
 }
 
+static SceneBufferGeometry CreatePlaneGeometry(float width = 2.0f, float height = 2.0f)
+{
+    var hw = width * 0.5f;
+    var hh = height * 0.5f;
+    var positions = new float[]
+    {
+        -hw, 0, -hh,  hw, 0, -hh,  hw, 0,  hh, -hw, 0,  hh
+    };
+    
+    var uvs = new float[]
+    {
+        0, 0,  1, 0,  1, 1,  0, 1
+    };
+    
+    var indices = new uint[] { 0, 2, 1, 0, 3, 2 };
+    
+    var geometry = new SceneBufferGeometry();
+    geometry.SetAttribute("position", new SceneBufferAttribute("position", positions, 3));
+    geometry.SetAttribute("uv", new SceneBufferAttribute("uv", uvs, 2));
+    geometry.SetIndices(indices);
+    return geometry;
+}
+
+static SceneTexture2D CreateTestTexture(int width = 64, int height = 64)
+{
+    var texture = new SceneTexture2D(width, height);
+    var pixels = texture.GetPixels();
+    
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            var idx = (y * width) + x;
+            
+            // Create a simple checkerboard pattern with red, blue, green colors
+            var checkerSize = 8;
+            var cx = (x / checkerSize) % 2;
+            var cy = (y / checkerSize) % 2;
+            var checker = (cx + cy) % 2;
+            
+            uint color = checker == 0
+                ? 0xFF0000FF  // Red (RGBA format)
+                : 0x0000FFFF; // Blue
+            
+            pixels[idx] = color;
+        }
+    }
+    
+    texture.SetPixels(pixels);
+    return texture;
+}
+
+static SceneTexture2D CreateTestTexture2(int width = 64, int height = 64)
+{
+    var texture = new SceneTexture2D(width, height);
+    var pixels = texture.GetPixels();
+    
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            var idx = (y * width) + x;
+            
+            // Create a gradient pattern
+            var r = (uint)((x * 255) / width);
+            var g = (uint)((y * 255) / height);
+            var b = 128u;
+            var a = 255u;
+            
+            uint color = (r << 24) | (g << 16) | (b << 8) | a;
+            pixels[idx] = color;
+        }
+    }
+    
+    texture.SetPixels(pixels);
+    return texture;
+}
+
 static SceneBufferGeometry CreateCylinderGeometry(float radius, float height, int segments)
 {
     var positions = new List<float>();
@@ -626,6 +707,7 @@ static FabricWaveDetail CreateFabricWaveDetail(float width, float depth, int seg
 {
     var basePoints = new List<Vector2>();
     var positions = new List<float>();
+    var uvs = new List<float>();
     var indices = new List<uint>();
 
     for (var z = 0; z <= segmentsZ; z++)
@@ -640,6 +722,8 @@ static FabricWaveDetail CreateFabricWaveDetail(float width, float depth, int seg
             positions.Add(px);
             positions.Add(0.0f);
             positions.Add(pz);
+            uvs.Add(vx);
+            uvs.Add(vz);
         }
     }
 
@@ -661,6 +745,7 @@ static FabricWaveDetail CreateFabricWaveDetail(float width, float depth, int seg
     var geometry = new SceneBufferGeometry();
     var positionAttribute = new SceneBufferAttribute("position", [.. positions], 3);
     geometry.SetAttribute("position", positionAttribute);
+    geometry.SetAttribute("uv", new SceneBufferAttribute("uv", [.. uvs], 2));
     geometry.SetIndices([.. indices]);
 
     return new FabricWaveDetail(geometry, positionAttribute, [.. basePoints]);
@@ -854,7 +939,8 @@ public enum SceneContentMode
 {
     Primitives,
     Metaball,
-    WaveCloth
+    WaveCloth,
+    TexturedPlane
 }
 
 public enum SceneRenderMode

@@ -3,6 +3,7 @@ namespace Hex1b.Scene.Rendering;
 using Hex1b.Scene.Geometry;
 using Hex1b.Scene.Math;
 using Hex1b.Scene.Materials;
+using Hex1b.Scene.Textures;
 
 /// <summary>
 /// Base interface for rendering shaders.
@@ -109,6 +110,7 @@ public class SolidSceneShader : ISceneShader
             return;
 
         var posAttr = geometry.GetAttribute("position")!;
+        var uvAttr = geometry.HasAttribute("uv") ? geometry.GetAttribute("uv") : null;
 
         var projectedVertices = new (int x, int y, float depth)[posAttr.Count];
         for (int i = 0; i < posAttr.Count; i++)
@@ -121,6 +123,9 @@ public class SolidSceneShader : ISceneShader
             var (screenX, screenY, depth) = context.WorldToScreenSpace(worldPos, modelViewProjectionMatrix);
             projectedVertices[i] = (screenX, screenY, depth);
         }
+
+        var textureMaterial = material as SceneTextureMaterial;
+        var hasTexture = textureMaterial?.Texture != null && uvAttr != null;
 
         for (int f = 0; f < geometry.PrimitiveCount; f++)
         {
@@ -144,15 +149,45 @@ public class SolidSceneShader : ISceneShader
 
             var baseNormal = Vector3.Cross(p1 - p0, p2 - p0).Normalized;
             var worldNormal = TransformDirection(normalMatrix, baseNormal).Normalized;
+            var avgDepth = (v0.depth + v1.depth + v2.depth) / 3.0f;
 
-            var litColor = ApplyLighting(material.Color, worldNormal, (v0.depth + v1.depth + v2.depth) / 3.0f, lightingState);
-            var shadedColor = new Vector4(litColor.X, litColor.Y, litColor.Z, 1.0f);
+            if (hasTexture)
+            {
+                // Read UV coordinates
+                var u0 = uvAttr!.GetComponent((int)i0, 0);
+                var v0_uv = uvAttr.GetComponent((int)i0, 1);
+                var u1 = uvAttr.GetComponent((int)i1, 0);
+                var v1_uv = uvAttr.GetComponent((int)i1, 1);
+                var u2 = uvAttr.GetComponent((int)i2, 0);
+                var v2_uv = uvAttr.GetComponent((int)i2, 1);
 
-            context.DrawFilledTriangle(
-                v0.x, v0.y, v0.depth,
-                v1.x, v1.y, v1.depth,
-                v2.x, v2.y, v2.depth,
-                shadedColor);
+                context.DrawFilledTriangleWithUV(
+                    v0.x, v0.y, v0.depth, u0, v0_uv,
+                    v1.x, v1.y, v1.depth, u1, v1_uv,
+                    v2.x, v2.y, v2.depth, u2, v2_uv,
+                    (u, v) =>
+                    {
+                        var pixelUint = textureMaterial!.Texture!.SampleBilinear(u, v, textureMaterial.WrapMode);
+                        var r = ((pixelUint >> 24) & 0xFF) / 255.0f;
+                        var g = ((pixelUint >> 16) & 0xFF) / 255.0f;
+                        var b = ((pixelUint >> 8) & 0xFF) / 255.0f;
+                        var a = (pixelUint & 0xFF) / 255.0f;
+                        var texColor = new Vector3(r, g, b);
+                        var litColor = ApplyLighting(texColor, worldNormal, avgDepth, lightingState);
+                        return new Vector4(litColor.X, litColor.Y, litColor.Z, a);
+                    });
+            }
+            else
+            {
+                var litColor = ApplyLighting(material.Color, worldNormal, avgDepth, lightingState);
+                var shadedColor = new Vector4(litColor.X, litColor.Y, litColor.Z, 1.0f);
+
+                context.DrawFilledTriangle(
+                    v0.x, v0.y, v0.depth,
+                    v1.x, v1.y, v1.depth,
+                    v2.x, v2.y, v2.depth,
+                    shadedColor);
+            }
         }
     }
 
