@@ -46,10 +46,97 @@ var orbitYawVelocity = 0.0f;
 var orbitZoomVelocity = 0.0f;
 var polygonDetailLevel = PolygonDetailLevel.High;
 
+// Terminal-as-texture source: spin up an independent in-memory Hex1bTerminal
+// hosting its OWN Scene widget (cube, torus, cylinder rotating). That scene is
+// rendered to half-blocks by the inner terminal, and its live screen buffer is
+// sampled each frame and projected as a texture onto a plane in the outer scene.
+var innerScene = new SceneClass("Texture Source Scene");
+
+var innerCubeMaterial = new SceneMeshMaterial(new Vector3(0.20f, 0.75f, 0.95f)) { ShadingMode = SceneMeshShadingMode.Lit };
+var innerCube = new SceneMesh(CreateCubeGeometry(), innerCubeMaterial, "Inner Cube")
+{
+    Position = new Vector3(-2.6f, 0.0f, 0.0f)
+};
+
+var innerTorusMaterial = new SceneMeshMaterial(new Vector3(0.95f, 0.45f, 0.20f)) { ShadingMode = SceneMeshShadingMode.Lit };
+var innerTorus = new SceneMesh(CreateTorusGeometry(0.85f, 0.34f, 36, 18), innerTorusMaterial, "Inner Torus");
+
+var innerCylinderMaterial = new SceneMeshMaterial(new Vector3(0.35f, 0.90f, 0.40f)) { ShadingMode = SceneMeshShadingMode.Lit };
+var innerCylinder = new SceneMesh(CreateCylinderGeometry(0.7f, 1.7f, 28), innerCylinderMaterial, "Inner Cylinder")
+{
+    Position = new Vector3(2.6f, 0.0f, 0.0f)
+};
+
+innerScene.AddChild(innerCube);
+innerScene.AddChild(innerTorus);
+innerScene.AddChild(innerCylinder);
+
+var innerAmbient = new SceneAmbientLight("Inner Ambient") { Color = new Vector3(1.0f, 0.95f, 0.90f), Intensity = 0.25f };
+var innerKey = new SceneDirectionalLight("Inner Key")
+{
+    Color = new Vector3(1.0f, 0.92f, 0.78f),
+    Intensity = 1.05f,
+    Rotation = Quaternion.FromEulerAngles(-0.65f, 0.80f, 0.0f)
+};
+var innerFill = new SceneDirectionalLight("Inner Fill")
+{
+    Color = new Vector3(0.70f, 0.82f, 1.0f),
+    Intensity = 0.45f,
+    Rotation = Quaternion.FromEulerAngles(-0.35f, -1.20f, 0.0f)
+};
+innerScene.AddChild(innerAmbient);
+innerScene.AddChild(innerKey);
+innerScene.AddChild(innerFill);
+
+var innerCamera = new ScenePerspectiveCamera("Inner Camera")
+{
+    Position = new Vector3(0.0f, 1.6f, 8.5f),
+    FieldOfView = MathF.PI / 2.6f
+};
+innerCamera.Rotation = LookAtRotation(innerCamera.Position, Vector3.Zero);
+
+using var innerTerminalCts = new CancellationTokenSource();
+var innerTerminalClock = Stopwatch.StartNew();
+
+Hex1bWidget BuildTerminalTextureContent(RootContext ctx)
+{
+    var t = (float)innerTerminalClock.Elapsed.TotalSeconds;
+    innerCube.Rotation = Quaternion.FromEulerAngles(t * 0.9f, t * 1.3f, 0.0f);
+    innerTorus.Rotation = Quaternion.FromEulerAngles(t * 1.1f, t * 0.7f, t * 0.4f);
+    innerCylinder.Rotation = Quaternion.FromEulerAngles(t * 0.6f, t * 1.5f, 0.0f);
+    return ctx.Border(b => [b.Scene(innerScene, innerCamera)]).Title(" Texture Source ").RedrawAfter(33);
+}
+
+var innerTerminal = Hex1bTerminal.CreateBuilder()
+    .WithDimensions(48, 22)
+    .WithHex1bApp(ctx => BuildTerminalTextureContent(ctx))
+    .WithTerminalWidget(out var terminalTextureHandle)
+    .Build();
+_ = Task.Run(async () =>
+{
+    try
+    {
+        await innerTerminal.RunAsync(innerTerminalCts.Token);
+    }
+    catch (OperationCanceledException)
+    {
+    }
+});
+
+var terminalTexture = new TerminalTexture(terminalTextureHandle);
+var terminalPlaneMaterial = new SceneTextureMaterial(new Vector3(0.85f, 0.86f, 0.95f))
+{
+    FilterMode = TextureFilterMode.Nearest
+};
+var terminalPlaneMesh = new SceneMesh(
+    CreatePlaneGeometry(4.4f, 2.0f),
+    terminalPlaneMaterial,
+    "Terminal Plane");
+
 ApplyLightingSetup(cinematicLighting, ambientLight, keyLight, fillLight, standardRenderables, metaball);
 ApplyMaterialMode(renderMode, standardRenderables, metaball);
 ApplyPolygonDetailLevel(polygonDetailLevel, standardRenderables, metaball);
-ApplySceneContent(scene, standardRenderables, metaball, contentMode);
+ApplySceneContent(scene, standardRenderables, metaball, terminalPlaneMesh, contentMode);
 
 var stopwatch = Stopwatch.StartNew();
 var lastFrameSeconds = 0.0f;
@@ -97,6 +184,16 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 UpdateMetaball(metaball, frameSeconds);
             }
 
+            if (contentMode == SceneContentMode.TexturedPlane)
+            {
+                terminalPlaneMesh.Rotation = Quaternion.FromEulerAngles(
+                    frameSeconds * 0.35f,
+                    frameSeconds * 0.55f,
+                    frameSeconds * 0.20f);
+                terminalTexture.Update();
+                terminalPlaneMaterial.Texture = terminalTexture.Texture;
+            }
+
             UpdateCameraTransforms(cameras, orbitYaw, orbitRadius, orbitHeight);
 
             var modeLabel = renderMode switch
@@ -111,12 +208,14 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             {
                 SceneContentMode.Metaball => "Metaball",
                 SceneContentMode.WaveCloth => "Wave Cloth",
+                SceneContentMode.TexturedPlane => "Terminal Texture",
                 _ => "Primitives"
             };
             var sceneTitle = contentMode switch
             {
                 SceneContentMode.Metaball => "Morphing Metaball",
                 SceneContentMode.WaveCloth => "Fabric Wave Plane",
+                SceneContentMode.TexturedPlane => "Inner Terminal → Texture → Plane",
                 _ => "Torus • Cube • Cylinder"
             };
             var polygonLabel = polygonDetailLevel.ToString();
@@ -228,6 +327,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 {
                     SceneContentMode.Primitives => SceneContentMode.Metaball,
                     SceneContentMode.Metaball => SceneContentMode.WaveCloth,
+                    SceneContentMode.WaveCloth => SceneContentMode.TexturedPlane,
                     _ => SceneContentMode.Primitives
                 };
 
@@ -241,7 +341,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 }
 
                 ApplyMaterialMode(renderMode, standardRenderables, metaball);
-                ApplySceneContent(scene, standardRenderables, metaball, contentMode);
+                ApplySceneContent(scene, standardRenderables, metaball, terminalPlaneMesh, contentMode);
                 app.Invalidate();
             }, "Cycle scene content");
 
@@ -262,6 +362,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .Build();
 
 await terminal.RunAsync();
+
+innerTerminalCts.Cancel();
+await innerTerminal.DisposeAsync();
 
 static SceneRenderable[] CreateRenderables()
 {
@@ -383,9 +486,11 @@ static void ApplySceneContent(
     SceneClass scene,
     SceneRenderable[] standardRenderables,
     MetaballState metaball,
+    SceneMesh terminalPlane,
     SceneContentMode contentMode)
 {
     scene.RemoveChild(metaball.Mesh);
+    scene.RemoveChild(terminalPlane);
     foreach (var renderable in standardRenderables)
     {
         scene.RemoveChild(renderable.Mesh);
@@ -396,6 +501,16 @@ static void ApplySceneContent(
         if (!scene.Children.Contains(metaball.Mesh))
         {
             scene.AddChild(metaball.Mesh);
+        }
+
+        return;
+    }
+
+    if (contentMode == SceneContentMode.TexturedPlane)
+    {
+        if (!scene.Children.Contains(terminalPlane))
+        {
+            scene.AddChild(terminalPlane);
         }
 
         return;
@@ -549,61 +664,6 @@ static SceneBufferGeometry CreatePlaneGeometry(float width = 2.0f, float height 
     geometry.SetAttribute("uv", new SceneBufferAttribute("uv", uvs, 2));
     geometry.SetIndices(indices);
     return geometry;
-}
-
-static SceneTexture2D CreateTestTexture(int width = 64, int height = 64)
-{
-    var texture = new SceneTexture2D(width, height);
-    var pixels = texture.GetPixels();
-    
-    for (int y = 0; y < height; y++)
-    {
-        for (int x = 0; x < width; x++)
-        {
-            var idx = (y * width) + x;
-            
-            // Create a simple checkerboard pattern with red, blue, green colors
-            var checkerSize = 8;
-            var cx = (x / checkerSize) % 2;
-            var cy = (y / checkerSize) % 2;
-            var checker = (cx + cy) % 2;
-            
-            uint color = checker == 0
-                ? 0xFF0000FF  // Red (RGBA format)
-                : 0x0000FFFF; // Blue
-            
-            pixels[idx] = color;
-        }
-    }
-    
-    texture.SetPixels(pixels);
-    return texture;
-}
-
-static SceneTexture2D CreateTestTexture2(int width = 64, int height = 64)
-{
-    var texture = new SceneTexture2D(width, height);
-    var pixels = texture.GetPixels();
-    
-    for (int y = 0; y < height; y++)
-    {
-        for (int x = 0; x < width; x++)
-        {
-            var idx = (y * width) + x;
-            
-            // Create a gradient pattern
-            var r = (uint)((x * 255) / width);
-            var g = (uint)((y * 255) / height);
-            var b = 128u;
-            var a = 255u;
-            
-            uint color = (r << 24) | (g << 16) | (b << 8) | a;
-            pixels[idx] = color;
-        }
-    }
-    
-    texture.SetPixels(pixels);
-    return texture;
 }
 
 static SceneBufferGeometry CreateCylinderGeometry(float radius, float height, int segments)

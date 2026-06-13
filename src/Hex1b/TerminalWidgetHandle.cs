@@ -50,7 +50,7 @@ public enum TerminalState
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, ITerminalLifecycleAwarePresentationAdapter, IAsyncDisposable
+public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, ITerminalLifecycleAwarePresentationAdapter, Hex1b.Scene.Textures.ITerminalTextureSource, IAsyncDisposable
 {
     private readonly object _bufferLock = new();
     private readonly TaskCompletionSource _disconnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
