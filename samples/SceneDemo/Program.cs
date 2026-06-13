@@ -27,9 +27,12 @@ var planeRenderable = standardRenderables[^1]; // Last renderable is the plane
 var planeMesh = (SceneMesh)planeRenderable.Mesh;
 var planeTextureMaterial = (SceneTextureMaterial)planeMesh.Material!;
 
-foreach (var renderable in standardRenderables)
+// Only add the plane to the main scene (not the primitive shapes - they're in inner scene)
+scene.AddChild(planeMesh);
+// Also add the wave cloth for comparison (renderables[3])
+if (standardRenderables.Length > 3)
 {
-    scene.AddChild(renderable.Mesh);
+    scene.AddChild(standardRenderables[3].Mesh);
 }
 var metaball = CreateMetaballState();
 var contentMode = SceneContentMode.Primitives;
