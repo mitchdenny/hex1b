@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Layout;
@@ -15,7 +16,17 @@ using SceneClass = Hex1b.Scene.Core.Scene;
 
 var scene = new SceneClass("Scene Demo");
 
+// Create inner scene for texture rendering
+var innerScene = CreateInnerScene();
+var (innerCube, innerTorus, innerCylinder) = GetInnerSceneMeshes(innerScene);
+var innerPerspectiveCamera = new ScenePerspectiveCamera("Inner Perspective");
+var innerSceneWidget = new SceneWidget(innerScene, innerPerspectiveCamera);
+
 var standardRenderables = CreateRenderables();
+var planeRenderable = standardRenderables[^1]; // Last renderable is the plane
+var planeMesh = (SceneMesh)planeRenderable.Mesh;
+var planeTextureMaterial = (SceneTextureMaterial)planeMesh.Material!;
+
 foreach (var renderable in standardRenderables)
 {
     scene.AddChild(renderable.Mesh);
@@ -46,6 +57,11 @@ var orbitHeight = 1.0f;
 var orbitYawVelocity = 0.0f;
 var orbitZoomVelocity = 0.0f;
 var polygonDetailLevel = PolygonDetailLevel.High;
+
+// Plane rotation animation variables
+var planeRoll = 0.0f;
+var planePitch = 0.0f;
+var planeYaw = 0.0f;
 
 ApplyLightingSetup(cinematicLighting, ambientLight, keyLight, fillLight, standardRenderables, metaball);
 ApplyMaterialMode(renderMode, standardRenderables, metaball);
@@ -92,6 +108,22 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     frameSeconds * speed.Z);
                 item.Update?.Invoke(frameSeconds);
             }
+
+            // Update inner scene objects rotation
+            var innerSpeed = 0.8f;
+            innerCube.Rotation = Quaternion.FromEulerAngles(frameSeconds * innerSpeed * 1.2f, frameSeconds * innerSpeed * 0.8f, frameSeconds * innerSpeed * 0.6f);
+            innerTorus.Rotation = Quaternion.FromEulerAngles(frameSeconds * innerSpeed * 0.9f, frameSeconds * innerSpeed * 1.3f, frameSeconds * innerSpeed * 0.7f);
+            innerCylinder.Rotation = Quaternion.FromEulerAngles(frameSeconds * innerSpeed * 0.7f, frameSeconds * innerSpeed * 0.5f, frameSeconds * innerSpeed * 1.4f);
+
+            // Render inner scene widget to texture and update plane
+            var dynamicTexture = RenderSceneWidgetToTexture(innerSceneWidget, 128, 128);
+            planeTextureMaterial.Texture = dynamicTexture;
+
+            // Update plane rotation on all 3 axes
+            planeRoll += 0.4f * deltaSeconds;
+            planePitch += 0.6f * deltaSeconds;
+            planeYaw += 0.35f * deltaSeconds;
+            planeMesh.Rotation = Quaternion.FromEulerAngles(planeRoll, planePitch, planeYaw);
 
             if (contentMode == SceneContentMode.Metaball)
             {
@@ -368,6 +400,56 @@ static SceneRenderable[] CreateRenderables()
     ];
 }
 
+static SceneClass CreateInnerScene()
+{
+    var innerScene = new SceneClass("Inner Scene");
+    
+    // Create simple geometries with normal visualization
+    var cubeGeom = CreateCubeGeometry();
+    var torusGeom = CreateTorusGeometry(0.95f, 0.32f, 16, 10);
+    var cylinderGeom = CreateCylinderGeometry(0.85f, 2.0f, 16);
+    
+    // All use same material for simplicity (normal debug material will be applied later)
+    var material = new SceneMeshMaterial(Vector3.One);
+    var linemat = new SceneLineBasicMaterial(Vector3.One);
+    
+    // Create meshes positioned in a triangle
+    var cube = new SceneMesh(cubeGeom, linemat, "Inner Cube")
+    {
+        Position = new Vector3(-1.5f, 0.0f, 0.0f),
+        Material = material
+    };
+    
+    var torus = new SceneMesh(torusGeom, linemat, "Inner Torus")
+    {
+        Position = new Vector3(0.0f, 0.0f, -1.5f),
+        Material = material
+    };
+    
+    var cylinder = new SceneMesh(cylinderGeom, linemat, "Inner Cylinder")
+    {
+        Position = new Vector3(1.5f, 0.0f, 0.0f),
+        Material = material
+    };
+    
+    innerScene.AddChild(cube);
+    innerScene.AddChild(torus);
+    innerScene.AddChild(cylinder);
+    
+    // Add basic lighting
+    var ambientLight = new SceneAmbientLight("Ambient") { Intensity = 0.4f };
+    var directionalLight = new SceneDirectionalLight("Key")
+    {
+        Rotation = Quaternion.FromEulerAngles(-0.65f, 0.80f, 0.0f),
+        Intensity = 1.0f
+    };
+    
+    innerScene.AddChild(ambientLight);
+    innerScene.AddChild(directionalLight);
+    
+    return innerScene;
+}
+
 static void ApplyMaterialMode(SceneRenderMode renderMode, SceneRenderable[] standardRenderables, MetaballState metaball)
 {
     var shadingMode = renderMode switch
@@ -632,6 +714,16 @@ static SceneTexture2D RenderSceneWidgetToTexture(SceneWidget widget, int width =
     // Render widget to texture using the static RenderToTexture method
     var texture = WidgetTextureRenderer.RenderToTexture(widget, width, height);
     return texture;
+}
+
+static (SceneMesh cube, SceneMesh torus, SceneMesh cylinder) GetInnerSceneMeshes(SceneClass scene)
+{
+    // Extract the inner scene meshes from the scene
+    var meshes = scene.Children.OfType<SceneMesh>().ToList();
+    var cube = meshes.FirstOrDefault(m => m.Name == "Inner Cube") ?? throw new InvalidOperationException("Inner Cube not found");
+    var torus = meshes.FirstOrDefault(m => m.Name == "Inner Torus") ?? throw new InvalidOperationException("Inner Torus not found");
+    var cylinder = meshes.FirstOrDefault(m => m.Name == "Inner Cylinder") ?? throw new InvalidOperationException("Inner Cylinder not found");
+    return (cube, torus, cylinder);
 }
 
 static SceneBufferGeometry CreateCylinderGeometry(float radius, float height, int segments)
