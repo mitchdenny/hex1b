@@ -85,23 +85,7 @@ public static class TerminalCellTextureSampler
                 ResolveColors(cell, fgDefault, bgDefault, out var fg, out var bg);
                 var glyph = cell.IsHidden ? " " : cell.Character;
 
-                for (int sy = 0; sy < cellPixelHeight; sy++)
-                {
-                    float fyN = (sy + 0.5f) / cellPixelHeight;
-                    int py = cy * cellPixelHeight + sy;
-
-                    for (int sx = 0; sx < cellPixelWidth; sx++)
-                    {
-                        float fxN = (sx + 0.5f) / cellPixelWidth;
-                        var coverage = TerminalGlyphRasterizer.CoverageAt(glyph, fxN, fyN);
-
-                        byte r = Lerp(bg.R, fg.R, coverage);
-                        byte g = Lerp(bg.G, fg.G, coverage);
-                        byte b = Lerp(bg.B, fg.B, coverage);
-
-                        texture.SetPixel(cx * cellPixelWidth + sx, py, r, g, b, 255);
-                    }
-                }
+                CellGlyphBlitter.Blit(texture, cx, cy, cellPixelWidth, cellPixelHeight, glyph, fg, bg);
             }
         }
     }
@@ -123,11 +107,5 @@ public static class TerminalCellTextureSampler
 
         foreground = fg;
         background = bg;
-    }
-
-    private static byte Lerp(byte a, byte b, float t)
-    {
-        var value = a + (b - a) * t;
-        return (byte)System.Math.Clamp((int)System.Math.Round(value), 0, 255);
     }
 }

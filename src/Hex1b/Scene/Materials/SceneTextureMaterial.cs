@@ -33,6 +33,18 @@ public class SceneTextureMaterial : SceneMeshMaterial
     }
 
     /// <summary>
+    /// Number of terminal columns the <see cref="WidgetSource"/> widget is rendered into
+    /// when sampled as a texture. Larger values capture more detail at higher cost.
+    /// </summary>
+    public int WidgetSourceColumns { get; set; } = 48;
+
+    /// <summary>
+    /// Number of terminal rows the <see cref="WidgetSource"/> widget is rendered into
+    /// when sampled as a texture.
+    /// </summary>
+    public int WidgetSourceRows { get; set; } = 24;
+
+    /// <summary>
     /// Texture wrap mode (Clamp, Repeat, MirrorRepeat).
     /// </summary>
     public TextureWrapMode WrapMode { get; set; } = TextureWrapMode.Clamp;

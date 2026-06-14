@@ -20,7 +20,7 @@ public record SceneWidget : Hex1bWidget
         Camera = camera ?? throw new ArgumentNullException(nameof(camera));
     }
 
-    internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as SceneNode ?? new SceneNode();
 
@@ -32,7 +32,11 @@ public record SceneWidget : Hex1bWidget
 
         node.Scene = Scene;
         node.Camera = Camera;
-        return Task.FromResult<Hex1bNode>(node);
+
+        // Reconcile any widgets bound to texture materials so they can be rendered offscreen.
+        await node.ReconcileWidgetSourcesAsync(context);
+
+        return node;
     }
 
     internal override Type GetExpectedNodeType() => typeof(SceneNode);

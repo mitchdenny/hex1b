@@ -9,6 +9,7 @@ using Hex1b.Scene.Math;
 using Hex1b.Scene.Objects;
 using Hex1b.Scene.Rendering;
 using Hex1b.Scene.Textures;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 using SceneClass = Hex1b.Scene.Core.Scene;
 
@@ -125,6 +126,43 @@ _ = Task.Run(async () =>
 
 var terminalTexture = new TerminalTexture(terminalTextureHandle);
 
+// Builds the live widget projected onto the plane in WidgetTexturePlane mode. An ordinary
+// bordered, colour-cycling panel — rendered offscreen by the SceneNode and sampled into the
+// material texture via the SceneTextureMaterial.WidgetSource hook.
+static Hex1bWidget BuildWidgetSource(float t)
+{
+    var hue = (t * 0.12f) % 1.0f;
+    var panel = HsvToColor(hue, 0.65f, 1.0f);
+
+    var bar = new string('█', 4 + (int)((MathF.Sin(t * 1.6f) * 0.5f + 0.5f) * 26));
+    var text = $" WIDGET TEXTURE\n\n {t:0.0}s\n {bar}";
+
+    return new BorderWidget(
+            new BackgroundPanelWidget(panel, new TextBlockWidget(text)))
+        .Title(" Live Widget ");
+}
+
+static Hex1bColor HsvToColor(float h, float s, float v)
+{
+    h = (h % 1.0f) * 6.0f;
+    var i = (int)MathF.Floor(h);
+    var f = h - i;
+    var p = v * (1.0f - s);
+    var q = v * (1.0f - s * f);
+    var u = v * (1.0f - s * (1.0f - f));
+    var (r, g, b) = (i % 6) switch
+    {
+        0 => (v, u, p),
+        1 => (q, v, p),
+        2 => (p, v, u),
+        3 => (p, q, v),
+        4 => (u, p, v),
+        _ => (v, p, q)
+    };
+    static byte B(float c) => (byte)Math.Clamp((int)MathF.Round(c * 255.0f), 0, 255);
+    return Hex1bColor.FromRgb(B(r), B(g), B(b));
+}
+
 // Simpler alternative to the terminal-texture path: render the same inner scene
 // straight to a texture from its camera (no terminal cell buffer in between).
 var sceneRenderTexture = new SceneRenderTexture(innerScene, innerCamera, 120, 64);
@@ -138,10 +176,24 @@ var terminalPlaneMesh = new SceneMesh(
     terminalPlaneMaterial,
     "Terminal Plane");
 
+// Widget-texture path: an ordinary Hex1bWidget bound to the plane material via the
+// material's WidgetSource hook. The SceneNode renders it offscreen each frame and samples
+// its surface cells into the texture — no terminal or inner scene required.
+var widgetPlaneMaterial = new SceneTextureMaterial(new Vector3(0.9f, 0.9f, 0.95f))
+{
+    FilterMode = TextureFilterMode.Nearest,
+    WidgetSourceColumns = 48,
+    WidgetSourceRows = 24
+};
+var widgetPlaneMesh = new SceneMesh(
+    CreatePlaneGeometry(4.4f, 2.0f),
+    widgetPlaneMaterial,
+    "Widget Plane");
+
 ApplyLightingSetup(cinematicLighting, ambientLight, keyLight, fillLight, standardRenderables, metaball);
 ApplyMaterialMode(renderMode, standardRenderables, metaball);
 ApplyPolygonDetailLevel(polygonDetailLevel, standardRenderables, metaball);
-ApplySceneContent(scene, standardRenderables, metaball, terminalPlaneMesh, contentMode);
+ApplySceneContent(scene, standardRenderables, metaball, terminalPlaneMesh, widgetPlaneMesh, contentMode);
 
 var stopwatch = Stopwatch.StartNew();
 var lastFrameSeconds = 0.0f;
@@ -189,27 +241,44 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 UpdateMetaball(metaball, frameSeconds);
             }
 
-            if (contentMode == SceneContentMode.TexturedPlane || contentMode == SceneContentMode.SceneTexturePlane)
+            if (contentMode == SceneContentMode.TexturedPlane
+                || contentMode == SceneContentMode.SceneTexturePlane
+                || contentMode == SceneContentMode.WidgetTexturePlane)
             {
+                var activePlane = contentMode == SceneContentMode.WidgetTexturePlane
+                    ? widgetPlaneMesh
+                    : terminalPlaneMesh;
+
                 // Stand the plane up to face the starting camera (+Z), then gently
                 // tilt back and forth on each axis so it stays mostly front-on and
                 // well lit rather than tumbling away from view.
                 const float basePitch = MathF.PI / 2.0f;
-                terminalPlaneMesh.Rotation = Quaternion.FromEulerAngles(
+                activePlane.Rotation = Quaternion.FromEulerAngles(
                     basePitch + (MathF.Sin(frameSeconds * 0.8f) * 0.32f),
                     MathF.Sin(frameSeconds * 0.6f) * 0.45f,
                     MathF.Sin(frameSeconds * 1.0f) * 0.22f);
 
-                // TexturedPlane samples a live terminal's cell buffer; SceneTexturePlane
-                // renders the same scene straight to a texture (the simpler path).
-                terminalPlaneMaterial.Texture = contentMode == SceneContentMode.SceneTexturePlane
-                    ? sceneRenderTexture.Update()
-                    : terminalTexture.Update();
+                if (contentMode == SceneContentMode.WidgetTexturePlane)
+                {
+                    // Drive an ordinary widget through the material's WidgetSource hook.
+                    // The SceneNode renders it offscreen and samples it into the texture.
+                    widgetPlaneMaterial.WidgetSource = BuildWidgetSource(frameSeconds);
+                }
+                else
+                {
+                    // TexturedPlane samples a live terminal's cell buffer; SceneTexturePlane
+                    // renders the same scene straight to a texture (the simpler path).
+                    terminalPlaneMaterial.Texture = contentMode == SceneContentMode.SceneTexturePlane
+                        ? sceneRenderTexture.Update()
+                        : terminalTexture.Update();
+                }
             }
 
             UpdateCameraTransforms(cameras, orbitYaw, orbitRadius, orbitHeight);
 
-            if (contentMode == SceneContentMode.TexturedPlane || contentMode == SceneContentMode.SceneTexturePlane)
+            if (contentMode == SceneContentMode.TexturedPlane
+                || contentMode == SceneContentMode.SceneTexturePlane
+                || contentMode == SceneContentMode.WidgetTexturePlane)
             {
                 // Pin the key light to the active camera so the camera-facing plane
                 // is always fully lit and the projected content reads clearly.
@@ -235,6 +304,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 SceneContentMode.WaveCloth => "Wave Cloth",
                 SceneContentMode.TexturedPlane => "Terminal Texture",
                 SceneContentMode.SceneTexturePlane => "Scene Texture",
+                SceneContentMode.WidgetTexturePlane => "Widget Texture",
                 _ => "Primitives"
             };
             var sceneTitle = contentMode switch
@@ -243,6 +313,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 SceneContentMode.WaveCloth => "Fabric Wave Plane",
                 SceneContentMode.TexturedPlane => "Inner Terminal → Texture → Plane",
                 SceneContentMode.SceneTexturePlane => "Inner Scene → Texture → Plane",
+                SceneContentMode.WidgetTexturePlane => "Live Widget → Texture → Plane",
                 _ => "Torus • Cube • Cylinder"
             };
             var polygonLabel = polygonDetailLevel.ToString();
@@ -356,6 +427,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     SceneContentMode.Metaball => SceneContentMode.WaveCloth,
                     SceneContentMode.WaveCloth => SceneContentMode.TexturedPlane,
                     SceneContentMode.TexturedPlane => SceneContentMode.SceneTexturePlane,
+                    SceneContentMode.SceneTexturePlane => SceneContentMode.WidgetTexturePlane,
                     _ => SceneContentMode.Primitives
                 };
 
@@ -370,7 +442,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
                 ApplyMaterialMode(renderMode, standardRenderables, metaball);
                 ApplyLightingSetup(cinematicLighting, ambientLight, keyLight, fillLight, standardRenderables, metaball);
-                ApplySceneContent(scene, standardRenderables, metaball, terminalPlaneMesh, contentMode);
+                ApplySceneContent(scene, standardRenderables, metaball, terminalPlaneMesh, widgetPlaneMesh, contentMode);
                 app.Invalidate();
             }, "Cycle scene content");
 
@@ -516,10 +588,12 @@ static void ApplySceneContent(
     SceneRenderable[] standardRenderables,
     MetaballState metaball,
     SceneMesh terminalPlane,
+    SceneMesh widgetPlane,
     SceneContentMode contentMode)
 {
     scene.RemoveChild(metaball.Mesh);
     scene.RemoveChild(terminalPlane);
+    scene.RemoveChild(widgetPlane);
     foreach (var renderable in standardRenderables)
     {
         scene.RemoveChild(renderable.Mesh);
@@ -530,6 +604,16 @@ static void ApplySceneContent(
         if (!scene.Children.Contains(metaball.Mesh))
         {
             scene.AddChild(metaball.Mesh);
+        }
+
+        return;
+    }
+
+    if (contentMode == SceneContentMode.WidgetTexturePlane)
+    {
+        if (!scene.Children.Contains(widgetPlane))
+        {
+            scene.AddChild(widgetPlane);
         }
 
         return;
@@ -1030,7 +1114,8 @@ public enum SceneContentMode
     Metaball,
     WaveCloth,
     TexturedPlane,
-    SceneTexturePlane
+    SceneTexturePlane,
+    WidgetTexturePlane
 }
 
 public enum SceneRenderMode

@@ -6,6 +6,8 @@ using Hex1b.Scene.Materials;
 using Hex1b.Scene.Math;
 using Hex1b.Scene.Objects;
 using Hex1b.Scene.Rendering;
+using Hex1b.Scene.Textures;
+using Hex1b.Surfaces;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 using SceneClass = Hex1b.Scene.Core.Scene;
@@ -18,6 +20,7 @@ public class SceneNode : Hex1bNode
     private SceneRenderer _renderer = new();
     private SceneClass? _scene;
     private SceneCamera? _camera;
+    private readonly Dictionary<SceneTextureMaterial, WidgetTextureSlot> _widgetSlots = new();
 
     public SceneClass? Scene 
     { 
@@ -55,6 +58,12 @@ public class SceneNode : Hex1bNode
         if (Scene == null || Camera == null)
             return;
 
+        // Refresh any widget-backed textures before rasterizing the scene. This requires a
+        // live surface context because the source widgets must render through the host app's
+        // pipeline; without one we simply skip the update and reuse the previous texture.
+        if (context is SurfaceRenderContext surfaceCtx)
+            UpdateWidgetTextures(surfaceCtx);
+
         var solidMode = ContainsSolidMesh(Scene);
         var rasterWidth = solidMode ? Bounds.Width : Bounds.Width * 2;
         var rasterHeight = solidMode ? Bounds.Height * 2 : Bounds.Height * 4;
@@ -69,6 +78,114 @@ public class SceneNode : Hex1bNode
         }
 
         RenderBrailleToTerminal(context, rasterizerContext);
+    }
+
+    /// <summary>
+    /// Reconciles every widget bound to a <see cref="SceneTextureMaterial.WidgetSource"/> in
+    /// the current scene into a cached offscreen node. These nodes are intentionally hidden
+    /// from <see cref="Hex1bNode.GetChildren"/> so they never participate in focus, input, or
+    /// the host layout pass — they exist only to be rendered into textures.
+    /// </summary>
+    internal async Task ReconcileWidgetSourcesAsync(ReconcileContext context)
+    {
+        if (Scene is null)
+        {
+            _widgetSlots.Clear();
+            return;
+        }
+
+        var materials = new List<SceneTextureMaterial>();
+        CollectWidgetSources(Scene, materials);
+
+        if (materials.Count == 0)
+        {
+            _widgetSlots.Clear();
+            return;
+        }
+
+        foreach (var stale in _widgetSlots.Keys.Where(m => !materials.Contains(m)).ToList())
+            _widgetSlots.Remove(stale);
+
+        foreach (var material in materials)
+        {
+            if (material.WidgetSource is null)
+                continue;
+
+            if (!_widgetSlots.TryGetValue(material, out var slot))
+            {
+                slot = new WidgetTextureSlot();
+                _widgetSlots[material] = slot;
+            }
+
+            slot.Node = await context.ReconcileChildAsync(slot.Node, material.WidgetSource, this);
+        }
+    }
+
+    private static void CollectWidgetSources(SceneObject obj, List<SceneTextureMaterial> result)
+    {
+        if (obj is SceneMesh mesh && mesh.Material is SceneTextureMaterial texture && texture.WidgetSource is not null)
+            result.Add(texture);
+
+        foreach (var child in obj.Children)
+            CollectWidgetSources(child, result);
+    }
+
+    private void UpdateWidgetTextures(SurfaceRenderContext surfaceCtx)
+    {
+        if (_widgetSlots.Count == 0)
+            return;
+
+        const int cellPixelWidth = 2;
+        const int cellPixelHeight = 2;
+
+        foreach (var (material, slot) in _widgetSlots)
+        {
+            if (slot.Node is null)
+                continue;
+
+            var columns = System.Math.Max(1, material.WidgetSourceColumns);
+            var rows = System.Math.Max(1, material.WidgetSourceRows);
+            var node = slot.Node;
+
+            node.Measure(Constraints.Tight(columns, rows));
+            node.Arrange(new Rect(0, 0, columns, rows));
+
+            var pool = surfaceCtx.SurfacePool;
+            var surface = pool != null
+                ? pool.Rent(columns, rows, surfaceCtx.CellMetrics)
+                : new Surface(columns, rows, surfaceCtx.CellMetrics);
+
+            try
+            {
+                var tempContext = new SurfaceRenderContext(
+                    surface, 0, 0, surfaceCtx.Theme, surfaceCtx.TrackedObjectStore)
+                {
+                    CachingEnabled = surfaceCtx.CachingEnabled,
+                    MouseX = surfaceCtx.MouseX,
+                    MouseY = surfaceCtx.MouseY,
+                    CellMetrics = surfaceCtx.CellMetrics,
+                    SurfacePool = pool
+                };
+
+                tempContext.SetCursorPosition(node.Bounds.X, node.Bounds.Y);
+                tempContext.RenderChild(node);
+
+                if (slot.Texture is null || slot.Columns != columns || slot.Rows != rows)
+                {
+                    slot.Texture = new SceneTexture2D(columns * cellPixelWidth, rows * cellPixelHeight);
+                    slot.Columns = columns;
+                    slot.Rows = rows;
+                }
+
+                SurfaceCellTextureSampler.SampleInto(slot.Texture, surface, cellPixelWidth, cellPixelHeight);
+                material.Texture = slot.Texture;
+            }
+            finally
+            {
+                if (pool != null)
+                    pool.Return(surface);
+            }
+        }
     }
 
     private bool ContainsSolidMesh(SceneObject obj)
@@ -196,5 +313,13 @@ public class SceneNode : Hex1bNode
         }
 
         return Hex1bColor.FromRgb(ToByte(color.X), ToByte(color.Y), ToByte(color.Z));
+    }
+
+    private sealed class WidgetTextureSlot
+    {
+        public Hex1bNode? Node { get; set; }
+        public SceneTexture2D? Texture { get; set; }
+        public int Columns { get; set; }
+        public int Rows { get; set; }
     }
 }
