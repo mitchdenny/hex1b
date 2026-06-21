@@ -90,6 +90,10 @@ var sceneDemo = builder.AddCSharpApp("scene-demo", "./samples/SceneDemo")
     .ExcludeFromManifest()
     .WithTerminal();
 
+var dirtRaceDemo = builder.AddCSharpApp("dirt-race-demo", "./samples/DirtRaceDemo")
+    .ExcludeFromManifest()
+    .WithTerminal();
+
 // Wire up pipeline dependencies: content build depends on doc generation
 content.WithPipelineConfiguration(context =>
 {
