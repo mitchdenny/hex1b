@@ -124,7 +124,7 @@ _ = Task.Run(async () =>
     }
 });
 
-var terminalTexture = new TerminalTexture(terminalTextureHandle);
+var terminalTexture = new TerminalTexture(new TerminalTextureSource(terminalTextureHandle));
 
 // Builds the live widget projected onto the plane in WidgetTexturePlane mode. An ordinary
 // bordered, colour-cycling panel — rendered offscreen by the SceneNode and sampled into the

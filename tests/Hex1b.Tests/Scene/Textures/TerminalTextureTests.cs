@@ -170,14 +170,14 @@ public class TerminalTextureTests
 
     // ---- TerminalTexture wrapper ----
 
-    private sealed class FakeSource : ITerminalTextureSource
+    private sealed class FakeSource
     {
         public TerminalCell[,] Buffer = new TerminalCell[1, 1];
         public int Width = 1;
         public int Height = 1;
 
-        public (TerminalCell[,] Buffer, int Width, int Height) GetScreenBufferSnapshot()
-            => (Buffer, Width, Height);
+        public TerminalTextureSource ToSource()
+            => new(() => (Buffer, Width, Height));
     }
 
     [TestMethod]
@@ -192,7 +192,7 @@ public class TerminalTextureTests
         source.Buffer[0, 0] = new TerminalCell("\u2588", Hex1bColor.Red, Hex1bColor.Black);
         source.Buffer[0, 1] = new TerminalCell(" ", Hex1bColor.Red, Hex1bColor.Black);
 
-        var termTex = new TerminalTexture(source, cellPixelWidth: 1, cellPixelHeight: 1);
+        var termTex = new TerminalTexture(source.ToSource(), cellPixelWidth: 1, cellPixelHeight: 1);
         var texture = termTex.Update();
 
         Assert.AreEqual(2, texture.Width);
@@ -205,7 +205,7 @@ public class TerminalTextureTests
     public void TerminalTexture_Update_ReusesTextureWhenSizeUnchanged()
     {
         var source = new FakeSource { Width = 2, Height = 2, Buffer = new TerminalCell[2, 2] };
-        var termTex = new TerminalTexture(source);
+        var termTex = new TerminalTexture(source.ToSource());
 
         var first = termTex.Update();
         var second = termTex.Update();
@@ -217,7 +217,7 @@ public class TerminalTextureTests
     public void TerminalTexture_Update_ReallocatesOnResize()
     {
         var source = new FakeSource { Width = 2, Height = 2, Buffer = new TerminalCell[2, 2] };
-        var termTex = new TerminalTexture(source, cellPixelWidth: 1, cellPixelHeight: 1);
+        var termTex = new TerminalTexture(source.ToSource(), cellPixelWidth: 1, cellPixelHeight: 1);
 
         var first = termTex.Update();
         Assert.AreEqual(2, first.Width);
@@ -236,7 +236,7 @@ public class TerminalTextureTests
     public void TerminalTexture_TextureIsNullBeforeFirstUpdate()
     {
         var source = new FakeSource();
-        var termTex = new TerminalTexture(source);
+        var termTex = new TerminalTexture(source.ToSource());
         Assert.IsNull(termTex.Texture);
         termTex.Update();
         Assert.IsNotNull(termTex.Texture);

@@ -3,8 +3,8 @@ namespace Hex1b.Scene.Textures;
 using Hex1b.Theming;
 
 /// <summary>
-/// A live texture whose pixels are sampled from a terminal screen buffer. Wrap any
-/// <see cref="ITerminalTextureSource"/> (for example a <see cref="TerminalWidgetHandle"/>)
+/// A live texture whose pixels are sampled from a terminal screen buffer. Wrap a
+/// <see cref="TerminalTextureSource"/> (which references a <see cref="TerminalWidgetHandle"/>)
 /// and call <see cref="Update"/> once per frame to project the terminal's current content
 /// onto mesh geometry.
 /// </summary>
@@ -16,14 +16,14 @@ using Hex1b.Theming;
 /// <see cref="Materials.SceneTextureMaterial.Texture"/>.
 /// </para>
 /// <code>
-/// var termTex = new TerminalTexture(handle);
+/// var termTex = new TerminalTexture(new TerminalTextureSource(handle));
 /// // each frame:
 /// material.Texture = termTex.Update();
 /// </code>
 /// </remarks>
 public sealed class TerminalTexture
 {
-    private readonly ITerminalTextureSource _source;
+    private readonly TerminalTextureSource _source;
     private SceneTexture2D? _texture;
     private int _bufferWidth;
     private int _bufferHeight;
@@ -53,7 +53,7 @@ public sealed class TerminalTexture
     /// Use 4 for faithful braille.
     /// </param>
     public TerminalTexture(
-        ITerminalTextureSource source,
+        TerminalTextureSource source,
         int cellPixelWidth = TerminalCellTextureSampler.DefaultCellPixelWidth,
         int cellPixelHeight = TerminalCellTextureSampler.DefaultCellPixelHeight)
     {
