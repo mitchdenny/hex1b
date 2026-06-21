@@ -16,10 +16,10 @@ public sealed class VehicleTuning
     public float DirtMaxSpeed { get; init; } = 15.0f;
 
     /// <summary>Steering rate (radians / s) at full steering authority.</summary>
-    public float SteerRate { get; init; } = 2.4f;
+    public float SteerRate { get; init; } = 3.2f;
 
     /// <summary>Speed at which the vehicle reaches full steering authority.</summary>
-    public float SteerFullSpeed { get; init; } = 9.0f;
+    public float SteerFullSpeed { get; init; } = 6.0f;
 
     /// <summary>Exponential rolling-drag coefficient on the track.</summary>
     public float Drag { get; init; } = 0.7f;

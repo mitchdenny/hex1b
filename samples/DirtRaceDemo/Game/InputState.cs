@@ -17,7 +17,7 @@ public sealed class InputState
 {
     private const float Decay = 7.0f;
     private const float CruiseStep = 0.12f;
-    private const float SteerStep = 0.08f;
+    private const float SteerStep = 0.2f;
 
     /// <summary>
     /// How quickly the steering rate eases back to centre, in units/second of exponential decay.
