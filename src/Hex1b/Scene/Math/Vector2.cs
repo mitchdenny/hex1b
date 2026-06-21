@@ -1,8 +1,10 @@
 namespace Hex1b.Scene.Math;
+using System.Diagnostics.CodeAnalysis;
 
 /// <summary>
 /// A 2D vector with x and y components.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public struct Vector2 : IEquatable<Vector2>
 {
     public float X { get; set; }

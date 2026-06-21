@@ -1,4 +1,5 @@
 namespace Hex1b.Scene.Geometry;
+using System.Diagnostics.CodeAnalysis;
 
 using Hex1b.Scene.Math;
 
@@ -6,6 +7,7 @@ using Hex1b.Scene.Math;
 /// Represents the geometry of a mesh, storing vertex attributes (positions, normals, UVs, etc.)
 /// and an optional index buffer for efficient topology representation.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public class SceneBufferGeometry
 {
     private Dictionary<string, SceneBufferAttribute> _attributes = new();

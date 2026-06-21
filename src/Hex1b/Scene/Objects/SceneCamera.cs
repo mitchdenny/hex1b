@@ -1,4 +1,5 @@
 namespace Hex1b.Scene.Objects;
+using System.Diagnostics.CodeAnalysis;
 
 using Hex1b.Scene.Core;
 using Hex1b.Scene.Math;
@@ -7,6 +8,7 @@ using Hex1b.Scene.Math;
 /// Base class for all cameras in the 3D scene.
 /// Provides view and projection matrix calculations.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public abstract class SceneCamera : SceneObject
 {
     public float Near { get; set; } = 0.1f;

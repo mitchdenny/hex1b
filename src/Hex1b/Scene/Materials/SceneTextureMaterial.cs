@@ -1,4 +1,5 @@
 namespace Hex1b.Scene.Materials;
+using System.Diagnostics.CodeAnalysis;
 
 using Hex1b.Scene.Math;
 using Hex1b.Scene.Textures;
@@ -8,6 +9,7 @@ using Hex1b.Widgets;
 /// Material that renders a texture on mesh surfaces.
 /// Can optionally render a widget as the texture source, updating per-frame for dynamic content.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public class SceneTextureMaterial : SceneMeshMaterial
 {
     private SceneTexture2D? _texture;

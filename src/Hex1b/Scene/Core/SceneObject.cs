@@ -1,4 +1,5 @@
 namespace Hex1b.Scene.Core;
+using System.Diagnostics.CodeAnalysis;
 
 using Hex1b.Scene.Math;
 
@@ -6,6 +7,7 @@ using Hex1b.Scene.Math;
 /// Base class for all objects in the 3D scene graph.
 /// Supports position, rotation, scale, and parent-child hierarchy.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public class SceneObject
 {
     private Vector3 _position = Vector3.Zero;

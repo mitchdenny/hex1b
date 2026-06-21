@@ -1,3 +1,4 @@
+#pragma warning disable HEX1B_SCENE // Tests exercise the experimental Scene API
 namespace Hex1b.Tests.Scene;
 
 using Hex1b.Layout;
@@ -76,5 +77,3 @@ public class SceneWidgetTests
         Assert.AreEqual(typeof(SceneNode), type);
     }
 }
-
-

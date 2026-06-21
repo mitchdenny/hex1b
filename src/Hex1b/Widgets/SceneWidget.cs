@@ -1,4 +1,5 @@
 namespace Hex1b.Widgets;
+using System.Diagnostics.CodeAnalysis;
 
 using Hex1b.Nodes;
 using Hex1b.Scene.Core;
@@ -9,6 +10,7 @@ using SceneClass = Hex1b.Scene.Core.Scene;
 /// A widget that renders a 3D scene from a camera's perspective into the terminal.
 /// Usage: context.Scene(scene, camera)
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public record SceneWidget : Hex1bWidget
 {
     public SceneClass Scene { get; init; }

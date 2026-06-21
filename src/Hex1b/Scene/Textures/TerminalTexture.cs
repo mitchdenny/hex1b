@@ -1,4 +1,5 @@
 namespace Hex1b.Scene.Textures;
+using System.Diagnostics.CodeAnalysis;
 
 using Hex1b.Theming;
 
@@ -21,6 +22,7 @@ using Hex1b.Theming;
 /// material.Texture = termTex.Update();
 /// </code>
 /// </remarks>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public sealed class TerminalTexture
 {
     private readonly TerminalTextureSource _source;

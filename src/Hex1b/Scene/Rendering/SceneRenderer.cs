@@ -1,4 +1,5 @@
 namespace Hex1b.Scene.Rendering;
+using System.Diagnostics.CodeAnalysis;
 
 using Hex1b.Scene.Core;
 using Hex1b.Scene.Geometry;
@@ -10,6 +11,7 @@ using Hex1b.Scene.Objects;
 /// Main renderer for 3D scenes. Orchestrates the rendering pipeline:
 /// traverses scene graph, culls objects, renders with shaders.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public class SceneRenderer
 {
     private readonly ISceneShader _wireframeShader;

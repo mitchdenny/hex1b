@@ -1,3 +1,4 @@
+#pragma warning disable HEX1B_SCENE // Tests exercise the experimental Scene API
 namespace Hex1b.Tests.Scene;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;

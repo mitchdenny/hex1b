@@ -1,4 +1,5 @@
 namespace Hex1b.Scene.Objects;
+using System.Diagnostics.CodeAnalysis;
 
 using Hex1b.Scene.Core;
 using Hex1b.Scene.Geometry;
@@ -7,6 +8,7 @@ using Hex1b.Scene.Materials;
 /// <summary>
 /// Represents a mesh: a combination of geometry and material.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public class SceneMesh : SceneObject
 {
     public SceneBufferGeometry Geometry { get; set; }

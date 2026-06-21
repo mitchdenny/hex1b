@@ -1,4 +1,5 @@
 namespace Hex1b;
+using System.Diagnostics.CodeAnalysis;
 
 using Hex1b.Layout;
 using Hex1b.Scene.Core;
@@ -9,6 +10,7 @@ using SceneClass = Hex1b.Scene.Core.Scene;
 /// <summary>
 /// Extension methods for Scene widget integration.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public static class SceneExtensions
 {
     /// <summary>

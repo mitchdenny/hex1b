@@ -1,4 +1,5 @@
 namespace Hex1b.Scene.Textures;
+using System.Diagnostics.CodeAnalysis;
 
 using Hex1b.Theming;
 
@@ -13,6 +14,7 @@ using Hex1b.Theming;
 /// <see cref="Hex1b.Surfaces.SurfaceCell"/>) share this core so block and braille glyphs
 /// reconstruct identically regardless of the cell source.
 /// </remarks>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 internal static class CellGlyphBlitter
 {
     /// <summary>

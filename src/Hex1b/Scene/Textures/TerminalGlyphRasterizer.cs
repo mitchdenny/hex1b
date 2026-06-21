@@ -1,4 +1,5 @@
 namespace Hex1b.Scene.Textures;
+using System.Diagnostics.CodeAnalysis;
 
 /// <summary>
 /// Computes the per-pixel "ink coverage" of a terminal glyph so a single
@@ -20,6 +21,7 @@ namespace Hex1b.Scene.Textures;
 /// glyphs fall back to a uniform approximate coverage.
 /// </para>
 /// </remarks>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public static class TerminalGlyphRasterizer
 {
     /// <summary>Approximate ink coverage used for ordinary (non-block, non-braille) visible glyphs.</summary>

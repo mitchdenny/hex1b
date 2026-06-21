@@ -1,8 +1,10 @@
 namespace Hex1b.Scene.Math;
+using System.Diagnostics.CodeAnalysis;
 
 /// <summary>
 /// A 4D vector for homogeneous coordinates (used in matrix transformations).
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public struct Vector4 : IEquatable<Vector4>
 {
     public float X { get; set; }

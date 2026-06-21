@@ -1,9 +1,11 @@
 namespace Hex1b.Scene.Geometry;
+using System.Diagnostics.CodeAnalysis;
 
 /// <summary>
 /// Represents a vertex attribute (positions, normals, UVs, colors, etc.)
 /// stored in a typed array for efficient access during rendering.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public class SceneBufferAttribute
 {
     public string Name { get; }

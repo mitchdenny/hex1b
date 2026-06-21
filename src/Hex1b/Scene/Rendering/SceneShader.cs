@@ -1,4 +1,5 @@
 namespace Hex1b.Scene.Rendering;
+using System.Diagnostics.CodeAnalysis;
 
 using Hex1b.Scene.Geometry;
 using Hex1b.Scene.Math;
@@ -8,6 +9,7 @@ using Hex1b.Scene.Textures;
 /// <summary>
 /// Base interface for rendering shaders.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public interface ISceneShader
 {
     void Render(
@@ -22,6 +24,7 @@ public interface ISceneShader
 /// <summary>
 /// Lightweight lighting data passed from renderer to shaders.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public sealed class SceneLightingState
 {
     public Vector3 AmbientColor { get; init; } = Vector3.One;
@@ -32,6 +35,7 @@ public sealed class SceneLightingState
 /// <summary>
 /// Directional light snapshot used during a render pass.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public sealed class SceneDirectionalLightState
 {
     public Vector3 Direction { get; init; } = new(0, -1, 0);
@@ -42,6 +46,7 @@ public sealed class SceneDirectionalLightState
 /// <summary>
 /// Wireframe shader that renders geometry edges using ASCII characters.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public class WireframeSceneShader : ISceneShader
 {
     public void Render(
@@ -96,6 +101,7 @@ public class WireframeSceneShader : ISceneShader
 /// <summary>
 /// Solid shader that fills triangle faces.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public class SolidSceneShader : ISceneShader
 {
     public void Render(

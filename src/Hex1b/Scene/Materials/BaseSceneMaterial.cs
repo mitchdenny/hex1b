@@ -1,10 +1,12 @@
 namespace Hex1b.Scene.Materials;
+using System.Diagnostics.CodeAnalysis;
 
 using Hex1b.Scene.Math;
 
 /// <summary>
 /// Base class for all materials that define how objects are rendered.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public abstract class BaseSceneMaterial
 {
     public Vector3 Color { get; set; } = Vector3.One;
@@ -23,6 +25,7 @@ public abstract class BaseSceneMaterial
 /// <summary>
 /// Material for rendering lines and wireframes.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public class SceneLineBasicMaterial : BaseSceneMaterial
 {
     public float LineWidth { get; set; } = 1.0f;
@@ -39,6 +42,7 @@ public class SceneLineBasicMaterial : BaseSceneMaterial
 /// <summary>
 /// Material for rendering filled surfaces.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public class SceneMeshMaterial : BaseSceneMaterial
 {
     public bool Lit { get; set; } = true; // Use lighting calculations
@@ -53,6 +57,7 @@ public class SceneMeshMaterial : BaseSceneMaterial
     }
 }
 
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public enum SceneMeshShadingMode
 {
     Lit,

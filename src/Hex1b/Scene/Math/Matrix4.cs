@@ -1,9 +1,11 @@
 namespace Hex1b.Scene.Math;
+using System.Diagnostics.CodeAnalysis;
 
 /// <summary>
 /// A 4x4 matrix for 3D transformations (position, rotation, scale, projection).
 /// Row-major layout: elements[row, col]
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public struct Matrix4 : IEquatable<Matrix4>
 {
     // Layout: elements[row, col]

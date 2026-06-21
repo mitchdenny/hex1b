@@ -1,9 +1,11 @@
 namespace Hex1b.Scene.Textures;
+using System.Diagnostics.CodeAnalysis;
 
 /// <summary>
 /// Represents a 2D texture with RGBA32 pixel data.
 /// Supports dynamic updates for per-frame rendering (e.g., widget-to-texture rendering).
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public class SceneTexture2D
 {
     private uint[] _pixels;
@@ -174,6 +176,7 @@ public class SceneTexture2D
     }
 }
 
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public enum TextureWrapMode
 {
     Clamp,
@@ -181,6 +184,7 @@ public enum TextureWrapMode
     MirrorRepeat
 }
 
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public enum TextureFilterMode
 {
     Nearest,

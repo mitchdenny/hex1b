@@ -1,9 +1,11 @@
 namespace Hex1b.Scene.Math;
+using System.Diagnostics.CodeAnalysis;
 
 /// <summary>
 /// A quaternion for 3D rotations (x, y, z, w format).
 /// Avoids gimbal lock and enables smooth interpolation (slerp).
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public struct Quaternion : IEquatable<Quaternion>
 {
     public float X { get; set; }

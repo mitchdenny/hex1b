@@ -1,8 +1,10 @@
 namespace Hex1b.Scene.Math;
+using System.Diagnostics.CodeAnalysis;
 
 /// <summary>
 /// A 3D vector with x, y, z components for 3D coordinate space.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public struct Vector3 : IEquatable<Vector3>
 {
     public float X { get; set; }

@@ -1,4 +1,5 @@
 namespace Hex1b.Scene.Rendering;
+using System.Diagnostics.CodeAnalysis;
 
 using Hex1b.Scene.Math;
 
@@ -6,6 +7,7 @@ using Hex1b.Scene.Math;
 /// Context for rasterizing 3D geometry to 2D screen space.
 /// Handles transformation from world space → screen space and depth testing.
 /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 public class SceneRasterizerContext
 {
     public int ViewportWidth { get; set; }
@@ -238,6 +240,7 @@ public class SceneRasterizerContext
     /// <summary>
     /// Helper math functions for rendering.
     /// </summary>
+[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
 internal static class MathHelper
 {
     public static float Lerp(float a, float b, float t)
