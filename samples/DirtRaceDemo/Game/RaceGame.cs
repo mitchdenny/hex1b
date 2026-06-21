@@ -22,12 +22,17 @@ public sealed class RaceGame
     private readonly PhysicsWorld _world;
     private readonly ArcadeVehicle _vehicle;
     private readonly VehicleModel _vehicleModel = new();
+    private readonly GhostModel _ghostModel = new();
+    private readonly LapRecorder _recorder = new();
     private readonly CameraRig _cameraRig = new();
     private readonly Hex1b.Scene.Core.SceneObject _ground = TrackMeshBuilder.BuildGround();
     private readonly float _groundLocalY = -0.02f;
 
     private float _previousProgress;
     private float _lapTime;
+    private LapRecording? _bestLap;
+    private bool _ghostVisible;
+    private float _rideHeight;
     private Vector3 _cameraFocus;
     private float _cameraYaw;
     private float _cameraYawVelocity;
@@ -64,6 +69,7 @@ public sealed class RaceGame
 
         var tuning = new VehicleTuning();
         _vehicle = new ArcadeVehicle(tuning, _track.StartPosition, _track.StartHeading);
+        _rideHeight = tuning.RideHeight;
 
         var ramps = BuildRamps(_track);
         var obstacles = BuildObstacles(_track);
@@ -86,6 +92,7 @@ public sealed class RaceGame
     public bool Airborne => !_vehicle.Grounded;
     public float AirTime => _vehicle.AirTime;
     public bool OnTrack => _world.IsOnTrack(_vehicle.PositionXZ.X, _vehicle.PositionXZ.Y);
+    public bool GhostActive => _bestLap is not null;
 
     public void Update(float dt)
     {
@@ -103,6 +110,7 @@ public sealed class RaceGame
             _lastOnTrackPosition = _vehicle.PositionXZ;
             _lastOnTrackHeading = _vehicle.Heading;
             _lapTime = 0.0f;
+            _recorder.Reset();
             _previousProgress = _track.Progress(_vehicle.PositionXZ);
             Input.ClearResetRequest();
         }
@@ -123,6 +131,23 @@ public sealed class RaceGame
         UpdateCameraZoom(dt);
 
         TrackLaps(dt);
+        UpdateGhost();
+    }
+
+    /// <summary>
+    /// Replays the best lap by positioning the ghost truck at the pose the player held at the same
+    /// elapsed lap time. Hidden until a best lap exists; once shown it follows the recorded line.
+    /// </summary>
+    private void UpdateGhost()
+    {
+        if (_bestLap is null)
+        {
+            return;
+        }
+
+        var sample = _bestLap.Sample(_lapTime);
+        var world = new Vector3(sample.Position.X, sample.Height + _rideHeight, sample.Position.Y);
+        _ghostModel.SetTransform(world, sample.Heading);
     }
 
     /// <summary>
@@ -298,6 +323,7 @@ public sealed class RaceGame
     private void TrackLaps(float dt)
     {
         _lapTime += dt;
+        _recorder.Record(_lapTime, _vehicle);
         var progress = _track.Progress(_vehicle.PositionXZ);
 
         // Detect a forward crossing of the start line (progress wraps high -> low).
@@ -307,11 +333,30 @@ public sealed class RaceGame
             if (BestLapTime <= 0.0f || _lapTime < BestLapTime)
             {
                 BestLapTime = _lapTime;
+
+                // New best lap: freeze the recorded line as the ghost to chase next lap.
+                if (_recorder.HasSamples)
+                {
+                    _bestLap = _recorder.Build();
+                    ShowGhost();
+                }
             }
 
             _lapTime = 0.0f;
+            _recorder.Reset();
         }
 
         _previousProgress = progress;
+    }
+
+    private void ShowGhost()
+    {
+        if (_ghostVisible)
+        {
+            return;
+        }
+
+        _scene.AddChild(_ghostModel.Root);
+        _ghostVisible = true;
     }
 }

@@ -10,7 +10,8 @@ public static class RaceHud
         var surface = game.OnTrack ? "Track" : "Dirt";
         var air = game.Airborne ? $" | AIR {game.AirTime:0.0}s" : string.Empty;
         var best = game.BestLapTime > 0.0f ? $" | Best {game.BestLapTime:0.0}s" : string.Empty;
-        return $" Lap {game.Lap} | Throttle {game.ThrottlePercent}% | Speed {game.SpeedDisplay:0} | {surface}{air}{best} ";
+        var ghost = game.GhostActive ? " | Ghost" : string.Empty;
+        return $" Lap {game.Lap} | Throttle {game.ThrottlePercent}% | Speed {game.SpeedDisplay:0} | {surface}{air}{best}{ghost} ";
     }
 
     public static string ControlsLine()
