@@ -100,6 +100,7 @@ public sealed class RaceGame
         {
             _vehicle.Reset(_track.StartPosition, _track.StartHeading);
             Input.ResetCruise();
+            Input.ResetSteer();
             _cameraFocus = _vehicle.WorldPosition;
             _cameraYaw = _vehicle.Heading;
             _cameraYawVelocity = 0.0f;

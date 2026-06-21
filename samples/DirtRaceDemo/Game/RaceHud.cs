@@ -16,6 +16,6 @@ public static class RaceHud
 
     public static string ControlsLine()
     {
-        return " W/Up speed up   S/Down slow down   A/Left  D/Right steer   Space handbrake   R reset   Q/Esc quit ";
+        return " W/Up speed up   S/Down slow down   A/Left  D/Right turn rate   Space handbrake   R reset   Q/Esc quit ";
     }
 }
