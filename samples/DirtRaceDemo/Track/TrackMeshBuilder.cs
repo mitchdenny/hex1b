@@ -16,7 +16,7 @@ public static class TrackMeshBuilder
     private static readonly Vector3 GroundColor = new(0.46f, 0.34f, 0.22f);
     private static readonly Vector3 TrackColor = new(0.30f, 0.27f, 0.24f);
 
-    public static SceneMesh BuildGround(float size = 70.0f)
+    public static SceneMesh BuildGround(float size = 140.0f)
     {
         var material = new SceneMeshMaterial(GroundColor) { ShadingMode = SceneMeshShadingMode.Lit };
         return new SceneMesh(GeometryFactory.Plane(size, size), material, "Ground")

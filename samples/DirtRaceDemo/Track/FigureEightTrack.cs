@@ -25,9 +25,9 @@ public sealed class FigureEightTrack
     // Bridge: raise the branch passing the origin near t = PI/2 up and over the other.
     private const float BridgeCenterT = MathF.PI / 2.0f;
     private const float BridgeWindow = 0.55f;
-    private const float BridgeHeight = 1.7f;
+    private const float BridgeHeight = 2.2f;
 
-    public FigureEightTrack(float scale = 16.0f, float halfWidth = 1.5f, int sampleCount = 360)
+    public FigureEightTrack(float scale = 38.0f, float halfWidth = 2.6f, int sampleCount = 480)
     {
         Scale = scale;
         HalfWidth = halfWidth;

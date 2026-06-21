@@ -4,51 +4,62 @@ using Hex1b.Scene.Math;
 using Hex1b.Scene.Objects;
 
 /// <summary>
-/// An isometric follow camera. Keeps the fixed 3/4 isometric orientation of
-/// <see cref="SceneIsometricCamera"/> but smoothly tracks a focus point (the truck) so the
-/// action stays centred. The camera sits back along its own view direction so everything in
-/// front of it stays within the near/far range.
+/// A chase camera that sits behind and above the truck looking down at it. The truck is kept at
+/// the world origin (the scene is translated under it by <c>RaceGame</c>), so the rig only needs a
+/// yaw: it orbits to whatever heading it is given and looks just ahead of the origin. The yaw is
+/// spring-smoothed by the caller so the camera swings in behind the truck gently rather than
+/// snapping, giving a classic arcade chase feel.
 /// </summary>
 public sealed class CameraRig
 {
-    private readonly Vector3 _forward;
-    private readonly float _distance;
-    private readonly float _followSpeed;
-
-    private Vector3 _focus;
+    private readonly float _horizontalDistance;
+    private readonly float _height;
+    private readonly float _lookAhead;
 
     public SceneIsometricCamera Camera { get; }
 
-    public CameraRig(Vector3 initialFocus, float size = 26.0f, float distance = 40.0f, float followSpeed = 5.0f)
+    public CameraRig(
+        float size = 11.0f,
+        float horizontalDistance = 30.0f,
+        float height = 44.0f,
+        float lookAhead = 7.0f)
     {
+        _horizontalDistance = horizontalDistance;
+        _height = height;
+        _lookAhead = lookAhead;
+
         Camera = new SceneIsometricCamera("RaceCamera")
         {
             Size = size,
-            Far = 400.0f,
+            Far = 600.0f,
         };
-
-        _forward = Camera.GetForward().Normalized;
-        _distance = distance;
-        _followSpeed = followSpeed;
-        _focus = initialFocus;
-        ApplyPosition();
     }
 
-    public void Update(Vector3 focus, float dt)
+    /// <summary>
+    /// Positions the camera behind a truck facing <paramref name="yaw"/> (the truck's heading),
+    /// elevated and looking at a point a little ahead of the origin so the truck sits low in frame
+    /// with the road ahead visible.
+    /// </summary>
+    public void SetYaw(float yaw)
     {
-        var t = 1.0f - MathF.Exp(-_followSpeed * dt);
-        _focus = Vector3.Lerp(_focus, focus, t);
-        ApplyPosition();
+        var forwardX = MathF.Sin(yaw);
+        var forwardZ = MathF.Cos(yaw);
+
+        var target = new Vector3(forwardX * _lookAhead, 0.0f, forwardZ * _lookAhead);
+        var position = new Vector3(
+            target.X - forwardX * _horizontalDistance,
+            _height,
+            target.Z - forwardZ * _horizontalDistance);
+
+        Camera.Position = position;
+        Camera.Rotation = LookAtRotation(position, target);
     }
 
-    public void Snap(Vector3 focus)
+    private static Quaternion LookAtRotation(Vector3 from, Vector3 target)
     {
-        _focus = focus;
-        ApplyPosition();
-    }
-
-    private void ApplyPosition()
-    {
-        Camera.Position = _focus - _forward * _distance;
+        var direction = (target - from).Normalized;
+        var yaw = MathF.Atan2(-direction.X, -direction.Z);
+        var pitch = MathF.Asin(direction.Y);
+        return Quaternion.FromEulerAngles(pitch, yaw, 0.0f);
     }
 }

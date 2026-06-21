@@ -22,10 +22,22 @@ public sealed class RaceGame
     private readonly PhysicsWorld _world;
     private readonly ArcadeVehicle _vehicle;
     private readonly VehicleModel _vehicleModel = new();
-    private readonly CameraRig _cameraRig;
+    private readonly CameraRig _cameraRig = new();
+    private readonly Hex1b.Scene.Core.SceneObject _ground = TrackMeshBuilder.BuildGround();
+    private readonly float _groundLocalY = -0.02f;
 
     private float _previousProgress;
     private float _lapTime;
+    private Vector3 _cameraFocus;
+    private float _cameraYaw;
+    private float _cameraYawVelocity;
+
+    private const float CameraFollowSpeed = 5.0f;
+
+    // Spring constants for the chase camera's yaw. A soft, critically damped spring makes the
+    // camera swing in behind the truck gently rather than snapping to its heading.
+    private const float CameraYawStiffness = 6.0f;
+    private static readonly float CameraYawDamping = 2.0f * MathF.Sqrt(CameraYawStiffness);
 
     public InputState Input { get; } = new();
     public int Lap { get; private set; } = 1;
@@ -44,13 +56,16 @@ public sealed class RaceGame
 
         BuildScene(ramps, obstacles);
 
-        _cameraRig = new CameraRig(_vehicle.WorldPosition);
-        _cameraRig.Snap(_vehicle.WorldPosition);
+        _cameraFocus = _vehicle.WorldPosition;
+        _cameraYaw = _vehicle.Heading;
+        _cameraRig.SetYaw(_cameraYaw);
+        ApplyCameraFollow();
 
         _previousProgress = _track.Progress(_vehicle.PositionXZ);
     }
 
     public float SpeedDisplay => MathF.Abs(_vehicle.ForwardSpeed) * 5.0f;
+    public int ThrottlePercent => (int)MathF.Round(Input.Cruise * 100.0f);
     public bool Airborne => !_vehicle.Grounded;
     public float AirTime => _vehicle.AirTime;
     public bool OnTrack => _world.IsOnTrack(_vehicle.PositionXZ.X, _vehicle.PositionXZ.Y);
@@ -60,7 +75,12 @@ public sealed class RaceGame
         if (Input.ResetRequested)
         {
             _vehicle.Reset(_track.StartPosition, _track.StartHeading);
-            _cameraRig.Snap(_vehicle.WorldPosition);
+            Input.ResetCruise();
+            _cameraFocus = _vehicle.WorldPosition;
+            _cameraYaw = _vehicle.Heading;
+            _cameraYawVelocity = 0.0f;
+            _cameraRig.SetYaw(_cameraYaw);
+            ApplyCameraFollow();
             _lapTime = 0.0f;
             _previousProgress = _track.Progress(_vehicle.PositionXZ);
             Input.ClearResetRequest();
@@ -74,9 +94,56 @@ public sealed class RaceGame
         _vehicleModel.SyncTo(_vehicle);
         _vehicleModel.SetSteer(input.Steer * 0.5f);
 
-        _cameraRig.Update(_vehicle.WorldPosition, dt);
+        var t = 1.0f - MathF.Exp(-CameraFollowSpeed * dt);
+        _cameraFocus = Vector3.Lerp(_cameraFocus, _vehicle.WorldPosition, t);
+        ApplyCameraFollow();
+        UpdateCameraYaw(dt);
 
         TrackLaps(dt);
+    }
+
+    /// <summary>
+    /// Advances the spring that swings the camera in behind the truck. The spring tracks the
+    /// truck's heading via the shortest angular path so the camera follows gently through turns
+    /// instead of snapping around.
+    /// </summary>
+    private void UpdateCameraYaw(float dt)
+    {
+        var error = WrapAngle(_vehicle.Heading - _cameraYaw);
+        _cameraYawVelocity += error * CameraYawStiffness * dt;
+        _cameraYawVelocity -= _cameraYawVelocity * CameraYawDamping * dt;
+        _cameraYaw += _cameraYawVelocity * dt;
+        _cameraRig.SetYaw(_cameraYaw);
+    }
+
+    private static float WrapAngle(float angle)
+    {
+        while (angle > MathF.PI)
+        {
+            angle -= MathF.Tau;
+        }
+
+        while (angle < -MathF.PI)
+        {
+            angle += MathF.Tau;
+        }
+
+        return angle;
+    }
+
+    /// <summary>
+    /// Translates the whole scene so the smoothed camera focus sits at the world origin. The chase
+    /// camera always looks at the origin, so this keeps the truck centred while the track extends
+    /// well beyond the viewport.
+    /// </summary>
+    private void ApplyCameraFollow()
+    {
+        _scene.Position = new Vector3(-_cameraFocus.X, 0.0f, -_cameraFocus.Z);
+
+        // Keep the featureless dirt ground centred under the truck (world origin). Its single large
+        // quad would otherwise project to extreme coordinates once the truck drives far from the
+        // scene origin and drop out of the rasterizer; recentring it keeps the plane filling frame.
+        _ground.Position = new Vector3(_cameraFocus.X, _groundLocalY, _cameraFocus.Z);
     }
 
     public SceneClass Scene => _scene;
@@ -105,7 +172,7 @@ public sealed class RaceGame
 
     private void BuildScene(IReadOnlyList<Ramp> ramps, IReadOnlyList<Obstacle> obstacles)
     {
-        _scene.AddChild(TrackMeshBuilder.BuildGround());
+        _scene.AddChild(_ground);
         _scene.AddChild(TrackMeshBuilder.BuildTrackRibbon(_track));
 
         foreach (var ramp in ramps)
@@ -118,7 +185,7 @@ public sealed class RaceGame
             _scene.AddChild(PropFactory.BuildObstacle(obstacle));
         }
 
-        _scene.AddChild(PropFactory.BuildStartMarker(_track.StartPosition, _track.StartHeading));
+        _scene.AddChild(PropFactory.BuildStartMarker(_track.StartPosition, _track.StartHeading, _track.HalfWidth * 2.0f));
         _scene.AddChild(_vehicleModel.Root);
         _vehicleModel.SyncTo(_vehicle);
 
@@ -144,7 +211,7 @@ public sealed class RaceGame
         {
             var sample = SampleAtProgress(track, progress);
             var heading = sample.Tangent;
-            const float length = 4.5f;
+            const float length = 9.0f;
             var front = sample.Position - heading * (length * 0.5f);
             ramps.Add(new Ramp(front, heading, length, track.HalfWidth * 2.0f, 1.3f));
         }

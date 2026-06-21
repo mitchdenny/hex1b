@@ -70,7 +70,8 @@ public sealed class ArcadeVehicle
     {
         var authority = MathF.Min(1.0f, Speed / _tuning.SteerFullSpeed);
         var directionSign = ForwardSpeed >= 0.0f ? 1.0f : -1.0f;
-        Heading += input.Steer * _tuning.SteerRate * authority * directionSign * dt;
+        // Negative so that steering right turns the truck right from the chase camera's point of view.
+        Heading -= input.Steer * _tuning.SteerRate * authority * directionSign * dt;
     }
 
     private void IntegrateDrive(float dt, VehicleInput input, bool onTrack)
@@ -120,11 +121,13 @@ public sealed class ArcadeVehicle
 
         if (freeY <= groundHeight)
         {
-            // Stay on (or return to) the surface and carry any upward climb rate so that a
-            // sudden drop at a ramp lip or bridge crest converts into a launch next step.
+            // Stay on (or return to) the surface and carry a damped, capped fraction of any upward
+            // climb rate so that a sudden drop at a ramp lip or bridge crest converts into a launch
+            // next step without flinging the truck sky-high on fast run-ups.
             var climbRate = (groundHeight - Height) / dt;
+            var launch = MathF.Min(climbRate * _tuning.LaunchScale, _tuning.MaxLaunchSpeed);
             Height = groundHeight;
-            VerticalVelocity = MathF.Max(0.0f, climbRate);
+            VerticalVelocity = MathF.Max(0.0f, launch);
             Grounded = true;
             AirTime = 0.0f;
         }

@@ -24,15 +24,17 @@ public static class PropFactory
         };
     }
 
-    /// <summary>A thin upright slab marking the start/finish line.</summary>
-    public static SceneMesh BuildStartMarker(Vector2 position, float headingAngle)
+    /// <summary>A flat painted strip lying on the track marking the start/finish line.</summary>
+    public static SceneMesh BuildStartMarker(Vector2 position, float headingAngle, float width)
     {
         var material = new SceneMeshMaterial(MarkerColor) { ShadingMode = SceneMeshShadingMode.Lit };
-        var geometry = GeometryFactory.Box(0.3f, 1.4f, 4.0f);
+        // Long across the track (X), thin along travel (Z), and almost flat so it never
+        // occludes the vehicle that spawns on top of it.
+        var geometry = GeometryFactory.Box(width, 0.08f, 1.0f);
 
         return new SceneMesh(geometry, material, "StartLine")
         {
-            Position = new Vector3(position.X, 0.7f, position.Y),
+            Position = new Vector3(position.X, 0.05f, position.Y),
             Rotation = Quaternion.FromEulerAngles(0.0f, headingAngle, 0.0f),
         };
     }

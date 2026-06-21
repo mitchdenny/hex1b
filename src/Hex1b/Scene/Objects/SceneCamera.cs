@@ -52,16 +52,18 @@ public abstract class SceneCamera : SceneObject
         var result = new Matrix4();
         result.Identity();
 
+        // Basis vectors form the rows of the view matrix (world -> camera rotation is the
+        // transpose of the camera's orientation), with the translation in the last column.
         result.Set(0, 0, right.X);
-        result.Set(1, 0, right.Y);
-        result.Set(2, 0, right.Z);
+        result.Set(0, 1, right.Y);
+        result.Set(0, 2, right.Z);
 
-        result.Set(0, 1, actualUp.X);
+        result.Set(1, 0, actualUp.X);
         result.Set(1, 1, actualUp.Y);
-        result.Set(2, 1, actualUp.Z);
+        result.Set(1, 2, actualUp.Z);
 
-        result.Set(0, 2, -forward.X);
-        result.Set(1, 2, -forward.Y);
+        result.Set(2, 0, -forward.X);
+        result.Set(2, 1, -forward.Y);
         result.Set(2, 2, -forward.Z);
 
         result.Set(0, 3, -Vector3.Dot(right, position));
