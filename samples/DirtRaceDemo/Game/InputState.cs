@@ -7,9 +7,10 @@ using DirtRaceDemo.Physics;
 ///
 /// Terminals do not report key-up events and cannot report two keys held at once, so both throttle
 /// and steering use a <em>rate-control</em> model rather than "hold to act". W nudges a persistent
-/// cruise level up and S nudges it down (into reverse); A and D nudge a persistent steering level
-/// left and right. Each input holds at whatever level was last dialled in, so the driver can set a
-/// constant turn rate and follow a line around a corner, then counter-steer to straighten. The
+/// cruise level up and S nudges it down (into reverse); A and D nudge a steering <em>rate</em> left
+/// and right. The throttle holds at whatever level was last dialled in, while the steering rate
+/// eases back to centre over time (see <see cref="SteerReturnPerSecond"/>) so the driver feeds in a
+/// turn to follow a line through a corner and the wheel self-straightens as they ease off. The
 /// handbrake is the one momentary control and still uses an impulse + decay so a tap fades out.
 /// </summary>
 public sealed class InputState
@@ -17,6 +18,13 @@ public sealed class InputState
     private const float Decay = 7.0f;
     private const float CruiseStep = 0.12f;
     private const float SteerStep = 0.08f;
+
+    /// <summary>
+    /// How quickly the steering rate eases back to centre, in units/second of exponential decay.
+    /// Higher = the wheel straightens faster when you stop steering; 0 = fully persistent. Tune
+    /// this until the cornering feel is right.
+    /// </summary>
+    private const float SteerReturnPerSecond = 1.6f;
 
     private float _cruise;
     private float _steer;
@@ -49,6 +57,7 @@ public sealed class InputState
     {
         var factor = MathF.Exp(-Decay * dt);
         _handbrake *= factor;
+        _steer *= MathF.Exp(-SteerReturnPerSecond * dt);
     }
 
     public VehicleInput ToVehicleInput()
