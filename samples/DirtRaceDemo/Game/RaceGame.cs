@@ -31,8 +31,23 @@ public sealed class RaceGame
     private Vector3 _cameraFocus;
     private float _cameraYaw;
     private float _cameraYawVelocity;
+    private float _cameraSize = BaseCameraSize;
+    private Vector2 _lastOnTrackPosition;
+    private float _lastOnTrackHeading;
 
     private const float CameraFollowSpeed = 5.0f;
+
+    // Speed-driven zoom: the orthographic size grows with the truck's actual speed so the camera
+    // pulls back the faster it travels. Because dirt caps the top speed well below the track, the
+    // camera naturally sits closer when scrabbling around off-track.
+    private const float BaseCameraSize = 11.0f;
+    private const float CameraZoomPerSpeed = 0.5f;
+    private const float MaxCameraSize = 26.0f;
+    private const float CameraZoomFollowSpeed = 3.0f;
+
+    // How far past the track edge the truck may stray before it is dropped back onto the track at
+    // the point where it last left it.
+    private const float RespawnDistance = 14.0f;
 
     // Spring constants for the chase camera's yaw. A soft, critically damped spring makes the
     // camera swing in behind the truck gently rather than snapping to its heading.
@@ -61,6 +76,8 @@ public sealed class RaceGame
         _cameraRig.SetYaw(_cameraYaw);
         ApplyCameraFollow();
 
+        _lastOnTrackPosition = _vehicle.PositionXZ;
+        _lastOnTrackHeading = _vehicle.Heading;
         _previousProgress = _track.Progress(_vehicle.PositionXZ);
     }
 
@@ -79,8 +96,12 @@ public sealed class RaceGame
             _cameraFocus = _vehicle.WorldPosition;
             _cameraYaw = _vehicle.Heading;
             _cameraYawVelocity = 0.0f;
+            _cameraSize = BaseCameraSize;
+            _cameraRig.SetSize(_cameraSize);
             _cameraRig.SetYaw(_cameraYaw);
             ApplyCameraFollow();
+            _lastOnTrackPosition = _vehicle.PositionXZ;
+            _lastOnTrackHeading = _vehicle.Heading;
             _lapTime = 0.0f;
             _previousProgress = _track.Progress(_vehicle.PositionXZ);
             Input.ClearResetRequest();
@@ -90,6 +111,7 @@ public sealed class RaceGame
         Input.Decayed(dt);
 
         _vehicle.Step(dt, input, _world);
+        EnforceTrackBounds();
 
         _vehicleModel.SyncTo(_vehicle);
         _vehicleModel.SetSteer(input.Steer * 0.5f);
@@ -98,8 +120,45 @@ public sealed class RaceGame
         _cameraFocus = Vector3.Lerp(_cameraFocus, _vehicle.WorldPosition, t);
         ApplyCameraFollow();
         UpdateCameraYaw(dt);
+        UpdateCameraZoom(dt);
 
         TrackLaps(dt);
+    }
+
+    /// <summary>
+    /// Remembers the last point the truck was on the track and, if it strays too far onto the
+    /// surrounding dirt, drops it back onto the track exactly where it left. Keeps the action on
+    /// the circuit without an explicit reset.
+    /// </summary>
+    private void EnforceTrackBounds()
+    {
+        var position = _vehicle.PositionXZ;
+        var nearest = _track.NearestSample(position, out _);
+        var offTrackDistance = (nearest.Position - position).Magnitude;
+
+        if (offTrackDistance <= _track.HalfWidth)
+        {
+            _lastOnTrackPosition = position;
+            _lastOnTrackHeading = _vehicle.Heading;
+            return;
+        }
+
+        if (offTrackDistance > RespawnDistance)
+        {
+            _vehicle.Reset(_lastOnTrackPosition, _lastOnTrackHeading);
+        }
+    }
+
+    /// <summary>
+    /// Eases the orthographic camera size toward a target derived from the truck's actual speed so
+    /// the view zooms out as it accelerates and pulls back in as it slows (or bogs down on dirt).
+    /// </summary>
+    private void UpdateCameraZoom(float dt)
+    {
+        var target = MathF.Min(MaxCameraSize, BaseCameraSize + _vehicle.Speed * CameraZoomPerSpeed);
+        var t = 1.0f - MathF.Exp(-CameraZoomFollowSpeed * dt);
+        _cameraSize = _cameraSize + (target - _cameraSize) * t;
+        _cameraRig.SetSize(_cameraSize);
     }
 
     /// <summary>

@@ -36,6 +36,13 @@ public sealed class CameraRig
     }
 
     /// <summary>
+    /// Sets the orthographic size of the isometric camera. Larger values show more of the world,
+    /// i.e. zoom the view out; <c>RaceGame</c> drives this from the truck's speed so the camera
+    /// pulls back as the truck goes faster.
+    /// </summary>
+    public void SetSize(float size) => Camera.Size = size;
+
+    /// <summary>
     /// Positions the camera behind a truck facing <paramref name="yaw"/> (the truck's heading),
     /// elevated and looking at a point a little ahead of the origin so the truck sits low in frame
     /// with the road ahead visible.
