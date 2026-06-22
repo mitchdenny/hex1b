@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Hex1b;
 
 /// <summary>
@@ -23,6 +25,11 @@ internal interface IConsoleDriver : IDisposable
     /// </summary>
     void ExitRawMode();
     
+    /// <summary>
+    /// Encoding used by bytes returned from <see cref="ReadAsync"/>.
+    /// </summary>
+    Encoding InputEncoding { get; }
+
     /// <summary>
     /// Check if data is available to read without blocking.
     /// </summary>
