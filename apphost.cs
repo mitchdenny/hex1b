@@ -1,6 +1,6 @@
-#:sdk Aspire.AppHost.Sdk@13.3.0
-#:package Aspire.Hosting.JavaScript@13.3.0
-#:package Aspire.Hosting.Azure.AppContainers@13.3.0
+#:sdk Aspire.AppHost.Sdk@13.5.0-preview.1.26312.14
+#:package Aspire.Hosting.JavaScript@13.5.0-preview.1.26312.14
+#:package Aspire.Hosting.Azure.AppContainers@13.5.0-preview.1.26312.14
 
 using Aspire.Hosting.Pipelines;
 using Microsoft.Extensions.Logging;
@@ -9,6 +9,7 @@ using System.Diagnostics;
 #pragma warning disable ASPIRECSHARPAPPS001
 #pragma warning disable ASPIREACADOMAINS001
 #pragma warning disable ASPIREPIPELINES001
+#pragma warning disable ASPIRETERMINAL001
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -84,6 +85,14 @@ var content=builder.AddViteApp("content", "./src/content")
     .WaitFor(website)
     .WaitFor(docGenerator)
     .WithEndpoint("http", ep => ep.Port = 1189);
+
+var sceneDemo = builder.AddCSharpApp("scene-demo", "./samples/SceneDemo")
+    .ExcludeFromManifest()
+    .WithTerminal();
+
+var dirtRaceDemo = builder.AddCSharpApp("dirt-race-demo", "./samples/DirtRaceDemo")
+    .ExcludeFromManifest()
+    .WithTerminal();
 
 // Wire up pipeline dependencies: content build depends on doc generation
 content.WithPipelineConfiguration(context =>
