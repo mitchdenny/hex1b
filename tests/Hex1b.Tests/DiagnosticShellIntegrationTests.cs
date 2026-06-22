@@ -31,7 +31,6 @@ namespace Hex1b.Tests;
 /// - TerminalWidgetHandle: Bridges inner terminal output to outer app rendering
 /// </para>
 /// </remarks>
-[DoNotParallelize]
 [TestClass]
 public class DiagnosticShellIntegrationTests
 {
