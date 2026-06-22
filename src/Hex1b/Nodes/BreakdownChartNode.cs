@@ -73,7 +73,7 @@ public sealed class BreakdownChartNode<T> : Hex1bNode
         if (Title is not null && titleHeight > 0)
         {
             var labelColor = Hex1bColor.FromRgb(200, 200, 200);
-            var titleX = Math.Max(0, (width - Title.Length) / 2);
+            var titleX = Math.Max(0, (width - DisplayWidth.GetStringWidth(Title)) / 2);
             WriteText(surface, titleX, 0, Title, labelColor);
         }
 
@@ -137,12 +137,7 @@ public sealed class BreakdownChartNode<T> : Hex1bNode
 
     private static void WriteText(Surface surface, int x, int y, string text, Hex1bColor color)
     {
-        if (y < 0 || y >= surface.Height) return;
-        for (int i = 0; i < text.Length && x + i < surface.Width; i++)
-        {
-            if (x + i < 0) continue;
-            surface[x + i, y] = new SurfaceCell(text[i].ToString(), color, null);
-        }
+        surface.WriteText(x, y, text, color);
     }
 
     private static Hex1bColor[] ResolveColors(int count)

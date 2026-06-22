@@ -386,7 +386,7 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
             return constraints.Constrain(new Size(RenderWidth, 1));
         }
         
-        var width = Label.Length + 2; // Padding on each side
+        var width = DisplayWidth.GetStringWidth(Label) + 2; // Padding on each side
         return constraints.Constrain(new Size(width, 1));
     }
 
@@ -454,7 +454,7 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
         
         // Format: "Label" + padding + indicator
         var labelWithIndicator = Label + indicator;
-        var paddedLabel = labelWithIndicator.PadRight(width);
+        var paddedLabel = DisplayWidth.PadRightByDisplayWidth(labelWithIndicator, width);
         var accelUnderline = theme.Get(MenuItemTheme.AcceleratorUnderline);
         
         // Use IsSelected for styling in submenus (focus navigates, selection highlights)

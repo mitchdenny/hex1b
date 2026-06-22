@@ -62,6 +62,17 @@ public class ListNodeTests
     }
 
     [TestMethod]
+    public void Measure_WideCharacterItems_UsesDisplayWidth()
+    {
+        var node = new ListNode { Items = CreateItems("播放", "搜索") };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        Assert.AreEqual(6, size.Width); // CJK label width 4 + 2 for indicator
+        Assert.AreEqual(2, size.Height);
+    }
+
+    [TestMethod]
     public async Task Measure_RespectsMaxWidth()
     {
         var node = new ListNode { Items = CreateItems("Very Long Item Name") };

@@ -448,7 +448,7 @@ public sealed class ColumnChartNode<T> : Hex1bNode
         // Title
         if (Title is not null && titleHeight > 0)
         {
-            var titleX = Math.Max(0, (totalWidth - Title.Length) / 2);
+            var titleX = Math.Max(0, (totalWidth - DisplayWidth.GetStringWidth(Title)) / 2);
             WriteText(surface, titleX, 0, Title, labelColor);
         }
 
@@ -465,10 +465,10 @@ public sealed class ColumnChartNode<T> : Hex1bNode
             var catX = i * (categoryWidth + spacing);
             var label = data.Categories[i].Label;
             // Truncate label to category width
-            if (label.Length > categoryWidth)
-                label = label[..categoryWidth];
+            if (DisplayWidth.GetStringWidth(label) > categoryWidth)
+                label = DisplayWidth.SliceByDisplayWidth(label, 0, categoryWidth).text;
             // Center label under column
-            var labelX = catX + Math.Max(0, (categoryWidth - label.Length) / 2);
+            var labelX = catX + Math.Max(0, (categoryWidth - DisplayWidth.GetStringWidth(label)) / 2);
             WriteText(surface, labelX, labelY, label, labelColor);
         }
 
@@ -493,9 +493,9 @@ public sealed class ColumnChartNode<T> : Hex1bNode
                 var text = Mode == ChartLayout.Stacked100
                     ? "100%"
                     : formatter(displayValue);
-                if (text.Length > categoryWidth)
-                    text = text[..categoryWidth];
-                var textX = catX + Math.Max(0, (categoryWidth - text.Length) / 2);
+                if (DisplayWidth.GetStringWidth(text) > categoryWidth)
+                    text = DisplayWidth.SliceByDisplayWidth(text, 0, categoryWidth).text;
+                var textX = catX + Math.Max(0, (categoryWidth - DisplayWidth.GetStringWidth(text)) / 2);
                 WriteText(surface, textX, valuesY, text, valueColor);
             }
         }
@@ -503,12 +503,7 @@ public sealed class ColumnChartNode<T> : Hex1bNode
 
     private static void WriteText(Surface surface, int x, int y, string text, Hex1bColor color)
     {
-        if (y < 0 || y >= surface.Height) return;
-        for (int i = 0; i < text.Length && x + i < surface.Width; i++)
-        {
-            if (x + i < 0) continue;
-            surface[x + i, y] = new SurfaceCell(text[i].ToString(), color, null);
-        }
+        surface.WriteText(x, y, text, color);
     }
 
     private static Hex1bColor[] ResolveSeriesColors(IReadOnlyList<string> seriesNames, Hex1bTheme theme)

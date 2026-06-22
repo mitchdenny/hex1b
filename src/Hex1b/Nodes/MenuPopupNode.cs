@@ -189,11 +189,11 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
             switch (child)
             {
                 case MenuItemWidget item:
-                    _contentWidth = Math.Max(_contentWidth, item.Label.Length);
+                    _contentWidth = Math.Max(_contentWidth, DisplayWidth.GetStringWidth(item.Label));
                     contentHeight++;
                     break;
                 case MenuWidget submenu:
-                    _contentWidth = Math.Max(_contentWidth, submenu.Label.Length + indicator.Length);
+                    _contentWidth = Math.Max(_contentWidth, DisplayWidth.GetStringWidth(submenu.Label) + DisplayWidth.GetStringWidth(indicator));
                     contentHeight++;
                     break;
                 case MenuSeparatorWidget:

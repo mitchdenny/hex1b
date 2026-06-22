@@ -2472,15 +2472,13 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             var text = cell.Text ?? "";
             int width = _columnWidths[col];
 
-            // Truncate or pad text to fit column width
-            if (text.Length > width)
+            // Truncate or pad text to fit column display width.
+            if (DisplayWidth.GetStringWidth(text) > width)
             {
-                text = text[..(width - 1)] + "…";
+                text = DisplayWidth.SliceByDisplayWidth(text, 0, Math.Max(0, width - 1)).text + "…";
             }
-            else
-            {
-                text = text.PadRight(width);
-            }
+
+            text = PadRightByDisplayWidth(text, width);
 
             sb.Append(text);
 
