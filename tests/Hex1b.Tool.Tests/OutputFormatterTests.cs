@@ -2,6 +2,7 @@ using Hex1b.Tool.Infrastructure;
 
 namespace Hex1b.Tool.Tests;
 
+[DoNotParallelize]
 [TestClass]
 public class OutputFormatterTests
 {
