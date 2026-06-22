@@ -52,14 +52,7 @@
     -->
     <EnablePackageValidation>true</EnablePackageValidation>
     <!-- BEGIN: bot-managed baseline -->
-    <!--
-      Baseline temporarily commented out: this PR replaces the non-generic
-      ListWidget API with a generic ListWidget<T> shape (and removes
-      ListNode.SelectedIndex / SelectedText / SourceWidget along with the
-      string-list ListExtensions.List overload). The bot will restore the
-      baseline on the next stable release.
-    -->
-    <!-- <PackageValidationBaselineVersion>0.164.1</PackageValidationBaselineVersion> -->
+    <PackageValidationBaselineVersion>0.165.0</PackageValidationBaselineVersion>
     <!-- END: bot-managed baseline -->
   </PropertyGroup>
 
