@@ -11,10 +11,10 @@ namespace AsciiEarth;
 /// Unlike the base globe's <see cref="EarthTextureBuilder"/>, no Mercator→equirectangular
 /// reprojection is needed: the tiles are laid out in a simple grid and the overlay patch's UVs run
 /// linearly across them. The texture is always
-/// <see cref="EarthView.TilesPerAxis"/>·256 square, so it is allocated once and its pixels are
-/// swapped in place. A generation counter cancels stale builds; the window and a version counter
-/// are published together when a build completes, so the patch geometry is only rebuilt once its
-/// matching imagery is ready.
+/// <see cref="EarthView.TilesX"/>·256 wide by <see cref="EarthView.TilesY"/>·256 tall, so it is
+/// allocated once and its pixels are swapped in place. A generation counter cancels stale builds;
+/// the window and a version counter are published together when a build completes, so the patch
+/// geometry is only rebuilt once its matching imagery is ready.
 /// </remarks>
 internal sealed class DetailTextureBuilder : IDisposable
 {
@@ -25,7 +25,8 @@ internal sealed class DetailTextureBuilder : IDisposable
     private static readonly uint FillColor = Pack(20, 40, 70, 255);
 
     private readonly RasterTileClient _client;
-    private readonly int _side;
+    private readonly int _tilesX;
+    private readonly int _tilesY;
     private readonly object _gate = new();
 
     private int _generation;
@@ -53,9 +54,10 @@ internal sealed class DetailTextureBuilder : IDisposable
     public DetailTextureBuilder(RasterTileClient client)
     {
         _client = client;
-        _side = EarthView.TilesPerAxis;
+        _tilesX = EarthView.TilesX;
+        _tilesY = EarthView.TilesY;
 
-        Texture = new SceneTexture2D(_side * TilePixels, _side * TilePixels);
+        Texture = new SceneTexture2D(_tilesX * TilePixels, _tilesY * TilePixels);
         var blank = new uint[Texture.Width * Texture.Height];
         Array.Fill(blank, FillColor);
         Texture.SetPixels(blank);
@@ -114,16 +116,17 @@ internal sealed class DetailTextureBuilder : IDisposable
     private async Task<uint[]?> AssembleAsync(EarthView.Window window, int generation)
     {
         var n = 1 << window.Zoom;
-        var dim = _side * TilePixels;
-        var output = new uint[dim * dim];
+        var width = _tilesX * TilePixels;
+        var height = _tilesY * TilePixels;
+        var output = new uint[width * height];
         Array.Fill(output, FillColor);
 
         using var throttle = new SemaphoreSlim(MaxParallelDownloads);
-        var tasks = new List<Task>(_side * _side);
+        var tasks = new List<Task>(_tilesX * _tilesY);
 
-        for (var by = 0; by < _side; by++)
+        for (var by = 0; by < _tilesY; by++)
         {
-            for (var bx = 0; bx < _side; bx++)
+            for (var bx = 0; bx < _tilesX; bx++)
             {
                 var blockX = bx;
                 var blockY = by;
@@ -142,7 +145,7 @@ internal sealed class DetailTextureBuilder : IDisposable
                         var bytes = await _client.GetTileAsync(window.Zoom, worldX, worldY);
                         var tile = Decode(bytes);
                         if (tile is not null)
-                            Blit(output, dim, tile, blockX * TilePixels, blockY * TilePixels);
+                            Blit(output, width, tile, blockX * TilePixels, blockY * TilePixels);
                     }
                     finally
                     {

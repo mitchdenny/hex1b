@@ -16,7 +16,7 @@ const float DragPitchScale = 0.022f;
 
 // Detail overlay patch tuning.
 const float PatchRadius = 1.004f; // sits just above the base globe so it wins the depth test
-const int PatchSegments = 24;
+const int PatchSegments = 40;     // enough to follow the sphere across the wide (≤11-tile) block
 
 // --- OSM tile + texture infrastructure -------------------------------------------------
 using var tileClient = new RasterTileClient();

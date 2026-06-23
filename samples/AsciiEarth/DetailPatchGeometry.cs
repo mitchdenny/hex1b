@@ -7,11 +7,12 @@ namespace AsciiEarth;
 /// <see cref="EarthView.Window"/> so its texels line up exactly with the assembled tile block.
 /// </summary>
 /// <remarks>
-/// The cap is parameterised in the window's tile space: u/v run linearly across the
-/// <see cref="EarthView.TilesPerAxis"/> tiles (matching the texture), while latitude is recovered
-/// from the Mercator tile-Y so the imagery is not vertically stretched. Positions use the same
-/// longitude/latitude→XYZ convention as <see cref="SphereGeometry"/>, at a slightly larger radius
-/// so the patch wins the depth test against the base globe.
+/// The cap is parameterised in the window's tile space: u runs linearly across the window's
+/// <see cref="EarthView.TilesX"/> columns and v across its <see cref="EarthView.TilesY"/> rows
+/// (matching the texture), while latitude is recovered from the Mercator tile-Y so the imagery is
+/// not vertically stretched. Positions use the same longitude/latitude→XYZ convention as
+/// <see cref="SphereGeometry"/>, at a slightly larger radius so the patch wins the depth test
+/// against the base globe.
 /// <para>
 /// Each vertex's geographic offset from the <em>live</em> facing point
 /// (<c>centerLat</c>, <c>centerLon</c>) is scaled by <c>magnification</c>: at <c>1</c> the cap
@@ -46,7 +47,7 @@ internal static class DetailPatchGeometry
         for (var iy = 0; iy < rows; iy++)
         {
             var fy = (float)iy / segments;                       // 0 = north edge, 1 = south edge
-            var tileY = window.MinTileY + fy * EarthView.TilesPerAxis;
+            var tileY = window.MinTileY + fy * EarthView.TilesY;
             var lat = TileCoordinates.TileToLatLon(0, tileY, window.Zoom).Lat;
             var scaledLat = centerLat + (lat - centerLat) * magnification;
             var latRad = scaledLat * Math.PI / 180.0;
@@ -56,7 +57,7 @@ internal static class DetailPatchGeometry
             for (var ix = 0; ix < cols; ix++)
             {
                 var fx = (float)ix / segments;                   // 0 = west edge, 1 = east edge
-                var tileX = window.MinTileX + fx * EarthView.TilesPerAxis;
+                var tileX = window.MinTileX + fx * EarthView.TilesX;
                 var lon = TileCoordinates.TileToLatLon(tileX, 0, window.Zoom).Lon;
                 var scaledLon = centerLon + NormalizeLonDelta(lon - centerLon) * magnification;
                 var lonRad = scaledLon * Math.PI / 180.0;
