@@ -44,8 +44,6 @@ var detailMaterial = new SceneTextureMaterial(detail.Texture)
     FilterMode = TextureFilterMode.Linear
 };
 var patchMesh = new SceneMesh(SphereGeometry.Create(1.0f, 3, 2), detailMaterial, "Detail");
-var lastDetailVersion = -1;
-var patchHasGeometry = false;
 
 var ambientLight = new SceneAmbientLight("Ambient")
 {
@@ -89,38 +87,30 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             // Base globe texture follows zoom up to the low global cap.
             earth.RequestZoom(Math.Min(zoom, OrbitController.BaseGlobeZoom));
 
-            // High-zoom detail overlay: request the bounded tile block facing the camera.
+            // High-zoom detail overlay: request the bounded tile block facing the camera. The block
+            // carries a margin ring of tiles around the visible area so the texture can slide under
+            // the view while panning, only re-downloading when the centre crosses into new tiles.
             if (orbit.DetailActive)
-                detail.Request(EarthView.ComputeWindow(lat, lon, zoom), lat, lon);
+                detail.Request(EarthView.ComputeWindow(lat, lon, zoom));
 
-            // When a new detail block finishes downloading, rebuild the patch to match it. Past the
-            // globe-diving range the (tiny) window is magnified about its facing centre so the patch
-            // keeps filling the view — a magnifier that sharpens with each deeper zoom level.
-            if (detail.Version != lastDetailVersion)
-            {
-                lastDetailVersion = detail.Version;
-                if (detail.PublishedWindow is { } published && detail.PublishedCenter is { } pc)
-                {
-                    var realRadius = published.AngularRadiusRad;
-                    var mag = realRadius > 1e-9
-                        ? Math.Max(1.0, OrbitController.MagnifierAngularRadius / realRadius)
-                        : 1.0;
-                    patchMesh.Geometry =
-                        DetailPatchGeometry.Create(published, pc.Lat, pc.Lon, mag, PatchRadius, PatchSegments);
-                    patchHasGeometry = true;
-                }
-            }
-
-            // Show the patch only when zoomed in and its imagery covers the current view, so a
-            // freshly re-entered detail level never briefly shows a stale location. Keep it glued
-            // to the globe.
+            // Rebuild the detail patch every frame, magnifying the published tile block about the
+            // *live* facing point. Because the magnification is about the point the user is looking
+            // at and the imagery is mapped by true geography, panning slides the texture smoothly
+            // across the mesh and a freshly-downloaded block drops in seamlessly where the old one
+            // was — no jump when the tiles refresh. Past the globe-diving range the (tiny) window is
+            // magnified so the patch keeps filling the view: a magnifier that sharpens each level.
             var showPatch = orbit.DetailActive
-                && patchHasGeometry
-                && detail.PublishedWindow is { } shown
-                && shown.Zoom == zoom
-                && WindowCoversCenter(shown, lat, lon);
-            if (showPatch)
+                && detail.PublishedWindow is { } published
+                && published.Zoom == zoom
+                && WindowCoversCenter(published, lat, lon);
+            if (showPatch && detail.PublishedWindow is { } block)
             {
+                var realRadius = block.AngularRadiusRad;
+                var mag = realRadius > 1e-9
+                    ? Math.Max(1.0, OrbitController.MagnifierAngularRadius / realRadius)
+                    : 1.0;
+                patchMesh.Geometry =
+                    DetailPatchGeometry.Create(block, lat, lon, mag, PatchRadius, PatchSegments);
                 patchMesh.Rotation = orbit.GlobeRotation;
                 if (patchMesh.Parent is null)
                     scene.AddChild(patchMesh);

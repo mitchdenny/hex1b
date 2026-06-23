@@ -13,10 +13,14 @@ namespace AsciiEarth;
 /// longitude/latitude→XYZ convention as <see cref="SphereGeometry"/>, at a slightly larger radius
 /// so the patch wins the depth test against the base globe.
 /// <para>
-/// Each vertex's geographic offset from (<c>centerLat</c>, <c>centerLon</c>) is scaled by
-/// <c>magnification</c>: at <c>1</c> the cap matches the real tile block and aligns with the globe;
-/// for deep zoom a factor &gt; 1 enlarges the (now tiny) window about the facing point so the patch
-/// keeps filling the view while its texture still shows finer geography — a magnifier.
+/// Each vertex's geographic offset from the <em>live</em> facing point
+/// (<c>centerLat</c>, <c>centerLon</c>) is scaled by <c>magnification</c>: at <c>1</c> the cap
+/// matches the real tile block and aligns with the globe; for deep zoom a factor &gt; 1 enlarges the
+/// (now tiny) window about the facing point so the patch keeps filling the view while its texture
+/// still shows finer geography — a magnifier. Because the magnification is always taken about the
+/// point the user is looking at — not the centre the block was downloaded for — panning slides the
+/// texture smoothly under the view, and a newly downloaded block drops in exactly where the old one
+/// was (same geography at the same screen position), so refreshes do not jump.
 /// </para>
 /// </remarks>
 internal static class DetailPatchGeometry

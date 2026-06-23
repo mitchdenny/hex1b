@@ -12,11 +12,25 @@ namespace AsciiEarth;
 /// </remarks>
 internal static class EarthView
 {
-    /// <summary>Half-width of the detail tile block, in tiles (radius 2 ⇒ a 5×5 block).</summary>
-    public const int TileRadius = 2;
+    /// <summary>
+    /// Half-width, in tiles, of the on-screen detail region (radius 2 ⇒ a 5×5 area). This sets the
+    /// geographic scale the magnifier frames to fill the view; it is intentionally <em>smaller</em>
+    /// than the loaded block so there is a margin of off-screen tiles to slide into while panning.
+    /// </summary>
+    public const int ViewRadius = 2;
 
-    /// <summary>Side length of the detail tile block (2·<see cref="TileRadius"/> + 1).</summary>
-    public const int TilesPerAxis = TileRadius * 2 + 1;
+    /// <summary>Side length of the on-screen detail region (2·<see cref="ViewRadius"/> + 1).</summary>
+    public const int ViewTilesPerAxis = ViewRadius * 2 + 1;
+
+    /// <summary>
+    /// Half-width, in tiles, of the tile block actually downloaded and textured onto the patch.
+    /// One tile larger than <see cref="ViewRadius"/> on every side so the visible area stays covered
+    /// by cached imagery as the user pans, and the texture can slide rather than pop.
+    /// </summary>
+    public const int LoadRadius = 3;
+
+    /// <summary>Side length of the downloaded tile block (2·<see cref="LoadRadius"/> + 1).</summary>
+    public const int TilesPerAxis = LoadRadius * 2 + 1;
 
     /// <summary>Pixels per OSM tile edge.</summary>
     public const int TilePixels = 256;
@@ -36,17 +50,19 @@ internal static class EarthView
         double AngularRadiusRad);
 
     /// <summary>
-    /// Computes the <see cref="TilesPerAxis"/>-square detail tile block centred on the given
-    /// lat/lon at <paramref name="zoom"/>, clamped so it stays on the map vertically (it wraps
-    /// horizontally).
+    /// Computes the detail tile block (a <see cref="TilesPerAxis"/>-square <see cref="LoadRadius"/>
+    /// block) centred on the given lat/lon at <paramref name="zoom"/>, clamped so it stays on the map
+    /// vertically (it wraps horizontally). <see cref="Window.AngularRadiusRad"/> reports the radius of
+    /// the inner <see cref="ViewRadius"/> region — the on-screen detail scale — not the larger loaded
+    /// block, so the camera framing and magnifier are unaffected by the extra margin tiles.
     /// </summary>
     public static Window ComputeWindow(double centerLat, double centerLon, int zoom)
     {
         var n = 1 << zoom;
         var (cxf, cyf) = TileCoordinates.LatLonToTile(centerLat, centerLon, zoom);
 
-        var minTileX = (int)Math.Floor(cxf) - TileRadius; // may be negative; callers wrap modulo n
-        var minTileY = (int)Math.Floor(cyf) - TileRadius;
+        var minTileX = (int)Math.Floor(cxf) - LoadRadius; // may be negative; callers wrap modulo n
+        var minTileY = (int)Math.Floor(cyf) - LoadRadius;
         minTileY = n > TilesPerAxis ? Math.Clamp(minTileY, 0, n - TilesPerAxis) : 0;
 
         var north = TileCoordinates.TileToLatLon(0, minTileY, zoom).Lat;
@@ -54,7 +70,12 @@ internal static class EarthView
         var west = TileCoordinates.TileToLatLon(minTileX, 0, zoom).Lon;
         var east = TileCoordinates.TileToLatLon(minTileX + TilesPerAxis, 0, zoom).Lon;
 
-        var angularRadius = (north - south) * 0.5 * Math.PI / 180.0;
+        // The framed/magnified scale is the inner view region, aligned to the centre tile so it is
+        // independent of the load-block clamping above (matches the pre-margin framing exactly).
+        var innerMinY = (int)Math.Floor(cyf) - ViewRadius;
+        var viewNorth = TileCoordinates.TileToLatLon(0, innerMinY, zoom).Lat;
+        var viewSouth = TileCoordinates.TileToLatLon(0, innerMinY + ViewTilesPerAxis, zoom).Lat;
+        var angularRadius = (viewNorth - viewSouth) * 0.5 * Math.PI / 180.0;
 
         return new Window(zoom, minTileX, minTileY, north, south, west, east, angularRadius);
     }
