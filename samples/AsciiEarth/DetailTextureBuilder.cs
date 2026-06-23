@@ -31,6 +31,7 @@ internal sealed class DetailTextureBuilder : IDisposable
     private int _generation;
     private EarthView.Window? _requested;
     private EarthView.Window? _published;
+    private (double Lat, double Lon)? _publishedCenter;
     private int _version;
 
     public SceneTexture2D Texture { get; }
@@ -42,6 +43,12 @@ internal sealed class DetailTextureBuilder : IDisposable
     public EarthView.Window? PublishedWindow
     {
         get { lock (_gate) return _published; }
+    }
+
+    /// <summary>The facing centre the published block was requested for, used to bake the patch.</summary>
+    public (double Lat, double Lon)? PublishedCenter
+    {
+        get { lock (_gate) return _publishedCenter; }
     }
 
     /// <summary>Bumped each time a new window is published, so callers can rebuild patch geometry.</summary>
@@ -62,10 +69,11 @@ internal sealed class DetailTextureBuilder : IDisposable
     }
 
     /// <summary>
-    /// Requests the detail texture be (re)built for <paramref name="window"/>. No-op if that block
-    /// is already the most recent request. Runs asynchronously; returns immediately.
+    /// Requests the detail texture be (re)built for <paramref name="window"/>, centred on the facing
+    /// point (<paramref name="centerLat"/>, <paramref name="centerLon"/>). No-op if that block is
+    /// already the most recent request. Runs asynchronously; returns immediately.
     /// </summary>
-    public void Request(EarthView.Window window)
+    public void Request(EarthView.Window window, double centerLat, double centerLon)
     {
         int generation;
         lock (_gate)
@@ -77,10 +85,10 @@ internal sealed class DetailTextureBuilder : IDisposable
             IsBuilding = true;
         }
 
-        _ = Task.Run(() => BuildAsync(window, generation));
+        _ = Task.Run(() => BuildAsync(window, centerLat, centerLon, generation));
     }
 
-    private async Task BuildAsync(EarthView.Window window, int generation)
+    private async Task BuildAsync(EarthView.Window window, double centerLat, double centerLon, int generation)
     {
         try
         {
@@ -94,6 +102,7 @@ internal sealed class DetailTextureBuilder : IDisposable
                     return;
                 Texture.SetPixels(pixels);
                 _published = window;
+                _publishedCenter = (centerLat, centerLon);
                 _version++;
             }
         }

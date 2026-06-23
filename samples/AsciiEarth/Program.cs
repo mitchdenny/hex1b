@@ -91,15 +91,22 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
             // High-zoom detail overlay: request the bounded tile block facing the camera.
             if (orbit.DetailActive)
-                detail.Request(EarthView.ComputeWindow(lat, lon, zoom));
+                detail.Request(EarthView.ComputeWindow(lat, lon, zoom), lat, lon);
 
-            // When a new detail block finishes downloading, rebuild the patch to match it.
+            // When a new detail block finishes downloading, rebuild the patch to match it. Past the
+            // globe-diving range the (tiny) window is magnified about its facing centre so the patch
+            // keeps filling the view — a magnifier that sharpens with each deeper zoom level.
             if (detail.Version != lastDetailVersion)
             {
                 lastDetailVersion = detail.Version;
-                if (detail.PublishedWindow is { } published)
+                if (detail.PublishedWindow is { } published && detail.PublishedCenter is { } pc)
                 {
-                    patchMesh.Geometry = DetailPatchGeometry.Create(published, PatchRadius, PatchSegments);
+                    var realRadius = published.AngularRadiusRad;
+                    var mag = realRadius > 1e-9
+                        ? Math.Max(1.0, OrbitController.MagnifierAngularRadius / realRadius)
+                        : 1.0;
+                    patchMesh.Geometry =
+                        DetailPatchGeometry.Create(published, pc.Lat, pc.Lon, mag, PatchRadius, PatchSegments);
                     patchHasGeometry = true;
                 }
             }
@@ -261,16 +268,20 @@ static string Format(double degrees, char positive, char negative)
     return $"{Math.Abs(degrees):0.0}°{hemisphere}";
 }
 
-// True when the published detail window encloses the current center lat/lon. Longitude bounds are
-// continuous (may run past ±180 near the antimeridian), so test the center at ±360 offsets too.
+// True when the published detail window encloses (within one window of over-pan) the current center
+// lat/lon. The margin keeps the patch visible while panning a little past the block's edge before
+// the next block loads, while still rejecting a far-away stale window after a large jump. Longitude
+// bounds are continuous (may run past ±180 near the antimeridian), so test ±360 offsets too.
 static bool WindowCoversCenter(EarthView.Window window, double lat, double lon)
 {
-    if (lat > window.North || lat < window.South)
+    var latMargin = window.North - window.South;
+    if (lat > window.North + latMargin || lat < window.South - latMargin)
         return false;
+    var lonMargin = window.East - window.West;
     for (var k = -1; k <= 1; k++)
     {
         var shifted = lon + k * 360.0;
-        if (shifted >= window.West && shifted <= window.East)
+        if (shifted >= window.West - lonMargin && shifted <= window.East + lonMargin)
             return true;
     }
     return false;

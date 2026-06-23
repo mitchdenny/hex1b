@@ -38,12 +38,44 @@ internal sealed class OrbitController
     private static readonly double ReferenceAngularRadius =
         EarthView.ComputeWindow(0.0, 0.0, MinZoom).AngularRadiusRad;
 
+    /// <summary>
+    /// Fixed on-screen angular radius of the deep-zoom magnifier patch: the cap a camera at
+    /// <see cref="MinDistance"/> frames to the field-of-view edge. Once the camera can no longer
+    /// dive closer, the patch is enlarged to this size so finer tiles keep filling the view as the
+    /// OSM zoom rises (true zoom past the globe-diving range).
+    /// </summary>
+    public static readonly double MagnifierAngularRadius =
+        EarthView.AngularRadiusForDistance(MinDistance, FieldOfView);
+
     private Quaternion _globeRotation = Quaternion.Identity;
     private float _roll;
     private int _osmZoom = MinZoom;
 
     /// <summary>Current discrete OSM zoom level.</summary>
     public int OsmZoom => _osmZoom;
+
+    /// <summary>Real angular radius (radians) of the tile block facing the camera at this zoom.</summary>
+    private double CurrentAngularRadius
+    {
+        get
+        {
+            var (lat, lon) = CenterLatLon;
+            return EarthView.ComputeWindow(lat, lon, _osmZoom).AngularRadiusRad;
+        }
+    }
+
+    /// <summary>
+    /// On-screen angular radius the detail patch should occupy: the real window radius while the
+    /// camera can still dive to frame it, then the fixed <see cref="MagnifierAngularRadius"/> once
+    /// it cannot (deep zoom), so the patch never shrinks below a screen-filling size.
+    /// </summary>
+    public double DisplayAngularRadius => Math.Max(CurrentAngularRadius, MagnifierAngularRadius);
+
+    /// <summary>
+    /// Factor by which the detail patch is enlarged on screen (1 throughout the globe-diving range,
+    /// growing ~2× per level once the magnifier takes over).
+    /// </summary>
+    public double Magnification => DisplayAngularRadius / Math.Max(CurrentAngularRadius, 1e-9);
 
     /// <summary>Rotation applied to the globe mesh (and the detail patch).</summary>
     public Quaternion GlobeRotation => _globeRotation;
@@ -68,22 +100,25 @@ internal sealed class OrbitController
 
             var (lat, lon) = CenterLatLon;
             var window = EarthView.ComputeWindow(lat, lon, _osmZoom);
-            return EarthView.FramingDistance(window.AngularRadiusRad, FieldOfView, MinDistance, MaxDistance);
+            // Frame the *display* radius: equals the real window in the diving range, then the fixed
+            // magnifier radius once the camera bottoms out, so the camera holds steady at deep zoom.
+            var displayRadius = Math.Max(window.AngularRadiusRad, MagnifierAngularRadius);
+            return EarthView.FramingDistance(displayRadius, FieldOfView, MinDistance, MaxDistance);
         }
     }
 
     /// <summary>
     /// Fraction of the globe currently in view (1 at the widest zoom, shrinking as you zoom in),
-    /// used to scale pan/drag so movement feels consistent at every zoom level.
+    /// used to scale pan/drag so movement feels consistent at every zoom level. Tracks the real
+    /// window radius (not the magnified display size) so a drag always moves the actual geography
+    /// under the view by a screen-proportional amount, even at street-level zoom.
     /// </summary>
     public float SurfaceScale
     {
         get
         {
-            var (lat, lon) = CenterLatLon;
-            var window = EarthView.ComputeWindow(lat, lon, _osmZoom);
-            var ratio = (float)(window.AngularRadiusRad / ReferenceAngularRadius);
-            return Math.Clamp(ratio, 0.02f, 1f);
+            var ratio = (float)(CurrentAngularRadius / ReferenceAngularRadius);
+            return Math.Clamp(ratio, 1e-5f, 1f);
         }
     }
 

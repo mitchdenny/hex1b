@@ -12,10 +12,22 @@ namespace AsciiEarth;
 /// from the Mercator tile-Y so the imagery is not vertically stretched. Positions use the same
 /// longitude/latitude→XYZ convention as <see cref="SphereGeometry"/>, at a slightly larger radius
 /// so the patch wins the depth test against the base globe.
+/// <para>
+/// Each vertex's geographic offset from (<c>centerLat</c>, <c>centerLon</c>) is scaled by
+/// <c>magnification</c>: at <c>1</c> the cap matches the real tile block and aligns with the globe;
+/// for deep zoom a factor &gt; 1 enlarges the (now tiny) window about the facing point so the patch
+/// keeps filling the view while its texture still shows finer geography — a magnifier.
+/// </para>
 /// </remarks>
 internal static class DetailPatchGeometry
 {
-    public static SceneBufferGeometry Create(EarthView.Window window, float radius, int segments)
+    public static SceneBufferGeometry Create(
+        EarthView.Window window,
+        double centerLat,
+        double centerLon,
+        double magnification,
+        float radius,
+        int segments)
     {
         segments = Math.Max(2, segments);
         var cols = segments + 1;
@@ -32,7 +44,8 @@ internal static class DetailPatchGeometry
             var fy = (float)iy / segments;                       // 0 = north edge, 1 = south edge
             var tileY = window.MinTileY + fy * EarthView.TilesPerAxis;
             var lat = TileCoordinates.TileToLatLon(0, tileY, window.Zoom).Lat;
-            var latRad = lat * Math.PI / 180.0;
+            var scaledLat = centerLat + (lat - centerLat) * magnification;
+            var latRad = scaledLat * Math.PI / 180.0;
             var cosLat = (float)Math.Cos(latRad);
             var sinLat = (float)Math.Sin(latRad);
 
@@ -41,7 +54,8 @@ internal static class DetailPatchGeometry
                 var fx = (float)ix / segments;                   // 0 = west edge, 1 = east edge
                 var tileX = window.MinTileX + fx * EarthView.TilesPerAxis;
                 var lon = TileCoordinates.TileToLatLon(tileX, 0, window.Zoom).Lon;
-                var lonRad = lon * Math.PI / 180.0;
+                var scaledLon = centerLon + NormalizeLonDelta(lon - centerLon) * magnification;
+                var lonRad = scaledLon * Math.PI / 180.0;
                 var cosLon = (float)Math.Cos(lonRad);
                 var sinLon = (float)Math.Sin(lonRad);
 
@@ -92,5 +106,14 @@ internal static class DetailPatchGeometry
         geometry.SetIndices(indices.ToArray());
 
         return geometry;
+    }
+
+    // Wraps a longitude difference into [-180, 180] so offsets stay small near the antimeridian
+    // before they are magnified about the patch centre.
+    private static double NormalizeLonDelta(double delta)
+    {
+        while (delta > 180.0) delta -= 360.0;
+        while (delta < -180.0) delta += 360.0;
+        return delta;
     }
 }

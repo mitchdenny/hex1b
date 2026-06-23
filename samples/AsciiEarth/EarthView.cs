@@ -76,4 +76,23 @@ internal static class EarthView
         var d = MathF.Cos(theta) + (MathF.Sin(theta) / MathF.Tan(beta));
         return Math.Clamp(d, minDistance, maxDistance);
     }
+
+    /// <summary>
+    /// Inverse of <see cref="FramingDistance"/>: the cap angular radius (radians) a camera at
+    /// <paramref name="distance"/> from the unit sphere's centre frames exactly to the edge of its
+    /// field of view. Used to pick the fixed on-screen size of the deep-zoom magnifier patch.
+    /// </summary>
+    /// <remarks>
+    /// From d = cosθ + sinθ/tanβ, write tanβ·cosθ + sinθ = √(1+tan²β)·sin(θ+φ) with φ = atan(tanβ);
+    /// then d·tanβ = √(1+tan²β)·sin(θ+φ), so θ = asin(d·tanβ/√(1+tan²β)) − φ.
+    /// </remarks>
+    public static double AngularRadiusForDistance(double distance, float fieldOfView)
+    {
+        var beta = fieldOfView * 0.5;
+        var t = Math.Tan(beta);
+        var r = Math.Sqrt(1.0 + t * t);
+        var phi = Math.Atan(t);
+        var s = Math.Clamp(distance * t / r, -1.0, 1.0);
+        return Math.Asin(s) - phi;
+    }
 }
