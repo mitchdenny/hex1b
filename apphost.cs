@@ -94,6 +94,10 @@ var dirtRaceDemo = builder.AddCSharpApp("dirt-race-demo", "./samples/DirtRaceDem
     .ExcludeFromManifest()
     .WithTerminal();
 
+var asciiEarthDemo = builder.AddCSharpApp("ascii-earth-demo", "./samples/AsciiEarth")
+    .ExcludeFromManifest()
+    .WithTerminal();
+
 // Wire up pipeline dependencies: content build depends on doc generation
 content.WithPipelineConfiguration(context =>
 {

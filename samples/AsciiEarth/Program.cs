@@ -1,0 +1,277 @@
+using AsciiEarth;
+using Hex1b;
+using Hex1b.Input;
+using Hex1b.Layout;
+using Hex1b.Scene.Materials;
+using Hex1b.Scene.Math;
+using Hex1b.Scene.Objects;
+using Hex1b.Scene.Textures;
+using Hex1b.Widgets;
+using SceneClass = Hex1b.Scene.Core.Scene;
+
+// Drag/roll input step sizes.
+const float RollStep = 0.10f;
+const float DragYawScale = 0.018f;
+const float DragPitchScale = 0.022f;
+
+// Detail overlay patch tuning.
+const float PatchRadius = 1.004f; // sits just above the base globe so it wins the depth test
+const int PatchSegments = 24;
+
+// --- OSM tile + texture infrastructure -------------------------------------------------
+using var tileClient = new RasterTileClient();
+using var earth = new EarthTextureBuilder(tileClient, width: 1024, height: 512, maxZoom: OrbitController.BaseGlobeZoom);
+using var detail = new DetailTextureBuilder(tileClient);
+
+// --- Scene: a textured sphere lit by ambient light plus a fixed "sun" ------------------
+var scene = new SceneClass("AsciiEarth");
+
+var sphereMaterial = new SceneTextureMaterial(earth.Texture)
+{
+    WrapMode = TextureWrapMode.Repeat,
+    FilterMode = TextureFilterMode.Linear
+};
+var sphereMesh = new SceneMesh(
+    SphereGeometry.Create(radius: 1.0f, longitudeSegments: 64, latitudeSegments: 40),
+    sphereMaterial,
+    "Globe");
+scene.AddChild(sphereMesh);
+
+// High-detail overlay patch (added/removed from the scene as the user zooms in/out).
+var detailMaterial = new SceneTextureMaterial(detail.Texture)
+{
+    WrapMode = TextureWrapMode.Clamp,
+    FilterMode = TextureFilterMode.Linear
+};
+var patchMesh = new SceneMesh(SphereGeometry.Create(1.0f, 3, 2), detailMaterial, "Detail");
+var lastDetailVersion = -1;
+var patchHasGeometry = false;
+
+var ambientLight = new SceneAmbientLight("Ambient")
+{
+    Color = Vector3.One,
+    Intensity = 0.58f
+};
+scene.AddChild(ambientLight);
+
+// Fixed sun from the upper-left-front so the sphere reads as 3D as it spins.
+var sun = new SceneDirectionalLight("Sun")
+{
+    Color = Vector3.One,
+    Intensity = 0.75f,
+    Rotation = DirectionToRotation(new Vector3(0.45f, -0.55f, -1.0f))
+};
+scene.AddChild(sun);
+
+var camera = new ScenePerspectiveCamera("Camera")
+{
+    Near = 0.01f, // allow the camera to dive close to the surface for deep zoom
+    Far = 50f
+};
+var orbit = new OrbitController();
+
+// Kick off the first texture build at the starting zoom.
+earth.RequestZoom(Math.Min(orbit.OsmZoom, OrbitController.BaseGlobeZoom));
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp(
+        o => o.EnableMouse = true,
+        app => ctx =>
+        {
+            // Sync scene transforms from the orbit controller each frame.
+            sphereMesh.Rotation = orbit.GlobeRotation;
+            camera.Position = orbit.CameraPosition;
+            camera.Rotation = orbit.CameraRotation;
+
+            var (lat, lon) = orbit.CenterLatLon;
+            var zoom = orbit.OsmZoom;
+
+            // Base globe texture follows zoom up to the low global cap.
+            earth.RequestZoom(Math.Min(zoom, OrbitController.BaseGlobeZoom));
+
+            // High-zoom detail overlay: request the bounded tile block facing the camera.
+            if (orbit.DetailActive)
+                detail.Request(EarthView.ComputeWindow(lat, lon, zoom));
+
+            // When a new detail block finishes downloading, rebuild the patch to match it.
+            if (detail.Version != lastDetailVersion)
+            {
+                lastDetailVersion = detail.Version;
+                if (detail.PublishedWindow is { } published)
+                {
+                    patchMesh.Geometry = DetailPatchGeometry.Create(published, PatchRadius, PatchSegments);
+                    patchHasGeometry = true;
+                }
+            }
+
+            // Show the patch only when zoomed in and its imagery covers the current view, so a
+            // freshly re-entered detail level never briefly shows a stale location. Keep it glued
+            // to the globe.
+            var showPatch = orbit.DetailActive
+                && patchHasGeometry
+                && detail.PublishedWindow is { } shown
+                && shown.Zoom == zoom
+                && WindowCoversCenter(shown, lat, lon);
+            if (showPatch)
+            {
+                patchMesh.Rotation = orbit.GlobeRotation;
+                if (patchMesh.Parent is null)
+                    scene.AddChild(patchMesh);
+            }
+            else if (patchMesh.Parent is not null)
+            {
+                scene.RemoveChild(patchMesh);
+            }
+
+            var status = detail.IsBuilding
+                ? "loading detail…"
+                : earth.IsBuilding ? "loading globe…" : "ready";
+            var header =
+                $" AsciiEarth   center {Format(lat, 'N', 'S')}, {Format(lon, 'E', 'W')}   " +
+                $"OSM z{zoom}/{OrbitController.MaxZoom}   {status} ";
+
+            return ctx.Interactable(ic =>
+                ic.Grid(g =>
+                {
+                    g.Columns.Add(SizeHint.Fill);
+                    g.Rows.Add(SizeHint.Fixed(1));
+                    g.Rows.Add(SizeHint.Fill);
+                    g.Rows.Add(SizeHint.Fixed(1));
+
+                    return
+                    [
+                        g.Cell(c => c.Text(header)).Row(0).Column(0),
+
+                        g.Cell(c => c.Border(b => [b.Scene(scene, camera)])
+                            .Title("© OpenStreetMap contributors"))
+                            .Row(1).Column(0),
+
+                        g.Cell(c => c.Text(
+                            " drag rotate · wheel zoom · WASD pan · ↑/↓ zoom · ←/→ roll · Esc quit "))
+                            .Row(2).Column(0)
+                    ];
+                }))
+                .InputBindings(bindings =>
+                {
+                    bindings.Drag(MouseButton.Left).Action((_, _) =>
+                    {
+                        var lastDx = 0;
+                        var lastDy = 0;
+                        return new DragHandler((_, dx, dy) =>
+                        {
+                            var stepDx = dx - lastDx;
+                            var stepDy = dy - lastDy;
+                            lastDx = dx;
+                            lastDy = dy;
+                            if (stepDx == 0 && stepDy == 0)
+                                return;
+                            var scale = orbit.SurfaceScale;
+                            orbit.RotateScreen(stepDx * DragYawScale * scale, stepDy * DragPitchScale * scale);
+                            app.Invalidate();
+                        });
+                    }, "Rotate the globe by dragging");
+
+                    bindings.Mouse(MouseButton.ScrollUp).Action(_ =>
+                    {
+                        orbit.ZoomIn();
+                        app.Invalidate();
+                    }, "Zoom in");
+
+                    bindings.Mouse(MouseButton.ScrollDown).Action(_ =>
+                    {
+                        orbit.ZoomOut();
+                        app.Invalidate();
+                    }, "Zoom out");
+
+                    bindings.Key(Hex1bKey.W).Global().Action(_ =>
+                    {
+                        orbit.PanNorth();
+                        app.Invalidate();
+                    }, "Pan north");
+
+                    bindings.Key(Hex1bKey.S).Global().Action(_ =>
+                    {
+                        orbit.PanSouth();
+                        app.Invalidate();
+                    }, "Pan south");
+
+                    bindings.Key(Hex1bKey.A).Global().Action(_ =>
+                    {
+                        orbit.PanWest();
+                        app.Invalidate();
+                    }, "Pan west");
+
+                    bindings.Key(Hex1bKey.D).Global().Action(_ =>
+                    {
+                        orbit.PanEast();
+                        app.Invalidate();
+                    }, "Pan east");
+
+                    bindings.Key(Hex1bKey.UpArrow).Global().Action(_ =>
+                    {
+                        orbit.ZoomIn();
+                        app.Invalidate();
+                    }, "Zoom in");
+
+                    bindings.Key(Hex1bKey.DownArrow).Global().Action(_ =>
+                    {
+                        orbit.ZoomOut();
+                        app.Invalidate();
+                    }, "Zoom out");
+
+                    bindings.Key(Hex1bKey.LeftArrow).Global().Action(_ =>
+                    {
+                        orbit.Roll(RollStep);
+                        app.Invalidate();
+                    }, "Roll left");
+
+                    bindings.Key(Hex1bKey.RightArrow).Global().Action(_ =>
+                    {
+                        orbit.Roll(-RollStep);
+                        app.Invalidate();
+                    }, "Roll right");
+                })
+                // Keep redrawing so async tile loads appear and held keys feel responsive.
+                .RedrawAfter(120);
+        })
+    .Build();
+
+await terminal.RunAsync();
+
+// Builds a rotation that maps the default light forward (-Z) onto the given direction.
+static Quaternion DirectionToRotation(Vector3 direction)
+{
+    var from = new Vector3(0, 0, -1);
+    var to = direction.Normalized;
+    var dot = Vector3.Dot(from, to);
+
+    if (dot > 0.9999f)
+        return Quaternion.Identity;
+    if (dot < -0.9999f)
+        return Quaternion.FromAxisAngle(Vector3.UnitY, MathF.PI);
+
+    var axis = Vector3.Cross(from, to).Normalized;
+    var angle = MathF.Acos(Math.Clamp(dot, -1f, 1f));
+    return Quaternion.FromAxisAngle(axis, angle);
+}
+
+static string Format(double degrees, char positive, char negative)
+{
+    var hemisphere = degrees >= 0 ? positive : negative;
+    return $"{Math.Abs(degrees):0.0}°{hemisphere}";
+}
+
+// True when the published detail window encloses the current center lat/lon. Longitude bounds are
+// continuous (may run past ±180 near the antimeridian), so test the center at ±360 offsets too.
+static bool WindowCoversCenter(EarthView.Window window, double lat, double lon)
+{
+    if (lat > window.North || lat < window.South)
+        return false;
+    for (var k = -1; k <= 1; k++)
+    {
+        var shifted = lon + k * 360.0;
+        if (shifted >= window.West && shifted <= window.East)
+            return true;
+    }
+    return false;
+}
