@@ -17,7 +17,6 @@ const float DragPitchScale = 0.022f;
 // Detail overlay patch tuning.
 const float PatchRadius = 1.004f; // sits just above the base globe so it wins the depth test
 const int PatchSegments = 40;     // enough to follow the sphere across the wide (≤13-tile) block
-var detailFadeDuration = TimeSpan.FromMilliseconds(140);
 
 // --- OSM tile + texture infrastructure -------------------------------------------------
 using var tileClient = new RasterTileClient();
@@ -69,12 +68,68 @@ var camera = new ScenePerspectiveCamera("Camera")
 };
 var orbit = new OrbitController();
 DetailTextureBuilder.PublishedDetail? displayedDetail = null;
-DetailTextureBuilder.PublishedDetail? pendingDetail = null;
-DateTime fadeStartUtc = default;
-var fadeTexture = new SceneTexture2D(EarthView.TilesX * EarthView.TilePixels, EarthView.TilesY * EarthView.TilePixels);
-var fadePixels = new uint[fadeTexture.Width * fadeTexture.Height];
-uint[]? fadeFromPixels = null;
-uint[]? fadeToPixels = null;
+DetailTextureBuilder.PublishedDetail? proxyDetail = null;
+var proxySourceVersion = -1;
+EarthView.Window? proxyRequestedWindow = null;
+var proxyRequestedSourceVersion = -1;
+var proxyGeneration = 0;
+var proxyTask = Task.CompletedTask;
+var proxyGate = new object();
+var proxyIsBuilding = false;
+
+void EnsureProxyForTarget(DetailTextureBuilder.PublishedDetail source, EarthView.Window target)
+{
+    lock (proxyGate)
+    {
+        var hasUsableProxy = proxyDetail is { } existing
+            && existing.Window.Zoom == target.Zoom
+            && existing.Window.MinTileX == target.MinTileX
+            && existing.Window.MinTileY == target.MinTileY
+            && proxySourceVersion == source.Version;
+        var sameRequestInFlight = proxyIsBuilding
+            && proxyRequestedWindow is { } requested
+            && requested.Zoom == target.Zoom
+            && requested.MinTileX == target.MinTileX
+            && requested.MinTileY == target.MinTileY
+            && proxyRequestedSourceVersion == source.Version;
+        if (hasUsableProxy || sameRequestInFlight)
+            return;
+
+        proxyIsBuilding = true;
+        proxyRequestedWindow = target;
+        proxyRequestedSourceVersion = source.Version;
+        var generation = ++proxyGeneration;
+        proxyTask = Task.Run(() =>
+        {
+            try
+            {
+                var texture = BuildProxyTextureFromSource(source, target);
+                lock (proxyGate)
+                {
+                    if (generation != proxyGeneration)
+                        return;
+                    proxyDetail = new DetailTextureBuilder.PublishedDetail(target, texture, source.Version);
+                    proxySourceVersion = source.Version;
+                    proxyIsBuilding = false;
+                    proxyRequestedWindow = null;
+                    proxyRequestedSourceVersion = -1;
+                }
+            }
+            catch
+            {
+                lock (proxyGate)
+                {
+                    if (generation == proxyGeneration)
+                    {
+                        proxyIsBuilding = false;
+                        proxyRequestedWindow = null;
+                        proxyRequestedSourceVersion = -1;
+                    }
+                }
+            }
+        });
+    }
+}
 
 // Kick off the first texture build at the starting zoom.
 earth.RequestZoom(Math.Min(orbit.OsmZoom, OrbitController.BaseGlobeZoom));
@@ -98,78 +153,68 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             // High-zoom detail overlay: request the bounded tile block facing the camera. The block
             // carries a margin ring of tiles around the visible area so the texture can slide under
             // the view while panning, only re-downloading when the centre crosses into new tiles.
+            EarthView.Window? targetWindow = null;
             if (orbit.DetailActive)
-                detail.Request(EarthView.ComputeWindow(lat, lon, zoom));
+            {
+                targetWindow = EarthView.ComputeWindow(lat, lon, zoom);
+                detail.Request(targetWindow.Value);
+            }
 
-            // Rebuild the detail patch every frame, magnifying the published tile block about the
-            // *live* facing point. Because the magnification is about the point the user is looking
-            // at and the imagery is mapped by true geography, panning slides the texture smoothly
-            // across the mesh and a freshly-downloaded block drops in seamlessly where the old one
-            // was — no jump when the tiles refresh. Past the globe-diving range the (tiny) window is
-            // magnified so the patch keeps filling the view: a magnifier that sharpens each level.
+            // Keep the most recent real published snapshot around. For same-zoom updates (panning),
+            // apply immediately. For zoom transitions, we'll either use a proxy in the target window
+            // or keep showing the previous detail while the proxy/new LOD is pending.
             var publishedDetail = detail.Published;
             if (publishedDetail is { } latest)
             {
                 displayedDetail ??= latest;
-                if (displayedDetail is { } shown && latest.Version != shown.Version)
+
+                if (latest.Window.Zoom == zoom)
                 {
-                    // For zoom changes, keep showing the previous detail while the next level loads,
-                    // then fade old→new in the same target window instead of falling back to the
-                    // coarse base globe. For same-zoom block updates (panning), swap immediately.
-                    if (latest.Window.Zoom != shown.Window.Zoom)
+                    displayedDetail = latest;
+                    lock (proxyGate)
                     {
-                        if (pendingDetail is null || pendingDetail.Value.Version != latest.Version)
-                        {
-                            pendingDetail = latest;
-                            fadeStartUtc = DateTime.UtcNow;
-                            fadeFromPixels = shown.Texture.GetPixels();
-                            fadeToPixels = latest.Texture.GetPixels();
-                        }
-                    }
-                    else
-                    {
-                        displayedDetail = latest;
-                        pendingDetail = null;
-                        fadeFromPixels = null;
-                        fadeToPixels = null;
+                        proxyDetail = null;
+                        proxySourceVersion = -1;
+                        proxyGeneration++;
+                        proxyIsBuilding = false;
+                        proxyRequestedWindow = null;
+                        proxyRequestedSourceVersion = -1;
                     }
                 }
             }
 
-            var activeDetail = displayedDetail;
-            if (displayedDetail is { } oldBlock && pendingDetail is { } newBlock)
+            DetailTextureBuilder.PublishedDetail? activeDetail = null;
+            if (orbit.DetailActive && targetWindow is { } target)
             {
-                var elapsed = DateTime.UtcNow - fadeStartUtc;
-                var t = detailFadeDuration <= TimeSpan.Zero
-                    ? 1.0
-                    : Math.Clamp(elapsed.TotalSeconds / detailFadeDuration.TotalSeconds, 0.0, 1.0);
-
-                if (fadeFromPixels is not null && fadeToPixels is not null && fadeFromPixels.Length == fadeToPixels.Length)
+                if (displayedDetail is { } realAtZoom && realAtZoom.Window.Zoom == zoom)
                 {
-                    BlendPixelArrays(fadeFromPixels, fadeToPixels, t, fadePixels);
-                    fadeTexture.SetPixels(fadePixels);
-                    detailMaterial.Texture = fadeTexture;
-                    activeDetail = new DetailTextureBuilder.PublishedDetail(newBlock.Window, fadeTexture, newBlock.Version);
+                    activeDetail = realAtZoom;
+                    detailMaterial.Texture = realAtZoom.Texture;
                 }
                 else
                 {
-                    // If we couldn't prepare a fade buffer, fall back to an immediate atomic swap.
-                    detailMaterial.Texture = newBlock.Texture;
-                    activeDetail = newBlock;
-                    t = 1.0;
-                }
+                    DetailTextureBuilder.PublishedDetail? proxyNow = null;
+                    lock (proxyGate)
+                    {
+                        if (proxyDetail is { } p
+                            && p.Window.Zoom == target.Zoom
+                            && p.Window.MinTileX == target.MinTileX
+                            && p.Window.MinTileY == target.MinTileY)
+                            proxyNow = p;
+                    }
 
-                if (t >= 1.0)
-                {
-                    displayedDetail = newBlock;
-                    pendingDetail = null;
-                    fadeFromPixels = null;
-                    fadeToPixels = null;
+                    if (proxyNow is { } proxyAtZoom)
+                    {
+                        activeDetail = proxyAtZoom;
+                        detailMaterial.Texture = proxyAtZoom.Texture;
+                    }
+                    else if (displayedDetail is { } previousReal)
+                    {
+                        activeDetail = previousReal;
+                        detailMaterial.Texture = previousReal.Texture;
+                        EnsureProxyForTarget(previousReal, target);
+                    }
                 }
-            }
-            else if (displayedDetail is { } stable)
-            {
-                detailMaterial.Texture = stable.Texture;
             }
 
             var showPatch = orbit.DetailActive
@@ -192,7 +237,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 scene.RemoveChild(patchMesh);
             }
 
-            var status = detail.IsBuilding
+            bool isProxyBuilding;
+            lock (proxyGate)
+                isProxyBuilding = proxyIsBuilding;
+            var status = (detail.IsBuilding || isProxyBuilding)
                 ? "loading detail…"
                 : earth.IsBuilding ? "loading globe…" : "ready";
             var header =
@@ -324,34 +372,56 @@ static Quaternion DirectionToRotation(Vector3 direction)
     return Quaternion.FromAxisAngle(axis, angle);
 }
 
-static void BlendPixelArrays(uint[] from, uint[] to, double t, uint[] output)
+static SceneTexture2D BuildProxyTextureFromSource(
+    DetailTextureBuilder.PublishedDetail source,
+    EarthView.Window target)
 {
-    t = Math.Clamp(t, 0.0, 1.0);
-    var len = Math.Min(output.Length, Math.Min(from.Length, to.Length));
-    for (var i = 0; i < len; i++)
-        output[i] = LerpRgba(from[i], to[i], t);
+    var width = EarthView.TilesX * EarthView.TilePixels;
+    var height = EarthView.TilesY * EarthView.TilePixels;
+    var pixels = new uint[width * height];
+    var denomX = Math.Max(1, width - 1);
+    var denomY = Math.Max(1, height - 1);
+
+    for (var y = 0; y < height; y++)
+    {
+        var fy = (double)y / denomY;
+        var tileY = target.MinTileY + fy * EarthView.TilesY;
+        var lat = TileCoordinates.TileToLatLon(0, tileY, target.Zoom).Lat;
+
+        for (var x = 0; x < width; x++)
+        {
+            var fx = (double)x / denomX;
+            var tileX = target.MinTileX + fx * EarthView.TilesX;
+            var lon = TileCoordinates.TileToLatLon(tileX, 0, target.Zoom).Lon;
+            pixels[(y * width) + x] = SampleDetailAtLatLon(source, lat, lon);
+        }
+    }
+
+    var texture = new SceneTexture2D(width, height);
+    texture.SetPixels(pixels);
+    return texture;
 }
 
-static uint LerpRgba(uint from, uint to, double t)
+static uint SampleDetailAtLatLon(DetailTextureBuilder.PublishedDetail snapshot, double lat, double lon)
 {
-    var fr = (byte)(from >> 24);
-    var fg = (byte)(from >> 16);
-    var fb = (byte)(from >> 8);
-    var fa = (byte)from;
+    var window = snapshot.Window;
+    var (tileX, tileY) = TileCoordinates.LatLonToTile(lat, lon, window.Zoom);
+    var n = 1 << window.Zoom;
 
-    var tr = (byte)(to >> 24);
-    var tg = (byte)(to >> 16);
-    var tb = (byte)(to >> 8);
-    var ta = (byte)to;
+    var dx = WrapTileDelta(tileX - window.MinTileX, n);
+    var dy = tileY - window.MinTileY;
+    var u = (float)(dx / EarthView.TilesX);
+    var v = (float)(dy / EarthView.TilesY);
+    return snapshot.Texture.SampleBilinear(u, v, TextureWrapMode.Clamp);
+}
 
-    static byte Blend(byte a, byte b, double w)
-        => (byte)Math.Clamp((int)Math.Round(a + ((b - a) * w)), 0, 255);
-
-    var r = Blend(fr, tr, t);
-    var g = Blend(fg, tg, t);
-    var b = Blend(fb, tb, t);
-    var a = Blend(fa, ta, t);
-    return ((uint)r << 24) | ((uint)g << 16) | ((uint)b << 8) | a;
+static double WrapTileDelta(double delta, int n)
+{
+    if (n <= 0)
+        return delta;
+    while (delta < -n * 0.5) delta += n;
+    while (delta > n * 0.5) delta -= n;
+    return delta;
 }
 
 static string Format(double degrees, char positive, char negative)
