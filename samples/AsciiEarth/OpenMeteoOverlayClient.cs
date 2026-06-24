@@ -10,7 +10,7 @@ internal sealed class OpenMeteoOverlayClient : IDisposable
 {
     private const string Endpoint = "https://api.open-meteo.com/v1/forecast";
     private const string UserAgent = "Hex1b-AsciiEarth/1.0 (overlay sampler; https://github.com/mitchdenny/hex1b)";
-    private const int MaxPointsPerRequest = 48;
+    private const int MaxPointsPerRequest = 8;
 
     private readonly HttpClient _http;
 
