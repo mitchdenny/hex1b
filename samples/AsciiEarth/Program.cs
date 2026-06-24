@@ -16,7 +16,8 @@ const float DragPitchScale = 0.022f;
 
 // Detail overlay patch tuning.
 const float PatchRadius = 1.004f; // sits just above the base globe so it wins the depth test
-const int PatchSegments = 40;     // enough to follow the sphere across the wide (≤11-tile) block
+const int PatchSegments = 40;     // enough to follow the sphere across the wide (≤13-tile) block
+var detailFadeDuration = TimeSpan.FromMilliseconds(220);
 
 // --- OSM tile + texture infrastructure -------------------------------------------------
 using var tileClient = new RasterTileClient();
@@ -67,6 +68,11 @@ var camera = new ScenePerspectiveCamera("Camera")
     Far = 50f
 };
 var orbit = new OrbitController();
+DetailTextureBuilder.PublishedDetail? displayedDetail = null;
+DetailTextureBuilder.PublishedDetail? pendingDetail = null;
+DateTime fadeStartUtc = default;
+var fadeTexture = new SceneTexture2D(EarthView.TilesX * EarthView.TilePixels, EarthView.TilesY * EarthView.TilePixels);
+var fadePixels = new uint[fadeTexture.Width * fadeTexture.Height];
 
 // Kick off the first texture build at the starting zoom.
 earth.RequestZoom(Math.Min(orbit.OsmZoom, OrbitController.BaseGlobeZoom));
@@ -99,18 +105,65 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             // across the mesh and a freshly-downloaded block drops in seamlessly where the old one
             // was — no jump when the tiles refresh. Past the globe-diving range the (tiny) window is
             // magnified so the patch keeps filling the view: a magnifier that sharpens each level.
-            var showPatch = orbit.DetailActive
-                && detail.PublishedWindow is { } published
-                && published.Zoom == zoom
-                && WindowCoversCenter(published, lat, lon);
-            if (showPatch && detail.PublishedWindow is { } block)
+            var publishedDetail = detail.Published;
+            if (publishedDetail is { } latest)
             {
-                var realRadius = block.AngularRadiusRad;
+                displayedDetail ??= latest;
+                if (displayedDetail is { } shown && latest.Version != shown.Version)
+                {
+                    // For zoom changes, keep showing the previous detail while the next level loads,
+                    // then fade old→new in the same target window instead of falling back to the
+                    // coarse base globe. For same-zoom block updates (panning), swap immediately.
+                    if (latest.Window.Zoom != shown.Window.Zoom)
+                    {
+                        if (pendingDetail is null || pendingDetail.Value.Version != latest.Version)
+                        {
+                            pendingDetail = latest;
+                            fadeStartUtc = DateTime.UtcNow;
+                        }
+                    }
+                    else
+                    {
+                        displayedDetail = latest;
+                        pendingDetail = null;
+                    }
+                }
+            }
+
+            var activeDetail = displayedDetail;
+            if (displayedDetail is { } oldBlock && pendingDetail is { } newBlock)
+            {
+                var elapsed = DateTime.UtcNow - fadeStartUtc;
+                var t = detailFadeDuration <= TimeSpan.Zero
+                    ? 1.0
+                    : Math.Clamp(elapsed.TotalSeconds / detailFadeDuration.TotalSeconds, 0.0, 1.0);
+
+                BlendDetailSnapshots(oldBlock, newBlock, t, fadeTexture, fadePixels);
+                detailMaterial.Texture = fadeTexture;
+                activeDetail = new DetailTextureBuilder.PublishedDetail(newBlock.Window, fadeTexture, newBlock.Version);
+
+                if (t >= 1.0)
+                {
+                    displayedDetail = newBlock;
+                    pendingDetail = null;
+                }
+            }
+            else if (displayedDetail is { } stable)
+            {
+                detailMaterial.Texture = stable.Texture;
+            }
+
+            var showPatch = orbit.DetailActive
+                && activeDetail is { } block
+                && WindowCoversCenter(block.Window, lat, lon);
+            if (showPatch && activeDetail is { } shownBlock)
+            {
+                var realRadius = shownBlock.Window.AngularRadiusRad;
                 var mag = realRadius > 1e-9
                     ? Math.Max(1.0, OrbitController.MagnifierAngularRadius / realRadius)
                     : 1.0;
                 patchMesh.Geometry =
-                    DetailPatchGeometry.Create(block, lat, lon, mag, PatchRadius, PatchSegments);
+                    DetailPatchGeometry.Create(shownBlock.Window, lat, lon, mag, PatchRadius, PatchSegments);
                 patchMesh.Rotation = orbit.GlobeRotation;
                 if (patchMesh.Parent is null)
                     scene.AddChild(patchMesh);
@@ -250,6 +303,85 @@ static Quaternion DirectionToRotation(Vector3 direction)
     var axis = Vector3.Cross(from, to).Normalized;
     var angle = MathF.Acos(Math.Clamp(dot, -1f, 1f));
     return Quaternion.FromAxisAngle(axis, angle);
+}
+
+static void BlendDetailSnapshots(
+    DetailTextureBuilder.PublishedDetail from,
+    DetailTextureBuilder.PublishedDetail to,
+    double t,
+    SceneTexture2D output,
+    uint[] pixels)
+{
+    t = Math.Clamp(t, 0.0, 1.0);
+    var width = output.Width;
+    var height = output.Height;
+    var denomX = Math.Max(1, width - 1);
+    var denomY = Math.Max(1, height - 1);
+
+    for (var y = 0; y < height; y++)
+    {
+        var fy = (double)y / denomY;
+        var tileY = to.Window.MinTileY + fy * EarthView.TilesY;
+        var lat = TileCoordinates.TileToLatLon(0, tileY, to.Window.Zoom).Lat;
+
+        for (var x = 0; x < width; x++)
+        {
+            var fx = (double)x / denomX;
+            var tileX = to.Window.MinTileX + fx * EarthView.TilesX;
+            var lon = TileCoordinates.TileToLatLon(tileX, 0, to.Window.Zoom).Lon;
+
+            var fromPixel = SampleSnapshot(from, lat, lon);
+            var toPixel = SampleSnapshot(to, lat, lon);
+            pixels[(y * width) + x] = LerpRgba(fromPixel, toPixel, t);
+        }
+    }
+
+    output.SetPixels(pixels);
+}
+
+static uint SampleSnapshot(DetailTextureBuilder.PublishedDetail snapshot, double lat, double lon)
+{
+    var window = snapshot.Window;
+    var (tileX, tileY) = TileCoordinates.LatLonToTile(lat, lon, window.Zoom);
+    var n = 1 << window.Zoom;
+
+    var dx = WrapTileDelta(tileX - window.MinTileX, n);
+    var dy = tileY - window.MinTileY;
+    var u = (float)(dx / EarthView.TilesX);
+    var v = (float)(dy / EarthView.TilesY);
+
+    return snapshot.Texture.SampleBilinear(u, v, TextureWrapMode.Clamp);
+}
+
+static double WrapTileDelta(double delta, int n)
+{
+    if (n <= 0)
+        return delta;
+    while (delta < -n * 0.5) delta += n;
+    while (delta > n * 0.5) delta -= n;
+    return delta;
+}
+
+static uint LerpRgba(uint from, uint to, double t)
+{
+    var fr = (byte)(from >> 24);
+    var fg = (byte)(from >> 16);
+    var fb = (byte)(from >> 8);
+    var fa = (byte)from;
+
+    var tr = (byte)(to >> 24);
+    var tg = (byte)(to >> 16);
+    var tb = (byte)(to >> 8);
+    var ta = (byte)to;
+
+    static byte Blend(byte a, byte b, double w)
+        => (byte)Math.Clamp((int)Math.Round(a + ((b - a) * w)), 0, 255);
+
+    var r = Blend(fr, tr, t);
+    var g = Blend(fg, tg, t);
+    var b = Blend(fb, tb, t);
+    var a = Blend(fa, ta, t);
+    return ((uint)r << 24) | ((uint)g << 16) | ((uint)b << 8) | a;
 }
 
 static string Format(double degrees, char positive, char negative)

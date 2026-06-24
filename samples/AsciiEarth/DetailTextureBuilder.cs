@@ -11,10 +11,10 @@ namespace AsciiEarth;
 /// Unlike the base globe's <see cref="EarthTextureBuilder"/>, no Mercator→equirectangular
 /// reprojection is needed: the tiles are laid out in a simple grid and the overlay patch's UVs run
 /// linearly across them. The texture is always
-/// <see cref="EarthView.TilesX"/>·256 wide by <see cref="EarthView.TilesY"/>·256 tall, so it is
-/// allocated once and its pixels are swapped in place. A generation counter cancels stale builds;
-/// the window and a version counter are published together when a build completes, so the patch
-/// geometry is only rebuilt once its matching imagery is ready.
+/// <see cref="EarthView.TilesX"/>·256 wide by <see cref="EarthView.TilesY"/>·256 tall. Each completed
+/// build publishes a <em>new texture instance</em> together with its matching window/version, so the
+/// render loop can swap texture + geometry atomically in one frame (no one-frame mismatch/pop while
+/// panning). A generation counter cancels stale builds.
 /// </remarks>
 internal sealed class DetailTextureBuilder : IDisposable
 {
@@ -32,24 +32,36 @@ internal sealed class DetailTextureBuilder : IDisposable
     private int _generation;
     private EarthView.Window? _requested;
     private EarthView.Window? _published;
+    private SceneTexture2D _publishedTexture;
     private int _version;
-
-    public SceneTexture2D Texture { get; }
 
     /// <summary>True while a detail block is downloading/assembling.</summary>
     public bool IsBuilding { get; private set; }
 
-    /// <summary>The window matching the texture's current pixels, or null before the first build.</summary>
-    public EarthView.Window? PublishedWindow
+    /// <summary>Current published texture (blank initially, then latest built snapshot).</summary>
+    public SceneTexture2D Texture
     {
-        get { lock (_gate) return _published; }
+        get { lock (_gate) return _publishedTexture; }
     }
 
-    /// <summary>Bumped each time a new window is published, so callers can react to fresh imagery.</summary>
-    public int Version
+    /// <summary>
+    /// Snapshot of the latest published detail block: texture + matching window + version.
+    /// Null until the first successful build completes.
+    /// </summary>
+    public PublishedDetail? Published
     {
-        get { lock (_gate) return _version; }
+        get
+        {
+            lock (_gate)
+            {
+                return _published is { } window
+                    ? new PublishedDetail(window, _publishedTexture, _version)
+                    : null;
+            }
+        }
     }
+
+    public readonly record struct PublishedDetail(EarthView.Window Window, SceneTexture2D Texture, int Version);
 
     public DetailTextureBuilder(RasterTileClient client)
     {
@@ -57,10 +69,10 @@ internal sealed class DetailTextureBuilder : IDisposable
         _tilesX = EarthView.TilesX;
         _tilesY = EarthView.TilesY;
 
-        Texture = new SceneTexture2D(_tilesX * TilePixels, _tilesY * TilePixels);
-        var blank = new uint[Texture.Width * Texture.Height];
+        _publishedTexture = new SceneTexture2D(_tilesX * TilePixels, _tilesY * TilePixels);
+        var blank = new uint[_publishedTexture.Width * _publishedTexture.Height];
         Array.Fill(blank, FillColor);
-        Texture.SetPixels(blank);
+        _publishedTexture.SetPixels(blank);
     }
 
     /// <summary>
@@ -94,7 +106,9 @@ internal sealed class DetailTextureBuilder : IDisposable
             {
                 if (generation != _generation)
                     return;
-                Texture.SetPixels(pixels);
+                var texture = new SceneTexture2D(_tilesX * TilePixels, _tilesY * TilePixels);
+                texture.SetPixels(pixels);
+                _publishedTexture = texture;
                 _published = window;
                 _version++;
             }
