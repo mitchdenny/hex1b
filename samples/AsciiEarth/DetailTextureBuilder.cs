@@ -20,12 +20,16 @@ internal sealed class DetailTextureBuilder : IDisposable
 {
     private const int TilePixels = EarthView.TilePixels;
     private const int MaxParallelDownloads = 6;
-    private static readonly TimeSpan WindFrameInterval = TimeSpan.FromMilliseconds(140);
+    private static readonly TimeSpan WindFrameInterval = TimeSpan.FromMilliseconds(95);
     private static readonly TimeSpan WindFieldRefreshInterval = TimeSpan.FromMinutes(12);
     private const int WindFieldGridX = 12;
     private const int WindFieldGridY = 6;
-    private const int WindParticleCount = 520;
-    private const double WindVisualSpeedScale = 220.0;
+    private const int WindParticleCount = 2400;
+    private const double WindVisualSpeedScale = 120.0;
+    private const double WindTrailDecay = 0.965;
+    private const int WindIntegrationSubsteps = 3;
+    private const double WindMinSegmentPixels = 4.0;
+    private const double WindSegmentAlpha = 0.92;
 
     // Neutral fill shown for missing/failed tiles before/while the block downloads.
     private static readonly uint FillColor = Pack(20, 40, 70, 255);
@@ -46,6 +50,8 @@ internal sealed class DetailTextureBuilder : IDisposable
     private bool _windFrameInProgress;
     private DateTime _lastWindFrameUtc = DateTime.MinValue;
     private WindFieldSnapshot? _windField;
+    private uint[]? _windTrailPixels;
+    private EarthView.Window? _windTrailWindow;
     private DateTime _nextWindFieldRefreshUtc = DateTime.MinValue;
     private DateTime _windRetryAfterUtc = DateTime.MinValue;
     private int _windRetryStep;
@@ -125,6 +131,13 @@ internal sealed class DetailTextureBuilder : IDisposable
             if (_overlayMode == mode)
                 return;
             _overlayMode = mode;
+            if (mode != OverlayMode.Wind)
+            {
+                _windTrailPixels = null;
+                _windTrailWindow = null;
+                for (var i = 0; i < _windParticles.Length; i++)
+                    _windParticles[i].Life = 0;
+            }
             requested = _requested;
             if (requested is null)
                 return;
@@ -425,46 +438,56 @@ internal sealed class DetailTextureBuilder : IDisposable
         var height = _tilesY * TilePixels;
         var maxX = Math.Max(1, width - 1);
         var maxY = Math.Max(1, height - 1);
+        EnsureWindTrailBuffer(window, width, height);
+        var trail = _windTrailPixels!;
+        DecayTrail(trail, WindTrailDecay);
 
+        var stepDt = dt / WindIntegrationSubsteps;
         for (var i = 0; i < _windParticles.Length; i++)
         {
             ref var p = ref _windParticles[i];
             if (p.Life <= 0.0)
-            {
                 SpawnParticle(ref p, window);
-            }
 
-            p.PrevLat = p.Lat;
-            p.PrevLon = p.Lon;
-
-            var (speedKmh, dirDeg) = SampleWind(field, p.Lat, p.Lon);
-            var dirRad = dirDeg * Math.PI / 180.0;
-            var uEast = -speedKmh * Math.Sin(dirRad) * WindVisualSpeedScale;
-            var vNorth = -speedKmh * Math.Cos(dirRad) * WindVisualSpeedScale;
-
-            var latStep = (vNorth / 111.0) * (dt / 3600.0);
-            var cosLat = Math.Max(0.18, Math.Cos(p.Lat * Math.PI / 180.0));
-            var lonStep = (uEast / (111.0 * cosLat)) * (dt / 3600.0);
-
-            p.Lat = Math.Clamp(p.Lat + latStep, -85.0, 85.0);
-            p.Lon = NormalizeLon(p.Lon + lonStep);
-            p.Life -= dt;
-
-            if (!TryLatLonToUv(window, p.PrevLat, p.PrevLon, out var u0, out var v0) ||
-                !TryLatLonToUv(window, p.Lat, p.Lon, out var u1, out var v1))
+            for (var step = 0; step < WindIntegrationSubsteps; step++)
             {
-                p.Life = 0;
-                continue;
-            }
+                p.PrevLat = p.Lat;
+                p.PrevLon = p.Lon;
 
-            var x0 = (int)Math.Round(u0 * maxX);
-            var y0 = (int)Math.Round(v0 * maxY);
-            var x1 = (int)Math.Round(u1 * maxX);
-            var y1 = (int)Math.Round(v1 * maxY);
-            var color = HeatColor(Math.Clamp(speedKmh / 120.0, 0.0, 1.0));
-            DrawLine(pixels, width, height, x0, y0, x1, y1, color, 0.86);
+                var (speedKmh, dirDeg) = SampleWind(field, p.Lat, p.Lon);
+                var dirRad = dirDeg * Math.PI / 180.0;
+                var uEast = -speedKmh * Math.Sin(dirRad) * WindVisualSpeedScale;
+                var vNorth = -speedKmh * Math.Cos(dirRad) * WindVisualSpeedScale;
+
+                var latStep = (vNorth / 111.0) * (stepDt / 3600.0);
+                var cosLat = Math.Max(0.18, Math.Cos(p.Lat * Math.PI / 180.0));
+                var lonStep = (uEast / (111.0 * cosLat)) * (stepDt / 3600.0);
+
+                p.Lat = Math.Clamp(p.Lat + latStep, -85.0, 85.0);
+                p.Lon = NormalizeLon(p.Lon + lonStep);
+                p.Life -= stepDt;
+
+                if (!TryLatLonToUv(window, p.PrevLat, p.PrevLon, out var u0, out var v0) ||
+                    !TryLatLonToUv(window, p.Lat, p.Lon, out var u1, out var v1))
+                {
+                    p.Life = 0;
+                    break;
+                }
+
+                var x0 = (int)Math.Round(u0 * maxX);
+                var y0 = (int)Math.Round(v0 * maxY);
+                var x1 = (int)Math.Round(u1 * maxX);
+                var y1 = (int)Math.Round(v1 * maxY);
+                EnsureMinSegment(ref x0, ref y0, ref x1, ref y1, dirRad, WindMinSegmentPixels);
+                var color = HeatColor(Math.Clamp(speedKmh / 120.0, 0.0, 1.0));
+                DrawLine(trail, width, height, x0, y0, x1, y1, color, WindSegmentAlpha);
+
+                if (p.Life <= 0.0)
+                    break;
+            }
         }
 
+        CompositeTrailOverBase(pixels, trail);
         return true;
     }
 
@@ -597,7 +620,7 @@ internal sealed class DetailTextureBuilder : IDisposable
         p.Lon = TileCoordinates.TileToLatLon(tileX, 0, window.Zoom).Lon;
         p.PrevLat = p.Lat;
         p.PrevLon = p.Lon;
-        p.Life = 4.0 + (_rng.NextDouble() * 5.0);
+        p.Life = 8.0 + (_rng.NextDouble() * 8.0);
     }
 
     private static bool TryLatLonToUv(EarthView.Window window, double lat, double lon, out double u, out double v)
@@ -618,6 +641,95 @@ internal sealed class DetailTextureBuilder : IDisposable
         while (delta < -n * 0.5) delta += n;
         while (delta > n * 0.5) delta -= n;
         return delta;
+    }
+
+    private static void EnsureMinSegment(
+        ref int x0,
+        ref int y0,
+        ref int x1,
+        ref int y1,
+        double dirRad,
+        double minPixels)
+    {
+        var dx = x1 - x0;
+        var dy = y1 - y0;
+        var len = Math.Sqrt((dx * dx) + (dy * dy));
+        if (len >= minPixels)
+            return;
+
+        var ux = -Math.Sin(dirRad);
+        var uy = Math.Cos(dirRad);
+        if (Math.Abs(ux) < 0.0001 && Math.Abs(uy) < 0.0001)
+            ux = 1.0;
+
+        x1 = x0 + (int)Math.Round(ux * minPixels);
+        y1 = y0 + (int)Math.Round(uy * minPixels);
+    }
+
+    private void EnsureWindTrailBuffer(EarthView.Window window, int width, int height)
+    {
+        var needsReset = _windTrailPixels is null
+            || _windTrailPixels.Length != width * height
+            || !SameWindow(_windTrailWindow, window);
+        if (!needsReset)
+            return;
+
+        _windTrailPixels = new uint[width * height];
+        _windTrailWindow = window;
+        for (var i = 0; i < _windParticles.Length; i++)
+            _windParticles[i].Life = 0;
+    }
+
+    private static bool SameWindow(EarthView.Window? a, EarthView.Window b)
+    {
+        return a is { } w
+            && w.Zoom == b.Zoom
+            && w.MinTileX == b.MinTileX
+            && w.MinTileY == b.MinTileY;
+    }
+
+    private static void DecayTrail(uint[] trail, double decay)
+    {
+        for (var i = 0; i < trail.Length; i++)
+        {
+            var p = trail[i];
+            var r = (byte)(p >> 24);
+            var g = (byte)(p >> 16);
+            var b = (byte)(p >> 8);
+            var a = (byte)p;
+            trail[i] = Pack(
+                (byte)Math.Clamp((int)Math.Round(r * decay), 0, 255),
+                (byte)Math.Clamp((int)Math.Round(g * decay), 0, 255),
+                (byte)Math.Clamp((int)Math.Round(b * decay), 0, 255),
+                a);
+        }
+    }
+
+    private static void CompositeTrailOverBase(uint[] basePixels, uint[] trail)
+    {
+        var len = Math.Min(basePixels.Length, trail.Length);
+        for (var i = 0; i < len; i++)
+        {
+            var b = basePixels[i];
+            var br = (byte)(b >> 24);
+            var bg = (byte)(b >> 16);
+            var bb = (byte)(b >> 8);
+            var ba = (byte)b;
+
+            var t = trail[i];
+            var tr = (byte)(t >> 24);
+            var tg = (byte)(t >> 16);
+            var tb = (byte)(t >> 8);
+            var intensity = Math.Max(tr, Math.Max(tg, tb)) / 255.0;
+            if (intensity <= 0.001)
+                continue;
+
+            var alpha = Math.Clamp(0.10 + (intensity * 0.85), 0.0, 0.95);
+            var outR = (byte)Math.Clamp((int)Math.Round((br * (1.0 - alpha)) + (tr * alpha)), 0, 255);
+            var outG = (byte)Math.Clamp((int)Math.Round((bg * (1.0 - alpha)) + (tg * alpha)), 0, 255);
+            var outB = (byte)Math.Clamp((int)Math.Round((bb * (1.0 - alpha)) + (tb * alpha)), 0, 255);
+            basePixels[i] = Pack(outR, outG, outB, ba);
+        }
     }
 
     private static void GrayScaleBase(uint[] pixels)
