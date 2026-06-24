@@ -18,6 +18,32 @@ const float DragPitchScale = 0.022f;
 const float PatchRadius = 1.004f; // sits just above the base globe so it wins the depth test
 const int PatchSegments = 40;     // enough to follow the sphere across the wide (≤13-tile) block
 
+// Auto motion / tour tuning.
+const float AutoRotateYawRate = -0.20f; // radians/sec, camera-relative yaw
+const float TourSpinYawRate = -0.07f;   // slow constant spin while tracking cities
+const float TourSteerGain = 0.090f;     // proportional steering gain toward target city
+const float TourMaxStep = 0.030f;       // clamp per-frame steer step
+const int TourMinZoom = 4;
+const int TourMaxZoom = 12;
+var tourZoomPeriod = TimeSpan.FromSeconds(18);
+var tourZoomStepPeriod = TimeSpan.FromMilliseconds(320);
+var tourCityDuration = TimeSpan.FromSeconds(14);
+
+var tourCities = new (string Name, double Lat, double Lon)[]
+{
+    ("Canberra", -35.2809, 149.1300),
+    ("Tokyo", 35.6764, 139.6500),
+    ("New Delhi", 28.6139, 77.2090),
+    ("Cairo", 30.0444, 31.2357),
+    ("Paris", 48.8566, 2.3522),
+    ("Brasilia", -15.7939, -47.8828),
+    ("Washington", 38.9072, -77.0369),
+    ("Ottawa", 45.4215, -75.6972),
+    ("London", 51.5074, -0.1278),
+    ("Cape Town", -33.9249, 18.4241),
+    ("Wellington", -41.2865, 174.7762)
+};
+
 // --- OSM tile + texture infrastructure -------------------------------------------------
 using var tileClient = new RasterTileClient();
 using var earth = new EarthTextureBuilder(tileClient, width: 1024, height: 512, maxZoom: OrbitController.BaseGlobeZoom);
@@ -67,6 +93,13 @@ var camera = new ScenePerspectiveCamera("Camera")
     Far = 50f
 };
 var orbit = new OrbitController();
+var autoRotateEnabled = false;
+var tourModeEnabled = false;
+var lastMotionTickUtc = DateTime.UtcNow;
+var tourStartedUtc = DateTime.UtcNow;
+var nextTourCitySwitchUtc = DateTime.UtcNow + tourCityDuration;
+var nextTourZoomStepUtc = DateTime.UtcNow;
+var tourCityIndex = 0;
 DetailTextureBuilder.PublishedDetail? displayedDetail = null;
 DetailTextureBuilder.PublishedDetail? proxyDetail = null;
 var proxySourceVersion = -1;
@@ -139,6 +172,44 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         o => o.EnableMouse = true,
         app => ctx =>
         {
+            var nowUtc = DateTime.UtcNow;
+            var dt = (float)Math.Clamp((nowUtc - lastMotionTickUtc).TotalSeconds, 0.0, 0.25);
+            lastMotionTickUtc = nowUtc;
+
+            if (tourModeEnabled)
+            {
+                while (nowUtc >= nextTourCitySwitchUtc)
+                {
+                    tourCityIndex = (tourCityIndex + 1) % tourCities.Length;
+                    nextTourCitySwitchUtc += tourCityDuration;
+                }
+
+                var targetCity = tourCities[tourCityIndex];
+                var (currLat, currLon) = orbit.CenterLatLon;
+                var deltaLat = targetCity.Lat - currLat;
+                var deltaLon = NormalizeLonDeltaDegrees(targetCity.Lon - currLon);
+
+                var steerYaw = Math.Clamp((float)(-deltaLon * TourSteerGain * dt), -TourMaxStep, TourMaxStep);
+                var steerPitch = Math.Clamp((float)(deltaLat * TourSteerGain * dt), -TourMaxStep, TourMaxStep);
+                orbit.RotateScreen(steerYaw + (TourSpinYawRate * dt), steerPitch);
+
+                if (nowUtc >= nextTourZoomStepUtc)
+                {
+                    var phase = (nowUtc - tourStartedUtc).TotalSeconds / tourZoomPeriod.TotalSeconds;
+                    var wave = 0.5 + (0.5 * Math.Sin(phase * Math.PI * 2.0));
+                    var targetZoom = (int)Math.Round(TourMinZoom + ((TourMaxZoom - TourMinZoom) * wave));
+                    if (orbit.OsmZoom < targetZoom)
+                        orbit.ZoomIn();
+                    else if (orbit.OsmZoom > targetZoom)
+                        orbit.ZoomOut();
+                    nextTourZoomStepUtc = nowUtc + tourZoomStepPeriod;
+                }
+            }
+            else if (autoRotateEnabled)
+            {
+                orbit.RotateScreen(AutoRotateYawRate * dt * Math.Max(orbit.SurfaceScale, 0.03f), 0f);
+            }
+
             // Sync scene transforms from the orbit controller each frame.
             sphereMesh.Rotation = orbit.GlobeRotation;
             camera.Position = orbit.CameraPosition;
@@ -243,9 +314,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             var status = (detail.IsBuilding || isProxyBuilding)
                 ? "loading detail…"
                 : earth.IsBuilding ? "loading globe…" : "ready";
+            var motion = tourModeEnabled
+                ? $"tour: {tourCities[tourCityIndex].Name}"
+                : autoRotateEnabled ? "auto-rotate" : "manual";
             var header =
                 $" AsciiEarth   center {Format(lat, 'N', 'S')}, {Format(lon, 'E', 'W')}   " +
-                $"OSM z{zoom}/{OrbitController.MaxZoom}   {status} ";
+                $"OSM z{zoom}/{OrbitController.MaxZoom}   {motion}   {status} ";
 
             return ctx.Interactable(ic =>
                 ic.Grid(g =>
@@ -264,7 +338,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             .Row(1).Column(0),
 
                         g.Cell(c => c.Text(
-                            " drag rotate · wheel zoom · WASD pan · ↑/↓ zoom · ←/→ roll · Esc quit "))
+                            " drag rotate · wheel zoom · WASD pan · ↑/↓ zoom · ←/→ roll · R auto · T tour · Esc quit "))
                             .Row(2).Column(0)
                     ];
                 }))
@@ -347,6 +421,29 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         orbit.Roll(-RollStep);
                         app.Invalidate();
                     }, "Roll right");
+
+                    bindings.Key(Hex1bKey.R).Global().Action(_ =>
+                    {
+                        if (tourModeEnabled)
+                            tourModeEnabled = false;
+                        autoRotateEnabled = !autoRotateEnabled;
+                        app.Invalidate();
+                    }, "Toggle auto-rotate");
+
+                    bindings.Key(Hex1bKey.T).Global().Action(_ =>
+                    {
+                        tourModeEnabled = !tourModeEnabled;
+                        if (tourModeEnabled)
+                        {
+                            autoRotateEnabled = false;
+                            tourStartedUtc = DateTime.UtcNow;
+                            nextTourCitySwitchUtc = tourStartedUtc + tourCityDuration;
+                            nextTourZoomStepUtc = tourStartedUtc;
+                            var (_, currLon) = orbit.CenterLatLon;
+                            tourCityIndex = NearestCityIndexByLongitude(currLon, tourCities);
+                        }
+                        app.Invalidate();
+                    }, "Toggle world-capitals tour");
                 })
                 // Keep redrawing so async tile loads appear and held keys feel responsive.
                 .RedrawAfter(120);
@@ -370,6 +467,29 @@ static Quaternion DirectionToRotation(Vector3 direction)
     var axis = Vector3.Cross(from, to).Normalized;
     var angle = MathF.Acos(Math.Clamp(dot, -1f, 1f));
     return Quaternion.FromAxisAngle(axis, angle);
+}
+
+static int NearestCityIndexByLongitude(double lon, (string Name, double Lat, double Lon)[] cities)
+{
+    var best = 0;
+    var bestDelta = double.MaxValue;
+    for (var i = 0; i < cities.Length; i++)
+    {
+        var d = Math.Abs(NormalizeLonDeltaDegrees(cities[i].Lon - lon));
+        if (d < bestDelta)
+        {
+            bestDelta = d;
+            best = i;
+        }
+    }
+    return best;
+}
+
+static double NormalizeLonDeltaDegrees(double delta)
+{
+    while (delta > 180.0) delta -= 360.0;
+    while (delta < -180.0) delta += 360.0;
+    return delta;
 }
 
 static SceneTexture2D BuildProxyTextureFromSource(
