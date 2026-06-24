@@ -20,6 +20,11 @@ internal sealed class DetailTextureBuilder : IDisposable
 {
     private const int TilePixels = EarthView.TilePixels;
     private const int MaxParallelDownloads = 6;
+    private static readonly TimeSpan WindFrameInterval = TimeSpan.FromMilliseconds(140);
+    private static readonly TimeSpan WindFieldRefreshInterval = TimeSpan.FromMinutes(12);
+    private const int WindFieldGridX = 12;
+    private const int WindFieldGridY = 6;
+    private const int WindParticleCount = 520;
 
     // Neutral fill shown for missing/failed tiles before/while the block downloads.
     private static readonly uint FillColor = Pack(20, 40, 70, 255);
@@ -34,8 +39,16 @@ internal sealed class DetailTextureBuilder : IDisposable
     private EarthView.Window? _requested;
     private EarthView.Window? _published;
     private SceneTexture2D _publishedTexture;
+    private uint[]? _publishedBasePixels;
     private int _version;
     private OverlayMode _overlayMode = OverlayMode.None;
+    private DateTime _lastWindFrameUtc = DateTime.MinValue;
+    private WindFieldSnapshot? _windField;
+    private DateTime _nextWindFieldRefreshUtc = DateTime.MinValue;
+    private DateTime _windRetryAfterUtc = DateTime.MinValue;
+    private int _windRetryStep;
+    private readonly Random _rng = new(0x5EED);
+    private readonly WindParticle[] _windParticles = new WindParticle[WindParticleCount];
 
     /// <summary>True while a detail block is downloading/assembling.</summary>
     public bool IsBuilding { get; private set; }
@@ -64,6 +77,23 @@ internal sealed class DetailTextureBuilder : IDisposable
     }
 
     public readonly record struct PublishedDetail(EarthView.Window Window, SceneTexture2D Texture, int Version);
+
+    private sealed class WindFieldSnapshot
+    {
+        public required int Width { get; init; }
+        public required int Height { get; init; }
+        public required double[] SpeedKmh { get; init; }
+        public required double[] DirectionDeg { get; init; }
+    }
+
+    private struct WindParticle
+    {
+        public double Lat;
+        public double Lon;
+        public double PrevLat;
+        public double PrevLon;
+        public double Life;
+    }
 
     public OverlayMode OverlayMode
     {
@@ -100,7 +130,7 @@ internal sealed class DetailTextureBuilder : IDisposable
             IsBuilding = true;
         }
 
-        _ = Task.Run(() => BuildAsync(requested.Value, generation));
+        _ = Task.Run(() => BuildAsync(requested.Value, generation, preferPublishedBase: true));
     }
 
     /// <summary>
@@ -110,25 +140,59 @@ internal sealed class DetailTextureBuilder : IDisposable
     public void Request(EarthView.Window window)
     {
         int generation;
+        var preferPublishedBase = false;
+        var nowUtc = DateTime.UtcNow;
         lock (_gate)
         {
             if (_requested is { } r && r.Zoom == window.Zoom && r.MinTileX == window.MinTileX && r.MinTileY == window.MinTileY)
+            {
+                var canAnimateWind = _overlayMode == OverlayMode.Wind
+                    && !IsBuilding
+                    && nowUtc - _lastWindFrameUtc >= WindFrameInterval;
+                if (!canAnimateWind)
+                    return;
+                generation = ++_generation;
+                IsBuilding = true;
+                preferPublishedBase = true;
+                _requested = window;
+                _ = Task.Run(() => BuildAsync(window, generation, preferPublishedBase));
                 return;
+            }
+
             _requested = window;
             generation = ++_generation;
             IsBuilding = true;
         }
 
-        _ = Task.Run(() => BuildAsync(window, generation));
+        _ = Task.Run(() => BuildAsync(window, generation, preferPublishedBase));
     }
 
-    private async Task BuildAsync(EarthView.Window window, int generation)
+    private async Task BuildAsync(EarthView.Window window, int generation, bool preferPublishedBase = false)
     {
         try
         {
-            var pixels = await AssembleAsync(window, generation);
-            if (pixels is null)
-                return; // stale or cancelled
+            uint[]? basePixels = null;
+            if (preferPublishedBase)
+            {
+                lock (_gate)
+                {
+                    var samePublished = _published is { } p
+                        && p.Zoom == window.Zoom
+                        && p.MinTileX == window.MinTileX
+                        && p.MinTileY == window.MinTileY;
+                    if (samePublished && _publishedBasePixels is { } existingBase)
+                        basePixels = (uint[])existingBase.Clone();
+                }
+            }
+
+            if (basePixels is null)
+            {
+                basePixels = await AssembleAsync(window, generation);
+                if (basePixels is null)
+                    return; // stale or cancelled
+            }
+
+            var pixels = (uint[])basePixels.Clone();
 
             OverlayMode mode;
             lock (_gate)
@@ -152,8 +216,11 @@ internal sealed class DetailTextureBuilder : IDisposable
                 var texture = new SceneTexture2D(_tilesX * TilePixels, _tilesY * TilePixels);
                 texture.SetPixels(pixels);
                 _publishedTexture = texture;
+                _publishedBasePixels = basePixels;
                 _published = window;
                 _version++;
+                if (mode == OverlayMode.Wind)
+                    _lastWindFrameUtc = DateTime.UtcNow;
             }
         }
         catch
@@ -223,6 +290,19 @@ internal sealed class DetailTextureBuilder : IDisposable
         OverlayMode mode,
         int generation)
     {
+        return mode switch
+        {
+            OverlayMode.Temperature => await ApplyTemperatureOverlayAsync(pixels, window, generation),
+            OverlayMode.Wind => await ApplyWindOverlayAsync(pixels, window, generation),
+            _ => true
+        };
+    }
+
+    private async ValueTask<bool> ApplyTemperatureOverlayAsync(
+        uint[] pixels,
+        EarthView.Window window,
+        int generation)
+    {
         // Keep request pressure low: Open-Meteo free endpoint rate-limits aggressive multi-point
         // sampling. A coarse grid is enough for a broad, readable terminal overlay.
         var sampleGridX = 8;
@@ -255,20 +335,18 @@ internal sealed class DetailTextureBuilder : IDisposable
             }
 
             for (var i = 0; i < samples.Length; i++)
-                sampleValues[i] = mode == OverlayMode.Temperature ? samples[i].TempC : samples[i].WindKmh;
-        }
-        catch
-        {
-            // If the weather API is unavailable or throttled, fall back to a deterministic synthetic
-            // field so overlay mode remains visibly distinct instead of appearing broken/no-op.
-            for (var i = 0; i < samplePoints.Length; i++)
-            {
-                var (lat, lon) = samplePoints[i];
-                sampleValues[i] = mode == OverlayMode.Temperature
-                    ? EstimateTemperature(lat, lon)
-                    : EstimateWind(lat, lon);
+                    sampleValues[i] = samples[i].TempC;
             }
-        }
+            catch
+            {
+                // If the weather API is unavailable or throttled, fall back to a deterministic synthetic
+                // field so overlay mode remains visibly distinct instead of appearing broken/no-op.
+                for (var i = 0; i < samplePoints.Length; i++)
+                {
+                    var (lat, lon) = samplePoints[i];
+                    sampleValues[i] = EstimateTemperature(lat, lon);
+                }
+            }
 
         var width = _tilesX * TilePixels;
         var height = _tilesY * TilePixels;
@@ -301,11 +379,323 @@ internal sealed class DetailTextureBuilder : IDisposable
                 var s1 = Lerp(sampleValues[i01], sampleValues[i11], tx);
                 var value = Lerp(s0, s1, ty);
 
-                pixels[(y * width) + x] = ApplyOverlayTint(pixels[(y * width) + x], value, mode);
+                pixels[(y * width) + x] = ApplyOverlayTint(pixels[(y * width) + x], value, OverlayMode.Temperature);
             }
         }
 
         return true;
+    }
+
+    private async ValueTask<bool> ApplyWindOverlayAsync(uint[] pixels, EarthView.Window window, int generation)
+    {
+        GrayScaleBase(pixels);
+
+        var field = await EnsureWindFieldAsync(generation);
+        lock (_gate)
+        {
+            if (generation != _generation)
+                return false;
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        var dt = _lastWindFrameUtc == DateTime.MinValue
+            ? WindFrameInterval.TotalSeconds
+            : Math.Clamp((nowUtc - _lastWindFrameUtc).TotalSeconds, 0.04, 0.30);
+
+        var width = _tilesX * TilePixels;
+        var height = _tilesY * TilePixels;
+        var maxX = Math.Max(1, width - 1);
+        var maxY = Math.Max(1, height - 1);
+
+        for (var i = 0; i < _windParticles.Length; i++)
+        {
+            ref var p = ref _windParticles[i];
+            if (p.Life <= 0.0)
+            {
+                SpawnParticle(ref p, window);
+            }
+
+            p.PrevLat = p.Lat;
+            p.PrevLon = p.Lon;
+
+            var (speedKmh, dirDeg) = SampleWind(field, p.Lat, p.Lon);
+            var dirRad = dirDeg * Math.PI / 180.0;
+            var uEast = -speedKmh * Math.Sin(dirRad);
+            var vNorth = -speedKmh * Math.Cos(dirRad);
+
+            var latStep = (vNorth / 111.0) * (dt / 3600.0);
+            var cosLat = Math.Max(0.18, Math.Cos(p.Lat * Math.PI / 180.0));
+            var lonStep = (uEast / (111.0 * cosLat)) * (dt / 3600.0);
+
+            p.Lat = Math.Clamp(p.Lat + latStep, -85.0, 85.0);
+            p.Lon = NormalizeLon(p.Lon + lonStep);
+            p.Life -= dt;
+
+            if (!TryLatLonToUv(window, p.PrevLat, p.PrevLon, out var u0, out var v0) ||
+                !TryLatLonToUv(window, p.Lat, p.Lon, out var u1, out var v1))
+            {
+                p.Life = 0;
+                continue;
+            }
+
+            var x0 = (int)Math.Round(u0 * maxX);
+            var y0 = (int)Math.Round(v0 * maxY);
+            var x1 = (int)Math.Round(u1 * maxX);
+            var y1 = (int)Math.Round(v1 * maxY);
+            var color = HeatColor(Math.Clamp(speedKmh / 120.0, 0.0, 1.0));
+            DrawLine(pixels, width, height, x0, y0, x1, y1, color, 0.86);
+        }
+
+        return true;
+    }
+
+    private async ValueTask<WindFieldSnapshot?> EnsureWindFieldAsync(int generation)
+    {
+        var nowUtc = DateTime.UtcNow;
+        WindFieldSnapshot? existing;
+        lock (_gate)
+        {
+            existing = _windField;
+            if (existing is not null && nowUtc < _nextWindFieldRefreshUtc)
+                return existing;
+            if (nowUtc < _windRetryAfterUtc)
+                return existing;
+        }
+
+        try
+        {
+            var points = new List<(double Lat, double Lon)>(WindFieldGridX * WindFieldGridY);
+            for (var gy = 0; gy < WindFieldGridY; gy++)
+            {
+                var t = WindFieldGridY <= 1 ? 0.0 : (double)gy / (WindFieldGridY - 1);
+                var lat = 75.0 - (t * 150.0);
+                for (var gx = 0; gx < WindFieldGridX; gx++)
+                {
+                    var u = WindFieldGridX <= 1 ? 0.0 : (double)gx / (WindFieldGridX - 1);
+                    var lon = -180.0 + (u * 360.0);
+                    points.Add((lat, lon));
+                }
+            }
+
+            var samples = await _overlayClient.GetCurrentSamplesAsync(points);
+            lock (_gate)
+            {
+                if (generation != _generation)
+                    return _windField;
+
+                var speed = new double[samples.Length];
+                var dir = new double[samples.Length];
+                for (var i = 0; i < samples.Length; i++)
+                {
+                    speed[i] = samples[i].WindKmh;
+                    dir[i] = samples[i].WindDirDeg;
+                }
+
+                _windField = new WindFieldSnapshot
+                {
+                    Width = WindFieldGridX,
+                    Height = WindFieldGridY,
+                    SpeedKmh = speed,
+                    DirectionDeg = dir
+                };
+                _nextWindFieldRefreshUtc = nowUtc + WindFieldRefreshInterval;
+                _windRetryAfterUtc = DateTime.MinValue;
+                _windRetryStep = 0;
+                return _windField;
+            }
+        }
+        catch
+        {
+            lock (_gate)
+            {
+                if (generation == _generation)
+                {
+                    var backoffMinutes = _windRetryStep switch
+                    {
+                        0 => 2,
+                        1 => 5,
+                        2 => 15,
+                        3 => 30,
+                        _ => 60
+                    };
+                    _windRetryAfterUtc = nowUtc + TimeSpan.FromMinutes(backoffMinutes);
+                    _windRetryStep = Math.Min(_windRetryStep + 1, 5);
+                }
+
+                return _windField;
+            }
+        }
+    }
+
+    private static (double SpeedKmh, double DirectionDeg) SampleWind(WindFieldSnapshot? field, double lat, double lon)
+    {
+        if (field is null || field.SpeedKmh.Length == 0 || field.DirectionDeg.Length == 0)
+            return (EstimateWind(lat, lon), EstimateWindDirection(lat, lon));
+
+        var xNorm = (NormalizeLon(lon) + 180.0) / 360.0;
+        var yNorm = (75.0 - lat) / 150.0;
+        var x = Math.Clamp(xNorm, 0.0, 1.0) * (field.Width - 1);
+        var y = Math.Clamp(yNorm, 0.0, 1.0) * (field.Height - 1);
+        var x0 = Math.Clamp((int)Math.Floor(x), 0, field.Width - 1);
+        var x1 = Math.Min(x0 + 1, field.Width - 1);
+        var y0 = Math.Clamp((int)Math.Floor(y), 0, field.Height - 1);
+        var y1 = Math.Min(y0 + 1, field.Height - 1);
+        var tx = x - x0;
+        var ty = y - y0;
+
+        var i00 = (y0 * field.Width) + x0;
+        var i10 = (y0 * field.Width) + x1;
+        var i01 = (y1 * field.Width) + x0;
+        var i11 = (y1 * field.Width) + x1;
+
+        var speed0 = Lerp(field.SpeedKmh[i00], field.SpeedKmh[i10], tx);
+        var speed1 = Lerp(field.SpeedKmh[i01], field.SpeedKmh[i11], tx);
+        var speed = Lerp(speed0, speed1, ty);
+
+        // Average direction by vector components (never average angles directly).
+        var (u00, v00) = WindDirToUv(field.SpeedKmh[i00], field.DirectionDeg[i00]);
+        var (u10, v10) = WindDirToUv(field.SpeedKmh[i10], field.DirectionDeg[i10]);
+        var (u01, v01) = WindDirToUv(field.SpeedKmh[i01], field.DirectionDeg[i01]);
+        var (u11, v11) = WindDirToUv(field.SpeedKmh[i11], field.DirectionDeg[i11]);
+        var u0 = Lerp(u00, u10, tx);
+        var u1 = Lerp(u01, u11, tx);
+        var v0 = Lerp(v00, v10, tx);
+        var v1 = Lerp(v01, v11, tx);
+        var u = Lerp(u0, u1, ty);
+        var v = Lerp(v0, v1, ty);
+
+        var dir = UvToMeteorologicalDir(u, v);
+        return (Math.Max(0.0, speed), dir);
+    }
+
+    private void SpawnParticle(ref WindParticle p, EarthView.Window window)
+    {
+        var v = _rng.NextDouble();
+        var u = _rng.NextDouble();
+        var tileY = window.MinTileY + (v * EarthView.TilesY);
+        var tileX = window.MinTileX + (u * EarthView.TilesX);
+        p.Lat = TileCoordinates.TileToLatLon(0, tileY, window.Zoom).Lat;
+        p.Lon = TileCoordinates.TileToLatLon(tileX, 0, window.Zoom).Lon;
+        p.PrevLat = p.Lat;
+        p.PrevLon = p.Lon;
+        p.Life = 4.0 + (_rng.NextDouble() * 5.0);
+    }
+
+    private static bool TryLatLonToUv(EarthView.Window window, double lat, double lon, out double u, out double v)
+    {
+        var (tileX, tileY) = TileCoordinates.LatLonToTile(lat, lon, window.Zoom);
+        var n = 1 << window.Zoom;
+        var dx = WrapTileDelta(tileX - window.MinTileX, n);
+        var dy = tileY - window.MinTileY;
+        u = dx / EarthView.TilesX;
+        v = dy / EarthView.TilesY;
+        return u >= -0.02 && u <= 1.02 && v >= -0.02 && v <= 1.02;
+    }
+
+    private static double WrapTileDelta(double delta, int n)
+    {
+        if (n <= 0)
+            return delta;
+        while (delta < -n * 0.5) delta += n;
+        while (delta > n * 0.5) delta -= n;
+        return delta;
+    }
+
+    private static void GrayScaleBase(uint[] pixels)
+    {
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            var p = pixels[i];
+            var r = (byte)(p >> 24);
+            var g = (byte)(p >> 16);
+            var b = (byte)(p >> 8);
+            var a = (byte)p;
+            var gray = (byte)((r * 77 + g * 150 + b * 29) >> 8);
+            pixels[i] = Pack(gray, gray, gray, a);
+        }
+    }
+
+    private static void DrawLine(
+        uint[] pixels,
+        int width,
+        int height,
+        int x0,
+        int y0,
+        int x1,
+        int y1,
+        (byte R, byte G, byte B) color,
+        double alpha)
+    {
+        var dx = Math.Abs(x1 - x0);
+        var dy = Math.Abs(y1 - y0);
+        var sx = x0 < x1 ? 1 : -1;
+        var sy = y0 < y1 ? 1 : -1;
+        var err = dx - dy;
+        var x = x0;
+        var y = y0;
+
+        while (true)
+        {
+            BlendPixel(pixels, width, height, x, y, color, alpha);
+            BlendPixel(pixels, width, height, x + 1, y, color, alpha * 0.60);
+            BlendPixel(pixels, width, height, x, y + 1, color, alpha * 0.60);
+
+            if (x == x1 && y == y1)
+                break;
+
+            var e2 = err * 2;
+            if (e2 > -dy)
+            {
+                err -= dy;
+                x += sx;
+            }
+            if (e2 < dx)
+            {
+                err += dx;
+                y += sy;
+            }
+        }
+    }
+
+    private static void BlendPixel(
+        uint[] pixels,
+        int width,
+        int height,
+        int x,
+        int y,
+        (byte R, byte G, byte B) color,
+        double alpha)
+    {
+        if (x < 0 || y < 0 || x >= width || y >= height || alpha <= 0.001)
+            return;
+
+        var idx = (y * width) + x;
+        var src = pixels[idx];
+        var r = (byte)(src >> 24);
+        var g = (byte)(src >> 16);
+        var b = (byte)(src >> 8);
+        var a = (byte)src;
+
+        var outR = (byte)Math.Clamp((int)Math.Round((r * (1.0 - alpha)) + (color.R * alpha)), 0, 255);
+        var outG = (byte)Math.Clamp((int)Math.Round((g * (1.0 - alpha)) + (color.G * alpha)), 0, 255);
+        var outB = (byte)Math.Clamp((int)Math.Round((b * (1.0 - alpha)) + (color.B * alpha)), 0, 255);
+        pixels[idx] = Pack(outR, outG, outB, a);
+    }
+
+    private static (double U, double V) WindDirToUv(double speedKmh, double dirDeg)
+    {
+        var rad = dirDeg * Math.PI / 180.0;
+        var u = -speedKmh * Math.Sin(rad);
+        var v = -speedKmh * Math.Cos(rad);
+        return (u, v);
+    }
+
+    private static double UvToMeteorologicalDir(double uEast, double vNorth)
+    {
+        // Meteorological: direction wind is coming FROM.
+        var dirRad = Math.Atan2(-uEast, -vNorth);
+        var dirDeg = dirRad * 180.0 / Math.PI;
+        return dirDeg < 0 ? dirDeg + 360.0 : dirDeg;
     }
 
     private static void Blit(uint[] target, int targetWidth, uint[] tile, int destX, int destY)
@@ -358,6 +748,22 @@ internal sealed class DetailTextureBuilder : IDisposable
         var belts = Math.Abs(Math.Sin(latRad * 2.0));
         var waves = 0.5 + (0.5 * Math.Abs(Math.Cos(lonRad * 2.5)));
         return 10.0 + (95.0 * belts * waves);
+    }
+
+    private static double EstimateWindDirection(double lat, double lon)
+    {
+        var latRad = lat * Math.PI / 180.0;
+        var lonRad = lon * Math.PI / 180.0;
+        var d = 180.0 + (85.0 * Math.Sin(lonRad * 1.8)) + (35.0 * Math.Cos(latRad * 1.5));
+        d %= 360.0;
+        return d < 0 ? d + 360.0 : d;
+    }
+
+    private static double NormalizeLon(double lon)
+    {
+        while (lon > 180.0) lon -= 360.0;
+        while (lon < -180.0) lon += 360.0;
+        return lon;
     }
 
     private static uint ApplyOverlayTint(uint source, double value, OverlayMode mode)

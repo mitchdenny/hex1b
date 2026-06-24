@@ -20,11 +20,11 @@ internal sealed class OpenMeteoOverlayClient : IDisposable
         _http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
     }
 
-    public async ValueTask<(double TempC, double WindKmh)[]> GetCurrentSamplesAsync(
+    public async ValueTask<(double TempC, double WindKmh, double WindDirDeg)[]> GetCurrentSamplesAsync(
         IReadOnlyList<(double Lat, double Lon)> points,
         CancellationToken ct = default)
     {
-        var result = new (double TempC, double WindKmh)[points.Count];
+        var result = new (double TempC, double WindKmh, double WindDirDeg)[points.Count];
         if (points.Count == 0)
             return result;
 
@@ -43,7 +43,7 @@ internal sealed class OpenMeteoOverlayClient : IDisposable
         return result;
     }
 
-    private async ValueTask<(double TempC, double WindKmh)[]> GetCurrentChunkAsync(
+    private async ValueTask<(double TempC, double WindKmh, double WindDirDeg)[]> GetCurrentChunkAsync(
         IReadOnlyList<(double Lat, double Lon)> chunk,
         CancellationToken ct)
     {
@@ -51,7 +51,7 @@ internal sealed class OpenMeteoOverlayClient : IDisposable
         var lonCsv = string.Join(",", chunk.Select(p => p.Lon.ToString("0.####", CultureInfo.InvariantCulture)));
         var url =
             $"{Endpoint}?latitude={latCsv}&longitude={lonCsv}" +
-            "&current=temperature_2m,wind_speed_10m&timezone=UTC&wind_speed_unit=kmh";
+            "&current=temperature_2m,wind_speed_10m,wind_direction_10m&timezone=UTC&wind_speed_unit=kmh";
 
         using var response = await _http.GetAsync(url, ct);
         response.EnsureSuccessStatusCode();
@@ -59,9 +59,9 @@ internal sealed class OpenMeteoOverlayClient : IDisposable
         return ParseSamples(json, chunk.Count);
     }
 
-    private static (double TempC, double WindKmh)[] ParseSamples(string json, int expectedCount)
+    private static (double TempC, double WindKmh, double WindDirDeg)[] ParseSamples(string json, int expectedCount)
     {
-        var values = new (double TempC, double WindKmh)[expectedCount];
+        var values = new (double TempC, double WindKmh, double WindDirDeg)[expectedCount];
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
@@ -86,14 +86,15 @@ internal sealed class OpenMeteoOverlayClient : IDisposable
         return values;
     }
 
-    private static (double TempC, double WindKmh) ReadCurrent(JsonElement item)
+    private static (double TempC, double WindKmh, double WindDirDeg) ReadCurrent(JsonElement item)
     {
         if (!item.TryGetProperty("current", out var current) || current.ValueKind != JsonValueKind.Object)
             return default;
 
         var temp = GetOptionalDouble(current, "temperature_2m");
         var wind = GetOptionalDouble(current, "wind_speed_10m");
-        return (temp, wind);
+        var dir = GetOptionalDouble(current, "wind_direction_10m");
+        return (temp, wind, dir);
     }
 
     private static double GetOptionalDouble(JsonElement obj, string name)
