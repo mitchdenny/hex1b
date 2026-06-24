@@ -17,7 +17,7 @@ const float DragPitchScale = 0.022f;
 // Detail overlay patch tuning.
 const float PatchRadius = 1.004f; // sits just above the base globe so it wins the depth test
 const int PatchSegments = 40;     // enough to follow the sphere across the wide (≤13-tile) block
-var detailFadeDuration = TimeSpan.FromMilliseconds(220);
+var detailFadeDuration = TimeSpan.FromMilliseconds(140);
 
 // --- OSM tile + texture infrastructure -------------------------------------------------
 using var tileClient = new RasterTileClient();
@@ -73,6 +73,8 @@ DetailTextureBuilder.PublishedDetail? pendingDetail = null;
 DateTime fadeStartUtc = default;
 var fadeTexture = new SceneTexture2D(EarthView.TilesX * EarthView.TilePixels, EarthView.TilesY * EarthView.TilePixels);
 var fadePixels = new uint[fadeTexture.Width * fadeTexture.Height];
+uint[]? fadeFromPixels = null;
+uint[]? fadeToPixels = null;
 
 // Kick off the first texture build at the starting zoom.
 earth.RequestZoom(Math.Min(orbit.OsmZoom, OrbitController.BaseGlobeZoom));
@@ -120,12 +122,16 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         {
                             pendingDetail = latest;
                             fadeStartUtc = DateTime.UtcNow;
+                            fadeFromPixels = shown.Texture.GetPixels();
+                            fadeToPixels = latest.Texture.GetPixels();
                         }
                     }
                     else
                     {
                         displayedDetail = latest;
                         pendingDetail = null;
+                        fadeFromPixels = null;
+                        fadeToPixels = null;
                     }
                 }
             }
@@ -138,14 +144,27 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     ? 1.0
                     : Math.Clamp(elapsed.TotalSeconds / detailFadeDuration.TotalSeconds, 0.0, 1.0);
 
-                BlendDetailSnapshots(oldBlock, newBlock, t, fadeTexture, fadePixels);
-                detailMaterial.Texture = fadeTexture;
-                activeDetail = new DetailTextureBuilder.PublishedDetail(newBlock.Window, fadeTexture, newBlock.Version);
+                if (fadeFromPixels is not null && fadeToPixels is not null && fadeFromPixels.Length == fadeToPixels.Length)
+                {
+                    BlendPixelArrays(fadeFromPixels, fadeToPixels, t, fadePixels);
+                    fadeTexture.SetPixels(fadePixels);
+                    detailMaterial.Texture = fadeTexture;
+                    activeDetail = new DetailTextureBuilder.PublishedDetail(newBlock.Window, fadeTexture, newBlock.Version);
+                }
+                else
+                {
+                    // If we couldn't prepare a fade buffer, fall back to an immediate atomic swap.
+                    detailMaterial.Texture = newBlock.Texture;
+                    activeDetail = newBlock;
+                    t = 1.0;
+                }
 
                 if (t >= 1.0)
                 {
                     displayedDetail = newBlock;
                     pendingDetail = null;
+                    fadeFromPixels = null;
+                    fadeToPixels = null;
                 }
             }
             else if (displayedDetail is { } stable)
@@ -305,61 +324,12 @@ static Quaternion DirectionToRotation(Vector3 direction)
     return Quaternion.FromAxisAngle(axis, angle);
 }
 
-static void BlendDetailSnapshots(
-    DetailTextureBuilder.PublishedDetail from,
-    DetailTextureBuilder.PublishedDetail to,
-    double t,
-    SceneTexture2D output,
-    uint[] pixels)
+static void BlendPixelArrays(uint[] from, uint[] to, double t, uint[] output)
 {
     t = Math.Clamp(t, 0.0, 1.0);
-    var width = output.Width;
-    var height = output.Height;
-    var denomX = Math.Max(1, width - 1);
-    var denomY = Math.Max(1, height - 1);
-
-    for (var y = 0; y < height; y++)
-    {
-        var fy = (double)y / denomY;
-        var tileY = to.Window.MinTileY + fy * EarthView.TilesY;
-        var lat = TileCoordinates.TileToLatLon(0, tileY, to.Window.Zoom).Lat;
-
-        for (var x = 0; x < width; x++)
-        {
-            var fx = (double)x / denomX;
-            var tileX = to.Window.MinTileX + fx * EarthView.TilesX;
-            var lon = TileCoordinates.TileToLatLon(tileX, 0, to.Window.Zoom).Lon;
-
-            var fromPixel = SampleSnapshot(from, lat, lon);
-            var toPixel = SampleSnapshot(to, lat, lon);
-            pixels[(y * width) + x] = LerpRgba(fromPixel, toPixel, t);
-        }
-    }
-
-    output.SetPixels(pixels);
-}
-
-static uint SampleSnapshot(DetailTextureBuilder.PublishedDetail snapshot, double lat, double lon)
-{
-    var window = snapshot.Window;
-    var (tileX, tileY) = TileCoordinates.LatLonToTile(lat, lon, window.Zoom);
-    var n = 1 << window.Zoom;
-
-    var dx = WrapTileDelta(tileX - window.MinTileX, n);
-    var dy = tileY - window.MinTileY;
-    var u = (float)(dx / EarthView.TilesX);
-    var v = (float)(dy / EarthView.TilesY);
-
-    return snapshot.Texture.SampleBilinear(u, v, TextureWrapMode.Clamp);
-}
-
-static double WrapTileDelta(double delta, int n)
-{
-    if (n <= 0)
-        return delta;
-    while (delta < -n * 0.5) delta += n;
-    while (delta > n * 0.5) delta -= n;
-    return delta;
+    var len = Math.Min(output.Length, Math.Min(from.Length, to.Length));
+    for (var i = 0; i < len; i++)
+        output[i] = LerpRgba(from[i], to[i], t);
 }
 
 static uint LerpRgba(uint from, uint to, double t)
