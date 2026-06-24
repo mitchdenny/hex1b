@@ -23,10 +23,10 @@ const float AutoRotateYawRate = -0.20f; // radians/sec, camera-relative yaw
 const float TourSpinYawRate = -0.07f;   // slow constant spin while tracking cities
 const float TourSteerGain = 0.090f;     // proportional steering gain toward target city
 const float TourMaxStep = 0.030f;       // clamp per-frame steer step
+const double TourZoomSlewRate = 0.65;   // continuous zoom slew speed (levels/sec)
 const int TourMinZoom = 4;
 const int TourMaxZoom = 12;
 var tourZoomPeriod = TimeSpan.FromSeconds(18);
-var tourZoomStepPeriod = TimeSpan.FromMilliseconds(320);
 var tourCityDuration = TimeSpan.FromSeconds(14);
 
 var tourCities = new (string Name, double Lat, double Lon)[]
@@ -98,7 +98,6 @@ var tourModeEnabled = false;
 var lastMotionTickUtc = DateTime.UtcNow;
 var tourStartedUtc = DateTime.UtcNow;
 var nextTourCitySwitchUtc = DateTime.UtcNow + tourCityDuration;
-var nextTourZoomStepUtc = DateTime.UtcNow;
 var tourCityIndex = 0;
 DetailTextureBuilder.PublishedDetail? displayedDetail = null;
 DetailTextureBuilder.PublishedDetail? proxyDetail = null;
@@ -193,17 +192,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 var steerPitch = Math.Clamp((float)(deltaLat * TourSteerGain * dt), -TourMaxStep, TourMaxStep);
                 orbit.RotateScreen(steerYaw + (TourSpinYawRate * dt), steerPitch);
 
-                if (nowUtc >= nextTourZoomStepUtc)
-                {
-                    var phase = (nowUtc - tourStartedUtc).TotalSeconds / tourZoomPeriod.TotalSeconds;
-                    var wave = 0.5 + (0.5 * Math.Sin(phase * Math.PI * 2.0));
-                    var targetZoom = (int)Math.Round(TourMinZoom + ((TourMaxZoom - TourMinZoom) * wave));
-                    if (orbit.OsmZoom < targetZoom)
-                        orbit.ZoomIn();
-                    else if (orbit.OsmZoom > targetZoom)
-                        orbit.ZoomOut();
-                    nextTourZoomStepUtc = nowUtc + tourZoomStepPeriod;
-                }
+                var phase = (nowUtc - tourStartedUtc).TotalSeconds / tourZoomPeriod.TotalSeconds;
+                var wave = 0.5 + (0.5 * Math.Sin(phase * Math.PI * 2.0));
+                var targetZoom = TourMinZoom + ((TourMaxZoom - TourMinZoom) * wave);
+                orbit.MoveZoomToward(targetZoom, TourZoomSlewRate, dt);
             }
             else if (autoRotateEnabled)
             {
@@ -216,10 +208,11 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             camera.Rotation = orbit.CameraRotation;
 
             var (lat, lon) = orbit.CenterLatLon;
-            var zoom = orbit.OsmZoom;
+            var tileZoom = orbit.OsmZoom;
+            var visualZoom = orbit.Zoom;
 
             // Base globe texture follows zoom up to the low global cap.
-            earth.RequestZoom(Math.Min(zoom, OrbitController.BaseGlobeZoom));
+            earth.RequestZoom(Math.Min(tileZoom, OrbitController.BaseGlobeZoom));
 
             // High-zoom detail overlay: request the bounded tile block facing the camera. The block
             // carries a margin ring of tiles around the visible area so the texture can slide under
@@ -227,7 +220,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             EarthView.Window? targetWindow = null;
             if (orbit.DetailActive)
             {
-                targetWindow = EarthView.ComputeWindow(lat, lon, zoom);
+                targetWindow = EarthView.ComputeWindow(lat, lon, tileZoom);
                 detail.Request(targetWindow.Value);
             }
 
@@ -239,7 +232,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             {
                 displayedDetail ??= latest;
 
-                if (latest.Window.Zoom == zoom)
+                if (latest.Window.Zoom == tileZoom)
                 {
                     displayedDetail = latest;
                     lock (proxyGate)
@@ -257,7 +250,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             DetailTextureBuilder.PublishedDetail? activeDetail = null;
             if (orbit.DetailActive && targetWindow is { } target)
             {
-                if (displayedDetail is { } realAtZoom && realAtZoom.Window.Zoom == zoom)
+                if (displayedDetail is { } realAtZoom && realAtZoom.Window.Zoom == tileZoom)
                 {
                     activeDetail = realAtZoom;
                     detailMaterial.Texture = realAtZoom.Texture;
@@ -293,7 +286,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 && WindowCoversCenter(block.Window, lat, lon);
             if (showPatch && activeDetail is { } shownBlock)
             {
-                var realRadius = shownBlock.Window.AngularRadiusRad;
+                var realRadius = shownBlock.Window.AngularRadiusRad * orbit.ZoomScaleForTileZoom(shownBlock.Window.Zoom);
                 var mag = realRadius > 1e-9
                     ? Math.Max(1.0, OrbitController.MagnifierAngularRadius / realRadius)
                     : 1.0;
@@ -319,7 +312,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 : autoRotateEnabled ? "auto-rotate" : "manual";
             var header =
                 $" AsciiEarth   center {Format(lat, 'N', 'S')}, {Format(lon, 'E', 'W')}   " +
-                $"OSM z{zoom}/{OrbitController.MaxZoom}   {motion}   {status} ";
+                $"zoom {visualZoom:0.00} (tiles z{tileZoom})   {motion}   {status} ";
 
             return ctx.Interactable(ic =>
                 ic.Grid(g =>
@@ -438,7 +431,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             autoRotateEnabled = false;
                             tourStartedUtc = DateTime.UtcNow;
                             nextTourCitySwitchUtc = tourStartedUtc + tourCityDuration;
-                            nextTourZoomStepUtc = tourStartedUtc;
                             var (_, currLon) = orbit.CenterLatLon;
                             tourCityIndex = NearestCityIndexByLongitude(currLon, tourCities);
                         }

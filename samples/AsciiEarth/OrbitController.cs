@@ -3,15 +3,18 @@ using Hex1b.Scene.Math;
 namespace AsciiEarth;
 
 /// <summary>
-/// Holds globe orientation, camera roll, and a discrete OSM zoom level for AsciiEarth, and
+/// Holds globe orientation, camera roll, and a continuous visual zoom level for AsciiEarth, and
 /// translates user input into camera-relative rotations.
 /// </summary>
 /// <remarks>
 /// The camera sits on +Z looking at the origin; the globe (a unit sphere) rotates beneath it.
-/// Zoom is an integer OSM level: low levels frame the whole globe, higher levels derive a camera
-/// distance (via <see cref="EarthView.FramingDistance"/>) that dives toward the surface so the
-/// bounded detail tile block fills the view. Panning rotates the globe about the camera's current
-/// right/up axes (so it always tracks what the viewer sees, including any roll), scaled by
+/// Visual zoom is continuous for smooth camera motion. Tile fetch zoom snaps to the nearest
+/// supported integer level (<see cref="OsmZoom"/>), and the fetched level is scaled by
+/// <see cref="ZoomScaleForTileZoom"/> so visual zoom stays continuous even when the source has only
+/// discrete levels. Low zoom frames the whole globe; higher zoom derives a camera distance (via
+/// <see cref="EarthView.FramingDistance"/>) that dives toward the surface so the bounded detail
+/// tile block fills the view. Panning rotates the globe about the camera's current right/up axes
+/// (so it always tracks what the viewer sees, including any roll), scaled by
 /// <see cref="SurfaceScale"/> so it stays usable as you zoom in. Roll spins the camera about its
 /// view axis.
 /// </remarks>
@@ -23,6 +26,12 @@ internal sealed class OrbitController
     /// <summary>Highest OSM zoom (street-level detail).</summary>
     public const int MaxZoom = 19;
 
+    /// <summary>Lowest integer tile level this data source supports.</summary>
+    public const int MinTileZoom = MinZoom;
+
+    /// <summary>Highest integer tile level this data source supports.</summary>
+    public const int MaxTileZoom = MaxZoom;
+
     /// <summary>At or below this zoom the whole globe is framed and the base texture is used.</summary>
     public const int BaseGlobeZoom = 3;
 
@@ -30,6 +39,7 @@ internal sealed class OrbitController
     private const float MinDistance = 1.05f;         // closest the camera dives toward the surface
     private const float MaxDistance = 5.0f;
     private const float BasePanStep = 0.12f;
+    private const double ZoomStep = 0.22;
 
     // Whole-globe framing distances for the base zoom levels (all ≥ ~2.61 so the full disc shows).
     private const float GlobeNearDistance = 2.7f; // at BaseGlobeZoom
@@ -49,10 +59,19 @@ internal sealed class OrbitController
 
     private Quaternion _globeRotation = Quaternion.Identity;
     private float _roll;
-    private int _osmZoom = MinZoom;
+    private double _zoom = MinZoom;
 
-    /// <summary>Current discrete OSM zoom level.</summary>
-    public int OsmZoom => _osmZoom;
+    /// <summary>Current continuous visual zoom level.</summary>
+    public double Zoom => _zoom;
+
+    /// <summary>Nearest supported integer tile zoom used for tile requests.</summary>
+    public int OsmZoom => Math.Clamp((int)Math.Round(_zoom), MinTileZoom, MaxTileZoom);
+
+    /// <summary>
+    /// Scale factor that maps an integer tile level to the current continuous visual zoom.
+    /// &gt;1 means the tile level is visually enlarged; &lt;1 means it is visually reduced.
+    /// </summary>
+    public double ZoomScaleForTileZoom(int tileZoom) => Math.Pow(2.0, tileZoom - _zoom);
 
     /// <summary>Real angular radius (radians) of the tile block facing the camera at this zoom.</summary>
     private double CurrentAngularRadius
@@ -60,7 +79,9 @@ internal sealed class OrbitController
         get
         {
             var (lat, lon) = CenterLatLon;
-            return EarthView.ComputeWindow(lat, lon, _osmZoom).AngularRadiusRad;
+            var tileZoom = OsmZoom;
+            var window = EarthView.ComputeWindow(lat, lon, tileZoom);
+            return window.AngularRadiusRad * ZoomScaleForTileZoom(tileZoom);
         }
     }
 
@@ -91,18 +112,20 @@ internal sealed class OrbitController
     {
         get
         {
-            if (_osmZoom <= BaseGlobeZoom)
+            if (_zoom <= BaseGlobeZoom)
             {
                 var span = BaseGlobeZoom - MinZoom;
-                var t = span <= 0 ? 1f : (float)(_osmZoom - MinZoom) / span;
+                var t = span <= 0 ? 1f : (float)((_zoom - MinZoom) / span);
                 return GlobeFarDistance + (GlobeNearDistance - GlobeFarDistance) * t;
             }
 
             var (lat, lon) = CenterLatLon;
-            var window = EarthView.ComputeWindow(lat, lon, _osmZoom);
+            var tileZoom = OsmZoom;
+            var window = EarthView.ComputeWindow(lat, lon, tileZoom);
+            var effectiveRadius = window.AngularRadiusRad * ZoomScaleForTileZoom(tileZoom);
             // Frame the *display* radius: equals the real window in the diving range, then the fixed
             // magnifier radius once the camera bottoms out, so the camera holds steady at deep zoom.
-            var displayRadius = Math.Max(window.AngularRadiusRad, MagnifierAngularRadius);
+            var displayRadius = Math.Max(effectiveRadius, MagnifierAngularRadius);
             return EarthView.FramingDistance(displayRadius, FieldOfView, MinDistance, MaxDistance);
         }
     }
@@ -164,12 +187,29 @@ internal sealed class OrbitController
     /// <summary>Rolls the camera about its view axis (←/→).</summary>
     public void Roll(float amount) => _roll += amount;
 
-    /// <summary>Zooms in one OSM level (more detail).</summary>
-    public void ZoomIn() => _osmZoom = Math.Min(MaxZoom, _osmZoom + 1);
+    /// <summary>Adjusts continuous zoom by <paramref name="delta"/> and clamps to range.</summary>
+    public void ZoomBy(double delta) => _zoom = Math.Clamp(_zoom + delta, MinZoom, MaxZoom);
 
-    /// <summary>Zooms out one OSM level.</summary>
-    public void ZoomOut() => _osmZoom = Math.Max(MinZoom, _osmZoom - 1);
+    /// <summary>Zooms in by a gentle continuous step.</summary>
+    public void ZoomIn() => ZoomBy(ZoomStep);
+
+    /// <summary>Zooms out by a gentle continuous step.</summary>
+    public void ZoomOut() => ZoomBy(-ZoomStep);
+
+    /// <summary>Moves zoom toward <paramref name="target"/> at a bounded rate (levels/sec).</summary>
+    public void MoveZoomToward(double target, double levelsPerSecond, float dtSeconds)
+    {
+        if (levelsPerSecond <= 0 || dtSeconds <= 0)
+            return;
+        var clampedTarget = Math.Clamp(target, MinZoom, MaxZoom);
+        var maxStep = levelsPerSecond * dtSeconds;
+        var delta = clampedTarget - _zoom;
+        if (Math.Abs(delta) <= maxStep)
+            _zoom = clampedTarget;
+        else
+            _zoom += Math.Sign(delta) * maxStep;
+    }
 
     /// <summary>True when the high-detail overlay patch should be shown at this zoom.</summary>
-    public bool DetailActive => _osmZoom > BaseGlobeZoom;
+    public bool DetailActive => _zoom > BaseGlobeZoom;
 }
