@@ -25,6 +25,7 @@ internal sealed class DetailTextureBuilder : IDisposable
     private const int WindFieldGridX = 12;
     private const int WindFieldGridY = 6;
     private const int WindParticleCount = 520;
+    private const double WindVisualSpeedScale = 220.0;
 
     // Neutral fill shown for missing/failed tiles before/while the block downloads.
     private static readonly uint FillColor = Pack(20, 40, 70, 255);
@@ -42,6 +43,7 @@ internal sealed class DetailTextureBuilder : IDisposable
     private uint[]? _publishedBasePixels;
     private int _version;
     private OverlayMode _overlayMode = OverlayMode.None;
+    private bool _windFrameInProgress;
     private DateTime _lastWindFrameUtc = DateTime.MinValue;
     private WindFieldSnapshot? _windField;
     private DateTime _nextWindFieldRefreshUtc = DateTime.MinValue;
@@ -141,21 +143,29 @@ internal sealed class DetailTextureBuilder : IDisposable
     {
         int generation;
         var preferPublishedBase = false;
+        var isWindAnimationFrame = false;
         var nowUtc = DateTime.UtcNow;
         lock (_gate)
         {
             if (_requested is { } r && r.Zoom == window.Zoom && r.MinTileX == window.MinTileX && r.MinTileY == window.MinTileY)
             {
+                var hasPublishedBaseForWindow = _published is { } p
+                    && p.Zoom == window.Zoom
+                    && p.MinTileX == window.MinTileX
+                    && p.MinTileY == window.MinTileY
+                    && _publishedBasePixels is not null;
                 var canAnimateWind = _overlayMode == OverlayMode.Wind
-                    && !IsBuilding
+                    && !_windFrameInProgress
+                    && hasPublishedBaseForWindow
                     && nowUtc - _lastWindFrameUtc >= WindFrameInterval;
                 if (!canAnimateWind)
                     return;
                 generation = ++_generation;
-                IsBuilding = true;
                 preferPublishedBase = true;
+                isWindAnimationFrame = true;
+                _windFrameInProgress = true;
                 _requested = window;
-                _ = Task.Run(() => BuildAsync(window, generation, preferPublishedBase));
+                _ = Task.Run(() => BuildAsync(window, generation, preferPublishedBase, isWindAnimationFrame));
                 return;
             }
 
@@ -164,10 +174,14 @@ internal sealed class DetailTextureBuilder : IDisposable
             IsBuilding = true;
         }
 
-        _ = Task.Run(() => BuildAsync(window, generation, preferPublishedBase));
+        _ = Task.Run(() => BuildAsync(window, generation, preferPublishedBase, isWindAnimationFrame));
     }
 
-    private async Task BuildAsync(EarthView.Window window, int generation, bool preferPublishedBase = false)
+    private async Task BuildAsync(
+        EarthView.Window window,
+        int generation,
+        bool preferPublishedBase = false,
+        bool isWindAnimationFrame = false)
     {
         try
         {
@@ -232,7 +246,12 @@ internal sealed class DetailTextureBuilder : IDisposable
             lock (_gate)
             {
                 if (generation == _generation)
-                    IsBuilding = false;
+                {
+                    if (isWindAnimationFrame)
+                        _windFrameInProgress = false;
+                    else
+                        IsBuilding = false;
+                }
             }
         }
     }
@@ -420,8 +439,8 @@ internal sealed class DetailTextureBuilder : IDisposable
 
             var (speedKmh, dirDeg) = SampleWind(field, p.Lat, p.Lon);
             var dirRad = dirDeg * Math.PI / 180.0;
-            var uEast = -speedKmh * Math.Sin(dirRad);
-            var vNorth = -speedKmh * Math.Cos(dirRad);
+            var uEast = -speedKmh * Math.Sin(dirRad) * WindVisualSpeedScale;
+            var vNorth = -speedKmh * Math.Cos(dirRad) * WindVisualSpeedScale;
 
             var latStep = (vNorth / 111.0) * (dt / 3600.0);
             var cosLat = Math.Max(0.18, Math.Cos(p.Lat * Math.PI / 180.0));
