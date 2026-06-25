@@ -183,6 +183,7 @@ public struct Matrix4 : IEquatable<Matrix4>
         m.Set(2, 2, (far + near) / (near - far));
         m.Set(2, 3, (2 * far * near) / (near - far));
         m.Set(3, 2, -1);
+        m.Set(3, 3, 0); // clear the identity's w·w term so clip.w = -viewZ (true perspective divide)
         return m;
     }
 

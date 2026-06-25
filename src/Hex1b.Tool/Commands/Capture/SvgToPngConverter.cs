@@ -21,6 +21,7 @@ internal static class SvgToPngConverter
     private static readonly XNamespace SvgNamespace = "http://www.w3.org/2000/svg";
     private static readonly Regex s_rgbPattern = new(@"^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$", RegexOptions.Compiled);
     private static readonly Regex s_fontSizePattern = new(@"font-size:\s*(\d+)px", RegexOptions.Compiled);
+    private static readonly object s_fontExtractionLock = new();
 
     internal record TextElement(float X, float Y, string Fill, string? Style, string Content);
 
@@ -170,14 +171,30 @@ internal static class SvgToPngConverter
         Directory.CreateDirectory(fontDir);
 
         var fontPath = Path.Combine(fontDir, "CaskaydiaCoveNerdFontMono-Regular.ttf");
-        if (!File.Exists(fontPath))
+        lock (s_fontExtractionLock)
         {
+            if (File.Exists(fontPath) && new FileInfo(fontPath).Length > 0)
+                return fontPath;
+
             using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(EmbeddedFontResource);
             if (stream == null)
                 throw new InvalidOperationException($"Embedded font resource '{EmbeddedFontResource}' not found");
 
-            using var fs = File.Create(fontPath);
-            stream.CopyTo(fs);
+            var tempPath = $"{fontPath}.{Guid.NewGuid():N}.tmp";
+            try
+            {
+                using (var fs = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
+                    stream.CopyTo(fs);
+
+                if (File.Exists(fontPath))
+                    File.Delete(fontPath);
+                File.Move(tempPath, fontPath);
+            }
+            finally
+            {
+                if (File.Exists(tempPath))
+                    File.Delete(tempPath);
+            }
         }
 
         return fontPath;
