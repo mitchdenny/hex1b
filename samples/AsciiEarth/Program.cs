@@ -99,7 +99,6 @@ var lastMotionTickUtc = DateTime.UtcNow;
 var tourStartedUtc = DateTime.UtcNow;
 var nextTourCitySwitchUtc = DateTime.UtcNow + tourCityDuration;
 var tourCityIndex = 0;
-var overlayMode = OverlayMode.None;
 DetailTextureBuilder.PublishedDetail? displayedDetail = null;
 DetailTextureBuilder.PublishedDetail? proxyDetail = null;
 var proxySourceVersion = -1;
@@ -166,7 +165,6 @@ void EnsureProxyForTarget(DetailTextureBuilder.PublishedDetail source, EarthView
 
 // Kick off the first texture build at the starting zoom.
 earth.RequestZoom(Math.Min(orbit.OsmZoom, OrbitController.BaseGlobeZoom));
-detail.SetOverlayMode(overlayMode);
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp(
@@ -312,15 +310,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             var motion = tourModeEnabled
                 ? $"tour: {tourCities[tourCityIndex].Name}"
                 : autoRotateEnabled ? "auto-rotate" : "manual";
-            var overlayLabel = overlayMode switch
-            {
-                OverlayMode.Temperature => "overlay: temp",
-                OverlayMode.Wind => "overlay: wind",
-                _ => "overlay: none"
-            };
             var header =
                 $" AsciiEarth   center {Format(lat, 'N', 'S')}, {Format(lon, 'E', 'W')}   " +
-                $"zoom {visualZoom:0.00} (tiles z{tileZoom})   {overlayLabel}   {motion}   {status} ";
+                $"zoom {visualZoom:0.00} (tiles z{tileZoom})   {motion}   {status} ";
 
             return ctx.Interactable(ic =>
                 ic.Grid(g =>
@@ -339,7 +331,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             .Row(1).Column(0),
 
                         g.Cell(c => c.Text(
-                            " drag rotate · wheel zoom · WASD pan · ↑/↓ zoom · ←/→ roll · O overlay · R auto · T tour · Esc quit "))
+                            " drag rotate · wheel zoom · WASD pan · ↑/↓ zoom · ←/→ roll · R auto · T tour · Esc quit "))
                             .Row(2).Column(0)
                     ];
                 }))
@@ -444,18 +436,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         }
                         app.Invalidate();
                     }, "Toggle world-capitals tour");
-
-                    bindings.Key(Hex1bKey.O).Global().Action(_ =>
-                    {
-                        overlayMode = overlayMode switch
-                        {
-                            OverlayMode.None => OverlayMode.Temperature,
-                            OverlayMode.Temperature => OverlayMode.Wind,
-                            _ => OverlayMode.None
-                        };
-                        detail.SetOverlayMode(overlayMode);
-                        app.Invalidate();
-                    }, "Cycle overlays (none/temp/wind)");
                 })
                 // Keep redrawing so async tile loads appear and held keys feel responsive.
                 .RedrawAfter(120);
