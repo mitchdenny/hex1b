@@ -4,15 +4,15 @@
   <meta charset="utf-8" />
   <title>Hex1b WebMuxerDemo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.1.0-beta.301/css/xterm.css" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <header>
     <h1>Hex1b WebMuxerDemo</h1>
     <p class="subtitle">
-      HMP1 over WebSocket. Open this page in two tabs against the same session
-      to exercise the multi-head primary/secondary protocol.
+      HMP1 over WebSocket with xterm.js Kitty graphics support. Use the
+      <code>kgp-bash</code> session for the end-to-end smoke test.
     </p>
   </header>
 
@@ -22,6 +22,7 @@
     <button id="connect">Connect</button>
     <button id="disconnect" disabled>Disconnect</button>
     <button id="take-primary" disabled title="Resize the producer's PTY to my terminal's current dimensions">Take Control</button>
+    <button id="kgp-smoke" disabled title="Run a Bash printf command that emits a direct RGBA Kitty image">KGP Smoke Test</button>
     <span class="spacer"></span>
     <span class="status-line">
       <span id="status-badge" class="badge offline">offline</span>
@@ -47,8 +48,9 @@
     </section>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.1.0-beta.301/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.12.0-beta.299/lib/addon-fit.js"></script>
+  <script src="/vendor/xterm-addon-image.js"></script>
   <script type="module" src="/js/app.js"></script>
 </body>
 </html>

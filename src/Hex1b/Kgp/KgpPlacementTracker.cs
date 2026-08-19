@@ -110,6 +110,7 @@ internal class KgpPlacementTracker
         foreach (var (imageId, currentList) in currentByImage)
         {
             _previousFragments.TryGetValue(imageId, out var previousList);
+
             var needsTransmit = !_transmittedImages.Contains(imageId);
 
             if (needsTransmit && currentList.Count > 0)
@@ -316,6 +317,8 @@ internal class KgpPlacementTracker
             a.ClipX == b.ClipX &&
             a.ClipY == b.ClipY &&
             a.ClipW == b.ClipW &&
-            a.ClipH == b.ClipH;
+            a.ClipH == b.ClipH &&
+            a.Data.ZIndex == b.Data.ZIndex;
     }
+
 }

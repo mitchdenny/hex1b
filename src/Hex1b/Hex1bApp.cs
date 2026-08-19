@@ -191,7 +191,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     }
     
     // KGP placement lifecycle tracker (persists across frames)
-    private readonly Kgp.KgpPlacementTracker _kgpTracker = new();
+    private readonly Kgp.KgpPlacementTracker _kgpTracker;
 
     // When terminal resize invalidates Kitty placements, repaint text first and
     // retransmit image data on a follow-up frame without another clear-screen pass.
@@ -260,6 +260,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         _rootComponent = builder;
         _themeProvider = options.ThemeProvider;
         _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
+        _kgpTracker = new Kgp.KgpPlacementTracker();
         
         // Create animation timer with configured frame rate limit
         var frameRateLimitMs = Math.Max(1, options.FrameRateLimitMs);
