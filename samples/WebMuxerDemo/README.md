@@ -45,9 +45,12 @@ multi-head additions across both consumer shapes.
 
 The browser uses `@xterm/xterm@6.1.0-beta.301` with a vendored build of
 `@xterm/addon-image` that adds placement identity, replacement, and targeted
-deletion support. The npm beta does not yet contain these fixes. The bundle is
-stored at `wwwroot/vendor/xterm-addon-image.js`; its MIT license is preserved
-alongside it.
+deletion support from
+[xterm.js PR #6098](https://github.com/xtermjs/xterm.js/pull/6098). The npm
+beta does not yet contain these fixes. The bundle is stored at
+`wwwroot/vendor/xterm-addon-image.js`; its exact source commit and hash are
+recorded in `wwwroot/vendor/README.md`, and its MIT license is preserved
+alongside it. Return to the upstream npm package after the PR is released.
 
 The end-to-end path is:
 
