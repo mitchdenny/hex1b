@@ -15,12 +15,25 @@ using SkiaSharp;
 // 3. KGP image inside a window (nested KGP)
 // 4. Generated images (gradient, checkerboard, circle)
 // 5. Real photos loaded from disk (Bonny, Bogie, Mitch, Firestarter)
+// 6. xterm.js-safe static previews with bounded payloads and a single placement
 // ─────────────────────────────────────────────────────────────────────────────
+
+const int xtermSafeMaxPhotoWidth = 640;
+const int xtermSafeMaxPhotoHeight = 480;
+const int xtermSafeMaxRawBytes = 2 * 1024 * 1024;
 
 // Generate test images
 var gradientImage = GenerateGradient(128, 64);
 var checkerImage = GenerateCheckerboard(64, 64, 8);
 var circleImage = GenerateCircle(64, 64);
+
+var xtermSafeImages = new List<(string Name, byte[] Data, int W, int H)>();
+AddXtermSafeImage(
+    xtermSafeImages, "Gradient", GenerateGradient(320, 180), 320, 180, xtermSafeMaxRawBytes);
+AddXtermSafeImage(
+    xtermSafeImages, "Checkerboard", GenerateCheckerboard(256, 256, 16), 256, 256, xtermSafeMaxRawBytes);
+AddXtermSafeImage(
+    xtermSafeImages, "Circle", GenerateCircle(256, 256), 256, 256, xtermSafeMaxRawBytes);
 
 // Load real photos from disk
 var imageDir = Path.Combine(AppContext.BaseDirectory, "images");
@@ -31,6 +44,14 @@ foreach (var file in Directory.Exists(imageDir) ? Directory.GetFiles(imageDir) :
     var rgba = LoadImageFile(file);
     if (rgba != null)
         photoImages[name] = rgba.Value;
+
+    var xtermSafeRgba = LoadImageFile(file, xtermSafeMaxPhotoWidth, xtermSafeMaxPhotoHeight);
+    if (xtermSafeRgba != null)
+    {
+        var safe = xtermSafeRgba.Value;
+        AddXtermSafeImage(
+            xtermSafeImages, Capitalize(name), safe.Data, safe.W, safe.H, xtermSafeMaxRawBytes);
+    }
 }
 
 var windowCount = 0;
@@ -42,6 +63,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp(
         options =>
         {
+            options.FrameRateLimitMs = 33;
             options.OnRescue = args =>
             {
                 File.AppendAllText("/tmp/kgp-demo-errors.log",
@@ -58,6 +80,17 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 m.Menu("File", m =>
                 {
                     var items = new List<Hex1b.Widgets.IMenuChild>();
+                    items.Add(m.Menu("xterm.js Safe", safeMenu =>
+                    {
+                        var safeItems = new List<Hex1b.Widgets.IMenuChild>();
+                        foreach (var (name, data, w, h) in xtermSafeImages)
+                        {
+                            safeItems.Add(safeMenu.MenuItem($"{name} ({w}x{h})").OnActivated(e =>
+                                OpenXtermSafeImageWindow(e, name, data, w, h)));
+                        }
+                        return safeItems;
+                    }));
+                    items.Add(m.Separator());
                     items.Add(m.Menu("Generated", m =>
                     [
                         m.MenuItem("Gradient").OnActivated(e =>
@@ -108,6 +141,33 @@ await terminal.RunAsync();
 // ─────────────────────────────────────────────────────────────────────────────
 // Window openers
 // ─────────────────────────────────────────────────────────────────────────────
+
+void OpenXtermSafeImageWindow(
+    MenuItemActivatedEventArgs e,
+    string name,
+    byte[] imageData,
+    int pixelW,
+    int pixelH)
+{
+    var window = e.Windows.Window(w => w.VStack(v =>
+        [
+            v.KgpImage(imageData, pixelW, pixelH,
+                    img => img.Text($" [KGP not supported - {name} fallback]"))
+                .Stretch(KgpImageStretch.Fit)
+                .AboveText()
+                .Width(SizeHint.Fill)
+                .Height(SizeHint.Fill),
+            v.Text($" Drag title or edges - {pixelW}x{pixelH} RGBA - Esc closes")
+        ]))
+        .Title($"xterm.js Safe - {name}")
+        .Size(46, 22)
+        .Resizable()
+        .Modal()
+        .Position(WindowPositionSpec.Center);
+
+    e.Windows.Open(window);
+    statusMessage = $"Opened xterm.js-safe {name} preview";
+}
 
 void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData, int pixelW, int pixelH)
 {
@@ -382,28 +442,66 @@ void OpenBareImageWindow(MenuItemActivatedEventArgs e, string name, byte[] image
 // Image loading
 // ─────────────────────────────────────────────────────────────────────────────
 
-static (byte[] Data, int W, int H)? LoadImageFile(string path)
+static (byte[] Data, int W, int H)? LoadImageFile(
+    string path,
+    int? maxWidth = null,
+    int? maxHeight = null)
 {
     try
     {
         using var bitmap = SKBitmap.Decode(path);
         if (bitmap == null) return null;
 
-        // Ensure RGBA8888 format
-        using var rgba = bitmap.ColorType == SKColorType.Rgba8888
-            ? bitmap
-            : bitmap.Copy(SKColorType.Rgba8888);
-        if (rgba == null) return null;
+        SKBitmap? scaled = null;
+        try
+        {
+            if (maxWidth is > 0 && maxHeight is > 0
+                && (bitmap.Width > maxWidth || bitmap.Height > maxHeight))
+            {
+                var scale = Math.Min((double)maxWidth.Value / bitmap.Width, (double)maxHeight.Value / bitmap.Height);
+                var scaledWidth = Math.Max(1, (int)Math.Round(bitmap.Width * scale));
+                var scaledHeight = Math.Max(1, (int)Math.Round(bitmap.Height * scale));
+                scaled = bitmap.Resize(
+                    new SKImageInfo(scaledWidth, scaledHeight),
+                    SKSamplingOptions.Default);
+                if (scaled == null) return null;
+            }
 
-        var pixels = rgba.GetPixelSpan();
-        var data = new byte[pixels.Length];
-        pixels.CopyTo(data);
-        return (data, rgba.Width, rgba.Height);
+            using var rgba = (scaled ?? bitmap).Copy(SKColorType.Rgba8888);
+            if (rgba == null) return null;
+
+            var pixels = rgba.GetPixelSpan();
+            var data = new byte[pixels.Length];
+            pixels.CopyTo(data);
+            return (data, rgba.Width, rgba.Height);
+        }
+        finally
+        {
+            scaled?.Dispose();
+        }
     }
     catch
     {
         return null;
     }
+}
+
+static void AddXtermSafeImage(
+    List<(string Name, byte[] Data, int W, int H)> images,
+    string name,
+    byte[] data,
+    int width,
+    int height,
+    int maxRawBytes)
+{
+    if (data.Length != checked(width * height * 4))
+        throw new ArgumentException("Image data must contain RGBA32 pixels.", nameof(data));
+    if (data.Length > maxRawBytes)
+        throw new ArgumentException(
+            $"Image data must not exceed {maxRawBytes} bytes for the xterm.js-safe set.",
+            nameof(data));
+
+    images.Add((name, data, width, height));
 }
 
 static string Capitalize(string s) =>

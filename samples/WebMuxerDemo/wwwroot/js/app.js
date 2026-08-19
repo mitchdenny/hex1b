@@ -4,6 +4,7 @@ const sessionPicker = document.getElementById("session-picker");
 const connectBtn = document.getElementById("connect");
 const disconnectBtn = document.getElementById("disconnect");
 const takePrimaryBtn = document.getElementById("take-primary");
+const kgpSmokeBtn = document.getElementById("kgp-smoke");
 const statusBadge = document.getElementById("status-badge");
 const dimsLabel = document.getElementById("dims");
 const peersList = document.getElementById("peers");
@@ -13,8 +14,13 @@ const terminalContainer = document.getElementById("terminal");
 
 let term = null;
 let fitAddon = null;
+let imageAddon = null;
 let resizeObserver = null;
 let client = null;
+
+const KGP_SMOKE_COMMAND =
+  "printf '\\033_Ga=t,f=32,s=2,v=2,i=1,t=d,q=2;/wAA/wD/AP8AAP///////w==\\033\\\\"
+  + "\\033_Ga=p,i=1,c=16,r=8,q=2,z=0\\033\\\\'\r";
 
 // --- Primary-mode sizing controls ----------------------------------------
 //
@@ -103,6 +109,7 @@ function renderStatus() {
     dimsLabel.textContent = "—";
     banner.style.display = "none";
     takePrimaryBtn.disabled = true;
+    kgpSmokeBtn.disabled = true;
     // Hide the footer too — no producer to drive when offline.
     updateFooterControls();
     return;
@@ -123,6 +130,7 @@ function renderStatus() {
   }
 
   dimsLabel.textContent = `${client.width}×${client.height}`;
+  kgpSmokeBtn.disabled = sessionPicker.value !== "kgp-bash";
 
   // The "dims mismatch" warning made sense when viewers were stuck at
   // the producer's grid; now viewers scale-to-fit so the only thing the
@@ -181,8 +189,9 @@ function ensureTerminal() {
     cursorBlink: true,
     fontFamily: 'Menlo, Consolas, "DejaVu Sans Mono", monospace',
     fontSize: currentFontPx,
+    allowTransparency: true,
     theme: {
-      background: "#0d1117",
+      background: "#0d111700",
       foreground: "#c9d1d9",
       cursor: "#58a6ff",
       selectionBackground: "#1f6feb55",
@@ -190,7 +199,18 @@ function ensureTerminal() {
     allowProposedApi: true,
   });
   fitAddon = new window.FitAddon.FitAddon();
+  imageAddon = new window.ImageAddon.ImageAddon({
+    enableSizeReports: true,
+    pixelLimit: 4 * 1024 * 1024,
+    storageLimit: 64,
+    showPlaceholder: true,
+    sixelSupport: false,
+    iipSupport: false,
+    kittySupport: true,
+    kittySizeLimit: 8 * 1024 * 1024,
+  });
   term.loadAddon(fitAddon);
+  term.loadAddon(imageAddon);
   term.open(body);
   // Defer the initial layout a frame so the container has its laid-out
   // size, then calibrate cell ratios from the just-rendered grid so the
@@ -646,6 +666,7 @@ function disposeTerminal() {
     try { term.dispose(); } catch { /* ignore */ }
     term = null;
     fitAddon = null;
+    imageAddon = null;
   }
   terminalContainer.innerHTML = "";
 }
@@ -753,9 +774,16 @@ function takePrimary() {
   client.requestPrimary(term.cols, term.rows);
 }
 
+function runKgpSmokeTest() {
+  if (!client || sessionPicker.value !== "kgp-bash") return;
+  client.sendInput(KGP_SMOKE_COMMAND);
+  term?.focus();
+}
+
 connectBtn.addEventListener("click", connect);
 disconnectBtn.addEventListener("click", disconnect);
 takePrimaryBtn.addEventListener("click", takePrimary);
+kgpSmokeBtn.addEventListener("click", runKgpSmokeTest);
 
 await loadSessions();
 renderStatus();

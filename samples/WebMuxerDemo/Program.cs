@@ -52,6 +52,15 @@ static async Task<int> ServeAsync(string[] args)
 
     if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
     {
+        if (File.Exists("/bin/bash"))
+        {
+            sessions["kgp-bash"] = SessionHost.Start(
+                name: "kgp-bash",
+                socketPath: SessionPaths.ForSession("kgp-bash"),
+                shell: "/bin/bash",
+                args: ["--noprofile", "--norc"]);
+        }
+
         sessions["python"] = SessionHost.Start(
             name: "python",
             socketPath: SessionPaths.ForSession("python"),

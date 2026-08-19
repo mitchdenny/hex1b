@@ -3,8 +3,9 @@
 Demonstrates HMP1 (Hex1b Muxer Protocol v1) including the multi-head
 primary / secondary protocol via two transports:
 
-- **WebSocket** — browser tabs render the session via xterm.js + a pure-JS
-  HMP1 client (`wwwroot/js/hmp1-client.js`).
+- **WebSocket** — browser tabs render the session via xterm.js, a patched
+  `@xterm/addon-image` Kitty graphics handler, and a pure-JS HMP1 client
+  (`wwwroot/js/hmp1-client.js`).
 - **Unix domain socket** — `webmuxerdemo connect` is a TUI viewer that
   attaches to a session over UDS, demonstrating the same multi-head
   protocol from a real terminal.
@@ -25,7 +26,7 @@ multi-head additions across both consumer shapes.
 [Hex1bTerminal "shell" — PTY workload + WithHmp1UdsServer]
                   │
                   ▼
-                [bash / pwsh / cmd]
+              [bash / pwsh / cmd]
 ```
 
 - **One `Hex1bTerminal` per session.** Owns a real PTY-backed shell and
@@ -37,6 +38,33 @@ multi-head additions across both consumer shapes.
 - **One TUI viewer per `webmuxerdemo connect`.** Connects directly to the
   per-session UDS — no WebSocket hop. Built on `Hex1bApp` with an
   embedded inner `Hex1bTerminal` rendering the live session.
+- **One dedicated `kgp-bash` session on Unix.** This makes the graphics
+  smoke test deterministic even when the user's login shell is zsh or fish.
+
+## Kitty graphics path
+
+The browser uses `@xterm/xterm@6.1.0-beta.301` with a vendored build of
+`@xterm/addon-image` that adds placement identity, replacement, and targeted
+deletion support. The npm beta does not yet contain these fixes. The bundle is
+stored at `wwwroot/vendor/xterm-addon-image.js`; its MIT license is preserved
+alongside it.
+
+The end-to-end path is:
+
+```text
+xterm.js ImageAddon
+  ↕ Kitty APC bytes and capability replies
+WebSocket (binary HMP1 frames)
+  ↕
+Hex1b HMP1 presentation adapter
+  ↕ raw PTY output/input
+bash
+```
+
+The addon is loaded before `Terminal.open()` and the WebSocket connection.
+It consumes Kitty APC sequences from `term.write(...)`; its capability and
+status replies flow back through `term.onData(...)` to bash. The WebSocket
+proxy and HMP1 output path preserve the original PTY bytes.
 
 ## Discovery
 
@@ -72,6 +100,51 @@ to see the multi-head behaviour:
   PTY to that tab's xterm dimensions).
 - Open a second session (different shell) by changing the picker to
   exercise multi-session.
+
+### KGP smoke test
+
+1. Select `kgp-bash` and click **Connect**.
+2. Click **KGP Smoke Test**. The browser sends a Bash `printf` command through
+   HMP1; bash emits a two-by-two RGBA Kitty image back through the PTY, Hex1b,
+   HMP1, and the WebSocket. xterm.js should display a 16-by-8-cell colored
+   image.
+3. For the full Hex1b widget exercise, take control and run this from the
+   repository root:
+
+   ```bash
+   dotnet run --project samples/KgpDemo
+   ```
+
+   If the server was launched after `cd samples/WebMuxerDemo`, use
+   `dotnet run --project ../KgpDemo` instead.
+
+   In `KgpDemo`, choose **File > xterm.js Safe**. These entries use generated
+   images and scaled copies of the sample photos. Every image is at most
+   640-by-480 pixels and below 2 MiB of decoded RGBA data. They open in a
+   modal preview. Drag the title bar to move it or the borders to resize it;
+   Hex1b transmits the image once and updates its placement as the window
+   changes. Press **Escape** to close the preview. The original
+   generated-image and full-resolution photo entries remain available for
+   native Kitty terminals and placement stress testing.
+
+The full demo also verifies capability negotiation: `KgpDemo` sends Hex1b's
+Kitty query, the browser addon returns `OK` through `term.onData`, and Hex1b
+then selects its KGP widgets instead of their text fallbacks.
+
+Known constraints of this prototype:
+
+- Only direct transmission (`t=d`) is usable in a browser. File, temporary
+  file, and shared-memory transmission refer to backend resources the browser
+  cannot access.
+- The vendored addon supports multiple named placements, placement replacement,
+  and targeted deletion. Unicode placeholders, relative placement, animation,
+  and several less common deletion selectors remain unsupported.
+- HMP1 incremental output preserves Kitty sequences, but its current
+  `StateSync` snapshot contains ANSI cell state rather than image payloads.
+  Connect before displaying an image; a newly attached or role-switched viewer
+  will not reconstruct an already-displayed image until the workload repaints.
+- The demo caps one Kitty payload at 8 MiB, one image at roughly four million
+  pixels, and image storage at 64 MiB to limit browser memory exposure.
 
 ### TUI viewer
 
@@ -152,4 +225,3 @@ This demo is a working prototype of two pieces of the parent Aspire
    -terminal pattern, same multi-head hotkey UX. The Aspire CLI will
    discover sockets through the AppHost backchannel instead, but the
    render and input plumbing is identical.
-
