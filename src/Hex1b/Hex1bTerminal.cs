@@ -6443,6 +6443,17 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         }
 
+        if (command is KgpParsedCommand.Transmit orphanContinuation &&
+            IsOrphanKgpContinuation(orphanContinuation))
+        {
+            SendKgpTransmissionResponse(
+                orphanContinuation.Transmission,
+                storedImage: null,
+                "EILSEQ:No active chunked upload",
+                orphanContinuation.Quiet);
+            return;
+        }
+
         switch (command)
         {
             case KgpParsedCommand.Transmit:
@@ -6464,6 +6475,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
         }
     }
+
+    private static bool IsOrphanKgpContinuation(
+        KgpParsedCommand.Transmit command)
+        => command.ControlKeys.Contains('m') &&
+           command.ControlKeys.IsSubsetOf(KgpImageContinuationControls);
 
     private void ProcessKgpParseFailure(
         KgpCommandParser.Failure failure,

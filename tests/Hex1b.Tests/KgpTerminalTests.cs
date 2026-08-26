@@ -1455,6 +1455,65 @@ public class KgpTerminalTests
     // =============================================
 
     [TestMethod]
+    [DataRow("m=0")]
+    [DataRow("m=0,q=0")]
+    [DataRow("m=0,q=1")]
+    [DataRow("m=0,q=2")]
+    [DataRow("m=1")]
+    [DataRow("m=1,q=0")]
+    [DataRow("m=1,q=1")]
+    [DataRow("m=1,q=2")]
+    public void Transmit_OrphanContinuation_IsSilentNoOpWithoutIdConsumption(
+        string controlData)
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(controlData));
+
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(0L, terminal.KgpImageStore.TotalSize);
+        Assert.IsEmpty(terminal.KgpPlacements);
+        workload.AssertNoResponse();
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,I=94",
+            KgpTestHelper.CreatePixelData(1, 1)));
+
+        Assert.AreEqual(
+            "\x1b_Gi=1,I=94;OK\x1b\\",
+            workload.ReadResponse());
+        Assert.AreEqual(1u, terminal.KgpImageStore.GetImageByNumber(94)!.ImageId);
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.IsEmpty(terminal.KgpPlacements);
+    }
+
+    [TestMethod]
+    [DataRow(3)]
+    [DataRow(6)]
+    [DataRow(9)]
+    public void Transmit_ChunkedTransfer_ValidThreeByteSplitBoundaries(
+        int chunkSize)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        var chunks = KgpTestHelper.BuildChunkedTransmitCommands(
+            imageId: 20,
+            width: 4,
+            height: 1,
+            chunkSize: chunkSize);
+
+        foreach (var chunk in chunks)
+            SendKgp(terminal, chunk);
+
+        var image = terminal.KgpImageStore.GetImageById(20);
+        Assert.IsNotNull(image);
+        Assert.AreEqual(16, image.Data.Length);
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+    }
+
+    [TestMethod]
     public void Transmit_ChunkedTransfer_HasNoEffectsBeforeFinalChunk()
     {
         var workload = new RecordingWorkloadAdapter();
