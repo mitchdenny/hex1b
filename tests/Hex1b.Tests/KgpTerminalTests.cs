@@ -290,6 +290,82 @@ public class KgpTerminalTests
     }
 
     [TestMethod]
+    [DataRow("i")]
+    [DataRow("I")]
+    public void Delete_ByGuessedAnonymousId_DoesNotMatchPrivateImage(string selector)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 20, 10);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=1,p=0,c=1,r=1,C=1,q=2",
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA)));
+        var privateId = TestSeq.Single(terminal.KgpPlacements).ImageId;
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            $"a=d,d={selector},i={privateId}"));
+
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(privateId, TestSeq.Single(terminal.KgpPlacements).ImageId);
+        Assert.AreEqual(0xAA, terminal.KgpImageStore.GetImageById(privateId)!.Data[0]);
+        Assert.IsNull(terminal.KgpImageStore.GetImageByClientId(privateId));
+    }
+
+    [TestMethod]
+    [DataRow("r", false)]
+    [DataRow("R", true)]
+    public void Delete_ByRange_SelectsAddressableButNotAnonymousImages(
+        string selector,
+        bool freeData)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 20, 10);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=1,p=0,c=1,r=1,C=1,q=2",
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA)));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3;1H"));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=1,i=2,p=7,c=1,r=1,C=1,q=2",
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xBB)));
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            $"a=d,d={selector},x=1,y={uint.MaxValue}"));
+
+        var anonymousPlacement = TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(1u, anonymousPlacement.ImageId);
+        Assert.AreEqual(0u, anonymousPlacement.PlacementId);
+        Assert.AreEqual(0xAA, terminal.KgpImageStore.GetImageById(1)!.Data[0]);
+        if (freeData)
+            Assert.IsNull(terminal.KgpImageStore.GetImageById(2));
+        else
+            Assert.AreEqual(0xBB, terminal.KgpImageStore.GetImageById(2)!.Data[0]);
+    }
+
+    [TestMethod]
+    public void Delete_ByClaimedExplicitId_AfterAnonymousRelocation_RemovesOnlyExplicitImage()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 20, 10);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=1,p=0,c=1,r=1,C=1,q=2",
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA)));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=1,i=1,p=7,c=1,r=1,C=1,q=2",
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xBB)));
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=I,i=1"));
+
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(1));
+        Assert.AreEqual(0xAA, terminal.KgpImageStore.GetImageById(2)!.Data[0]);
+        Assert.IsNull(terminal.KgpImageStore.GetImageByClientId(2));
+        var anonymousPlacement = TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(2u, anonymousPlacement.ImageId);
+        Assert.AreEqual(0u, anonymousPlacement.PlacementId);
+    }
+
+    [TestMethod]
     public void Delete_AbortsChunkedTransfer()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

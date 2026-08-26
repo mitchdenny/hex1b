@@ -182,6 +182,57 @@ public sealed class KgpImageStore
         }
     }
 
+    internal bool SelectAddressableImage(uint imageId, bool removeData)
+    {
+        lock (_lock)
+        {
+            if (_unaddressableImageIds.Contains(imageId) ||
+                !_imagesById.ContainsKey(imageId))
+            {
+                return false;
+            }
+
+            if (removeData)
+                RemoveImageUnsafe(imageId);
+            return true;
+        }
+    }
+
+    internal HashSet<uint> SelectAddressableImagesInRange(
+        uint firstImageId,
+        uint lastImageId,
+        bool removeData)
+    {
+        lock (_lock)
+        {
+            var selected = new HashSet<uint>();
+            if (firstImageId == 0 ||
+                lastImageId == 0 ||
+                firstImageId > lastImageId)
+            {
+                return selected;
+            }
+
+            foreach (var imageId in _imagesById.Keys)
+            {
+                if (imageId >= firstImageId &&
+                    imageId <= lastImageId &&
+                    !_unaddressableImageIds.Contains(imageId))
+                {
+                    selected.Add(imageId);
+                }
+            }
+
+            if (removeData)
+            {
+                foreach (var imageId in selected)
+                    RemoveImageUnsafe(imageId);
+            }
+
+            return selected;
+        }
+    }
+
     /// <summary>
     /// Gets the newest image with the specified image number.
     /// </summary>

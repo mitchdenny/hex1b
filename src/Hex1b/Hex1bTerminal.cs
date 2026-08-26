@@ -6636,23 +6636,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _kgpPlacements.Clear();
                 _kgpImageStore.Clear();
                 break;
-            case KgpParsedCommand.DeleteSelector.ById { FreeData: false } byId:
-                if (byId.ImageId > 0)
+            case KgpParsedCommand.DeleteSelector.ById byId:
+                if (byId.ImageId > 0 &&
+                    _kgpImageStore.SelectAddressableImage(byId.ImageId, byId.FreeData))
                 {
                     if (byId.PlacementId > 0)
                         _kgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId && p.PlacementId == byId.PlacementId);
                     else
                         _kgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId);
-                }
-                break;
-            case KgpParsedCommand.DeleteSelector.ById { FreeData: true } byId:
-                if (byId.ImageId > 0)
-                {
-                    if (byId.PlacementId > 0)
-                        _kgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId && p.PlacementId == byId.PlacementId);
-                    else
-                        _kgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId);
-                    _kgpImageStore.RemoveImage(byId.ImageId);
                 }
                 break;
             case KgpParsedCommand.DeleteSelector.ByNumber byNumber:
@@ -6687,12 +6678,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var hi = range.LastImageId;
                 if (lo > 0 && hi > 0 && lo <= hi)
                 {
-                    _kgpPlacements.RemoveAll(p => p.ImageId >= lo && p.ImageId <= hi);
-                    if (range.FreeData)
-                    {
-                        for (uint id = lo; id <= hi; id++)
-                            _kgpImageStore.RemoveImage(id);
-                    }
+                    var selected = _kgpImageStore.SelectAddressableImagesInRange(
+                        lo,
+                        hi,
+                        range.FreeData);
+                    _kgpPlacements.RemoveAll(p => selected.Contains(p.ImageId));
                 }
                 break;
             }
