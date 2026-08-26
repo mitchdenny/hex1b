@@ -24,6 +24,18 @@ public class KgpImageStoreTests
         }.ToTransmissionData();
     }
 
+    private static KgpParsedCommand ParseCommand(string controlData)
+    {
+        var success = KgpCommandParser.TryParse(
+            controlData,
+            out var command,
+            out var failure);
+        Assert.IsTrue(
+            success,
+            success ? null : failure.FormatReason(controlData.AsSpan()));
+        return command!;
+    }
+
     // --- Basic store/retrieve ---
 
     [TestMethod]
@@ -408,7 +420,7 @@ public class KgpImageStoreTests
     {
         var store = new KgpImageStore();
 
-        var cmd1 = new KgpCommand { Width = 2, Height = 2, Format = KgpFormat.Rgba32, ImageId = 1, MoreData = 1 };
+        var cmd1 = new KgpCommand { Width = 2, Height = 2, Format = KgpFormat.Rgba32, ImageId = 5, MoreData = 1 };
         var result1 = store.ProcessChunk(cmd1, new byte[] { 1, 2, 3, 4 });
         Assert.IsNull(result1);
         Assert.IsTrue(store.IsChunkedTransferInProgress);
@@ -422,7 +434,7 @@ public class KgpImageStoreTests
         Assert.IsNotNull(result3);
 
         TestSeq.AreEqual(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 }, result3.Data);
-        Assert.AreEqual(1u, result3.ImageId);
+        Assert.AreEqual(5u, result3.ImageId);
         Assert.AreEqual(2u, result3.Width);
         Assert.AreEqual(2u, result3.Height);
         Assert.IsFalse(store.IsChunkedTransferInProgress);
@@ -473,6 +485,82 @@ public class KgpImageStoreTests
 
         store.Clear();
         Assert.IsFalse(store.IsChunkedTransferInProgress);
+    }
+
+    [TestMethod]
+    public void ProcessChunk_TypedCommands_RetainsFirstMetadataAndEffectiveQuiet()
+    {
+        var store = new KgpImageStore();
+        var first = ParseCommand(
+            "a=T,f=32,s=1,v=2,i=7,p=9,c=2,r=1,m=1,q=0");
+
+        var initial = store.ProcessChunk(
+            first,
+            new byte[] { 1, 2, 3 },
+            maximumBytes: 8);
+
+        Assert.AreEqual(KgpImageStore.ChunkStatus.Incomplete, initial.Status);
+        var pending = store.GetPendingTransmission();
+        Assert.IsNotNull(pending);
+        Assert.AreSame(first, pending.Value.Command);
+        Assert.AreEqual(7u, pending.Value.Transmission.ImageId);
+        Assert.AreEqual(KgpParsedCommand.QuietMode.Normal, pending.Value.Quiet);
+
+        var final = store.ProcessChunk(
+            ParseCommand("m=0,q=1"),
+            new byte[] { 4, 5, 6, 7, 8 },
+            maximumBytes: long.MaxValue);
+
+        Assert.AreEqual(KgpImageStore.ChunkStatus.Complete, final.Status);
+        Assert.AreSame(first, final.InitialCommand);
+        Assert.AreEqual(7u, final.Transmission.ImageId);
+        Assert.AreEqual(
+            KgpParsedCommand.QuietMode.SuppressSuccess,
+            final.Quiet);
+        TestSeq.AreEqual(
+            new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 },
+            final.Data!);
+        Assert.IsFalse(store.IsChunkedTransferInProgress);
+    }
+
+    [TestMethod]
+    public void ProcessChunk_ExceedsBound_AbortsAndReportsAttempt()
+    {
+        var store = new KgpImageStore();
+        store.ProcessChunk(
+            ParseCommand("a=t,f=32,s=1,v=1,i=7,m=1"),
+            new byte[] { 1, 2, 3 },
+            maximumBytes: 4);
+
+        var result = store.ProcessChunk(
+            ParseCommand("m=0"),
+            new byte[] { 4, 5 },
+            maximumBytes: long.MaxValue);
+
+        Assert.AreEqual(KgpImageStore.ChunkStatus.TooLarge, result.Status);
+        Assert.AreEqual(5L, result.AttemptedLength);
+        Assert.AreEqual(4L, result.MaximumLength);
+        Assert.IsNull(result.Data);
+        Assert.IsFalse(store.IsChunkedTransferInProgress);
+    }
+
+    [TestMethod]
+    public void AbortPendingTransmission_ReturnsFirstMetadataAndClearsState()
+    {
+        var store = new KgpImageStore();
+        var first = ParseCommand("a=t,f=32,s=1,v=1,I=42,m=1,q=2");
+        store.ProcessChunk(first, new byte[] { 1, 2, 3 }, maximumBytes: 4);
+
+        var aborted = store.AbortPendingTransmission();
+
+        Assert.IsNotNull(aborted);
+        Assert.AreSame(first, aborted.Value.Command);
+        Assert.AreEqual(42u, aborted.Value.Transmission.ImageNumber);
+        Assert.AreEqual(
+            KgpParsedCommand.QuietMode.SuppressAll,
+            aborted.Value.Quiet);
+        Assert.IsFalse(store.IsChunkedTransferInProgress);
+        Assert.IsNull(store.AbortPendingTransmission());
     }
 
     // --- KgpImageData validation ---

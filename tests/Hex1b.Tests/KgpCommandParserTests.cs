@@ -387,7 +387,7 @@ public class KgpCommandParserTests
     [TestMethod]
     public void Parse_QuietAndBooleanLikeControls_UseKittyCompatiblePolicies()
     {
-        var quiet = ParseTyped<KgpParsedCommand.Transmit>("q=4294967295,m=2");
+        var quiet = ParseTyped<KgpParsedCommand.Transmit>("q=4294967295,m=1");
         var display = ParseTyped<KgpParsedCommand.Put>("a=p,C=2,U=2");
         var frame = ParseTyped<KgpParsedCommand.AnimationFrame>("a=f,X=2");
         var composition = ParseTyped<KgpParsedCommand.Compose>("a=c,C=2");
@@ -529,6 +529,37 @@ public class KgpCommandParserTests
             ParseSuccess($"{prefix},{key}=0");
             ParseSuccess($"{prefix},{key}=4294967295");
         }
+    }
+
+    [TestMethod]
+    public void Parse_MoreData_AcceptsOnlyZeroOrOne()
+    {
+        ParseSuccess("a=t,m=0");
+        ParseSuccess("a=t,m=1");
+
+        foreach (var invalidValue in new[] { "2", "00", "01", "4294967295" })
+        {
+            var failure = ParseFailure($"a=t,i=7,m={invalidValue}");
+            Assert.AreEqual(KgpCommandParser.ErrorCode.InvalidMoreData, failure.Code);
+            Assert.AreEqual(KgpAction.Transmit, failure.Action);
+            Assert.AreEqual(7u, failure.ImageId);
+            Assert.AreEqual(
+                $"Invalid more-data value '{invalidValue}'.",
+                failure.FormatReason($"a=t,i=7,m={invalidValue}".AsSpan()));
+        }
+    }
+
+    [TestMethod]
+    public void TryParse_ControlKeys_PreservesKnownAndUnknownControls()
+    {
+        var command = ParseTyped<KgpParsedCommand.Transmit>(
+            "a=t,m=1,q=0,k=opaque");
+
+        Assert.IsTrue(command.ControlKeys.Contains('a'));
+        Assert.IsTrue(command.ControlKeys.Contains('m'));
+        Assert.IsTrue(command.ControlKeys.Contains('q'));
+        Assert.IsTrue(command.ControlKeys.Contains('k'));
+        Assert.IsFalse(command.ControlKeys.Contains('i'));
     }
 
     [TestMethod]
@@ -742,7 +773,6 @@ public class KgpCommandParserTests
             ("a=t", "i"),
             ("a=t", "I"),
             ("a=t", "p"),
-            ("a=t", "m"),
             ("a=t", "N"),
             ("a=p", "i"),
             ("a=p", "I"),

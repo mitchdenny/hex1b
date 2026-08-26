@@ -151,17 +151,31 @@ public static class KgpTestHelper
         KgpFormat format = KgpFormat.Rgba32,
         byte fillByte = 0xFF)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(chunkSize, 1);
+
         var bytesPerPixel = format == KgpFormat.Rgb24 ? 3 : 4;
         var totalData = new byte[width * height * bytesPerPixel];
         Array.Fill(totalData, fillByte);
 
         var commands = new List<string>();
         var offset = 0;
+        var maximumRawChunkSize = Math.Min(chunkSize, 3 * 4096 / 4);
 
         while (offset < totalData.Length)
         {
             var remaining = totalData.Length - offset;
-            var thisChunk = Math.Min(chunkSize, remaining);
+            var thisChunk = Math.Min(maximumRawChunkSize, remaining);
+            if (thisChunk < remaining)
+            {
+                thisChunk -= thisChunk % 3;
+                if (thisChunk == 0)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(chunkSize),
+                        "A multi-chunk Base64 transfer requires at least three raw bytes per non-final chunk.");
+                }
+            }
+
             var chunk = new byte[thisChunk];
             Array.Copy(totalData, offset, chunk, 0, thisChunk);
 

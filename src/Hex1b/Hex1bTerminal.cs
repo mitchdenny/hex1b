@@ -6030,6 +6030,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _escapeFlushTimer?.Dispose();
 
         _disposeCts.Cancel();
+        lock (_bufferLock)
+        {
+            _kgpImageStore.AbortChunkedTransfer();
+        }
         _disposeCts.Dispose();
     }
 
@@ -6079,6 +6083,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _escapeFlushTimer?.Dispose();
 
         _disposeCts.Cancel();
+        lock (_bufferLock)
+        {
+            _kgpImageStore.AbortChunkedTransfer();
+        }
         _disposeCts.Dispose();
     }
 
@@ -6377,27 +6385,67 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
+    private const int KgpMaximumEncodedChunkLength = 4096;
+
+    private static readonly KgpControlKeySet KgpImageContinuationControls =
+        KgpControlKeySet.From('m').Add('q');
+
+    private static readonly KgpControlKeySet KgpFrameContinuationControls =
+        KgpImageContinuationControls.Add('a');
+
     /// <summary>
     /// Processes a KGP (Kitty Graphics Protocol) command.
     /// </summary>
     private void ProcessKgpCommand(KgpToken token)
     {
-        if (!Capabilities.SupportsKgp)
+        if (_disposed || !Capabilities.SupportsKgp)
             return;
 
         if (!KgpCommandParser.TryParse(token.ControlData, out var command, out var failure))
         {
-            ProcessKgpParseFailure(failure, token.ControlData);
+            var pending = _kgpImageStore.GetPendingTransmission();
+            if (pending is null)
+            {
+                ProcessKgpParseFailure(failure, token.ControlData);
+                return;
+            }
+
+            if (failure.Action == KgpAction.Delete)
+            {
+                _kgpImageStore.AbortChunkedTransfer();
+                ProcessKgpParseFailure(failure, token.ControlData);
+                return;
+            }
+
+            _kgpImageStore.AbortChunkedTransfer();
+            var failureQuiet = failure.Quiet == KgpParsedCommand.QuietMode.Normal
+                ? pending.Value.Quiet
+                : failure.Quiet;
+            SendKgpTransmissionResponse(
+                pending.Value.Transmission,
+                storedImage: null,
+                $"EINVAL:{failure.FormatReason(token.ControlData.AsSpan())}",
+                failureQuiet);
+            return;
+        }
+
+        if (_kgpImageStore.GetPendingTransmission() is { } pendingTransmission)
+        {
+            if (command is KgpParsedCommand.Delete delete)
+            {
+                ProcessKgpDelete(delete.Selector);
+                return;
+            }
+
+            ProcessKgpContinuation(command, token.Payload, pendingTransmission);
             return;
         }
 
         switch (command)
         {
-            case KgpParsedCommand.Transmit transmit:
-                ProcessKgpTransmit(transmit.Transmission, transmit.Quiet, token.Payload);
-                break;
-            case KgpParsedCommand.TransmitAndDisplay transmitAndDisplay:
-                ProcessKgpTransmitAndDisplay(transmitAndDisplay, token.Payload);
+            case KgpParsedCommand.Transmit:
+            case KgpParsedCommand.TransmitAndDisplay:
+                ProcessKgpTransmission(command, token.Payload);
                 break;
             case KgpParsedCommand.Query query:
                 ProcessKgpQuery(query.Transmission, query.Quiet, token.Payload);
@@ -6433,60 +6481,257 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             (int)failure.Quiet);
     }
 
-    private KgpImageData? ProcessKgpTransmit(
-        KgpParsedCommand.TransmissionData command,
-        KgpParsedCommand.QuietMode quiet,
+    private void ProcessKgpContinuation(
+        KgpParsedCommand command,
+        string base64Payload,
+        KgpImageStore.PendingTransmission pending)
+    {
+        var effectiveQuiet = GetKgpContinuationQuiet(command, pending.Quiet);
+        if (!IsValidKgpContinuation(command, pending.Command) ||
+            !command.TryGetTransmission(out var transmission))
+        {
+            FailPendingKgpUpload(
+                pending,
+                "EINVAL:Invalid chunk continuation controls",
+                effectiveQuiet);
+            return;
+        }
+
+        const int maximumEncodedLength = KgpMaximumEncodedChunkLength;
+        if (!TryDecodeKgpPayload(
+                base64Payload,
+                transmission.MoreData,
+                maximumEncodedLength,
+                out var decodedData,
+                out var payloadError))
+        {
+            FailPendingKgpUpload(
+                pending,
+                FormatKgpPayloadError(payloadError, maximumEncodedLength),
+                effectiveQuiet);
+            return;
+        }
+
+        var result = _kgpImageStore.ProcessChunk(
+            command,
+            decodedData,
+            _kgpImageStore.MaximumPendingUploadBytes);
+        switch (result.Status)
+        {
+            case KgpImageStore.ChunkStatus.Incomplete:
+                return;
+            case KgpImageStore.ChunkStatus.TooLarge:
+                SendKgpTransmissionResponse(
+                    result.Transmission,
+                    storedImage: null,
+                    $"EFBIG:Too much image data: {result.AttemptedLength} > {result.MaximumLength}",
+                    result.Quiet);
+                return;
+            case KgpImageStore.ChunkStatus.Complete:
+                if (result.InitialCommand is null)
+                {
+                    throw new InvalidOperationException(
+                        "A terminal KGP upload completed without its initial command.");
+                }
+
+                CompleteKgpTransmission(
+                    result.InitialCommand,
+                    result.Quiet,
+                    result.Data!);
+                return;
+            default:
+                throw new InvalidOperationException(
+                    $"Unsupported KGP chunk status: {result.Status}.");
+        }
+    }
+
+    private static bool IsValidKgpContinuation(
+        KgpParsedCommand command,
+        KgpParsedCommand initialCommand)
+    {
+        if (!command.ControlKeys.Contains('m'))
+            return false;
+
+        return initialCommand switch
+        {
+            KgpParsedCommand.Transmit or KgpParsedCommand.TransmitAndDisplay
+                => command is KgpParsedCommand.Transmit &&
+                   command.ControlKeys.IsSubsetOf(KgpImageContinuationControls),
+            KgpParsedCommand.AnimationFrame
+                => command is KgpParsedCommand.AnimationFrame &&
+                   command.ControlKeys.Contains('a') &&
+                   command.ControlKeys.IsSubsetOf(KgpFrameContinuationControls),
+            _ => false,
+        };
+    }
+
+    private static KgpParsedCommand.QuietMode GetKgpContinuationQuiet(
+        KgpParsedCommand command,
+        KgpParsedCommand.QuietMode inheritedQuiet)
+        => command.ControlKeys.Contains('q') &&
+           command.Quiet != KgpParsedCommand.QuietMode.Normal
+            ? command.Quiet
+            : inheritedQuiet;
+
+    private void FailPendingKgpUpload(
+        KgpImageStore.PendingTransmission pending,
+        string message,
+        KgpParsedCommand.QuietMode quiet)
+    {
+        _kgpImageStore.AbortChunkedTransfer();
+        SendKgpTransmissionResponse(
+            pending.Transmission,
+            storedImage: null,
+            message,
+            quiet);
+    }
+
+    private void ProcessKgpTransmission(
+        KgpParsedCommand command,
         string base64Payload)
     {
-        var isContinuation = _kgpImageStore.IsChunkedTransferInProgress;
-        if (!isContinuation &&
-            command.IdentityKind == KgpParsedCommand.ImageIdentityKind.ExplicitId)
+        if (!command.TryGetTransmission(out var transmission))
         {
-            var start = _kgpImageStore.BeginExplicitTransmission(command.ImageId);
+            throw new ArgumentException(
+                "The command does not carry transmission data.",
+                nameof(command));
+        }
+
+        if (transmission.IdentityKind == KgpParsedCommand.ImageIdentityKind.ExplicitId)
+        {
+            var start = _kgpImageStore.BeginExplicitTransmission(transmission.ImageId);
             if (start.Relocation is { } relocation)
                 ApplyKgpImageRelocation(relocation);
             if (start.RemovedAddressableImage)
-                _kgpPlacements.RemoveAll(p => p.ImageId == command.ImageId);
+                _kgpPlacements.RemoveAll(p => p.ImageId == transmission.ImageId);
         }
 
-        var decodedData = DecodeKgpPayload(base64Payload);
-
-        if (command.MoreData || isContinuation)
+        var maximumEncodedLength = transmission.MoreData
+            ? KgpMaximumEncodedChunkLength
+            : GetMaximumKgpEncodedPayloadLength();
+        if (!TryDecodeKgpPayload(
+                base64Payload,
+                transmission.MoreData,
+                maximumEncodedLength,
+                out var decodedData,
+                out var payloadError))
         {
-            var completed = _kgpImageStore.ProcessChunkAndStore(command, decodedData);
-            if (completed is null)
-                return null;
-
-            return CompleteKgpTransmit(
-                completed.Value.Transmission,
-                completed.Value.Store,
-                quiet);
+            SendKgpTransmissionResponse(
+                transmission,
+                storedImage: null,
+                FormatKgpPayloadError(payloadError, maximumEncodedLength),
+                command.Quiet);
+            return;
         }
 
-        var expectedSize = GetExpectedKgpDataSize(command);
-        if (expectedSize > 0 && decodedData.Length < expectedSize)
+        if (transmission.MoreData)
         {
-            SendKgpTransmissionResponse(command, null,
-                $"ENODATA:Insufficient image data: {decodedData.Length} < {expectedSize}",
-                quiet);
-            return null;
+            if (!TryGetKgpUploadLimit(
+                    transmission,
+                    out var maximumBytes,
+                    out var limitError))
+            {
+                SendKgpTransmissionResponse(
+                    transmission,
+                    storedImage: null,
+                    limitError,
+                    command.Quiet);
+                return;
+            }
+
+            var result = _kgpImageStore.ProcessChunk(
+                command,
+                decodedData,
+                maximumBytes);
+            switch (result.Status)
+            {
+                case KgpImageStore.ChunkStatus.Incomplete:
+                    return;
+                case KgpImageStore.ChunkStatus.TooLarge:
+                    SendKgpTransmissionResponse(
+                        result.Transmission,
+                        storedImage: null,
+                        $"EFBIG:Too much image data: {result.AttemptedLength} > {result.MaximumLength}",
+                        result.Quiet);
+                    return;
+                default:
+                    throw new InvalidOperationException(
+                        $"Unexpected initial KGP chunk status: {result.Status}.");
+            }
         }
 
-        var stored = _kgpImageStore.StoreImage(command, decodedData);
-        return CompleteKgpTransmit(command, stored, quiet);
+        CompleteKgpTransmission(command, command.Quiet, decodedData);
     }
 
-    private void ProcessKgpTransmitAndDisplay(
-        KgpParsedCommand.TransmitAndDisplay command,
-        string base64Payload)
+    private bool TryGetKgpUploadLimit(
+        KgpParsedCommand.TransmissionData transmission,
+        out long maximumBytes,
+        out string error)
     {
-        var image = ProcessKgpTransmit(
-            command.Transmission,
-            command.Quiet,
-            base64Payload);
-        if (image is null)
-            return;
+        maximumBytes = _kgpImageStore.MaximumPendingUploadBytes;
+        if (transmission.Compression != KgpParsedCommand.CompressionMode.None ||
+            !TryGetExpectedKgpDataSize(transmission, out var expectedSize) ||
+            expectedSize == 0)
+        {
+            error = "";
+            return true;
+        }
 
+        if (expectedSize > maximumBytes)
+        {
+            error =
+                $"EFBIG:Image data size {expectedSize} exceeds upload limit {maximumBytes}";
+            return false;
+        }
+
+        maximumBytes = expectedSize;
+        error = "";
+        return true;
+    }
+
+    private void CompleteKgpTransmission(
+        KgpParsedCommand command,
+        KgpParsedCommand.QuietMode quiet,
+        byte[] decodedData)
+    {
+        if (!command.TryGetTransmission(out var transmission))
+        {
+            throw new ArgumentException(
+                "The command does not carry transmission data.",
+                nameof(command));
+        }
+
+        if (!TryValidateKgpData(transmission, decodedData, out var validationError))
+        {
+            SendKgpTransmissionResponse(
+                transmission,
+                storedImage: null,
+                validationError,
+                quiet);
+            return;
+        }
+
+        var stored = _kgpImageStore.StoreImage(transmission, decodedData);
+        if (stored.Relocation is { } relocation)
+            ApplyKgpImageRelocation(relocation);
+
+        if (stored.Replaced)
+            _kgpPlacements.RemoveAll(p => p.ImageId == stored.Image.ImageId);
+
+        if (command is KgpParsedCommand.TransmitAndDisplay transmitAndDisplay)
+            DisplayTransmittedKgpImage(stored.Image, transmitAndDisplay);
+
+        SendKgpTransmissionResponse(
+            transmission,
+            stored.Image,
+            "OK",
+            quiet);
+    }
+
+    private void DisplayTransmittedKgpImage(
+        KgpImageData image,
+        KgpParsedCommand.TransmitAndDisplay command)
+    {
         var cols = command.Display.Columns > 0 ? (int)command.Display.Columns : 1;
         var rows = command.Display.Rows > 0 ? (int)command.Display.Rows : 1;
         var placementId = command.Transmission.IdentityKind ==
@@ -6512,19 +6757,34 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private KgpImageData CompleteKgpTransmit(
+    private static bool TryValidateKgpData(
         KgpParsedCommand.TransmissionData transmission,
-        KgpImageStore.StoreResult stored,
-        KgpParsedCommand.QuietMode quiet)
+        byte[] data,
+        out string error)
     {
-        if (stored.Relocation is { } relocation)
-            ApplyKgpImageRelocation(relocation);
+        if (!TryGetExpectedKgpDataSize(transmission, out var expectedSize) ||
+            expectedSize == 0)
+        {
+            error = "";
+            return true;
+        }
 
-        if (stored.Replaced)
-            _kgpPlacements.RemoveAll(p => p.ImageId == stored.Image.ImageId);
+        if (data.LongLength < expectedSize)
+        {
+            error =
+                $"ENODATA:Insufficient image data: {data.LongLength} < {expectedSize}";
+            return false;
+        }
 
-        SendKgpTransmissionResponse(transmission, stored.Image, "OK", quiet);
-        return stored.Image;
+        if (data.LongLength > expectedSize)
+        {
+            error =
+                $"EFBIG:Too much image data: {data.LongLength} > {expectedSize}";
+            return false;
+        }
+
+        error = "";
+        return true;
     }
 
     private void ApplyKgpImageRelocation(KgpImageStore.ImageRelocation relocation)
@@ -6573,9 +6833,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         string base64Payload)
     {
         var decodedData = DecodeKgpPayload(base64Payload);
-        var expectedSize = GetExpectedKgpDataSize(command);
 
-        if (expectedSize > 0 && decodedData.Length < expectedSize)
+        if (TryGetExpectedKgpDataSize(command, out var expectedSize) &&
+            expectedSize > 0 &&
+            decodedData.Length < expectedSize)
         {
             SendKgpResponse(command.ImageId, command.ImageNumber,
                 $"ENODATA:Insufficient image data: {decodedData.Length} < {expectedSize}",
@@ -6627,6 +6888,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void ProcessKgpDelete(KgpParsedCommand.DeleteSelector selector)
     {
+        _kgpImageStore.AbortChunkedTransfer();
+
         switch (selector)
         {
             case KgpParsedCommand.DeleteSelector.All { FreeData: false }:
@@ -6696,8 +6959,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
         }
 
-        // Delete aborts any in-progress chunked transfer
-        _kgpImageStore.AbortChunkedTransfer();
     }
 
     private void CreateKgpPlacement(
@@ -6776,15 +7037,153 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private static long GetExpectedKgpDataSize(KgpParsedCommand.TransmissionData command)
+    private enum KgpPayloadError
     {
-        if (command.Format == KgpFormat.Png)
-            return 0; // PNG size is variable
+        None,
+        TooLong,
+        InvalidNonFinalLength,
+        NonFinalPadding,
+        InvalidEncoding,
+    }
 
-        if (command.Width == 0 || command.Height == 0)
-            return 0;
+    private static bool TryDecodeKgpPayload(
+        string base64Payload,
+        bool moreData,
+        int maximumEncodedLength,
+        out byte[] data,
+        out KgpPayloadError error)
+    {
+        data = [];
+        if (base64Payload.Length > maximumEncodedLength)
+        {
+            error = KgpPayloadError.TooLong;
+            return false;
+        }
+
+        if (moreData && base64Payload.Length % 4 != 0)
+        {
+            error = KgpPayloadError.InvalidNonFinalLength;
+            return false;
+        }
+
+        var paddingIndex = base64Payload.IndexOf('=');
+        if (moreData && paddingIndex >= 0)
+        {
+            error = KgpPayloadError.NonFinalPadding;
+            return false;
+        }
+
+        foreach (var character in base64Payload)
+        {
+            if (IsKgpBase64Character(character) ||
+                (!moreData && character == '='))
+            {
+                continue;
+            }
+
+            error = KgpPayloadError.InvalidEncoding;
+            return false;
+        }
+
+        if (base64Payload.Length == 0)
+        {
+            error = KgpPayloadError.None;
+            return true;
+        }
+
+        var remainder = base64Payload.Length % 4;
+        if (remainder == 1 || (paddingIndex >= 0 && remainder != 0))
+        {
+            error = KgpPayloadError.InvalidEncoding;
+            return false;
+        }
+
+        var addedPadding = paddingIndex >= 0 || remainder == 0
+            ? 0
+            : 4 - remainder;
+        ReadOnlySpan<char> normalized;
+        char[]? normalizedBuffer = null;
+        if (addedPadding == 0)
+        {
+            normalized = base64Payload.AsSpan();
+        }
+        else
+        {
+            var normalizedLength = checked(base64Payload.Length + addedPadding);
+            if (normalizedLength > maximumEncodedLength)
+            {
+                error = KgpPayloadError.TooLong;
+                return false;
+            }
+
+            normalizedBuffer = new char[normalizedLength];
+            base64Payload.AsSpan().CopyTo(normalizedBuffer);
+            normalizedBuffer.AsSpan(base64Payload.Length).Fill('=');
+            normalized = normalizedBuffer;
+        }
+
+        var maximumDecodedLength = checked((int)((long)normalized.Length / 4 * 3));
+        var decoded = new byte[maximumDecodedLength];
+        if (!Convert.TryFromBase64Chars(normalized, decoded, out var bytesWritten))
+        {
+            error = KgpPayloadError.InvalidEncoding;
+            return false;
+        }
+
+        if (bytesWritten != decoded.Length)
+            Array.Resize(ref decoded, bytesWritten);
+
+        data = decoded;
+        error = KgpPayloadError.None;
+        return true;
+    }
+
+    private int GetMaximumKgpEncodedPayloadLength()
+    {
+        var maximumDecodedLength = _kgpImageStore.MaximumPendingUploadBytes;
+        var maximumEncodedLength = (maximumDecodedLength + 2) / 3 * 4;
+        return checked((int)Math.Min(maximumEncodedLength, int.MaxValue));
+    }
+
+    private static string FormatKgpPayloadError(
+        KgpPayloadError error,
+        int maximumEncodedLength)
+        => error switch
+        {
+            KgpPayloadError.TooLong
+                => $"EFBIG:Encoded payload exceeds {maximumEncodedLength} bytes",
+            KgpPayloadError.InvalidNonFinalLength
+                => "EINVAL:Non-final Base64 chunk length must be a multiple of 4",
+            KgpPayloadError.NonFinalPadding
+                => "EINVAL:Non-final Base64 chunk must not contain padding",
+            KgpPayloadError.InvalidEncoding
+                => "EINVAL:Invalid Base64 payload",
+            _ => throw new ArgumentOutOfRangeException(nameof(error)),
+        };
+
+    private static bool IsKgpBase64Character(char character)
+        => character is >= 'A' and <= 'Z' or
+            >= 'a' and <= 'z' or
+            >= '0' and <= '9' or
+            '+' or '/';
+
+    private static bool TryGetExpectedKgpDataSize(
+        KgpParsedCommand.TransmissionData command,
+        out long expectedSize)
+    {
+        if (command.Format == KgpFormat.Png ||
+            command.Width == 0 ||
+            command.Height == 0)
+        {
+            expectedSize = 0;
+            return false;
+        }
 
         var bytesPerPixel = command.Format == KgpFormat.Rgb24 ? 3 : 4;
-        return (long)command.Width * command.Height * bytesPerPixel;
+        var pixels = (ulong)command.Width * command.Height;
+        expectedSize = pixels > (ulong)long.MaxValue / (uint)bytesPerPixel
+            ? long.MaxValue
+            : (long)(pixels * (uint)bytesPerPixel);
+        return true;
     }
 }

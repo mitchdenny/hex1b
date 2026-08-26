@@ -178,7 +178,7 @@ public class KgpTerminalTests
 
         SendKgp(terminal, KgpTestHelper.BuildCommand(
             "a=t,f=32,s=1,v=2,i=1,m=1,q=2",
-            new byte[] { 1, 2, 3, 4 }));
+            new byte[] { 1, 2, 3 }));
 
         Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
         Assert.IsNull(terminal.KgpImageStore.GetImageById(1));
@@ -187,7 +187,7 @@ public class KgpTerminalTests
 
         SendKgp(terminal, KgpTestHelper.BuildCommand(
             "m=0,q=2",
-            new byte[] { 5, 6, 7, 8 }));
+            new byte[] { 4, 5, 6, 7, 8 }));
 
         Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
         var replacement = terminal.KgpImageStore.GetImageById(1);
@@ -373,7 +373,9 @@ public class KgpTerminalTests
 
         // Start a chunked transfer
         var data = new byte[] { 1, 2, 3, 4 };
-        var cmd = KgpTestHelper.BuildCommand("a=t,f=32,s=2,v=2,i=1,m=1", data);
+        var cmd = KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=2,v=2,i=1,m=1",
+            data[..3]);
         SendKgp(terminal, cmd);
 
         Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
@@ -496,33 +498,29 @@ public class KgpTerminalTests
     }
 
     [TestMethod]
-    public void ConflictingImageIdentity_DuringChunkedTransfer_DoesNotMutateUpload()
+    public void ConflictingImageIdentity_DuringChunkedTransfer_AbortsUsingInitialIdentity()
     {
-        using var workload = new Hex1bAppWorkloadAdapter();
+        var workload = new RecordingWorkloadAdapter();
         using var terminal = CreateTerminal(workload);
 
         SendKgp(terminal, KgpTestHelper.BuildCommand(
-            "a=t,f=32,s=1,v=2,i=5,m=1,q=2",
-            new byte[] { 1, 2, 3, 4 }));
+            "a=t,f=32,s=1,v=2,i=5,m=1",
+            new byte[] { 1, 2, 3 }));
         Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        workload.AssertNoResponse();
 
         SendKgp(terminal, KgpTestHelper.BuildCommand(
-            "a=t,i=7,I=8,m=0,q=2",
+            "a=t,i=7,I=8,m=0",
             new byte[] { 99, 99, 99, 99 }));
 
-        Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(
+            "\x1b_Gi=5;EINVAL:Must not specify both image id and image number\x1b\\",
+            workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
         Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
 
-        SendKgp(terminal, KgpTestHelper.BuildCommand(
-            "m=0,q=2",
-            new byte[] { 5, 6, 7, 8 }));
-
-        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
-        var image = terminal.KgpImageStore.GetImageById(5);
-        Assert.IsNotNull(image);
-        TestSeq.AreEqual(
-            new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 },
-            image.Data);
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(6, 1, 1));
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(6));
     }
 
     [TestMethod]
@@ -730,14 +728,14 @@ public class KgpTerminalTests
 
         SendKgp(terminal, KgpTestHelper.BuildCommand(
             "a=t,f=32,s=1,v=2,I=93,m=1",
-            new byte[] { 1, 2, 3, 4 }));
+            new byte[] { 1, 2, 3 }));
 
         Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
         workload.AssertNoResponse();
 
         SendKgp(terminal, KgpTestHelper.BuildCommand(
             "m=0",
-            new byte[] { 5, 6, 7, 8 }));
+            new byte[] { 4, 5, 6, 7, 8 }));
 
         Assert.AreEqual(
             "\x1b_Gi=2,I=93;OK\x1b\\",
@@ -753,12 +751,12 @@ public class KgpTerminalTests
 
         SendKgp(terminal, KgpTestHelper.BuildCommand(
             "a=t,f=32,s=1,v=2,m=1",
-            new byte[] { 1, 2, 3, 4 }));
+            new byte[] { 1, 2, 3 }));
         workload.AssertNoResponse();
 
         SendKgp(terminal, KgpTestHelper.BuildCommand(
             "m=0",
-            new byte[] { 5, 6, 7, 8 }));
+            new byte[] { 4, 5, 6, 7, 8 }));
 
         Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
         workload.AssertNoResponse();
@@ -1451,6 +1449,598 @@ public class KgpTerminalTests
         // Note: This test documents the expected behavior - implementation
         // may need to handle placement scrolling in the scroll logic
     }
+
+    // =============================================
+    // Chunked upload state machine tests
+    // =============================================
+
+    [TestMethod]
+    public void Transmit_ChunkedTransfer_HasNoEffectsBeforeFinalChunk()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=2,i=21,m=1",
+            new byte[] { 1, 2, 3 }));
+
+        Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(0L, terminal.KgpImageStore.TotalSize);
+        Assert.IsEmpty(terminal.KgpPlacements);
+        workload.AssertNoResponse();
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "m=1",
+            new byte[] { 4, 5, 6 }));
+
+        Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        Assert.IsEmpty(terminal.KgpPlacements);
+        workload.AssertNoResponse();
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "m=0",
+            new byte[] { 7, 8 }));
+
+        Assert.AreEqual("\x1b_Gi=21;OK\x1b\\", workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
+        TestSeq.AreEqual(
+            new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 },
+            terminal.KgpImageStore.GetImageById(21)!.Data);
+        Assert.IsEmpty(terminal.KgpPlacements);
+    }
+
+    [TestMethod]
+    public void TransmitAndDisplay_ChunkedTransfer_PlacesOnceAtFinalCursor()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 20, 10);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[2;3H"));
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=2,i=22,p=9,c=2,r=2,m=1",
+            new byte[] { 1, 2, 3 }));
+
+        Assert.IsEmpty(terminal.KgpPlacements);
+        using (var preFinalSnapshot = terminal.CreateSnapshot())
+        {
+            Assert.AreEqual(2, preFinalSnapshot.CursorX);
+            Assert.AreEqual(1, preFinalSnapshot.CursorY);
+        }
+        workload.AssertNoResponse();
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[5;7H"));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "m=0",
+            new byte[] { 4, 5, 6, 7, 8 }));
+
+        Assert.AreEqual("\x1b_Gi=22;OK\x1b\\", workload.ReadResponse());
+        var placement = TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(22u, placement.ImageId);
+        Assert.AreEqual(9u, placement.PlacementId);
+        Assert.AreEqual(4, placement.Row);
+        Assert.AreEqual(6, placement.Column);
+        Assert.AreEqual(2u, placement.DisplayColumns);
+        Assert.AreEqual(2u, placement.DisplayRows);
+        using var snapshot = terminal.CreateSnapshot();
+        Assert.AreEqual(8, snapshot.CursorX);
+        Assert.AreEqual(5, snapshot.CursorY);
+    }
+
+    [TestMethod]
+    [DataRow("f=32,m=0")]
+    [DataRow("s=1,m=0")]
+    [DataRow("i=99,m=0")]
+    [DataRow("k=opaque,m=0")]
+    [DataRow("a=t,m=0")]
+    [DataRow("a=f,m=0")]
+    public void Continuation_ForbiddenControl_AbortsUsingInitialIdentity(
+        string controlData)
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=2,i=31,m=1",
+            new byte[] { 1, 2, 3 }));
+        workload.AssertNoResponse();
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            controlData,
+            new byte[] { 4, 5, 6, 7, 8 }));
+
+        Assert.AreEqual(
+            "\x1b_Gi=31;EINVAL:Invalid chunk continuation controls\x1b\\",
+            workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        Assert.IsEmpty(terminal.KgpPlacements);
+    }
+
+    [TestMethod]
+    public void Continuation_MissingMoreDataControl_Aborts()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=32,m=1",
+            new byte[] { 1, 2, 3 }));
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "q=0",
+            new byte[] { 4 }));
+
+        Assert.AreEqual(
+            "\x1b_Gi=32;EINVAL:Invalid chunk continuation controls\x1b\\",
+            workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [TestMethod]
+    public void Continuation_InvalidMoreDataValue_AbortsWithParseError()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=33,m=1",
+            new byte[] { 1, 2, 3 }));
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "m=2",
+            new byte[] { 4 }));
+
+        Assert.AreEqual(
+            "\x1b_Gi=33;EINVAL:Invalid more-data value '2'.\x1b\\",
+            workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [TestMethod]
+    public void Continuation_ParseFailureQTwo_SuppressesFailure()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=58,m=1,q=0",
+            new byte[] { 1, 2, 3 }));
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand("m=2,q=2"));
+
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        workload.AssertNoResponse();
+    }
+
+    [TestMethod]
+    public void Continuation_ParseFailureQOne_ReplacesSuppressAllForFailure()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=59,m=1,q=2",
+            new byte[] { 1, 2, 3 }));
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand("m=2,q=1"));
+
+        Assert.AreEqual(
+            "\x1b_Gi=59;EINVAL:Invalid more-data value '2'.\x1b\\",
+            workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [TestMethod]
+    [DataRow("a=p,i=90")]
+    [DataRow("a=q,f=32,s=1,v=1,i=90")]
+    [DataRow("a=t,f=32,s=1,v=1,i=90")]
+    [DataRow("a=a,i=90,s=3")]
+    public void Upload_NonDeleteGraphicsCommand_AbortsWithoutProcessing(
+        string controlData)
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=34,m=1",
+            new byte[] { 1, 2, 3 }));
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(controlData));
+
+        Assert.AreEqual(
+            "\x1b_Gi=34;EINVAL:Invalid chunk continuation controls\x1b\\",
+            workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        Assert.IsEmpty(terminal.KgpPlacements);
+
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(35, 1, 1));
+        Assert.AreEqual("\x1b_Gi=35;OK\x1b\\", workload.ReadResponse());
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(35));
+    }
+
+    [TestMethod]
+    public void Transmit_NonFinal4096CharacterPayload_AcceptsEmptyFinalMarker()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        var data = new byte[3072];
+        Array.Fill(data, (byte)0x5A);
+        var first = KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=768,v=1,i=36,m=1",
+            data);
+        Assert.AreEqual(4096, Convert.ToBase64String(data).Length);
+
+        SendKgp(terminal, first);
+        Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        workload.AssertNoResponse();
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand("m=0"));
+
+        Assert.AreEqual("\x1b_Gi=36;OK\x1b\\", workload.ReadResponse());
+        var image = terminal.KgpImageStore.GetImageById(36);
+        Assert.IsNotNull(image);
+        Assert.AreEqual(3072, image.Data.Length);
+        Assert.AreEqual(0x5A, image.Data[0]);
+    }
+
+    [TestMethod]
+    public void Transmit_EncodedPayloadLongerThan4096_RejectsWithoutBuffering()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(terminal, BuildEncodedKgpCommand(
+            "a=t,f=32,s=1,v=1,i=37,m=1",
+            new string('A', 4097)));
+
+        Assert.AreEqual(
+            "\x1b_Gi=37;EFBIG:Encoded payload exceeds 4096 bytes\x1b\\",
+            workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [TestMethod]
+    [DataRow(
+        "AAA",
+        "EINVAL:Non-final Base64 chunk length must be a multiple of 4")]
+    [DataRow(
+        "AAAA====",
+        "EINVAL:Non-final Base64 chunk must not contain padding")]
+    [DataRow(
+        "AAA*",
+        "EINVAL:Invalid Base64 payload")]
+    public void Transmit_InvalidNonFinalBase64_RejectsExactError(
+        string payload,
+        string expectedError)
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(terminal, BuildEncodedKgpCommand(
+            "a=t,f=32,s=1,v=1,i=38,m=1",
+            payload));
+
+        Assert.AreEqual(
+            $"\x1b_Gi=38;{expectedError}\x1b\\",
+            workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [TestMethod]
+    public void Continuation_UnpaddedFinalBase64_DecodesSuccessfully()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=39,m=1",
+            new byte[] { 1, 2, 3 }));
+
+        SendKgp(terminal, BuildEncodedKgpCommand("m=0", "BA"));
+
+        Assert.AreEqual("\x1b_Gi=39;OK\x1b\\", workload.ReadResponse());
+        TestSeq.AreEqual(
+            new byte[] { 1, 2, 3, 4 },
+            terminal.KgpImageStore.GetImageById(39)!.Data);
+    }
+
+    [TestMethod]
+    public void Continuation_MalformedFinalPadding_AbortsWithoutStorage()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=40,m=1",
+            new byte[] { 1, 2, 3 }));
+
+        SendKgp(terminal, BuildEncodedKgpCommand("m=0", "BA="));
+
+        Assert.AreEqual(
+            "\x1b_Gi=40;EINVAL:Invalid Base64 payload\x1b\\",
+            workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [TestMethod]
+    public void Continuation_ShortFinalData_RejectsWithoutOkOrStorage()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=1,i=41,p=7,c=2,r=2,m=1",
+            new byte[] { 1, 2, 3 }));
+        workload.AssertNoResponse();
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand("m=0"));
+
+        Assert.AreEqual(
+            "\x1b_Gi=41;ENODATA:Insufficient image data: 3 < 4\x1b\\",
+            workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        Assert.IsEmpty(terminal.KgpPlacements);
+    }
+
+    [TestMethod]
+    public void Transmit_SingleOversizedPayload_UsesSameFinalValidation()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=52",
+            new byte[] { 1, 2, 3, 4, 5 }));
+
+        Assert.AreEqual(
+            "\x1b_Gi=52;EFBIG:Too much image data: 5 > 4\x1b\\",
+            workload.ReadResponse());
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [TestMethod]
+    public void Continuation_OversizedFinalData_RejectsWithoutOkOrStorage()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=42,m=1",
+            new byte[] { 1, 2, 3 }));
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "m=0",
+            new byte[] { 4, 5 }));
+
+        Assert.AreEqual(
+            "\x1b_Gi=42;EFBIG:Too much image data: 5 > 4\x1b\\",
+            workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        Assert.IsEmpty(terminal.KgpPlacements);
+    }
+
+    [TestMethod]
+    public void ChunkedQuiet_OmittedFinalQuiet_InheritsSuppressSuccess()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=2,i=43,m=1,q=1",
+            new byte[] { 1, 2, 3 }));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "m=0",
+            new byte[] { 4, 5, 6, 7, 8 }));
+
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(43));
+        workload.AssertNoResponse();
+    }
+
+    [TestMethod]
+    public void ChunkedQuiet_QZero_InheritsLastExplicitSuppression()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=2,i=44,m=1,q=0",
+            new byte[] { 1, 2, 3 }));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "m=1,q=2",
+            new byte[] { 4, 5, 6 }));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "m=0,q=0",
+            new byte[] { 7, 8 }));
+
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(44));
+        workload.AssertNoResponse();
+    }
+
+    [TestMethod]
+    public void ChunkedQuiet_FinalQOne_ReplacesSuppressAllForFailure()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=45,m=1,q=2",
+            new byte[] { 1, 2, 3 }));
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand("m=0,q=1"));
+
+        Assert.AreEqual(
+            "\x1b_Gi=45;ENODATA:Insufficient image data: 3 < 4\x1b\\",
+            workload.ReadResponse());
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [TestMethod]
+    public void Continuation_InvalidPayloadQTwo_SuppressesFailure()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=56,m=1,q=0",
+            new byte[] { 1, 2, 3 }));
+
+        SendKgp(terminal, BuildEncodedKgpCommand("m=0,q=2", "*"));
+
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        workload.AssertNoResponse();
+    }
+
+    [TestMethod]
+    public void Continuation_InvalidPayloadQOne_ReplacesSuppressAllForFailure()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=57,m=1,q=2",
+            new byte[] { 1, 2, 3 }));
+
+        SendKgp(terminal, BuildEncodedKgpCommand("m=0,q=1", "BA="));
+
+        Assert.AreEqual(
+            "\x1b_Gi=57;EINVAL:Invalid Base64 payload\x1b\\",
+            workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [TestMethod]
+    public void Delete_MalformedRecognizedCommand_AbortsWithoutDeletingOrResponding()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(46, 1, 1, quiet: 2));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=47,m=1",
+            new byte[] { 1, 2, 3 }));
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=?"));
+
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(46));
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(47));
+        workload.AssertNoResponse();
+    }
+
+    [TestMethod]
+    public void Transmit_CompletedChunkedUploads_CanRunBackToBack()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=48,m=1",
+            new byte[] { 1, 2, 3 }));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "m=0",
+            new byte[] { 4 }));
+        Assert.AreEqual("\x1b_Gi=48;OK\x1b\\", workload.ReadResponse());
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=49,m=1",
+            new byte[] { 5, 6, 7 }));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "m=0",
+            new byte[] { 8 }));
+        Assert.AreEqual("\x1b_Gi=49;OK\x1b\\", workload.ReadResponse());
+
+        Assert.AreEqual(2, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(1, terminal.KgpImageStore.GetImageById(48)!.Data[0]);
+        Assert.AreEqual(5, terminal.KgpImageStore.GetImageById(49)!.Data[0]);
+    }
+
+    [TestMethod]
+    public void Upload_SecondExplicitTransmission_DoesNotTearDownItsImage()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(53, 1, 1, quiet: 2));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=54,m=1",
+            new byte[] { 1, 2, 3 }));
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=53",
+            new byte[] { 9, 9, 9, 9 }));
+
+        Assert.AreEqual(
+            "\x1b_Gi=54;EINVAL:Invalid chunk continuation controls\x1b\\",
+            workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(53));
+        Assert.AreEqual(0xFF, terminal.KgpImageStore.GetImageById(53)!.Data[0]);
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(54));
+    }
+
+    [TestMethod]
+    public void Transmit_ChunkedExplicitReplacement_InvalidFirstPayloadKeepsTeardown()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 20, 10);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=1,i=50,p=7,C=1,q=2",
+            KgpTestHelper.CreatePixelData(1, 1)));
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(50));
+        Assert.AreEqual(1, terminal.KgpPlacements.Count);
+
+        SendKgp(terminal, BuildEncodedKgpCommand(
+            "a=t,f=32,s=1,v=1,i=50,m=1",
+            "AAA"));
+
+        Assert.AreEqual(
+            "\x1b_Gi=50;EINVAL:Non-final Base64 chunk length must be a multiple of 4\x1b\\",
+            workload.ReadResponse());
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(50));
+        Assert.IsEmpty(terminal.KgpPlacements);
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+    }
+
+    [TestMethod]
+    public void Dispose_WithPendingUpload_AbortsState()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        var terminal = CreateTerminal(workload);
+        try
+        {
+            SendKgp(terminal, KgpTestHelper.BuildCommand(
+                "a=t,f=32,s=1,v=1,i=51,m=1,q=2",
+                new byte[] { 1, 2, 3 }));
+            Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+
+            terminal.Dispose();
+
+            Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        }
+        finally
+        {
+            terminal.Dispose();
+        }
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_WithPendingUpload_AbortsState()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=55,m=1,q=2",
+            new byte[] { 1, 2, 3 }));
+        Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+
+        await terminal.DisposeAsync();
+
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+    }
+
+    private static string BuildEncodedKgpCommand(
+        string controlData,
+        string encodedPayload)
+        => $"\x1b_G{controlData};{encodedPayload}\x1b\\";
 
     private sealed class RecordingWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     {
