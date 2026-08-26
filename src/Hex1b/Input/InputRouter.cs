@@ -443,7 +443,7 @@ public static class InputRouter
         }
 
         // Check children
-        foreach (var child in node.GetChildren())
+        foreach (var child in node.GetInputChildren())
         {
             if (BuildPathRecursive(child, path))
             {
@@ -468,7 +468,7 @@ public static class InputRouter
         path.Add(node);
         
         // Traverse to first child (depth-first) to build a path through the tree
-        var children = node.GetChildren().ToList();
+        var children = node.GetInputChildren().ToList();
         if (children.Count > 0)
         {
             BuildPathWithBindings(children[0], path);
@@ -610,7 +610,7 @@ public static class InputRouter
         }
         
         // Recurse into children
-        foreach (var child in node.GetChildren())
+        foreach (var child in node.GetInputChildren())
         {
             CollectCaptureOverrideBindings(child, bindings);
         }
@@ -663,7 +663,7 @@ public static class InputRouter
         }
         
         // Recurse into children
-        foreach (var child in node.GetChildren())
+        foreach (var child in node.GetInputChildren())
         {
             CollectGlobalBindingsExcluding(child, bindings, excludeNode);
         }
@@ -705,7 +705,7 @@ public static class InputRouter
         }
         
         // Recurse into children
-        foreach (var child in node.GetChildren())
+        foreach (var child in node.GetInputChildren())
         {
             CollectGlobalBindings(child, bindings);
         }

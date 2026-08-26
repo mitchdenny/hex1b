@@ -167,6 +167,26 @@ public class WindowPanelNodeTests
     }
 
     [TestMethod]
+    public void GetInputChildren_WithNestedModals_ReturnsOnlyTopmostModal()
+    {
+        var node = new WindowPanelNode
+        {
+            BackgroundNode = new TextBlockNode { Text = "Background" }
+        };
+        var normalWindow = new WindowNode();
+        var firstModal = new WindowNode { IsModal = true };
+        var topModal = new WindowNode { IsModal = true };
+        node.WindowNodes.Add(normalWindow);
+        node.WindowNodes.Add(firstModal);
+        node.WindowNodes.Add(topModal);
+
+        var inputChildren = node.GetInputChildren().ToList();
+
+        var inputChild = TestSeq.Single(inputChildren);
+        Assert.AreSame(topModal, inputChild);
+    }
+
+    [TestMethod]
     public void GetFocusableNodes_WithNonModalWindows_ReturnsWindowFocusables()
     {
         var node = new WindowPanelNode();
