@@ -1714,7 +1714,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         if (!node.Bounds.Contains(x, y)) return null;
         
         // Check children in reverse order (last = topmost)
-        var children = node.GetChildren().ToList();
+        var children = node.GetInputChildren().ToList();
         for (int i = children.Count - 1; i >= 0; i--)
         {
             var hit = FindNodeAt(children[i], x, y, skipDragOverlay);
@@ -2043,7 +2043,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     }
 
     /// <summary>
-    /// Walks the full node tree to find drag bindings owned by nodes other
+    /// Walks the active input tree to find drag bindings owned by nodes other
     /// than <paramref name="hitNode"/> whose <see cref="Hex1bNode.HitTestBounds"/>
     /// contains the click point. Stores the deepest match in
     /// <see cref="_pendingBubbleDrag"/> so it can be activated on the first
@@ -2109,7 +2109,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             path.Add(node);
         }
 
-        foreach (var child in node.GetChildren())
+        foreach (var child in node.GetInputChildren())
         {
             CollectMouseHitPath(child, x, y, path);
         }
@@ -2129,7 +2129,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // reconciled the candidate node out of the tree. Activating a
         // drag handler on a detached node would operate on stale Bounds
         // and never receive a clean drag-end.
-        if (_rootNode is null || !ContainsNode(_rootNode, node))
+        if (_rootNode is null || !ContainsInputNode(_rootNode, node))
         {
             return;
         }
@@ -2187,7 +2187,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // current tree (e.g. the user's content rebuild dropped it between
         // events), the Parent chain may still reach a detached subtree. Bail
         // and clear stale drag state so we don't dispatch into orphaned nodes.
-        if (_rootNode is null || !ContainsNode(_rootNode, dragNode))
+        if (_rootNode is null || !ContainsInputNode(_rootNode, dragNode))
         {
             _activeDragHandler = null;
             _activeDragNode = null;
@@ -2241,12 +2241,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         dragHandler.OnMove?.Invoke(dragContext, deltaX, deltaY);
     }
 
-    private static bool ContainsNode(Hex1bNode root, Hex1bNode target)
+    private static bool ContainsInputNode(Hex1bNode root, Hex1bNode target)
     {
         if (ReferenceEquals(root, target)) return true;
-        foreach (var child in root.GetChildren())
+        foreach (var child in root.GetInputChildren())
         {
-            if (ContainsNode(child, target)) return true;
+            if (ContainsInputNode(child, target)) return true;
         }
         return false;
     }

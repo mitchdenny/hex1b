@@ -539,8 +539,7 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
     }
 
     /// <summary>
-    /// Gets the direct children of this container for input routing.
-    /// Scrollbars are returned LAST so they are hit-tested FIRST (reverse order in InputRouter).
+    /// Gets all direct children in render order.
     /// </summary>
     public override IEnumerable<Hex1bNode> GetChildren()
     {
@@ -553,5 +552,20 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         // Scrollbars last = hit-tested first (InputRouter processes in reverse)
         if (_horizontalScrollbar != null) yield return _horizontalScrollbar;
         if (_verticalScrollbar != null) yield return _verticalScrollbar;
+    }
+
+    internal override IEnumerable<Hex1bNode> GetInputChildren()
+    {
+        var modal = WindowNodes.LastOrDefault(w => w.IsModal);
+        if (modal != null)
+        {
+            yield return modal;
+            yield break;
+        }
+
+        foreach (var child in GetChildren())
+        {
+            yield return child;
+        }
     }
 }

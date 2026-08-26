@@ -542,10 +542,16 @@ public abstract class Hex1bNode
     }
 
     /// <summary>
-    /// Gets the direct children of this node. Used for input routing and tree traversal.
+    /// Gets the direct children of this node for structural tree traversal.
     /// Container nodes should override this to return their children.
     /// </summary>
     public virtual IEnumerable<Hex1bNode> GetChildren() => [];
+
+    /// <summary>
+    /// Gets the direct children that currently participate in input routing.
+    /// Defaults to all structural children.
+    /// </summary>
+    internal virtual IEnumerable<Hex1bNode> GetInputChildren() => GetChildren();
 
     /// <summary>
     /// Gets the bounds used for mouse hit testing.
