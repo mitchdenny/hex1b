@@ -22,13 +22,26 @@ public sealed class KgpImageStore
         bool RemovedAddressableImage,
         ImageRelocation? Relocation);
 
-    internal readonly record struct CompletedTransmission(
-        KgpParsedCommand.TransmissionData Transmission,
-        StoreResult Store);
+    internal enum ChunkStatus
+    {
+        Incomplete,
+        Complete,
+        TooLarge,
+    }
 
-    private readonly record struct AssembledTransmission(
+    internal readonly record struct PendingTransmission(
+        KgpParsedCommand Command,
         KgpParsedCommand.TransmissionData Transmission,
-        byte[] Data);
+        KgpParsedCommand.QuietMode Quiet);
+
+    internal readonly record struct ChunkResult(
+        ChunkStatus Status,
+        KgpParsedCommand? InitialCommand,
+        KgpParsedCommand.TransmissionData Transmission,
+        KgpParsedCommand.QuietMode Quiet,
+        byte[]? Data,
+        long AttemptedLength,
+        long MaximumLength);
 
     private readonly object _lock = new();
     private readonly Dictionary<uint, KgpImageData> _imagesById = new();
@@ -38,9 +51,7 @@ public sealed class KgpImageStore
     private long _totalSize;
     private readonly long _quotaBytes;
 
-    // Chunked transfer state
-    private KgpParsedCommand.TransmissionData? _chunkedCommand;
-    private readonly List<byte> _chunkedData = new();
+    private KgpPendingUpload? _pendingUpload;
 
     /// <summary>
     /// Creates a new image store with the specified storage quota.
@@ -78,8 +89,11 @@ public sealed class KgpImageStore
     /// </summary>
     public bool IsChunkedTransferInProgress
     {
-        get { lock (_lock) return _chunkedCommand is not null; }
+        get { lock (_lock) return _pendingUpload is not null; }
     }
+
+    internal long MaximumPendingUploadBytes
+        => Math.Min(Math.Max(0, _quotaBytes), Array.MaxLength);
 
     /// <summary>
     /// Allocates a currently unused, non-zero image ID.
@@ -302,36 +316,66 @@ public sealed class KgpImageStore
     /// </returns>
     public KgpImageData? ProcessChunk(KgpCommand command, byte[] decodedData)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(decodedData);
+
         lock (_lock)
         {
-            var assembled = ProcessChunkUnsafe(command.ToTransmissionData(), decodedData);
-            if (assembled is null)
+            var transmission = command.ToTransmissionData();
+            var result = ProcessChunkUnsafe(
+                initialCommand: null,
+                transmission,
+                ToQuietMode(command.Quiet),
+                quietWasSpecified: command.Quiet != 0,
+                decodedData,
+                Array.MaxLength);
+            if (result.Status != ChunkStatus.Complete)
                 return null;
 
-            var transmission = assembled.Value.Transmission;
-            var imageId = transmission.ImageId > 0
-                ? transmission.ImageId
+            var imageId = result.Transmission.ImageId > 0
+                ? result.Transmission.ImageId
                 : AllocateIdUnsafe();
-            return CreateImage(imageId, transmission, assembled.Value.Data);
+            return CreateImage(imageId, result.Transmission, result.Data!);
         }
     }
 
-    internal CompletedTransmission? ProcessChunkAndStore(
-        KgpParsedCommand.TransmissionData transmission,
-        byte[] decodedData)
+    internal ChunkResult ProcessChunk(
+        KgpParsedCommand command,
+        byte[] decodedData,
+        long maximumBytes)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(decodedData);
+        if (!command.TryGetTransmission(out var transmission))
+            throw new ArgumentException("The command does not carry transmission data.", nameof(command));
+
+        lock (_lock)
+        {
+            return ProcessChunkUnsafe(
+                command,
+                transmission,
+                command.Quiet,
+                command.ControlKeys.Contains('q'),
+                decodedData,
+                maximumBytes);
+        }
+    }
+
+    internal PendingTransmission? GetPendingTransmission()
     {
         lock (_lock)
         {
-            var assembled = ProcessChunkUnsafe(transmission, decodedData);
-            if (assembled is null)
-                return null;
+            return GetPendingTransmissionUnsafe();
+        }
+    }
 
-            var store = StoreTransmissionUnsafe(
-                assembled.Value.Transmission,
-                assembled.Value.Data);
-            return new CompletedTransmission(
-                assembled.Value.Transmission,
-                store);
+    internal PendingTransmission? AbortPendingTransmission()
+    {
+        lock (_lock)
+        {
+            var pending = GetPendingTransmissionUnsafe();
+            AbortChunkedTransferUnsafe();
+            return pending;
         }
     }
 
@@ -348,29 +392,92 @@ public sealed class KgpImageStore
 
     private void AbortChunkedTransferUnsafe()
     {
-        _chunkedCommand = null;
-        _chunkedData.Clear();
+        var pending = _pendingUpload;
+        _pendingUpload = null;
+        pending?.Dispose();
     }
 
-    private AssembledTransmission? ProcessChunkUnsafe(
+    private ChunkResult ProcessChunkUnsafe(
+        KgpParsedCommand? initialCommand,
         KgpParsedCommand.TransmissionData transmission,
-        byte[] decodedData)
+        KgpParsedCommand.QuietMode quiet,
+        bool quietWasSpecified,
+        byte[] decodedData,
+        long maximumBytes)
     {
-        if (_chunkedCommand is null)
+        if (_pendingUpload is null)
         {
-            _chunkedCommand = transmission;
+            _pendingUpload = new KgpPendingUpload(
+                initialCommand,
+                transmission,
+                quiet,
+                maximumBytes);
+        }
+        else if (quietWasSpecified)
+        {
+            _pendingUpload.ApplyQuiet(quiet);
         }
 
-        _chunkedData.AddRange(decodedData);
+        var pending = _pendingUpload;
+        if (!pending.TryAppend(decodedData, out var attemptedLength))
+        {
+            var tooLarge = new ChunkResult(
+                ChunkStatus.TooLarge,
+                pending.InitialCommand,
+                pending.Transmission,
+                pending.EffectiveQuiet,
+                Data: null,
+                attemptedLength,
+                pending.MaximumBytes);
+            AbortChunkedTransferUnsafe();
+            return tooLarge;
+        }
 
         if (transmission.MoreData)
+        {
+            return new ChunkResult(
+                ChunkStatus.Incomplete,
+                pending.InitialCommand,
+                pending.Transmission,
+                pending.EffectiveQuiet,
+                Data: null,
+                attemptedLength,
+                pending.MaximumBytes);
+        }
+
+        var initial = pending.InitialCommand;
+        var initialTransmission = pending.Transmission;
+        var effectiveQuiet = pending.EffectiveQuiet;
+        var completeData = pending.Complete();
+        _pendingUpload = null;
+        return new ChunkResult(
+            ChunkStatus.Complete,
+            initial,
+            initialTransmission,
+            effectiveQuiet,
+            completeData,
+            attemptedLength,
+            pending.MaximumBytes);
+    }
+
+    private PendingTransmission? GetPendingTransmissionUnsafe()
+    {
+        if (_pendingUpload?.InitialCommand is not { } command)
             return null;
 
-        var completeData = _chunkedData.ToArray();
-        var firstTransmission = _chunkedCommand.Value;
-        AbortChunkedTransferUnsafe();
-        return new AssembledTransmission(firstTransmission, completeData);
+        return new PendingTransmission(
+            command,
+            _pendingUpload.Transmission,
+            _pendingUpload.EffectiveQuiet);
     }
+
+    private static KgpParsedCommand.QuietMode ToQuietMode(int quiet)
+        => quiet switch
+        {
+            <= 0 => KgpParsedCommand.QuietMode.Normal,
+            1 => KgpParsedCommand.QuietMode.SuppressSuccess,
+            _ => KgpParsedCommand.QuietMode.SuppressAll,
+        };
 
     private StoreResult StoreTransmissionUnsafe(
         KgpParsedCommand.TransmissionData transmission,

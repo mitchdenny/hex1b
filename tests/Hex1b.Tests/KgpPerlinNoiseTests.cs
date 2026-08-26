@@ -438,7 +438,7 @@ public class KgpPerlinNoiseTests
     /// </summary>
     private static void TransmitImage(Hex1bTerminal terminal, uint imageId, uint width, uint height, byte[] rgbData)
     {
-        const int chunkSize = 4096;
+        const int chunkSize = 3 * 4096 / 4;
         int offset = 0;
 
         while (offset < rgbData.Length)

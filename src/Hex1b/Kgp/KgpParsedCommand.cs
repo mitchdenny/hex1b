@@ -1,7 +1,31 @@
 namespace Hex1b;
 
-internal abstract record KgpParsedCommand(KgpParsedCommand.QuietMode Quiet)
+internal abstract record KgpParsedCommand(
+    KgpParsedCommand.QuietMode Quiet,
+    KgpControlKeySet ControlKeys)
 {
+    internal bool TryGetTransmission(out TransmissionData transmission)
+    {
+        switch (this)
+        {
+            case Transmit transmit:
+                transmission = transmit.Transmission;
+                return true;
+            case TransmitAndDisplay transmitAndDisplay:
+                transmission = transmitAndDisplay.Transmission;
+                return true;
+            case Query query:
+                transmission = query.Transmission;
+                return true;
+            case AnimationFrame animationFrame:
+                transmission = animationFrame.Transmission;
+                return true;
+            default:
+                transmission = default;
+                return false;
+        }
+    }
+
     internal enum QuietMode
     {
         Normal,
@@ -38,37 +62,45 @@ internal abstract record KgpParsedCommand(KgpParsedCommand.QuietMode Quiet)
 
     internal sealed record Transmit(
         TransmissionData Transmission,
-        QuietMode Quiet) : KgpParsedCommand(Quiet);
+        QuietMode Quiet,
+        KgpControlKeySet ControlKeys) : KgpParsedCommand(Quiet, ControlKeys);
 
     internal sealed record TransmitAndDisplay(
         TransmissionData Transmission,
         DisplayData Display,
-        QuietMode Quiet) : KgpParsedCommand(Quiet);
+        QuietMode Quiet,
+        KgpControlKeySet ControlKeys) : KgpParsedCommand(Quiet, ControlKeys);
 
     internal sealed record Query(
         TransmissionData Transmission,
-        QuietMode Quiet) : KgpParsedCommand(Quiet);
+        QuietMode Quiet,
+        KgpControlKeySet ControlKeys) : KgpParsedCommand(Quiet, ControlKeys);
 
     internal sealed record Put(
         DisplayData Display,
-        QuietMode Quiet) : KgpParsedCommand(Quiet);
+        QuietMode Quiet,
+        KgpControlKeySet ControlKeys) : KgpParsedCommand(Quiet, ControlKeys);
 
     internal sealed record Delete(
         DeleteSelector Selector,
-        QuietMode Quiet) : KgpParsedCommand(Quiet);
+        QuietMode Quiet,
+        KgpControlKeySet ControlKeys) : KgpParsedCommand(Quiet, ControlKeys);
 
     internal sealed record AnimationFrame(
         TransmissionData Transmission,
         AnimationFrameData Frame,
-        QuietMode Quiet) : KgpParsedCommand(Quiet);
+        QuietMode Quiet,
+        KgpControlKeySet ControlKeys) : KgpParsedCommand(Quiet, ControlKeys);
 
     internal sealed record AnimationControl(
         AnimationControlData Control,
-        QuietMode Quiet) : KgpParsedCommand(Quiet);
+        QuietMode Quiet,
+        KgpControlKeySet ControlKeys) : KgpParsedCommand(Quiet, ControlKeys);
 
     internal sealed record Compose(
         CompositionData Composition,
-        QuietMode Quiet) : KgpParsedCommand(Quiet);
+        QuietMode Quiet,
+        KgpControlKeySet ControlKeys) : KgpParsedCommand(Quiet, ControlKeys);
 
     internal readonly record struct TransmissionData(
         KgpFormat Format,

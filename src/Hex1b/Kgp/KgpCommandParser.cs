@@ -16,6 +16,7 @@ internal static class KgpCommandParser
         InvalidDeleteTarget,
         InvalidTransmissionMedium,
         InvalidCompression,
+        InvalidMoreData,
         InvalidImageFormat,
         InvalidSignedInteger,
         InvalidUnsignedInteger,
@@ -57,6 +58,8 @@ internal static class KgpCommandParser
                     => $"Invalid transmission medium '{value.ToString()}'.",
                 ErrorCode.InvalidCompression
                     => $"Invalid compression value '{value.ToString()}'.",
+                ErrorCode.InvalidMoreData
+                    => $"Invalid more-data value '{value.ToString()}'.",
                 ErrorCode.InvalidImageFormat
                     => $"Invalid image format '{value.ToString()}'.",
                 ErrorCode.InvalidSignedInteger
@@ -135,13 +138,15 @@ internal static class KgpCommandParser
 
         var errors = default(ErrorCandidates);
         var hasActionControl = false;
+        var controlKeys = default(KgpControlKeySet);
         if (!controlData.IsEmpty)
         {
             ScanControlData(
                 controlData,
                 slots,
                 ref errors,
-                ref hasActionControl);
+                ref hasActionControl,
+                ref controlKeys);
         }
 
         var action = HasValue(slots, 'a')
@@ -194,30 +199,38 @@ internal static class KgpCommandParser
         {
             KgpAction.Transmit => new KgpParsedCommand.Transmit(
                 ParseTransmission(controlData, slots),
-                quiet),
+                quiet,
+                controlKeys),
             KgpAction.TransmitAndDisplay => new KgpParsedCommand.TransmitAndDisplay(
                 ParseTransmission(controlData, slots),
                 ParseDisplay(controlData, slots),
-                quiet),
+                quiet,
+                controlKeys),
             KgpAction.Query => new KgpParsedCommand.Query(
                 ParseTransmission(controlData, slots),
-                quiet),
+                quiet,
+                controlKeys),
             KgpAction.Put => new KgpParsedCommand.Put(
                 ParseDisplay(controlData, slots),
-                quiet),
+                quiet,
+                controlKeys),
             KgpAction.Delete => new KgpParsedCommand.Delete(
                 ParseDelete(controlData, slots),
-                quiet),
+                quiet,
+                controlKeys),
             KgpAction.AnimationFrame => new KgpParsedCommand.AnimationFrame(
                 ParseTransmission(controlData, slots),
                 ParseAnimationFrame(controlData, slots),
-                quiet),
+                quiet,
+                controlKeys),
             KgpAction.AnimationControl => new KgpParsedCommand.AnimationControl(
                 ParseAnimationControl(controlData, slots),
-                quiet),
+                quiet,
+                controlKeys),
             KgpAction.Compose => new KgpParsedCommand.Compose(
                 ParseComposition(controlData, slots),
-                quiet),
+                quiet,
+                controlKeys),
             _ => throw new InvalidOperationException(
                 $"Unsupported KGP action: {action.Value}."),
         };
@@ -229,7 +242,8 @@ internal static class KgpCommandParser
         ReadOnlySpan<char> controlData,
         Span<ControlSlot> slots,
         ref ErrorCandidates errors,
-        ref bool hasActionControl)
+        ref bool hasActionControl,
+        ref KgpControlKeySet controlKeys)
     {
         var pairStart = 0;
         var pairIndex = 0;
@@ -249,7 +263,8 @@ internal static class KgpCommandParser
                 pairIndex,
                 slots,
                 ref errors,
-                ref hasActionControl);
+                ref hasActionControl,
+                ref controlKeys);
 
             if (commaIndex < 0)
                 break;
@@ -266,7 +281,8 @@ internal static class KgpCommandParser
         int pairIndex,
         Span<ControlSlot> slots,
         ref ErrorCandidates errors,
-        ref bool hasActionControl)
+        ref bool hasActionControl,
+        ref KgpControlKeySet controlKeys)
     {
         if (pairLength == 0)
         {
@@ -336,6 +352,8 @@ internal static class KgpCommandParser
                 valueLength);
             return;
         }
+
+        controlKeys = controlKeys.Add(key);
 
         var validation = ValidateKnownValue(key, value, out var errorCode);
         if (validation == ValidationResult.Unknown)
@@ -426,6 +444,13 @@ internal static class KgpCommandParser
                     return ValidationResult.Invalid;
                 }
                 break;
+            case 'm':
+                if (value.Length != 1 || value[0] is not ('0' or '1'))
+                {
+                    errorCode = ErrorCode.InvalidMoreData;
+                    return ValidationResult.Invalid;
+                }
+                break;
             case 'f':
                 if (!TryParseFormat(value, out _))
                 {
@@ -450,7 +475,6 @@ internal static class KgpCommandParser
             case 'i':
             case 'I':
             case 'p':
-            case 'm':
             case 'N':
             case 'x':
             case 'y':
