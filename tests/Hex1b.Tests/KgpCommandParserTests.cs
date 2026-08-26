@@ -435,6 +435,29 @@ public class KgpCommandParserTests
     }
 
     [TestMethod]
+    public void TryParse_MixedErrors_UsesApprovedDiagnosticPrecedence()
+    {
+        const string grammarAndValidation = "f=99,broken";
+        const string actionAndValidation = "f=99,a=Z";
+
+        var grammarFailure = ParseFailure(grammarAndValidation);
+        var actionFailure = ParseFailure(actionAndValidation);
+
+        Assert.AreEqual(
+            KgpCommandParser.ErrorCode.MalformedControlPair,
+            grammarFailure.Code);
+        Assert.AreEqual(
+            "Malformed control pair 'broken'.",
+            grammarFailure.FormatReason(grammarAndValidation.AsSpan()));
+        Assert.AreEqual(
+            KgpCommandParser.ErrorCode.InvalidAction,
+            actionFailure.Code);
+        Assert.AreEqual(
+            "Invalid action value 'Z'.",
+            actionFailure.FormatReason(actionAndValidation.AsSpan()));
+    }
+
+    [TestMethod]
     public void Parse_AllUnsignedControls_AcceptUInt32Boundaries()
     {
         foreach (var (prefix, key) in UnsignedControlContexts())

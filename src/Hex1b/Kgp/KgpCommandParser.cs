@@ -91,6 +91,20 @@ internal static class KgpCommandParser
         int ValueStart,
         int ValueLength);
 
+    private struct ErrorCandidates
+    {
+        internal ParseError Grammar;
+        internal ParseError Action;
+        internal ParseError Validation;
+
+        internal readonly ParseError Preferred
+            => Grammar.Code != ErrorCode.None
+                ? Grammar
+                : Action.Code != ErrorCode.None
+                    ? Action
+                    : Validation;
+    }
+
     private struct ControlSlot
     {
         internal int ValueStart;
@@ -113,14 +127,14 @@ internal static class KgpCommandParser
         Span<ControlSlot> slots = stackalloc ControlSlot[52];
         slots.Clear();
 
-        var firstError = default(ParseError);
+        var errors = default(ErrorCandidates);
         var hasActionControl = false;
         if (!controlData.IsEmpty)
         {
             ScanControlData(
                 controlData,
                 slots,
-                ref firstError,
+                ref errors,
                 ref hasActionControl);
         }
 
@@ -133,16 +147,17 @@ internal static class KgpCommandParser
         var imageNumber = ReadUInt32(controlData, slots, 'I');
         var placementId = ReadUInt32(controlData, slots, 'p');
         var quiet = ToQuietMode(ReadUInt32(controlData, slots, 'q'));
+        var error = errors.Preferred;
 
-        if (firstError.Code != ErrorCode.None)
+        if (error.Code != ErrorCode.None)
         {
             command = null;
             failure = new Failure(
-                firstError.Code,
-                firstError.Key,
-                firstError.Position,
-                firstError.ValueStart,
-                firstError.ValueLength,
+                error.Code,
+                error.Key,
+                error.Position,
+                error.ValueStart,
+                error.ValueLength,
                 action,
                 imageId,
                 imageNumber,
@@ -189,7 +204,7 @@ internal static class KgpCommandParser
     private static void ScanControlData(
         ReadOnlySpan<char> controlData,
         Span<ControlSlot> slots,
-        ref ParseError firstError,
+        ref ErrorCandidates errors,
         ref bool hasActionControl)
     {
         var pairStart = 0;
@@ -209,7 +224,7 @@ internal static class KgpCommandParser
                 pairLength,
                 pairIndex,
                 slots,
-                ref firstError,
+                ref errors,
                 ref hasActionControl);
 
             if (commaIndex < 0)
@@ -226,13 +241,13 @@ internal static class KgpCommandParser
         int pairLength,
         int pairIndex,
         Span<ControlSlot> slots,
-        ref ParseError firstError,
+        ref ErrorCandidates errors,
         ref bool hasActionControl)
     {
         if (pairLength == 0)
         {
             RecordFirstError(
-                ref firstError,
+                ref errors.Grammar,
                 ErrorCode.EmptyControlPair,
                 key: default,
                 pairIndex,
@@ -246,7 +261,7 @@ internal static class KgpCommandParser
         if (equalsIndex != 1 || pair[(equalsIndex + 1)..].IndexOf('=') >= 0)
         {
             RecordFirstError(
-                ref firstError,
+                ref errors.Grammar,
                 ErrorCode.MalformedControlPair,
                 key: default,
                 pairIndex,
@@ -259,7 +274,7 @@ internal static class KgpCommandParser
         if (!IsAsciiLetter(key))
         {
             RecordFirstError(
-                ref firstError,
+                ref errors.Grammar,
                 ErrorCode.InvalidControlKey,
                 key,
                 pairIndex,
@@ -276,7 +291,7 @@ internal static class KgpCommandParser
         if (valueLength == 0)
         {
             RecordFirstError(
-                ref firstError,
+                ref errors.Grammar,
                 ErrorCode.MissingValue,
                 key,
                 pairIndex,
@@ -289,7 +304,7 @@ internal static class KgpCommandParser
         if (value.IndexOf(';') >= 0)
         {
             RecordFirstError(
-                ref firstError,
+                ref errors.Grammar,
                 ErrorCode.InvalidDelimiter,
                 key,
                 pairIndex,
@@ -304,13 +319,26 @@ internal static class KgpCommandParser
 
         if (validation == ValidationResult.Invalid)
         {
-            RecordFirstError(
-                ref firstError,
-                errorCode,
-                key,
-                pairIndex,
-                valueStart,
-                valueLength);
+            if (key == 'a')
+            {
+                RecordFirstError(
+                    ref errors.Action,
+                    errorCode,
+                    key,
+                    pairIndex,
+                    valueStart,
+                    valueLength);
+            }
+            else
+            {
+                RecordFirstError(
+                    ref errors.Validation,
+                    errorCode,
+                    key,
+                    pairIndex,
+                    valueStart,
+                    valueLength);
+            }
             return;
         }
 
