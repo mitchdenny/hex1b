@@ -124,4 +124,7 @@ public sealed class KgpPlacement
             ZIndex,
             CellOffsetX,
             CellOffsetY);
+
+    internal KgpPlacement Clone()
+        => WithImageId(ImageId);
 }

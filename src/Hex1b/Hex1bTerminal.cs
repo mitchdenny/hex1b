@@ -6366,6 +6366,17 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         get { lock (_bufferLock) return _kgpPlacements.ToList(); }
     }
 
+    internal (
+        IReadOnlyList<KgpPlacement> Placements,
+        IReadOnlyDictionary<uint, KgpImageData> Images) CaptureKgpSnapshot()
+    {
+        lock (_bufferLock)
+        {
+            // KGP mutations already acquire locks in buffer -> store order.
+            return _kgpImageStore.CaptureSnapshot(_kgpPlacements);
+        }
+    }
+
     /// <summary>
     /// Processes a KGP (Kitty Graphics Protocol) command.
     /// </summary>
@@ -6427,9 +6438,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         KgpParsedCommand.QuietMode quiet,
         string base64Payload)
     {
+        var isContinuation = _kgpImageStore.IsChunkedTransferInProgress;
+        if (!isContinuation &&
+            command.IdentityKind == KgpParsedCommand.ImageIdentityKind.ExplicitId)
+        {
+            var start = _kgpImageStore.BeginExplicitTransmission(command.ImageId);
+            if (start.Relocation is { } relocation)
+                ApplyKgpImageRelocation(relocation);
+            if (start.RemovedAddressableImage)
+                _kgpPlacements.RemoveAll(p => p.ImageId == command.ImageId);
+        }
+
         var decodedData = DecodeKgpPayload(base64Payload);
 
-        if (command.MoreData || _kgpImageStore.IsChunkedTransferInProgress)
+        if (command.MoreData || isContinuation)
         {
             var completed = _kgpImageStore.ProcessChunkAndStore(command, decodedData);
             if (completed is null)
@@ -6496,23 +6518,26 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         KgpParsedCommand.QuietMode quiet)
     {
         if (stored.Relocation is { } relocation)
-        {
-            for (var i = 0; i < _kgpPlacements.Count; i++)
-            {
-                if (_kgpPlacements[i].ImageId == relocation.PreviousId)
-                {
-                    // Replace rather than mutate so existing snapshots keep
-                    // their original placement-to-image identity.
-                    _kgpPlacements[i] = _kgpPlacements[i].WithImageId(relocation.CurrentId);
-                }
-            }
-        }
+            ApplyKgpImageRelocation(relocation);
 
         if (stored.Replaced)
             _kgpPlacements.RemoveAll(p => p.ImageId == stored.Image.ImageId);
 
         SendKgpTransmissionResponse(transmission, stored.Image, "OK", quiet);
         return stored.Image;
+    }
+
+    private void ApplyKgpImageRelocation(KgpImageStore.ImageRelocation relocation)
+    {
+        for (var i = 0; i < _kgpPlacements.Count; i++)
+        {
+            if (_kgpPlacements[i].ImageId == relocation.PreviousId)
+            {
+                // Replace rather than mutate so existing snapshots keep
+                // their original placement-to-image identity.
+                _kgpPlacements[i] = _kgpPlacements[i].WithImageId(relocation.CurrentId);
+            }
+        }
     }
 
     private void SendKgpTransmissionResponse(

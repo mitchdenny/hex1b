@@ -18,6 +18,10 @@ public sealed class KgpImageStore
         bool Replaced,
         ImageRelocation? Relocation = null);
 
+    internal readonly record struct TransmissionStartResult(
+        bool RemovedAddressableImage,
+        ImageRelocation? Relocation);
+
     internal readonly record struct CompletedTransmission(
         KgpParsedCommand.TransmissionData Transmission,
         StoreResult Store);
@@ -115,6 +119,47 @@ public sealed class KgpImageStore
         }
     }
 
+    internal TransmissionStartResult BeginExplicitTransmission(uint imageId)
+    {
+        if (imageId == 0)
+            throw new ArgumentOutOfRangeException(nameof(imageId));
+
+        lock (_lock)
+        {
+            ImageRelocation? relocation = null;
+            if (_unaddressableImageIds.Contains(imageId))
+                relocation = RelocateUnaddressableImageUnsafe(imageId);
+
+            return new TransmissionStartResult(
+                RemoveImageUnsafe(imageId),
+                relocation);
+        }
+    }
+
+    internal (
+        IReadOnlyList<KgpPlacement> Placements,
+        IReadOnlyDictionary<uint, KgpImageData> Images) CaptureSnapshot(
+            IReadOnlyList<KgpPlacement> sourcePlacements)
+    {
+        lock (_lock)
+        {
+            var placements = new KgpPlacement[sourcePlacements.Count];
+            var images = new Dictionary<uint, KgpImageData>();
+            for (var i = 0; i < sourcePlacements.Count; i++)
+            {
+                var placement = sourcePlacements[i].Clone();
+                placements[i] = placement;
+                if (!images.ContainsKey(placement.ImageId) &&
+                    _imagesById.TryGetValue(placement.ImageId, out var image))
+                {
+                    images.Add(placement.ImageId, image);
+                }
+            }
+
+            return (placements, images);
+        }
+    }
+
     /// <summary>
     /// Gets an image by its ID.
     /// </summary>
@@ -160,14 +205,7 @@ public sealed class KgpImageStore
     {
         lock (_lock)
         {
-            if (!_imagesById.TryGetValue(imageId, out var image))
-                return false;
-
-            _totalSize -= image.Data.Length;
-            _imagesById.Remove(imageId);
-            _unaddressableImageIds.Remove(imageId);
-            RemoveFromNumberIndex(image);
-            return true;
+            return RemoveImageUnsafe(imageId);
         }
     }
 
@@ -183,10 +221,7 @@ public sealed class KgpImageStore
             if (image is null)
                 return false;
 
-            _totalSize -= image.Data.Length;
-            _imagesById.Remove(image.ImageId);
-            RemoveFromNumberIndex(image);
-            return true;
+            return RemoveImageUnsafe(image.ImageId);
         }
     }
 
@@ -349,6 +384,18 @@ public sealed class KgpImageStore
         }
 
         return new StoreResult(image, replaced);
+    }
+
+    private bool RemoveImageUnsafe(uint imageId)
+    {
+        if (!_imagesById.TryGetValue(imageId, out var image))
+            return false;
+
+        _totalSize -= image.Data.Length;
+        _imagesById.Remove(imageId);
+        _unaddressableImageIds.Remove(imageId);
+        RemoveFromNumberIndex(image);
+        return true;
     }
 
     private ImageRelocation RelocateUnaddressableImageUnsafe(uint previousId)

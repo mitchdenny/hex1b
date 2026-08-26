@@ -126,32 +126,76 @@ public class KgpTerminalTests
     }
 
     [TestMethod]
-    public void Transmit_InvalidReplacement_PreservesImagePlacementsAndCursor()
+    public void Transmit_InvalidExplicitReplacement_RemovesOldStateBeforeValidation()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 20, 10);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,I=42,q=2",
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA)));
+        var first = terminal.KgpImageStore.GetImageByNumber(42);
+        Assert.IsNotNull(first);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,I=42,q=2",
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xBB)));
+        var newest = terminal.KgpImageStore.GetImageByNumber(42);
+        Assert.IsNotNull(newest);
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3;4H"));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=p,I=42,p=5,c=2,r=1,C=1,q=2"));
+        using var originalSnapshot = terminal.CreateSnapshot();
+
+        var invalidReplacement = KgpTestHelper.BuildCommand(
+            $"a=t,f=32,s=2,v=2,i={newest.ImageId}",
+            new byte[] { 1, 2, 3, 4 });
+        SendKgp(terminal, invalidReplacement);
+
+        Assert.AreEqual(
+            $"\x1b_Gi={newest.ImageId};ENODATA:Insufficient image data: 4 < 16\x1b\\",
+            workload.ReadResponse());
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(newest.ImageId));
+        Assert.AreSame(first, terminal.KgpImageStore.GetImageByNumber(42));
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
+        Assert.IsEmpty(terminal.KgpPlacements);
+        using var snapshot = terminal.CreateSnapshot();
+        Assert.AreEqual(originalSnapshot.CursorX, snapshot.CursorX);
+        Assert.AreEqual(originalSnapshot.CursorY, snapshot.CursorY);
+    }
+
+    [TestMethod]
+    public void Transmit_ChunkedExplicitReplacement_RemovesOldStateOnFirstChunk()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = CreateTerminal(workload, 20, 10);
 
-        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(1, 1, 1, fillByte: 0xAA));
-        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3;4H"));
-        SendKgp(terminal, KgpTestHelper.BuildPutCommand(
-            1,
-            placementId: 5,
-            displayColumns: 2,
-            cursorMovement: 1));
-        var originalImage = terminal.KgpImageStore.GetImageById(1);
-        var originalPlacement = TestSeq.Single(terminal.KgpPlacements);
-        var originalSnapshot = terminal.CreateSnapshot();
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=1,i=1,p=3,c=1,r=1,C=1,q=2",
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA)));
+        SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, placementId: 4));
+        Assert.AreEqual(2, terminal.KgpPlacements.Count);
 
-        var invalidReplacement = KgpTestHelper.BuildCommand(
-            "a=t,f=32,s=2,v=2,i=1,q=2",
-            new byte[] { 1, 2, 3, 4 });
-        SendKgp(terminal, invalidReplacement);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=2,i=1,m=1,q=2",
+            new byte[] { 1, 2, 3, 4 }));
 
-        Assert.AreSame(originalImage, terminal.KgpImageStore.GetImageById(1));
-        Assert.AreSame(originalPlacement, TestSeq.Single(terminal.KgpPlacements));
-        var snapshot = terminal.CreateSnapshot();
-        Assert.AreEqual(originalSnapshot.CursorX, snapshot.CursorX);
-        Assert.AreEqual(originalSnapshot.CursorY, snapshot.CursorY);
+        Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(1));
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        Assert.IsEmpty(terminal.KgpPlacements);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "m=0,q=2",
+            new byte[] { 5, 6, 7, 8 }));
+
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        var replacement = terminal.KgpImageStore.GetImageById(1);
+        Assert.IsNotNull(replacement);
+        TestSeq.AreEqual(
+            new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 },
+            replacement.Data);
+        Assert.IsEmpty(terminal.KgpPlacements);
     }
 
     [TestMethod]
@@ -792,6 +836,9 @@ public class KgpTerminalTests
         using var snapshotBeforeCollision = terminal.CreateSnapshot();
         Assert.AreEqual(1u, anonymousPlacement.ImageId);
         Assert.AreEqual(0u, anonymousPlacement.PlacementId);
+        Assert.AreNotSame(
+            anonymousPlacement,
+            snapshotBeforeCollision.KgpPlacements[0]);
 
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3;1H"));
         SendKgp(terminal, KgpTestHelper.BuildCommand(
@@ -818,6 +865,99 @@ public class KgpTerminalTests
             "a=p,i=2,p=9,c=1,r=1,C=1,q=2"));
         Assert.AreEqual(2, terminal.KgpPlacements.Count);
         workload.AssertNoResponse();
+    }
+
+    [TestMethod]
+    public void Transmit_InvalidExplicitClaim_RelocatesAnonymousImageBeforeValidation()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 20, 10);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=1,p=0,c=1,r=1,C=1",
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA)));
+        Assert.AreEqual(1u, TestSeq.Single(terminal.KgpPlacements).ImageId);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=2,v=2,i=1,q=2",
+            new byte[] { 1, 2, 3, 4 }));
+
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(1));
+        Assert.AreEqual(0xAA, terminal.KgpImageStore.GetImageById(2)!.Data[0]);
+        Assert.IsNull(terminal.KgpImageStore.GetImageByClientId(2));
+        Assert.AreEqual(2u, TestSeq.Single(terminal.KgpPlacements).ImageId);
+        workload.AssertNoResponse();
+    }
+
+    [TestMethod]
+    public void Snapshot_KgpPlacementValuesRemainImmutableAfterScroll()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 10, 5);
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3;1H"));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=1,i=1,p=1,c=1,r=1,C=1,q=2",
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA)));
+        var liveBeforeScroll = TestSeq.Single(terminal.KgpPlacements);
+        using var snapshot = terminal.CreateSnapshot();
+        var snapshotPlacement = TestSeq.Single(snapshot.KgpPlacements);
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[5;1H\n"));
+
+        var liveAfterScroll = TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(1, liveAfterScroll.Row);
+        Assert.AreEqual(2, snapshotPlacement.Row);
+        Assert.AreNotSame(liveBeforeScroll, snapshotPlacement);
+        Assert.AreEqual(0xAA, snapshot.KgpImages[snapshotPlacement.ImageId].Data[0]);
+    }
+
+    [TestMethod]
+    public async Task Snapshot_ConcurrentKgpReplacement_KeepsPlacementAndImageGenerationPaired()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 20, 10);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=1,i=1,p=1,c=1,r=1,C=1,q=2",
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA)));
+
+        using var start = new ManualResetEventSlim();
+        var writer = Task.Run(() =>
+        {
+            start.Wait();
+            for (var i = 0; i < 300; i++)
+            {
+                var width = (uint)(i % 2 + 1);
+                var fill = width == 1 ? (byte)0xAA : (byte)0xBB;
+                SendKgp(terminal, KgpTestHelper.BuildCommand(
+                    $"a=T,f=32,s={width},v=1,i=1,p=1,c={width},r=1,C=1,q=2",
+                    KgpTestHelper.CreatePixelData(width, 1, fillByte: fill)));
+                Thread.Yield();
+            }
+        });
+
+        start.Set();
+        try
+        {
+            for (var i = 0; i < 300; i++)
+            {
+                using var snapshot = terminal.CreateSnapshot();
+                var placement = TestSeq.Single(snapshot.KgpPlacements);
+                Assert.IsTrue(snapshot.KgpImages.TryGetValue(placement.ImageId, out var image));
+                Assert.AreEqual(image.Width, placement.DisplayColumns);
+                Assert.AreEqual(
+                    image.Width == 1 ? 0xAA : 0xBB,
+                    image.Data[0]);
+
+                if (i % 16 == 0)
+                    await Task.Yield();
+            }
+        }
+        finally
+        {
+            await writer;
+        }
     }
 
     // =============================================
