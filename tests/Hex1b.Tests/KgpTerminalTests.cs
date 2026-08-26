@@ -2524,6 +2524,10 @@ public class KgpTerminalTests
             Assert.IsFalse(snapshot.InAlternateScreen);
             Assert.IsFalse(snapshot.ContainsText("9"));
             Assert.IsFalse(snapshot.ContainsText("Z"));
+            Assert.IsTrue(snapshot.CursorX >= 0 && snapshot.CursorX < snapshot.Width);
+            Assert.IsTrue(snapshot.CursorY >= 0 && snapshot.CursorY < snapshot.Height);
+            Assert.AreEqual(3, snapshot.CursorX);
+            Assert.AreEqual(1, snapshot.CursorY);
         }
         finally
         {
@@ -2574,6 +2578,10 @@ public class KgpTerminalTests
             Assert.AreEqual(
                 1,
                 snapshot.GetScreenText().Count(character => character == 'R'));
+            Assert.IsTrue(snapshot.CursorX >= 0 && snapshot.CursorX < snapshot.Width);
+            Assert.IsTrue(snapshot.CursorY >= 0 && snapshot.CursorY < snapshot.Height);
+            Assert.AreEqual(3, snapshot.CursorX);
+            Assert.AreEqual(1, snapshot.CursorY);
         }
         finally
         {

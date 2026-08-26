@@ -2607,8 +2607,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (_disposed)
                     break;
 
+                int cursorXBefore = _cursorX;
+                int cursorYBefore = _cursorY;
                 if (!ApplyToken(token, null))
+                {
+                    RestoreValidCursorAfterAbortedScroll(cursorXBefore, cursorYBefore);
                     break;
+                }
             }
         }
     }
@@ -2642,7 +2647,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
                 var impacts = new List<CellImpact>();
                 if (!ApplyToken(token, impacts))
+                {
+                    RestoreValidCursorAfterAbortedScroll(cursorXBefore, cursorYBefore);
                     break;
+                }
                 
                 result.Add(new AppliedToken(
                     token,
@@ -3415,6 +3423,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
             _pendingGraphemeCombine = false;
+
+            int cursorXBeforeDeferredWrap = _cursorX;
+            int cursorYBeforeDeferredWrap = _cursorY;
             
             // Deferred wrap: If a wrap was pending from a previous character, perform it now
             // This is standard VT100/xterm behavior - wrap only happens when the NEXT
@@ -3446,7 +3457,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (_cursorY >= _height)
             {
                 if (!ScrollUp(impacts))
+                {
+                    RestoreValidCursorAfterAbortedScroll(
+                        cursorXBeforeDeferredWrap,
+                        cursorYBeforeDeferredWrap);
                     return false;
+                }
                 _cursorY = _height - 1;
             }
             
@@ -3469,6 +3485,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Wide char at edge: if the character won't fit (needs 2+ cells but only 1 remains)
             if (graphemeWidth > 1 && _cursorX + graphemeWidth - 1 > effectiveRightMargin && !_pendingWrap)
             {
+                int cursorXBeforeWideWrap = _cursorX;
+                int cursorYBeforeWideWrap = _cursorY;
                 if (_wraparoundMode)
                 {
                     if (_declrmm)
@@ -3480,7 +3498,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         if (_cursorY >= _height)
                         {
                             if (!ScrollUp(impacts))
+                            {
+                                RestoreValidCursorAfterAbortedScroll(
+                                    cursorXBeforeWideWrap,
+                                    cursorYBeforeWideWrap);
                                 return false;
+                            }
                             _cursorY = _height - 1;
                         }
                     }
@@ -3501,7 +3524,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         if (_cursorY >= _height)
                         {
                             if (!ScrollUp(impacts))
+                            {
+                                RestoreValidCursorAfterAbortedScroll(
+                                    cursorXBeforeWideWrap,
+                                    cursorYBeforeWideWrap);
                                 return false;
+                            }
                             _cursorY = _height - 1;
                         }
                     }
@@ -3600,6 +3628,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         return true;
+    }
+
+    private void RestoreValidCursorAfterAbortedScroll(int fallbackX, int fallbackY)
+    {
+        if (_cursorX >= 0 && _cursorX < _width &&
+            _cursorY >= 0 && _cursorY < _height)
+        {
+            return;
+        }
+
+        _cursorX = Math.Clamp(fallbackX, 0, _width - 1);
+        _cursorY = Math.Clamp(fallbackY, 0, _height - 1);
     }
 
     /// <summary>
@@ -5359,6 +5399,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (_disposed)
                 return false;
 
+            int cursorXBeforeDeferredWrap = _cursorX;
+            int cursorYBeforeDeferredWrap = _cursorY;
+
             // Handle deferred wrap
             if (_pendingWrap)
             {
@@ -5378,7 +5421,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (_cursorY >= _height)
             {
                 if (!ScrollUp(impacts))
+                {
+                    RestoreValidCursorAfterAbortedScroll(
+                        cursorXBeforeDeferredWrap,
+                        cursorYBeforeDeferredWrap);
                     return false;
+                }
                 _cursorY = _height - 1;
             }
             
