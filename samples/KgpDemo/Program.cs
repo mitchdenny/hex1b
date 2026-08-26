@@ -162,7 +162,6 @@ void OpenXtermSafeImageWindow(
         .Title($"xterm.js Safe - {name}")
         .Size(46, 22)
         .Resizable()
-        .Modal()
         .Position(WindowPositionSpec.Center);
 
     e.Windows.Open(window);
