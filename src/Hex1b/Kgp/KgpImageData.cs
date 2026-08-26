@@ -53,6 +53,25 @@ public sealed class KgpImageData
     /// <param name="height">Image height in pixels.</param>
     /// <param name="format">The pixel format of the stored data.</param>
     public KgpImageData(uint imageId, uint imageNumber, byte[] data, uint width, uint height, KgpFormat format)
+        : this(
+            imageId,
+            imageNumber,
+            data,
+            width,
+            height,
+            format,
+            SHA256.HashData(data))
+    {
+    }
+
+    private KgpImageData(
+        uint imageId,
+        uint imageNumber,
+        byte[] data,
+        uint width,
+        uint height,
+        KgpFormat format,
+        byte[] contentHash)
     {
         ImageId = imageId;
         ImageNumber = imageNumber;
@@ -60,7 +79,7 @@ public sealed class KgpImageData
         Width = width;
         Height = height;
         Format = format;
-        ContentHash = SHA256.HashData(data);
+        ContentHash = contentHash;
     }
 
     /// <summary>
@@ -80,4 +99,14 @@ public sealed class KgpImageData
     /// Whether pixels are 4-byte aligned (RGBA or PNG).
     /// </summary>
     public bool Is4ByteAligned => Format != KgpFormat.Rgb24;
+
+    internal KgpImageData WithImageId(uint imageId)
+        => new(
+            imageId,
+            ImageNumber,
+            Data,
+            Width,
+            Height,
+            Format,
+            ContentHash);
 }

@@ -9,16 +9,36 @@ namespace Hex1b;
 /// </remarks>
 public sealed class KgpImageStore
 {
+    internal readonly record struct ImageRelocation(
+        uint PreviousId,
+        uint CurrentId);
+
+    internal readonly record struct StoreResult(
+        KgpImageData Image,
+        bool Replaced,
+        ImageRelocation? Relocation = null);
+
+    internal readonly record struct TransmissionStartResult(
+        bool RemovedAddressableImage,
+        ImageRelocation? Relocation);
+
+    internal readonly record struct CompletedTransmission(
+        KgpParsedCommand.TransmissionData Transmission,
+        StoreResult Store);
+
+    private readonly record struct AssembledTransmission(
+        KgpParsedCommand.TransmissionData Transmission,
+        byte[] Data);
+
     private readonly object _lock = new();
     private readonly Dictionary<uint, KgpImageData> _imagesById = new();
     private readonly Dictionary<uint, List<uint>> _imagesByNumber = new();
+    private readonly HashSet<uint> _unaddressableImageIds = new();
     private uint _nextId = 1;
     private long _totalSize;
     private readonly long _quotaBytes;
 
     // Chunked transfer state
-    private uint _chunkedImageId;
-    private uint _chunkedImageNumber;
     private KgpParsedCommand.TransmissionData? _chunkedCommand;
     private readonly List<byte> _chunkedData = new();
 
@@ -27,8 +47,14 @@ public sealed class KgpImageStore
     /// </summary>
     /// <param name="quotaBytes">Maximum total image data size in bytes. Default: 320MB (matching kitty).</param>
     public KgpImageStore(long quotaBytes = 320 * 1024 * 1024)
+        : this(quotaBytes, 1)
+    {
+    }
+
+    internal KgpImageStore(long quotaBytes, uint nextId)
     {
         _quotaBytes = quotaBytes;
+        _nextId = nextId == 0 ? 1 : nextId;
     }
 
     /// <summary>
@@ -56,13 +82,18 @@ public sealed class KgpImageStore
     }
 
     /// <summary>
-    /// Allocates a unique image ID.
+    /// Allocates a currently unused, non-zero image ID.
     /// </summary>
+    /// <remarks>
+    /// Allocation skips live image IDs and wraps from <see cref="uint.MaxValue"/> to 1.
+    /// Terminal transmission paths allocate and store under one lock so the selected ID
+    /// cannot be claimed between those operations.
+    /// </remarks>
     public uint AllocateId()
     {
         lock (_lock)
         {
-            return _nextId++;
+            return AllocateIdUnsafe();
         }
     }
 
@@ -74,33 +105,58 @@ public sealed class KgpImageStore
     {
         lock (_lock)
         {
-            // Remove existing image with same ID
-            if (_imagesById.TryGetValue(image.ImageId, out var existing))
-            {
-                _totalSize -= existing.Data.Length;
-                RemoveFromNumberIndex(existing);
-            }
+            return StoreImageUnsafe(image).Image;
+        }
+    }
 
-            // Evict old images if necessary
-            while (_totalSize + image.Data.Length > _quotaBytes && _imagesById.Count > 0)
-            {
-                EvictOldest();
-            }
+    internal StoreResult StoreImage(
+        KgpParsedCommand.TransmissionData transmission,
+        byte[] data)
+    {
+        lock (_lock)
+        {
+            return StoreTransmissionUnsafe(transmission, data);
+        }
+    }
 
-            _totalSize += image.Data.Length;
-            _imagesById[image.ImageId] = image;
+    internal TransmissionStartResult BeginExplicitTransmission(uint imageId)
+    {
+        if (imageId == 0)
+            throw new ArgumentOutOfRangeException(nameof(imageId));
 
-            if (image.ImageNumber > 0)
+        lock (_lock)
+        {
+            ImageRelocation? relocation = null;
+            if (_unaddressableImageIds.Contains(imageId))
+                relocation = RelocateUnaddressableImageUnsafe(imageId);
+
+            return new TransmissionStartResult(
+                RemoveImageUnsafe(imageId),
+                relocation);
+        }
+    }
+
+    internal (
+        IReadOnlyList<KgpPlacement> Placements,
+        IReadOnlyDictionary<uint, KgpImageData> Images) CaptureSnapshot(
+            IReadOnlyList<KgpPlacement> sourcePlacements)
+    {
+        lock (_lock)
+        {
+            var placements = new KgpPlacement[sourcePlacements.Count];
+            var images = new Dictionary<uint, KgpImageData>();
+            for (var i = 0; i < sourcePlacements.Count; i++)
             {
-                if (!_imagesByNumber.TryGetValue(image.ImageNumber, out var list))
+                var placement = sourcePlacements[i].Clone();
+                placements[i] = placement;
+                if (!images.ContainsKey(placement.ImageId) &&
+                    _imagesById.TryGetValue(placement.ImageId, out var image))
                 {
-                    list = new List<uint>();
-                    _imagesByNumber[image.ImageNumber] = list;
+                    images.Add(placement.ImageId, image);
                 }
-                list.Add(image.ImageId);
             }
 
-            return image;
+            return (placements, images);
         }
     }
 
@@ -112,6 +168,68 @@ public sealed class KgpImageStore
         lock (_lock)
         {
             return _imagesById.TryGetValue(imageId, out var image) ? image : null;
+        }
+    }
+
+    internal KgpImageData? GetImageByClientId(uint imageId)
+    {
+        lock (_lock)
+        {
+            if (_unaddressableImageIds.Contains(imageId))
+                return null;
+
+            return _imagesById.TryGetValue(imageId, out var image) ? image : null;
+        }
+    }
+
+    internal bool SelectAddressableImage(uint imageId, bool removeData)
+    {
+        lock (_lock)
+        {
+            if (_unaddressableImageIds.Contains(imageId) ||
+                !_imagesById.ContainsKey(imageId))
+            {
+                return false;
+            }
+
+            if (removeData)
+                RemoveImageUnsafe(imageId);
+            return true;
+        }
+    }
+
+    internal HashSet<uint> SelectAddressableImagesInRange(
+        uint firstImageId,
+        uint lastImageId,
+        bool removeData)
+    {
+        lock (_lock)
+        {
+            var selected = new HashSet<uint>();
+            if (firstImageId == 0 ||
+                lastImageId == 0 ||
+                firstImageId > lastImageId)
+            {
+                return selected;
+            }
+
+            foreach (var imageId in _imagesById.Keys)
+            {
+                if (imageId >= firstImageId &&
+                    imageId <= lastImageId &&
+                    !_unaddressableImageIds.Contains(imageId))
+                {
+                    selected.Add(imageId);
+                }
+            }
+
+            if (removeData)
+            {
+                foreach (var imageId in selected)
+                    RemoveImageUnsafe(imageId);
+            }
+
+            return selected;
         }
     }
 
@@ -138,13 +256,7 @@ public sealed class KgpImageStore
     {
         lock (_lock)
         {
-            if (!_imagesById.TryGetValue(imageId, out var image))
-                return false;
-
-            _totalSize -= image.Data.Length;
-            _imagesById.Remove(imageId);
-            RemoveFromNumberIndex(image);
-            return true;
+            return RemoveImageUnsafe(imageId);
         }
     }
 
@@ -160,10 +272,7 @@ public sealed class KgpImageStore
             if (image is null)
                 return false;
 
-            _totalSize -= image.Data.Length;
-            _imagesById.Remove(image.ImageId);
-            RemoveFromNumberIndex(image);
-            return true;
+            return RemoveImageUnsafe(image.ImageId);
         }
     }
 
@@ -176,6 +285,7 @@ public sealed class KgpImageStore
         {
             _imagesById.Clear();
             _imagesByNumber.Clear();
+            _unaddressableImageIds.Clear();
             _totalSize = 0;
             AbortChunkedTransferUnsafe();
         }
@@ -191,43 +301,37 @@ public sealed class KgpImageStore
     /// or null if more chunks are expected.
     /// </returns>
     public KgpImageData? ProcessChunk(KgpCommand command, byte[] decodedData)
-        => ProcessChunk(command.ToTransmissionData(), decodedData);
+    {
+        lock (_lock)
+        {
+            var assembled = ProcessChunkUnsafe(command.ToTransmissionData(), decodedData);
+            if (assembled is null)
+                return null;
 
-    internal KgpImageData? ProcessChunk(
+            var transmission = assembled.Value.Transmission;
+            var imageId = transmission.ImageId > 0
+                ? transmission.ImageId
+                : AllocateIdUnsafe();
+            return CreateImage(imageId, transmission, assembled.Value.Data);
+        }
+    }
+
+    internal CompletedTransmission? ProcessChunkAndStore(
         KgpParsedCommand.TransmissionData transmission,
         byte[] decodedData)
     {
         lock (_lock)
         {
-            if (_chunkedCommand is null)
-            {
-                // First chunk — save the command metadata
-                _chunkedCommand = transmission;
-                _chunkedImageId = transmission.ImageId;
-                _chunkedImageNumber = transmission.ImageNumber;
-            }
+            var assembled = ProcessChunkUnsafe(transmission, decodedData);
+            if (assembled is null)
+                return null;
 
-            _chunkedData.AddRange(decodedData);
-
-            if (!transmission.MoreData)
-            {
-                // Final chunk — assemble the complete image
-                var completeData = _chunkedData.ToArray();
-                var imageId = _chunkedImageId > 0 ? _chunkedImageId : AllocateIdUnsafe();
-                var chunkedCommand = _chunkedCommand.Value;
-                var image = new KgpImageData(
-                    imageId,
-                    _chunkedImageNumber,
-                    completeData,
-                    chunkedCommand.Width,
-                    chunkedCommand.Height,
-                    chunkedCommand.Format);
-
-                AbortChunkedTransferUnsafe();
-                return image;
-            }
-
-            return null;
+            var store = StoreTransmissionUnsafe(
+                assembled.Value.Transmission,
+                assembled.Value.Data);
+            return new CompletedTransmission(
+                assembled.Value.Transmission,
+                store);
         }
     }
 
@@ -245,14 +349,146 @@ public sealed class KgpImageStore
     private void AbortChunkedTransferUnsafe()
     {
         _chunkedCommand = null;
-        _chunkedImageId = 0;
-        _chunkedImageNumber = 0;
         _chunkedData.Clear();
+    }
+
+    private AssembledTransmission? ProcessChunkUnsafe(
+        KgpParsedCommand.TransmissionData transmission,
+        byte[] decodedData)
+    {
+        if (_chunkedCommand is null)
+        {
+            _chunkedCommand = transmission;
+        }
+
+        _chunkedData.AddRange(decodedData);
+
+        if (transmission.MoreData)
+            return null;
+
+        var completeData = _chunkedData.ToArray();
+        var firstTransmission = _chunkedCommand.Value;
+        AbortChunkedTransferUnsafe();
+        return new AssembledTransmission(firstTransmission, completeData);
+    }
+
+    private StoreResult StoreTransmissionUnsafe(
+        KgpParsedCommand.TransmissionData transmission,
+        byte[] data)
+    {
+        if (transmission.ImageId > 0 && transmission.ImageNumber > 0)
+        {
+            throw new InvalidOperationException(
+                "A KGP transmission cannot specify both an image ID and image number.");
+        }
+
+        var imageId = transmission.ImageId > 0
+            ? transmission.ImageId
+            : AllocateIdUnsafe();
+        ImageRelocation? relocation = null;
+        if (transmission.IdentityKind == KgpParsedCommand.ImageIdentityKind.ExplicitId &&
+            _unaddressableImageIds.Contains(imageId))
+        {
+            // Anonymous images have private storage IDs, not client IDs. Move a
+            // private image aside when a client explicitly claims that number.
+            relocation = RelocateUnaddressableImageUnsafe(imageId);
+        }
+
+        var image = CreateImage(imageId, transmission, data);
+        var stored = StoreImageUnsafe(
+            image,
+            transmission.IdentityKind != KgpParsedCommand.ImageIdentityKind.Anonymous);
+        return stored with { Relocation = relocation };
+    }
+
+    private StoreResult StoreImageUnsafe(
+        KgpImageData image,
+        bool addressable = true)
+    {
+        var replaced = _imagesById.TryGetValue(image.ImageId, out var existing);
+        if (existing is not null)
+        {
+            _totalSize -= existing.Data.Length;
+            RemoveFromNumberIndex(existing);
+        }
+
+        while (_totalSize + image.Data.Length > _quotaBytes && _imagesById.Count > 0)
+        {
+            EvictOldest();
+        }
+
+        _totalSize += image.Data.Length;
+        _imagesById[image.ImageId] = image;
+        if (addressable)
+            _unaddressableImageIds.Remove(image.ImageId);
+        else
+            _unaddressableImageIds.Add(image.ImageId);
+
+        if (image.ImageNumber > 0)
+        {
+            if (!_imagesByNumber.TryGetValue(image.ImageNumber, out var list))
+            {
+                list = new List<uint>();
+                _imagesByNumber[image.ImageNumber] = list;
+            }
+            list.Add(image.ImageId);
+        }
+
+        return new StoreResult(image, replaced);
+    }
+
+    private bool RemoveImageUnsafe(uint imageId)
+    {
+        if (!_imagesById.TryGetValue(imageId, out var image))
+            return false;
+
+        _totalSize -= image.Data.Length;
+        _imagesById.Remove(imageId);
+        _unaddressableImageIds.Remove(imageId);
+        RemoveFromNumberIndex(image);
+        return true;
+    }
+
+    private ImageRelocation RelocateUnaddressableImageUnsafe(uint previousId)
+    {
+        var image = _imagesById[previousId];
+        var currentId = AllocateIdUnsafe();
+        var relocatedImage = image.WithImageId(currentId);
+
+        _imagesById.Remove(previousId);
+        _unaddressableImageIds.Remove(previousId);
+        _imagesById[currentId] = relocatedImage;
+        _unaddressableImageIds.Add(currentId);
+
+        return new ImageRelocation(previousId, currentId);
     }
 
     private uint AllocateIdUnsafe()
     {
-        return _nextId++;
+        var attemptsRemaining = (long)_imagesById.Count + 1;
+        while (attemptsRemaining-- > 0)
+        {
+            var candidate = _nextId;
+            _nextId = candidate == uint.MaxValue ? 1 : candidate + 1;
+            if (!_imagesById.ContainsKey(candidate))
+                return candidate;
+        }
+
+        throw new InvalidOperationException("No KGP image IDs are available.");
+    }
+
+    private static KgpImageData CreateImage(
+        uint imageId,
+        KgpParsedCommand.TransmissionData transmission,
+        byte[] data)
+    {
+        return new KgpImageData(
+            imageId,
+            transmission.ImageNumber,
+            data,
+            transmission.Width,
+            transmission.Height,
+            transmission.Format);
     }
 
     private KgpImageData? GetImageByNumberUnsafe(uint imageNumber)

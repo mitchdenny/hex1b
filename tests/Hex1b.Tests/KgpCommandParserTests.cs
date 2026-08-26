@@ -43,7 +43,7 @@ public class KgpCommandParserTests
     public void Parse_TransmissionKeys_ReturnsTypedTransmission()
     {
         var parsed = ParseTyped<KgpParsedCommand.Transmit>(
-            "a=t,q=1,f=24,t=s,s=10,v=20,S=30,O=40,i=50,I=60,p=70,o=z,m=1,N=3");
+            "a=t,q=1,f=24,t=s,s=10,v=20,S=30,O=40,i=50,p=70,o=z,m=1,N=3");
 
         Assert.AreEqual(KgpParsedCommand.QuietMode.SuppressSuccess, parsed.Quiet);
         Assert.AreEqual(KgpFormat.Rgb24, parsed.Transmission.Format);
@@ -53,16 +53,25 @@ public class KgpCommandParserTests
         Assert.AreEqual(30u, parsed.Transmission.FileSize);
         Assert.AreEqual(40u, parsed.Transmission.FileOffset);
         Assert.AreEqual(50u, parsed.Transmission.ImageId);
-        Assert.AreEqual(60u, parsed.Transmission.ImageNumber);
+        Assert.AreEqual(0u, parsed.Transmission.ImageNumber);
+        Assert.AreEqual(
+            KgpParsedCommand.ImageIdentityKind.ExplicitId,
+            parsed.Transmission.IdentityKind);
         Assert.AreEqual(70u, parsed.Transmission.PlacementId);
         Assert.AreEqual(KgpParsedCommand.CompressionMode.Zlib, parsed.Transmission.Compression);
         Assert.IsTrue(parsed.Transmission.MoreData);
         Assert.AreEqual(3u, parsed.Transmission.UsageHints);
 
         var compatibility = KgpCommand.Parse(
-            "a=t,q=1,f=24,t=s,s=10,v=20,S=30,O=40,i=50,I=60,p=70,o=z,m=1,N=3");
+            "a=t,q=1,f=24,t=s,s=10,v=20,S=30,O=40,i=50,p=70,o=z,m=1,N=3");
         Assert.AreEqual(3u, compatibility.UsageHints);
         Assert.AreEqual('z', compatibility.Compression);
+
+        var numbered = ParseTyped<KgpParsedCommand.Transmit>("a=t,I=60");
+        Assert.AreEqual(60u, numbered.Transmission.ImageNumber);
+        Assert.AreEqual(
+            KgpParsedCommand.ImageIdentityKind.Number,
+            numbered.Transmission.IdentityKind);
     }
 
     [TestMethod]
@@ -83,14 +92,14 @@ public class KgpCommandParserTests
     public void Parse_TransmitAndDisplayKeys_ReturnsSeparateTypedComponents()
     {
         var parsed = ParseTyped<KgpParsedCommand.TransmitAndDisplay>(
-            "a=T,f=24,t=d,s=100,v=200,S=300,O=400,i=42,I=43,p=7,o=z,m=1,N=1," +
+            "a=T,f=24,t=d,s=100,v=200,S=300,O=400,i=42,p=7,o=z,m=1,N=1," +
             "x=10,y=20,w=30,h=40,X=3,Y=5,c=6,r=8,C=1,U=1,z=-9,P=11,Q=12,H=-13,V=14");
 
         Assert.AreEqual(100u, parsed.Transmission.Width);
         Assert.AreEqual(200u, parsed.Transmission.Height);
         Assert.AreEqual(1u, parsed.Transmission.UsageHints);
         Assert.AreEqual(42u, parsed.Display.ImageId);
-        Assert.AreEqual(43u, parsed.Display.ImageNumber);
+        Assert.AreEqual(0u, parsed.Display.ImageNumber);
         Assert.AreEqual(7u, parsed.Display.PlacementId);
         Assert.AreEqual(10u, parsed.Display.SourceX);
         Assert.AreEqual(20u, parsed.Display.SourceY);
@@ -107,17 +116,21 @@ public class KgpCommandParserTests
         Assert.AreEqual(12u, parsed.Display.ParentPlacementId);
         Assert.AreEqual(-13, parsed.Display.ParentOffsetHorizontal);
         Assert.AreEqual(14, parsed.Display.ParentOffsetVertical);
+
+        var numbered = ParseTyped<KgpParsedCommand.TransmitAndDisplay>("a=T,I=43");
+        Assert.AreEqual(43u, numbered.Transmission.ImageNumber);
+        Assert.AreEqual(43u, numbered.Display.ImageNumber);
     }
 
     [TestMethod]
     public void Parse_PutKeys_ReturnsTypedDisplay()
     {
         var parsed = ParseTyped<KgpParsedCommand.Put>(
-            "a=p,i=1,I=2,p=3,x=4,y=5,w=6,h=7,X=8,Y=9,c=10,r=11,C=2,U=3," +
+            "a=p,i=1,p=3,x=4,y=5,w=6,h=7,X=8,Y=9,c=10,r=11,C=2,U=3," +
             "z=-12,P=13,Q=14,H=-15,V=16");
 
         Assert.AreEqual(1u, parsed.Display.ImageId);
-        Assert.AreEqual(2u, parsed.Display.ImageNumber);
+        Assert.AreEqual(0u, parsed.Display.ImageNumber);
         Assert.AreEqual(3u, parsed.Display.PlacementId);
         Assert.AreEqual(4u, parsed.Display.SourceX);
         Assert.AreEqual(5u, parsed.Display.SourceY);
@@ -134,6 +147,9 @@ public class KgpCommandParserTests
         Assert.AreEqual(14u, parsed.Display.ParentPlacementId);
         Assert.AreEqual(-15, parsed.Display.ParentOffsetHorizontal);
         Assert.AreEqual(16, parsed.Display.ParentOffsetVertical);
+
+        var numbered = ParseTyped<KgpParsedCommand.Put>("a=p,I=2");
+        Assert.AreEqual(2u, numbered.Display.ImageNumber);
     }
 
     [TestMethod]
@@ -211,18 +227,24 @@ public class KgpCommandParserTests
     }
 
     [TestMethod]
-    public void Parse_DeleteFrame_UsesRAsFrameNumberAndPreservesCompatibility()
+    public void Parse_DeleteFrame_UsesRAsFrameNumberAndSingleIdentity()
     {
-        var parsed = ParseTyped<KgpParsedCommand.Delete>("a=d,d=F,i=3,I=4,r=5");
+        var parsed = ParseTyped<KgpParsedCommand.Delete>("a=d,d=F,i=3,r=5");
         var selector = TestSeq.IsType<KgpParsedCommand.DeleteSelector.AnimationFrames>(
             parsed.Selector);
 
         Assert.IsTrue(selector.FreeData);
         Assert.AreEqual(3u, selector.ImageId);
-        Assert.AreEqual(4u, selector.ImageNumber);
+        Assert.AreEqual(0u, selector.ImageNumber);
         Assert.AreEqual(5u, selector.FrameNumber);
 
-        var compatibility = KgpCommand.Parse("a=d,d=F,i=3,I=4,r=5");
+        var byNumber = ParseTyped<KgpParsedCommand.Delete>("a=d,d=F,I=4,r=5");
+        var numberedSelector = TestSeq.IsType<KgpParsedCommand.DeleteSelector.AnimationFrames>(
+            byNumber.Selector);
+        Assert.AreEqual(0u, numberedSelector.ImageId);
+        Assert.AreEqual(4u, numberedSelector.ImageNumber);
+
+        var compatibility = KgpCommand.Parse("a=d,d=F,i=3,r=5");
         Assert.AreEqual(5u, compatibility.DisplayRows);
     }
 
@@ -248,7 +270,7 @@ public class KgpCommandParserTests
     public void Parse_AnimationFrameKeys_ReturnsActionSpecificMeanings()
     {
         var parsed = ParseTyped<KgpParsedCommand.AnimationFrame>(
-            "a=f,f=32,t=d,s=100,v=200,S=300,O=400,i=5,I=6,p=7,o=z,m=1,N=1," +
+            "a=f,f=32,t=d,s=100,v=200,S=300,O=400,i=5,p=7,o=z,m=1,N=1," +
             "x=8,y=9,c=10,r=11,z=-12,X=1,Y=4278190335");
 
         Assert.AreEqual(100u, parsed.Transmission.Width);
@@ -261,6 +283,9 @@ public class KgpCommandParserTests
         Assert.AreEqual(-12, parsed.Frame.Gap);
         Assert.AreEqual(KgpParsedCommand.CompositionMode.Overwrite, parsed.Frame.Composition);
         Assert.AreEqual(4278190335u, parsed.Frame.BackgroundColor);
+
+        var numbered = ParseTyped<KgpParsedCommand.AnimationFrame>("a=f,I=6");
+        Assert.AreEqual(6u, numbered.Transmission.ImageNumber);
 
         var compatibility = KgpCommand.Parse(
             "a=f,s=100,v=200,x=8,y=9,c=10,r=11,z=-12,X=1,Y=4278190335");
@@ -275,16 +300,19 @@ public class KgpCommandParserTests
     public void Parse_AnimationControlKeys_DoNotPopulateImageDimensions()
     {
         var parsed = ParseTyped<KgpParsedCommand.AnimationControl>(
-            "a=a,i=3,I=4,p=5,s=3,v=6,c=7,r=8,z=-9");
+            "a=a,i=3,p=5,s=3,v=6,c=7,r=8,z=-9");
 
         Assert.AreEqual(3u, parsed.Control.ImageId);
-        Assert.AreEqual(4u, parsed.Control.ImageNumber);
+        Assert.AreEqual(0u, parsed.Control.ImageNumber);
         Assert.AreEqual(5u, parsed.Control.PlacementId);
         Assert.AreEqual(KgpParsedCommand.AnimationPlaybackState.Running, parsed.Control.State);
         Assert.AreEqual(6u, parsed.Control.LoopCount);
         Assert.AreEqual(7u, parsed.Control.CurrentFrameNumber);
         Assert.AreEqual(8u, parsed.Control.AffectedFrameNumber);
         Assert.AreEqual(-9, parsed.Control.Gap);
+
+        var numbered = ParseTyped<KgpParsedCommand.AnimationControl>("a=a,I=4");
+        Assert.AreEqual(4u, numbered.Control.ImageNumber);
 
         var compatibility = KgpCommand.Parse("a=a,i=3,s=3,v=6,c=7,r=8,z=-9");
         Assert.AreEqual(3, compatibility.AnimationState);
@@ -309,10 +337,10 @@ public class KgpCommandParserTests
     public void Parse_CompositionKeys_ReturnsActionSpecificMeanings()
     {
         var parsed = ParseTyped<KgpParsedCommand.Compose>(
-            "a=c,i=1,I=2,p=3,c=4,r=5,x=6,y=7,w=8,h=9,X=10,Y=11,C=2");
+            "a=c,i=1,p=3,c=4,r=5,x=6,y=7,w=8,h=9,X=10,Y=11,C=2");
 
         Assert.AreEqual(1u, parsed.Composition.ImageId);
-        Assert.AreEqual(2u, parsed.Composition.ImageNumber);
+        Assert.AreEqual(0u, parsed.Composition.ImageNumber);
         Assert.AreEqual(3u, parsed.Composition.PlacementId);
         Assert.AreEqual(4u, parsed.Composition.DestinationFrameNumber);
         Assert.AreEqual(5u, parsed.Composition.SourceFrameNumber);
@@ -323,6 +351,9 @@ public class KgpCommandParserTests
         Assert.AreEqual(10u, parsed.Composition.SourceX);
         Assert.AreEqual(11u, parsed.Composition.SourceY);
         Assert.AreEqual(KgpParsedCommand.CompositionMode.Overwrite, parsed.Composition.Composition);
+
+        var numbered = ParseTyped<KgpParsedCommand.Compose>("a=c,I=2");
+        Assert.AreEqual(2u, numbered.Composition.ImageNumber);
     }
 
     [TestMethod]
@@ -435,6 +466,39 @@ public class KgpCommandParserTests
     }
 
     [TestMethod]
+    [DataRow("a=t,i=1,I=2")]
+    [DataRow("a=T,i=1,I=2")]
+    [DataRow("a=q,i=1,I=2")]
+    [DataRow("a=p,i=1,I=2")]
+    [DataRow("a=d,d=i,i=1,I=2")]
+    [DataRow("a=f,i=1,I=2")]
+    [DataRow("a=a,i=1,I=2")]
+    [DataRow("a=c,i=1,I=2")]
+    public void Parse_NonZeroImageIdAndNumber_RejectsEveryAction(string controlData)
+    {
+        var failure = ParseFailure(controlData);
+
+        Assert.AreEqual(
+            KgpCommandParser.ErrorCode.ConflictingImageIdentity,
+            failure.Code);
+        Assert.AreEqual('I', failure.Key);
+        Assert.AreEqual(1u, failure.ImageId);
+        Assert.AreEqual(2u, failure.ImageNumber);
+        Assert.AreEqual(
+            "Must not specify both image id and image number",
+            failure.FormatReason(controlData.AsSpan()));
+        Assert.ThrowsExactly<FormatException>(() => KgpCommand.Parse(controlData));
+    }
+
+    [TestMethod]
+    [DataRow("a=t,i=0,I=2")]
+    [DataRow("a=t,i=1,I=0")]
+    public void Parse_OnlyOneNonZeroImageIdentity_AcceptsCommand(string controlData)
+    {
+        ParseSuccess(controlData);
+    }
+
+    [TestMethod]
     public void TryParse_MixedErrors_UsesApprovedDiagnosticPrecedence()
     {
         const string grammarAndValidation = "f=99,broken";
@@ -532,6 +596,9 @@ public class KgpCommandParserTests
         var deleteThenInvalid = ParseFailure("a=d,a=x");
 
         Assert.AreEqual(KgpAction.Transmit, nonDelete.Action);
+        Assert.AreEqual(
+            KgpCommandParser.ErrorCode.InvalidImageFormat,
+            nonDelete.Code);
         Assert.AreEqual(7u, nonDelete.ImageId);
         Assert.AreEqual(8u, nonDelete.ImageNumber);
         Assert.AreEqual(9u, nonDelete.PlacementId);

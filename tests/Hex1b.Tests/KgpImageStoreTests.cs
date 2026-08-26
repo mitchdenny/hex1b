@@ -10,6 +10,20 @@ public class KgpImageStoreTests
         return new KgpImageData(id, number, data, width, height, KgpFormat.Rgba32);
     }
 
+    private static KgpParsedCommand.TransmissionData CreateTransmission(
+        uint imageId = 0,
+        uint imageNumber = 0)
+    {
+        return new KgpCommand
+        {
+            ImageId = imageId,
+            ImageNumber = imageNumber,
+            Width = 1,
+            Height = 1,
+            Format = KgpFormat.Rgba32,
+        }.ToTransmissionData();
+    }
+
     // --- Basic store/retrieve ---
 
     [TestMethod]
@@ -166,6 +180,166 @@ public class KgpImageStoreTests
         Assert.AreNotEqual(id1, id2);
         Assert.AreNotEqual(id2, id3);
         Assert.IsTrue(id1 > 0);
+    }
+
+    [TestMethod]
+    public void AllocateId_LiveExplicitIds_SkipsOccupiedIds()
+    {
+        var store = new KgpImageStore();
+        var explicitImage = CreateImage(1);
+        store.StoreImage(explicitImage);
+
+        var allocated = store.AllocateId();
+
+        Assert.AreEqual(2u, allocated);
+        Assert.AreSame(explicitImage, store.GetImageById(1));
+    }
+
+    [TestMethod]
+    public void AllocateId_AtUInt32Boundary_WrapsToOne()
+    {
+        var store = new KgpImageStore(long.MaxValue, uint.MaxValue);
+
+        var last = store.AllocateId();
+        var wrapped = store.AllocateId();
+
+        Assert.AreEqual(uint.MaxValue, last);
+        Assert.AreEqual(1u, wrapped);
+    }
+
+    [TestMethod]
+    public void StoreGeneratedImage_Wraparound_SkipsZeroAndLiveIds()
+    {
+        var store = new KgpImageStore(long.MaxValue, uint.MaxValue);
+        var maximum = CreateImage(uint.MaxValue);
+        var one = CreateImage(1);
+        store.StoreImage(maximum);
+        store.StoreImage(one);
+
+        var result = store.StoreImage(
+            CreateTransmission(),
+            KgpTestHelper.CreatePixelData(1, 1));
+
+        Assert.AreEqual(2u, result.Image.ImageId);
+        Assert.IsFalse(result.Replaced);
+        Assert.AreSame(maximum, store.GetImageById(uint.MaxValue));
+        Assert.AreSame(one, store.GetImageById(1));
+    }
+
+    [TestMethod]
+    public void StoreGeneratedImage_WithNumber_AlwaysCreatesNewNewestImage()
+    {
+        var store = new KgpImageStore();
+
+        var first = store.StoreImage(
+            CreateTransmission(imageNumber: 42),
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA));
+        var second = store.StoreImage(
+            CreateTransmission(imageNumber: 42),
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xBB));
+
+        Assert.AreNotEqual(first.Image.ImageId, second.Image.ImageId);
+        Assert.AreEqual(2, store.ImageCount);
+        Assert.AreSame(second.Image, store.GetImageByNumber(42));
+    }
+
+    [TestMethod]
+    public void StoreAnonymousImage_InternalIdIsNotClientAddressable()
+    {
+        var store = new KgpImageStore();
+
+        var anonymous = store.StoreImage(
+            CreateTransmission(),
+            KgpTestHelper.CreatePixelData(1, 1));
+
+        Assert.AreSame(
+            anonymous.Image,
+            store.GetImageById(anonymous.Image.ImageId));
+        Assert.IsNull(store.GetImageByClientId(anonymous.Image.ImageId));
+    }
+
+    [TestMethod]
+    public void StoreExplicitImage_CollidingWithAnonymousInternalId_RelocatesAnonymousImage()
+    {
+        var store = new KgpImageStore();
+        var anonymous = store.StoreImage(
+            CreateTransmission(),
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA));
+        var previousId = anonymous.Image.ImageId;
+
+        var explicitImage = store.StoreImage(
+            CreateTransmission(imageId: previousId),
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xBB));
+
+        Assert.IsFalse(explicitImage.Replaced);
+        Assert.IsNotNull(explicitImage.Relocation);
+        Assert.AreEqual(previousId, explicitImage.Relocation.Value.PreviousId);
+        Assert.AreEqual(2u, explicitImage.Relocation.Value.CurrentId);
+        Assert.AreEqual(previousId, anonymous.Image.ImageId);
+        Assert.AreEqual(2, store.ImageCount);
+        Assert.AreSame(explicitImage.Image, store.GetImageByClientId(previousId));
+        Assert.IsNull(store.GetImageByClientId(explicitImage.Relocation.Value.CurrentId));
+        Assert.AreEqual(
+            0xAA,
+            store.GetImageById(explicitImage.Relocation.Value.CurrentId)!.Data[0]);
+    }
+
+    [TestMethod]
+    public void BeginExplicitTransmission_AddressableImage_RemovesDataAndNumberIndex()
+    {
+        var store = new KgpImageStore();
+        var first = store.StoreImage(
+            CreateTransmission(imageNumber: 42),
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA));
+        var newest = store.StoreImage(
+            CreateTransmission(imageNumber: 42),
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xBB));
+
+        var start = store.BeginExplicitTransmission(newest.Image.ImageId);
+
+        Assert.IsTrue(start.RemovedAddressableImage);
+        Assert.IsNull(start.Relocation);
+        Assert.IsNull(store.GetImageById(newest.Image.ImageId));
+        Assert.AreSame(first.Image, store.GetImageByNumber(42));
+        Assert.AreEqual(1, store.ImageCount);
+    }
+
+    [TestMethod]
+    public void BeginExplicitTransmission_AnonymousStorageCollision_RelocatesWithoutRemoving()
+    {
+        var store = new KgpImageStore();
+        var anonymous = store.StoreImage(
+            CreateTransmission(),
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA));
+
+        var start = store.BeginExplicitTransmission(anonymous.Image.ImageId);
+
+        Assert.IsFalse(start.RemovedAddressableImage);
+        Assert.IsNotNull(start.Relocation);
+        Assert.AreEqual(1u, start.Relocation.Value.PreviousId);
+        Assert.AreEqual(2u, start.Relocation.Value.CurrentId);
+        Assert.AreEqual(1, store.ImageCount);
+        Assert.IsNull(store.GetImageById(1));
+        Assert.AreEqual(0xAA, store.GetImageById(2)!.Data[0]);
+        Assert.IsNull(store.GetImageByClientId(2));
+    }
+
+    [TestMethod]
+    public void StoreImage_ReplacingNewestNumberedImage_RemovesOldNumberIndexEntry()
+    {
+        var store = new KgpImageStore();
+        var first = store.StoreImage(
+            CreateTransmission(imageNumber: 42),
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA));
+        var second = store.StoreImage(
+            CreateTransmission(imageNumber: 42),
+            KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xBB));
+
+        var replacement = CreateImage(second.Image.ImageId, 1, 1, fill: 0xCC);
+        store.StoreImage(replacement);
+
+        Assert.AreSame(first.Image, store.GetImageByNumber(42));
+        Assert.AreSame(replacement, store.GetImageById(second.Image.ImageId));
     }
 
     // --- TotalSize tracking ---
@@ -386,5 +560,49 @@ public class KgpImageStoreTests
         }
 
         Task.WaitAll(tasks.ToArray());
+    }
+
+    [TestMethod]
+    public void ConcurrentExplicitAndGeneratedStores_PreserveLiveIdsAndUniqueAllocation()
+    {
+        const int explicitCount = 64;
+        const int generatedCount = 128;
+        var store = new KgpImageStore();
+        for (uint id = 1; id <= explicitCount; id++)
+            store.StoreImage(CreateImage(id, 1, 1, fill: 0x11));
+
+        var generatedIds = new uint[generatedCount];
+        var tasks = new List<Task>(explicitCount + generatedCount);
+
+        for (var i = 0; i < explicitCount; i++)
+        {
+            var id = (uint)(i + 1);
+            tasks.Add(Task.Run(() => store.StoreImage(CreateImage(id, 1, 1, fill: 0x22))));
+        }
+
+        for (var i = 0; i < generatedCount; i++)
+        {
+            var index = i;
+            tasks.Add(Task.Run(() =>
+            {
+                var result = store.StoreImage(
+                    CreateTransmission(imageNumber: (uint)(index + 1)),
+                    KgpTestHelper.CreatePixelData(1, 1, fillByte: 0x33));
+                generatedIds[index] = result.Image.ImageId;
+            }));
+        }
+
+        Task.WaitAll(tasks.ToArray());
+
+        Assert.AreEqual(generatedCount, generatedIds.Distinct().Count());
+        TestSeq.All(generatedIds, id => Assert.IsTrue(id > explicitCount));
+        for (uint id = 1; id <= explicitCount; id++)
+        {
+            var explicitImage = store.GetImageById(id);
+            Assert.IsNotNull(explicitImage);
+            Assert.AreEqual(0x22, explicitImage.Data[0]);
+        }
+        Assert.AreEqual(explicitCount + generatedCount, store.ImageCount);
+        Assert.AreEqual((explicitCount + generatedCount) * 4, store.TotalSize);
     }
 }

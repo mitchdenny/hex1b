@@ -108,4 +108,23 @@ public sealed class KgpPlacement
     /// Whether this placement intersects the given column.
     /// </summary>
     public bool IntersectsColumn(int column) => column >= Column && column < Column + (int)DisplayColumns;
+
+    internal KgpPlacement WithImageId(uint imageId)
+        => new(
+            imageId,
+            PlacementId,
+            Row,
+            Column,
+            DisplayColumns,
+            DisplayRows,
+            SourceX,
+            SourceY,
+            SourceWidth,
+            SourceHeight,
+            ZIndex,
+            CellOffsetX,
+            CellOffsetY);
+
+    internal KgpPlacement Clone()
+        => WithImageId(ImageId);
 }

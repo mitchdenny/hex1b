@@ -47,20 +47,9 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         CellPixelWidth = terminal.Capabilities.CellPixelWidth;
         CellPixelHeight = terminal.Capabilities.CellPixelHeight;
 
-        // Capture KGP placements and their image data
-        var placements = terminal.KgpPlacements;
-        KgpPlacements = placements;
-        var images = new Dictionary<uint, KgpImageData>();
-        foreach (var placement in placements)
-        {
-            if (!images.ContainsKey(placement.ImageId))
-            {
-                var imageData = terminal.KgpImageStore.GetImageById(placement.ImageId);
-                if (imageData is not null)
-                    images[placement.ImageId] = imageData;
-            }
-        }
-        KgpImages = images;
+        var kgp = terminal.CaptureKgpSnapshot();
+        KgpPlacements = kgp.Placements;
+        KgpImages = kgp.Images;
 
         // Get scrollback rows if requested
         ScrollbackRow[] scrollbackRows = [];
