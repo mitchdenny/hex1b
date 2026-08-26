@@ -1,3 +1,4 @@
+using System.Text;
 using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
@@ -12,7 +13,10 @@ public class KgpTerminalTests
         Supports256Colors = true,
     };
 
-    private static Hex1bTerminal CreateTerminal(Hex1bAppWorkloadAdapter workload, int width = 80, int height = 24)
+    private static Hex1bTerminal CreateTerminal(
+        IHex1bTerminalWorkloadAdapter workload,
+        int width = 80,
+        int height = 24)
     {
         return Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload)
@@ -254,6 +258,88 @@ public class KgpTerminalTests
         // the workload.WriteInputAsync to fully verify, but at minimum
         // this shouldn't crash)
         Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [TestMethod]
+    public void InvalidTransmitControl_EmitsEinvalWithRecoveredIdentity()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(terminal, "\x1b_Ga=t,i=7,I=8,p=9,q=1,f=99\x1b\\");
+
+        Assert.AreEqual(
+            "\x1b_Gi=7,I=8;EINVAL:Invalid image format '99'.\x1b\\",
+            workload.ReadResponse());
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        Assert.IsEmpty(terminal.KgpPlacements);
+    }
+
+    [TestMethod]
+    public void InvalidAction_EmitsEinval()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(terminal, "\x1b_Ga=Z,i=4\x1b\\");
+
+        Assert.AreEqual(
+            "\x1b_Gi=4;EINVAL:Invalid action value 'Z'.\x1b\\",
+            workload.ReadResponse());
+    }
+
+    [TestMethod]
+    public void InvalidNonDeleteControl_QuietTwoSuppressesEinval()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(terminal, "\x1b_Ga=t,i=7,q=2,f=99\x1b\\");
+
+        workload.AssertNoResponse();
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [TestMethod]
+    [DataRow("a=d,d=?")]
+    [DataRow("a=d,d=f,r=bad")]
+    [DataRow("d=p,x=1,y=4294967296,a=d")]
+    [DataRow("a=d,d=q,x=1,y=2,z=2147483648")]
+    public void InvalidDeleteControl_IsNoResponseSafeNoOp(string controlData)
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildTransmitCommand(
+                imageId: 1,
+                width: 1,
+                height: 1,
+                quiet: 2));
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
+
+        SendKgp(terminal, $"\x1b_G{controlData},i=1\x1b\\");
+
+        workload.AssertNoResponse();
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(1));
+    }
+
+    [TestMethod]
+    [DataRow("a=f,i=1,s=1,v=1")]
+    [DataRow("a=a,i=1,s=3,v=1")]
+    [DataRow("a=c,i=1,c=1,r=1")]
+    public void ValidUnimplementedAnimationAction_IsTypedNoOp(string controlData)
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(terminal, $"\x1b_G{controlData}\x1b\\");
+
+        workload.AssertNoResponse();
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        Assert.IsEmpty(terminal.KgpPlacements);
     }
 
     // =============================================
@@ -726,5 +812,73 @@ public class KgpTerminalTests
         // After scroll, placement row should decrease by 1 (scrolled up)
         // Note: This test documents the expected behavior - implementation
         // may need to handle placement scrolling in the scroll logic
+    }
+
+    private sealed class RecordingWorkloadAdapter : IHex1bTerminalWorkloadAdapter
+    {
+        private readonly Queue<byte[]> _responses = new();
+        private readonly object _lock = new();
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+            => ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+
+        public ValueTask WriteInputAsync(
+            ReadOnlyMemory<byte> data,
+            CancellationToken ct = default)
+        {
+            lock (_lock)
+            {
+                _responses.Enqueue(data.ToArray());
+            }
+
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask ResizeAsync(
+            int width,
+            int height,
+            CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask DisposeAsync()
+            => ValueTask.CompletedTask;
+
+        public string ReadResponse()
+        {
+            byte[]? response = null;
+            var received = SpinWait.SpinUntil(
+                () =>
+                {
+                    lock (_lock)
+                    {
+                        return _responses.TryDequeue(out response);
+                    }
+                },
+                TimeSpan.FromSeconds(1));
+
+            Assert.IsTrue(received, "Expected a KGP protocol response.");
+            return Encoding.UTF8.GetString(response!);
+        }
+
+        public void AssertNoResponse()
+        {
+            var received = SpinWait.SpinUntil(
+                () =>
+                {
+                    lock (_lock)
+                    {
+                        return _responses.Count > 0;
+                    }
+                },
+                TimeSpan.FromMilliseconds(100));
+
+            Assert.IsFalse(received, "Expected no KGP protocol response.");
+        }
     }
 }

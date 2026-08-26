@@ -19,7 +19,7 @@ public sealed class KgpImageStore
     // Chunked transfer state
     private uint _chunkedImageId;
     private uint _chunkedImageNumber;
-    private KgpCommand? _chunkedCommand;
+    private KgpParsedCommand.TransmissionData? _chunkedCommand;
     private readonly List<byte> _chunkedData = new();
 
     /// <summary>
@@ -191,31 +191,37 @@ public sealed class KgpImageStore
     /// or null if more chunks are expected.
     /// </returns>
     public KgpImageData? ProcessChunk(KgpCommand command, byte[] decodedData)
+        => ProcessChunk(command.ToTransmissionData(), decodedData);
+
+    internal KgpImageData? ProcessChunk(
+        KgpParsedCommand.TransmissionData transmission,
+        byte[] decodedData)
     {
         lock (_lock)
         {
             if (_chunkedCommand is null)
             {
                 // First chunk — save the command metadata
-                _chunkedCommand = command;
-                _chunkedImageId = command.ImageId;
-                _chunkedImageNumber = command.ImageNumber;
+                _chunkedCommand = transmission;
+                _chunkedImageId = transmission.ImageId;
+                _chunkedImageNumber = transmission.ImageNumber;
             }
 
             _chunkedData.AddRange(decodedData);
 
-            if (command.MoreData == 0)
+            if (!transmission.MoreData)
             {
                 // Final chunk — assemble the complete image
                 var completeData = _chunkedData.ToArray();
                 var imageId = _chunkedImageId > 0 ? _chunkedImageId : AllocateIdUnsafe();
+                var chunkedCommand = _chunkedCommand.Value;
                 var image = new KgpImageData(
                     imageId,
                     _chunkedImageNumber,
                     completeData,
-                    _chunkedCommand.Width,
-                    _chunkedCommand.Height,
-                    _chunkedCommand.Format);
+                    chunkedCommand.Width,
+                    chunkedCommand.Height,
+                    chunkedCommand.Format);
 
                 AbortChunkedTransferUnsafe();
                 return image;

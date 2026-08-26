@@ -157,6 +157,9 @@ public sealed class KgpCommand
     /// <summary>Whether more chunked data follows (m key). 0=last/only, 1=more.</summary>
     public int MoreData { get; init; }
 
+    /// <summary>Usage-hint bitmask supplied by the client (N key).</summary>
+    public uint UsageHints { get; init; }
+
     // --- Display keys ---
 
     /// <summary>Left edge of source rectangle in pixels (x key).</summary>
@@ -222,242 +225,229 @@ public sealed class KgpCommand
     /// </summary>
     /// <param name="controlData">Comma-separated key=value pairs (e.g., "a=T,f=24,s=10,v=20,i=1").</param>
     /// <returns>A parsed <see cref="KgpCommand"/> with defaults for unspecified keys.</returns>
+    /// <exception cref="FormatException">
+    /// <paramref name="controlData"/> contains malformed or invalid KGP control data.
+    /// </exception>
     public static KgpCommand Parse(string controlData)
     {
-        if (string.IsNullOrEmpty(controlData))
-            return new KgpCommand();
+        if (!KgpCommandParser.TryParse(controlData, out var command, out var failure))
+            throw new FormatException($"Invalid KGP control data: {failure!.Reason}");
 
-        var cmd = new KgpCommand();
-        var action = KgpAction.Transmit;
-        var format = KgpFormat.Rgba32;
-        var medium = KgpTransmissionMedium.Direct;
-        var deleteTarget = KgpDeleteTarget.All;
-        int quiet = 0;
-        uint width = 0, height = 0, fileSize = 0, fileOffset = 0;
-        uint imageId = 0, imageNumber = 0, placementId = 0;
-        char? compression = null;
-        int moreData = 0;
-        uint sourceX = 0, sourceY = 0, sourceWidth = 0, sourceHeight = 0;
-        uint cellOffsetX = 0, cellOffsetY = 0;
-        uint displayColumns = 0, displayRows = 0;
-        int cursorMovement = 0, unicodePlaceholder = 0, zIndex = 0;
-        uint parentImageId = 0, parentPlacementId = 0;
-        int parentOffsetH = 0, parentOffsetV = 0;
-        int animationState = 0;
-        uint loopCount = 0;
+        return FromParsed(command!);
+    }
 
-        foreach (var pair in controlData.Split(','))
+    internal KgpParsedCommand.TransmissionData ToTransmissionData()
+        => new(
+            Format,
+            Medium,
+            Width,
+            Height,
+            FileSize,
+            FileOffset,
+            ImageId,
+            ImageNumber,
+            PlacementId,
+            Compression == 'z'
+                ? KgpParsedCommand.CompressionMode.Zlib
+                : KgpParsedCommand.CompressionMode.None,
+            MoreData != 0,
+            UsageHints);
+
+    internal static KgpCommand FromParsed(KgpParsedCommand command)
+    {
+        return command switch
         {
-            var eqIndex = pair.IndexOf('=');
-            if (eqIndex < 1 || eqIndex >= pair.Length - 1)
-                continue;
+            KgpParsedCommand.Transmit transmit => CreateCompatibilityCommand(
+                KgpAction.Transmit,
+                transmit.Quiet,
+                transmission: transmit.Transmission),
+            KgpParsedCommand.TransmitAndDisplay transmitAndDisplay => CreateCompatibilityCommand(
+                KgpAction.TransmitAndDisplay,
+                transmitAndDisplay.Quiet,
+                transmission: transmitAndDisplay.Transmission,
+                display: transmitAndDisplay.Display),
+            KgpParsedCommand.Query query => CreateCompatibilityCommand(
+                KgpAction.Query,
+                query.Quiet,
+                transmission: query.Transmission),
+            KgpParsedCommand.Put put => CreateCompatibilityCommand(
+                KgpAction.Put,
+                put.Quiet,
+                display: put.Display),
+            KgpParsedCommand.Delete delete => CreateCompatibilityCommand(
+                KgpAction.Delete,
+                delete.Quiet,
+                delete: delete.Selector),
+            KgpParsedCommand.AnimationFrame animationFrame => CreateCompatibilityCommand(
+                KgpAction.AnimationFrame,
+                animationFrame.Quiet,
+                transmission: animationFrame.Transmission,
+                animationFrame: animationFrame.Frame),
+            KgpParsedCommand.AnimationControl animationControl => CreateCompatibilityCommand(
+                KgpAction.AnimationControl,
+                animationControl.Quiet,
+                animationControl: animationControl.Control),
+            KgpParsedCommand.Compose compose => CreateCompatibilityCommand(
+                KgpAction.Compose,
+                compose.Quiet,
+                composition: compose.Composition),
+            _ => throw new InvalidOperationException(
+                $"Unsupported parsed KGP command type: {command.GetType().Name}."),
+        };
+    }
 
-            var key = pair[..eqIndex];
-            var value = pair[(eqIndex + 1)..];
+    private static KgpCommand CreateCompatibilityCommand(
+        KgpAction action,
+        KgpParsedCommand.QuietMode quiet,
+        KgpParsedCommand.TransmissionData? transmission = null,
+        KgpParsedCommand.DisplayData? display = null,
+        KgpParsedCommand.DeleteSelector? delete = null,
+        KgpParsedCommand.AnimationFrameData? animationFrame = null,
+        KgpParsedCommand.AnimationControlData? animationControl = null,
+        KgpParsedCommand.CompositionData? composition = null)
+    {
+        var transmissionData = transmission.GetValueOrDefault();
+        var displayData = display.GetValueOrDefault();
+        var deleteData = ProjectDelete(delete);
+        var animationFrameData = animationFrame.GetValueOrDefault();
+        var animationControlData = animationControl.GetValueOrDefault();
+        var compositionData = composition.GetValueOrDefault();
 
-            switch (key)
-            {
-                case "a":
-                    action = ParseAction(value);
-                    break;
-                case "q":
-                    _ = int.TryParse(value, out quiet);
-                    break;
-                case "f":
-                    format = ParseFormat(value);
-                    break;
-                case "t":
-                    medium = ParseMedium(value);
-                    break;
-                case "s":
-                    _ = uint.TryParse(value, out width);
-                    break;
-                case "v":
-                    _ = uint.TryParse(value, out height);
-                    break;
-                case "S":
-                    _ = uint.TryParse(value, out fileSize);
-                    break;
-                case "O":
-                    _ = uint.TryParse(value, out fileOffset);
-                    break;
-                case "i":
-                    _ = uint.TryParse(value, out imageId);
-                    break;
-                case "I":
-                    _ = uint.TryParse(value, out imageNumber);
-                    break;
-                case "p":
-                    _ = uint.TryParse(value, out placementId);
-                    break;
-                case "o":
-                    compression = value.Length > 0 ? value[0] : null;
-                    break;
-                case "m":
-                    _ = int.TryParse(value, out moreData);
-                    break;
-                case "x":
-                    _ = uint.TryParse(value, out sourceX);
-                    break;
-                case "y":
-                    _ = uint.TryParse(value, out sourceY);
-                    break;
-                case "w":
-                    _ = uint.TryParse(value, out sourceWidth);
-                    break;
-                case "h":
-                    _ = uint.TryParse(value, out sourceHeight);
-                    break;
-                case "X":
-                    _ = uint.TryParse(value, out cellOffsetX);
-                    break;
-                case "Y":
-                    _ = uint.TryParse(value, out cellOffsetY);
-                    break;
-                case "c":
-                    _ = uint.TryParse(value, out displayColumns);
-                    break;
-                case "r":
-                    _ = uint.TryParse(value, out displayRows);
-                    break;
-                case "C":
-                    _ = int.TryParse(value, out cursorMovement);
-                    break;
-                case "U":
-                    _ = int.TryParse(value, out unicodePlaceholder);
-                    break;
-                case "z":
-                    _ = int.TryParse(value, out zIndex);
-                    break;
-                case "P":
-                    _ = uint.TryParse(value, out parentImageId);
-                    break;
-                case "Q":
-                    _ = uint.TryParse(value, out parentPlacementId);
-                    break;
-                case "H":
-                    _ = int.TryParse(value, out parentOffsetH);
-                    break;
-                case "V":
-                    _ = int.TryParse(value, out parentOffsetV);
-                    break;
-                case "d":
-                    deleteTarget = ParseDeleteTarget(value);
-                    break;
-            }
-        }
+        var imageId = transmission?.ImageId
+            ?? display?.ImageId
+            ?? deleteData.ImageId
+            ?? animationControl?.ImageId
+            ?? composition?.ImageId
+            ?? 0;
+        var imageNumber = transmission?.ImageNumber
+            ?? display?.ImageNumber
+            ?? deleteData.ImageNumber
+            ?? animationControl?.ImageNumber
+            ?? composition?.ImageNumber
+            ?? 0;
+        var placementId = transmission?.PlacementId
+            ?? display?.PlacementId
+            ?? deleteData.PlacementId
+            ?? animationControl?.PlacementId
+            ?? composition?.PlacementId
+            ?? 0;
 
         return new KgpCommand
         {
             Action = action,
-            Quiet = quiet,
-            Format = format,
-            Medium = medium,
-            Width = width,
-            Height = height,
-            FileSize = fileSize,
-            FileOffset = fileOffset,
+            Quiet = (int)quiet,
+            Format = transmission?.Format ?? KgpFormat.Rgba32,
+            Medium = transmission?.Medium ?? KgpTransmissionMedium.Direct,
+            Width = transmissionData.Width,
+            Height = transmissionData.Height,
+            FileSize = transmissionData.FileSize,
+            FileOffset = transmissionData.FileOffset,
             ImageId = imageId,
             ImageNumber = imageNumber,
             PlacementId = placementId,
-            Compression = compression,
-            MoreData = moreData,
-            SourceX = sourceX,
-            SourceY = sourceY,
-            SourceWidth = sourceWidth,
-            SourceHeight = sourceHeight,
-            CellOffsetX = cellOffsetX,
-            CellOffsetY = cellOffsetY,
-            DisplayColumns = displayColumns,
-            DisplayRows = displayRows,
-            CursorMovement = cursorMovement,
-            UnicodePlaceholder = unicodePlaceholder,
-            ZIndex = zIndex,
-            ParentImageId = parentImageId,
-            ParentPlacementId = parentPlacementId,
-            ParentOffsetH = parentOffsetH,
-            ParentOffsetV = parentOffsetV,
-            DeleteTarget = deleteTarget,
-            AnimationState = animationState,
-            LoopCount = loopCount,
+            Compression = transmission?.Compression == KgpParsedCommand.CompressionMode.Zlib
+                ? 'z'
+                : null,
+            MoreData = transmission?.MoreData == true ? 1 : 0,
+            UsageHints = transmissionData.UsageHints,
+            SourceX = display?.SourceX
+                ?? deleteData.SourceX
+                ?? animationFrame?.X
+                ?? composition?.DestinationX
+                ?? 0,
+            SourceY = display?.SourceY
+                ?? deleteData.SourceY
+                ?? animationFrame?.Y
+                ?? composition?.DestinationY
+                ?? 0,
+            SourceWidth = display?.SourceWidth
+                ?? composition?.Width
+                ?? 0,
+            SourceHeight = display?.SourceHeight
+                ?? composition?.Height
+                ?? 0,
+            CellOffsetX = display?.CellOffsetX
+                ?? (animationFrame is not null
+                    ? animationFrameData.Composition == KgpParsedCommand.CompositionMode.Overwrite
+                        ? 1u
+                        : 0u
+                    : (uint?)null)
+                ?? composition?.SourceX
+                ?? 0,
+            CellOffsetY = display?.CellOffsetY
+                ?? animationFrame?.BackgroundColor
+                ?? composition?.SourceY
+                ?? 0,
+            DisplayColumns = display?.Columns
+                ?? animationFrame?.BaseFrameNumber
+                ?? animationControl?.CurrentFrameNumber
+                ?? composition?.DestinationFrameNumber
+                ?? 0,
+            DisplayRows = display?.Rows
+                ?? deleteData.FrameNumber
+                ?? animationFrame?.EditFrameNumber
+                ?? animationControl?.AffectedFrameNumber
+                ?? composition?.SourceFrameNumber
+                ?? 0,
+            CursorMovement = display is not null
+                ? displayData.SuppressCursorMovement ? 1 : 0
+                : composition is not null
+                    ? compositionData.Composition == KgpParsedCommand.CompositionMode.Overwrite ? 1 : 0
+                    : 0,
+            UnicodePlaceholder = display?.UnicodePlaceholder == true ? 1 : 0,
+            ZIndex = display?.ZIndex
+                ?? deleteData.ZIndex
+                ?? animationFrame?.Gap
+                ?? animationControl?.Gap
+                ?? 0,
+            ParentImageId = displayData.ParentImageId,
+            ParentPlacementId = displayData.ParentPlacementId,
+            ParentOffsetH = displayData.ParentOffsetHorizontal,
+            ParentOffsetV = displayData.ParentOffsetVertical,
+            DeleteTarget = delete?.Target ?? KgpDeleteTarget.All,
+            AnimationState = animationControl is null
+                ? 0
+                : animationControlData.State switch
+                {
+                    KgpParsedCommand.AnimationPlaybackState.Stopped => 1,
+                    KgpParsedCommand.AnimationPlaybackState.Loading => 2,
+                    KgpParsedCommand.AnimationPlaybackState.Running => 3,
+                    _ => 0,
+                },
+            LoopCount = animationControlData.LoopCount,
         };
     }
 
-    private static KgpAction ParseAction(string value)
+    private static (
+        uint? ImageId,
+        uint? ImageNumber,
+        uint? PlacementId,
+        uint? SourceX,
+        uint? SourceY,
+        int? ZIndex,
+        uint? FrameNumber) ProjectDelete(KgpParsedCommand.DeleteSelector? delete)
     {
-        if (value.Length != 1)
-            return KgpAction.Transmit;
-
-        return value[0] switch
+        return delete switch
         {
-            't' => KgpAction.Transmit,
-            'T' => KgpAction.TransmitAndDisplay,
-            'q' => KgpAction.Query,
-            'p' => KgpAction.Put,
-            'd' => KgpAction.Delete,
-            'f' => KgpAction.AnimationFrame,
-            'a' => KgpAction.AnimationControl,
-            'c' => KgpAction.Compose,
-            _ => KgpAction.Transmit,
-        };
-    }
-
-    private static KgpFormat ParseFormat(string value)
-    {
-        return value switch
-        {
-            "24" => KgpFormat.Rgb24,
-            "32" => KgpFormat.Rgba32,
-            "100" => KgpFormat.Png,
-            _ => KgpFormat.Rgba32,
-        };
-    }
-
-    private static KgpTransmissionMedium ParseMedium(string value)
-    {
-        if (value.Length != 1)
-            return KgpTransmissionMedium.Direct;
-
-        return value[0] switch
-        {
-            'd' => KgpTransmissionMedium.Direct,
-            'f' => KgpTransmissionMedium.File,
-            't' => KgpTransmissionMedium.TempFile,
-            's' => KgpTransmissionMedium.SharedMemory,
-            _ => KgpTransmissionMedium.Direct,
-        };
-    }
-
-    private static KgpDeleteTarget ParseDeleteTarget(string value)
-    {
-        if (value.Length != 1)
-            return KgpDeleteTarget.All;
-
-        return value[0] switch
-        {
-            'a' => KgpDeleteTarget.All,
-            'A' => KgpDeleteTarget.AllFreeData,
-            'i' => KgpDeleteTarget.ById,
-            'I' => KgpDeleteTarget.ByIdFreeData,
-            'n' => KgpDeleteTarget.ByNumber,
-            'N' => KgpDeleteTarget.ByNumberFreeData,
-            'c' => KgpDeleteTarget.AtCursor,
-            'C' => KgpDeleteTarget.AtCursorFreeData,
-            'p' => KgpDeleteTarget.AtCell,
-            'P' => KgpDeleteTarget.AtCellFreeData,
-            'q' => KgpDeleteTarget.AtCellWithZIndex,
-            'Q' => KgpDeleteTarget.AtCellWithZIndexFreeData,
-            'x' => KgpDeleteTarget.ByColumn,
-            'X' => KgpDeleteTarget.ByColumnFreeData,
-            'y' => KgpDeleteTarget.ByRow,
-            'Y' => KgpDeleteTarget.ByRowFreeData,
-            'z' => KgpDeleteTarget.ByZIndex,
-            'Z' => KgpDeleteTarget.ByZIndexFreeData,
-            'r' => KgpDeleteTarget.ByRange,
-            'R' => KgpDeleteTarget.ByRangeFreeData,
-            'f' => KgpDeleteTarget.AnimationFrames,
-            'F' => KgpDeleteTarget.AnimationFramesFreeData,
-            _ => KgpDeleteTarget.All,
+            KgpParsedCommand.DeleteSelector.ById byId
+                => (byId.ImageId, null, byId.PlacementId, null, null, null, null),
+            KgpParsedCommand.DeleteSelector.ByNumber byNumber
+                => (null, byNumber.ImageNumber, byNumber.PlacementId, null, null, null, null),
+            KgpParsedCommand.DeleteSelector.AnimationFrames frames
+                => (frames.ImageId, frames.ImageNumber, null, null, null, null, frames.FrameNumber),
+            KgpParsedCommand.DeleteSelector.AtCell atCell
+                => (null, null, null, atCell.X, atCell.Y, null, null),
+            KgpParsedCommand.DeleteSelector.AtCellWithZIndex atCellWithZ
+                => (null, null, null, atCellWithZ.X, atCellWithZ.Y, atCellWithZ.ZIndex, null),
+            KgpParsedCommand.DeleteSelector.ByRange range
+                => (null, null, null, range.FirstImageId, range.LastImageId, null, null),
+            KgpParsedCommand.DeleteSelector.ByColumn column
+                => (null, null, null, column.Column, null, null, null),
+            KgpParsedCommand.DeleteSelector.ByRow row
+                => (null, null, null, null, row.Row, null, null),
+            KgpParsedCommand.DeleteSelector.ByZIndex zIndex
+                => (null, null, null, null, null, zIndex.ZIndex, null),
+            _ => (null, null, null, null, null, null, null),
         };
     }
 }
