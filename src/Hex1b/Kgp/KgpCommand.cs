@@ -231,7 +231,10 @@ public sealed class KgpCommand
     public static KgpCommand Parse(string controlData)
     {
         if (!KgpCommandParser.TryParse(controlData, out var command, out var failure))
-            throw new FormatException($"Invalid KGP control data: {failure!.Reason}");
+        {
+            throw new FormatException(
+                $"Invalid KGP control data: {failure.FormatReason(controlData.AsSpan())}");
+        }
 
         return FromParsed(command!);
     }

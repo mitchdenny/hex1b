@@ -1,277 +1,392 @@
-using System.Globalization;
-
 namespace Hex1b;
 
 internal static class KgpCommandParser
 {
-    internal sealed record Failure(
-        string Reason,
+    internal enum ErrorCode
+    {
+        None,
+        EmptyControlPair,
+        MalformedControlPair,
+        InvalidControlKey,
+        MissingValue,
+        InvalidDelimiter,
+        InvalidAction,
+        InvalidDeleteTarget,
+        InvalidTransmissionMedium,
+        InvalidCompression,
+        InvalidImageFormat,
+        InvalidSignedInteger,
+        InvalidUnsignedInteger,
+    }
+
+    internal readonly record struct Failure(
+        ErrorCode Code,
+        char Key,
+        int Position,
+        int ValueStart,
+        int ValueLength,
         KgpAction? Action,
         uint ImageId,
         uint ImageNumber,
         uint PlacementId,
-        KgpParsedCommand.QuietMode Quiet);
+        KgpParsedCommand.QuietMode Quiet)
+    {
+        internal string FormatReason(ReadOnlySpan<char> controlData)
+        {
+            var value = GetValue(controlData);
+            return Code switch
+            {
+                ErrorCode.EmptyControlPair
+                    => $"Empty control pair at position {Position}.",
+                ErrorCode.MalformedControlPair
+                    => $"Malformed control pair '{value.ToString()}'.",
+                ErrorCode.InvalidControlKey
+                    => $"Invalid control key '{Key}'.",
+                ErrorCode.MissingValue
+                    => $"Missing value for control key '{Key}'.",
+                ErrorCode.InvalidDelimiter
+                    => $"Invalid delimiter in value for control key '{Key}'.",
+                ErrorCode.InvalidAction
+                    => $"Invalid action value '{value.ToString()}'.",
+                ErrorCode.InvalidDeleteTarget
+                    => $"Invalid delete target '{value.ToString()}'.",
+                ErrorCode.InvalidTransmissionMedium
+                    => $"Invalid transmission medium '{value.ToString()}'.",
+                ErrorCode.InvalidCompression
+                    => $"Invalid compression value '{value.ToString()}'.",
+                ErrorCode.InvalidImageFormat
+                    => $"Invalid image format '{value.ToString()}'.",
+                ErrorCode.InvalidSignedInteger
+                    => $"Invalid signed integer '{value.ToString()}' for control key '{Key}'.",
+                ErrorCode.InvalidUnsignedInteger
+                    => $"Invalid unsigned integer '{value.ToString()}' for control key '{Key}'.",
+                _ => "Invalid KGP control data.",
+            };
+        }
 
-    private readonly record struct ControlPair(char Key, string Value);
+        private ReadOnlySpan<char> GetValue(ReadOnlySpan<char> controlData)
+        {
+            if (ValueStart < 0 ||
+                ValueLength < 0 ||
+                ValueStart > controlData.Length - ValueLength)
+            {
+                return [];
+            }
+
+            return controlData.Slice(ValueStart, ValueLength);
+        }
+    }
+
+    private enum ValidationResult
+    {
+        Unknown,
+        Valid,
+        Invalid,
+    }
+
+    private readonly record struct ParseError(
+        ErrorCode Code,
+        char Key,
+        int Position,
+        int ValueStart,
+        int ValueLength);
+
+    private struct ControlSlot
+    {
+        internal int ValueStart;
+        internal int ValueLength;
+
+        internal readonly bool IsPresent => ValueLength > 0;
+    }
 
     internal static bool TryParse(
         string? controlData,
         out KgpParsedCommand? command,
-        out Failure? failure)
+        out Failure failure)
+        => TryParse(controlData.AsSpan(), out command, out failure);
+
+    internal static bool TryParse(
+        ReadOnlySpan<char> controlData,
+        out KgpParsedCommand? command,
+        out Failure failure)
     {
-        var pairs = new List<ControlPair>();
-        var grammarError = ParsePairs(controlData, pairs);
-        var context = RecoverContext(pairs);
-        var recoveredAction = RecoverAction(pairs);
+        Span<ControlSlot> slots = stackalloc ControlSlot[52];
+        slots.Clear();
 
-        if (grammarError is not null)
+        var firstError = default(ParseError);
+        var hasActionControl = false;
+        if (!controlData.IsEmpty)
+        {
+            ScanControlData(
+                controlData,
+                slots,
+                ref firstError,
+                ref hasActionControl);
+        }
+
+        var action = HasValue(slots, 'a')
+            ? ReadAction(controlData, slots)
+            : hasActionControl
+                ? (KgpAction?)null
+                : KgpAction.Transmit;
+        var imageId = ReadUInt32(controlData, slots, 'i');
+        var imageNumber = ReadUInt32(controlData, slots, 'I');
+        var placementId = ReadUInt32(controlData, slots, 'p');
+        var quiet = ToQuietMode(ReadUInt32(controlData, slots, 'q'));
+
+        if (firstError.Code != ErrorCode.None)
         {
             command = null;
-            failure = CreateFailure(grammarError, recoveredAction, context);
+            failure = new Failure(
+                firstError.Code,
+                firstError.Key,
+                firstError.Position,
+                firstError.ValueStart,
+                firstError.ValueLength,
+                action,
+                imageId,
+                imageNumber,
+                placementId,
+                quiet);
             return false;
         }
 
-        if (!TryResolveAction(pairs, out var action, out var actionError))
-        {
-            command = null;
-            failure = CreateFailure(actionError!, null, context);
-            return false;
-        }
-
-        var values = new Dictionary<char, string>();
-        foreach (var pair in pairs)
-        {
-            if (!TryValidateKnownValue(pair, out var validationError))
-            {
-                command = null;
-                failure = CreateFailure(validationError!, action, context);
-                return false;
-            }
-
-            values[pair.Key] = pair.Value;
-        }
-
-        var quiet = ParseQuiet(values);
-        command = action switch
+        command = action!.Value switch
         {
             KgpAction.Transmit => new KgpParsedCommand.Transmit(
-                ParseTransmission(values),
+                ParseTransmission(controlData, slots),
                 quiet),
             KgpAction.TransmitAndDisplay => new KgpParsedCommand.TransmitAndDisplay(
-                ParseTransmission(values),
-                ParseDisplay(values),
+                ParseTransmission(controlData, slots),
+                ParseDisplay(controlData, slots),
                 quiet),
             KgpAction.Query => new KgpParsedCommand.Query(
-                ParseTransmission(values),
+                ParseTransmission(controlData, slots),
                 quiet),
             KgpAction.Put => new KgpParsedCommand.Put(
-                ParseDisplay(values),
+                ParseDisplay(controlData, slots),
                 quiet),
             KgpAction.Delete => new KgpParsedCommand.Delete(
-                ParseDelete(values),
+                ParseDelete(controlData, slots),
                 quiet),
             KgpAction.AnimationFrame => new KgpParsedCommand.AnimationFrame(
-                ParseTransmission(values),
-                ParseAnimationFrame(values),
+                ParseTransmission(controlData, slots),
+                ParseAnimationFrame(controlData, slots),
                 quiet),
             KgpAction.AnimationControl => new KgpParsedCommand.AnimationControl(
-                ParseAnimationControl(values),
+                ParseAnimationControl(controlData, slots),
                 quiet),
             KgpAction.Compose => new KgpParsedCommand.Compose(
-                ParseComposition(values),
+                ParseComposition(controlData, slots),
                 quiet),
-            _ => throw new InvalidOperationException($"Unsupported KGP action: {action}."),
+            _ => throw new InvalidOperationException(
+                $"Unsupported KGP action: {action.Value}."),
         };
-        failure = null;
+        failure = default;
         return true;
     }
 
-    private static string? ParsePairs(string? controlData, List<ControlPair> pairs)
+    private static void ScanControlData(
+        ReadOnlySpan<char> controlData,
+        Span<ControlSlot> slots,
+        ref ParseError firstError,
+        ref bool hasActionControl)
     {
-        if (string.IsNullOrEmpty(controlData))
-            return null;
+        var pairStart = 0;
+        var pairIndex = 0;
 
-        string? firstError = null;
-        var parts = controlData.Split(',');
-        for (var index = 0; index < parts.Length; index++)
+        while (pairStart <= controlData.Length)
         {
-            var part = parts[index];
-            if (part.Length == 0)
-            {
-                firstError ??= $"Empty control pair at position {index}.";
-                continue;
-            }
+            var remaining = controlData[pairStart..];
+            var commaIndex = remaining.IndexOf(',');
+            var pairLength = commaIndex >= 0
+                ? commaIndex
+                : remaining.Length;
 
-            var equalsIndex = part.IndexOf('=');
-            if (equalsIndex != 1 || part.LastIndexOf('=') != equalsIndex)
-            {
-                firstError ??= $"Malformed control pair '{part}'.";
-                continue;
-            }
+            ParsePair(
+                controlData,
+                pairStart,
+                pairLength,
+                pairIndex,
+                slots,
+                ref firstError,
+                ref hasActionControl);
 
-            var key = part[0];
-            if (!IsAsciiLetter(key))
-            {
-                firstError ??= $"Invalid control key '{key}'.";
-                continue;
-            }
+            if (commaIndex < 0)
+                break;
 
-            var value = part[2..];
-            if (value.Length == 0)
-            {
-                firstError ??= $"Missing value for control key '{key}'.";
-                continue;
-            }
-
-            if (value.Contains(';', StringComparison.Ordinal))
-            {
-                firstError ??= $"Invalid delimiter in value for control key '{key}'.";
-                continue;
-            }
-
-            pairs.Add(new ControlPair(key, value));
+            pairStart += pairLength + 1;
+            pairIndex++;
         }
-
-        return firstError;
     }
 
-    private static bool TryResolveAction(
-        List<ControlPair> pairs,
-        out KgpAction action,
-        out string? error)
+    private static void ParsePair(
+        ReadOnlySpan<char> controlData,
+        int pairStart,
+        int pairLength,
+        int pairIndex,
+        Span<ControlSlot> slots,
+        ref ParseError firstError,
+        ref bool hasActionControl)
     {
-        action = KgpAction.Transmit;
-        foreach (var pair in pairs)
+        if (pairLength == 0)
         {
-            if (pair.Key != 'a')
-                continue;
-
-            if (!TryParseAction(pair.Value, out action))
-            {
-                error = $"Invalid action value '{pair.Value}'.";
-                return false;
-            }
+            RecordFirstError(
+                ref firstError,
+                ErrorCode.EmptyControlPair,
+                key: default,
+                pairIndex,
+                pairStart,
+                pairLength);
+            return;
         }
 
-        error = null;
-        return true;
-    }
-
-    private static KgpAction? RecoverAction(List<ControlPair> pairs)
-    {
-        var action = KgpAction.Transmit;
-        foreach (var pair in pairs)
+        var pair = controlData.Slice(pairStart, pairLength);
+        var equalsIndex = pair.IndexOf('=');
+        if (equalsIndex != 1 || pair[(equalsIndex + 1)..].IndexOf('=') >= 0)
         {
-            if (pair.Key != 'a')
-                continue;
-
-            if (!TryParseAction(pair.Value, out action))
-                return null;
+            RecordFirstError(
+                ref firstError,
+                ErrorCode.MalformedControlPair,
+                key: default,
+                pairIndex,
+                pairStart,
+                pairLength);
+            return;
         }
 
-        return action;
-    }
-
-    private static (
-        uint ImageId,
-        uint ImageNumber,
-        uint PlacementId,
-        KgpParsedCommand.QuietMode Quiet) RecoverContext(List<ControlPair> pairs)
-    {
-        uint imageId = 0;
-        uint imageNumber = 0;
-        uint placementId = 0;
-        var quiet = KgpParsedCommand.QuietMode.Normal;
-
-        foreach (var pair in pairs)
+        var key = pair[0];
+        if (!IsAsciiLetter(key))
         {
-            if (!TryParseUInt32(pair.Value, out var value))
-                continue;
-
-            switch (pair.Key)
-            {
-                case 'i':
-                    imageId = value;
-                    break;
-                case 'I':
-                    imageNumber = value;
-                    break;
-                case 'p':
-                    placementId = value;
-                    break;
-                case 'q':
-                    quiet = ToQuietMode(value);
-                    break;
-            }
+            RecordFirstError(
+                ref firstError,
+                ErrorCode.InvalidControlKey,
+                key,
+                pairIndex,
+                pairStart,
+                pairLength);
+            return;
         }
 
-        return (imageId, imageNumber, placementId, quiet);
+        if (key == 'a')
+            hasActionControl = true;
+
+        var valueStart = pairStart + 2;
+        var valueLength = pairLength - 2;
+        if (valueLength == 0)
+        {
+            RecordFirstError(
+                ref firstError,
+                ErrorCode.MissingValue,
+                key,
+                pairIndex,
+                valueStart,
+                valueLength);
+            return;
+        }
+
+        var value = controlData.Slice(valueStart, valueLength);
+        if (value.IndexOf(';') >= 0)
+        {
+            RecordFirstError(
+                ref firstError,
+                ErrorCode.InvalidDelimiter,
+                key,
+                pairIndex,
+                valueStart,
+                valueLength);
+            return;
+        }
+
+        var validation = ValidateKnownValue(key, value, out var errorCode);
+        if (validation == ValidationResult.Unknown)
+            return;
+
+        if (validation == ValidationResult.Invalid)
+        {
+            RecordFirstError(
+                ref firstError,
+                errorCode,
+                key,
+                pairIndex,
+                valueStart,
+                valueLength);
+            return;
+        }
+
+        ref var slot = ref slots[GetKeyIndex(key)];
+        slot.ValueStart = valueStart;
+        slot.ValueLength = valueLength;
     }
 
-    private static Failure CreateFailure(
-        string reason,
-        KgpAction? action,
-        (
-            uint ImageId,
-            uint ImageNumber,
-            uint PlacementId,
-            KgpParsedCommand.QuietMode Quiet) context)
-        => new(
-            reason,
-            action,
-            context.ImageId,
-            context.ImageNumber,
-            context.PlacementId,
-            context.Quiet);
-
-    private static bool TryValidateKnownValue(
-        ControlPair pair,
-        out string? error)
+    private static void RecordFirstError(
+        ref ParseError firstError,
+        ErrorCode code,
+        char key,
+        int position,
+        int valueStart,
+        int valueLength)
     {
-        switch (pair.Key)
+        if (firstError.Code != ErrorCode.None)
+            return;
+
+        firstError = new ParseError(
+            code,
+            key,
+            position,
+            valueStart,
+            valueLength);
+    }
+
+    private static ValidationResult ValidateKnownValue(
+        char key,
+        ReadOnlySpan<char> value,
+        out ErrorCode errorCode)
+    {
+        switch (key)
         {
             case 'a':
-                if (!TryParseAction(pair.Value, out _))
+                if (!TryParseAction(value, out _))
                 {
-                    error = $"Invalid action value '{pair.Value}'.";
-                    return false;
+                    errorCode = ErrorCode.InvalidAction;
+                    return ValidationResult.Invalid;
                 }
                 break;
             case 'd':
-                if (!TryParseDeleteTarget(pair.Value, out _))
+                if (!TryParseDeleteTarget(value, out _))
                 {
-                    error = $"Invalid delete target '{pair.Value}'.";
-                    return false;
+                    errorCode = ErrorCode.InvalidDeleteTarget;
+                    return ValidationResult.Invalid;
                 }
                 break;
             case 't':
-                if (!TryParseMedium(pair.Value, out _))
+                if (!TryParseMedium(value, out _))
                 {
-                    error = $"Invalid transmission medium '{pair.Value}'.";
-                    return false;
+                    errorCode = ErrorCode.InvalidTransmissionMedium;
+                    return ValidationResult.Invalid;
                 }
                 break;
             case 'o':
-                if (!string.Equals(pair.Value, "z", StringComparison.Ordinal))
+                if (value.Length != 1 || value[0] != 'z')
                 {
-                    error = $"Invalid compression value '{pair.Value}'.";
-                    return false;
+                    errorCode = ErrorCode.InvalidCompression;
+                    return ValidationResult.Invalid;
                 }
                 break;
             case 'f':
-                if (!TryParseFormat(pair.Value, out _))
+                if (!TryParseFormat(value, out _))
                 {
-                    error = $"Invalid image format '{pair.Value}'.";
-                    return false;
+                    errorCode = ErrorCode.InvalidImageFormat;
+                    return ValidationResult.Invalid;
                 }
                 break;
             case 'z':
             case 'H':
             case 'V':
-                if (!TryParseInt32(pair.Value, out _))
+                if (!TryParseInt32(value, out _))
                 {
-                    error = $"Invalid signed integer '{pair.Value}' for control key '{pair.Key}'.";
-                    return false;
+                    errorCode = ErrorCode.InvalidSignedInteger;
+                    return ValidationResult.Invalid;
                 }
                 break;
             case 'q':
@@ -296,21 +411,20 @@ internal static class KgpCommandParser
             case 'U':
             case 'P':
             case 'Q':
-                if (!TryParseUInt32(pair.Value, out _))
+                if (!TryParseUInt32(value, out _))
                 {
-                    error = $"Invalid unsigned integer '{pair.Value}' for control key '{pair.Key}'.";
-                    return false;
+                    errorCode = ErrorCode.InvalidUnsignedInteger;
+                    return ValidationResult.Invalid;
                 }
                 break;
+            default:
+                errorCode = ErrorCode.None;
+                return ValidationResult.Unknown;
         }
 
-        error = null;
-        return true;
+        errorCode = ErrorCode.None;
+        return ValidationResult.Valid;
     }
-
-    private static KgpParsedCommand.QuietMode ParseQuiet(
-        IReadOnlyDictionary<char, string> values)
-        => ToQuietMode(ReadUInt32(values, 'q'));
 
     private static KgpParsedCommand.QuietMode ToQuietMode(uint value)
         => value switch
@@ -321,50 +435,53 @@ internal static class KgpCommandParser
         };
 
     private static KgpParsedCommand.TransmissionData ParseTransmission(
-        IReadOnlyDictionary<char, string> values)
+        ReadOnlySpan<char> controlData,
+        ReadOnlySpan<ControlSlot> slots)
         => new(
-            ReadFormat(values),
-            ReadMedium(values),
-            ReadUInt32(values, 's'),
-            ReadUInt32(values, 'v'),
-            ReadUInt32(values, 'S'),
-            ReadUInt32(values, 'O'),
-            ReadUInt32(values, 'i'),
-            ReadUInt32(values, 'I'),
-            ReadUInt32(values, 'p'),
-            values.ContainsKey('o')
+            ReadFormat(controlData, slots),
+            ReadMedium(controlData, slots),
+            ReadUInt32(controlData, slots, 's'),
+            ReadUInt32(controlData, slots, 'v'),
+            ReadUInt32(controlData, slots, 'S'),
+            ReadUInt32(controlData, slots, 'O'),
+            ReadUInt32(controlData, slots, 'i'),
+            ReadUInt32(controlData, slots, 'I'),
+            ReadUInt32(controlData, slots, 'p'),
+            HasValue(slots, 'o')
                 ? KgpParsedCommand.CompressionMode.Zlib
                 : KgpParsedCommand.CompressionMode.None,
-            ReadUInt32(values, 'm') != 0,
-            ReadUInt32(values, 'N'));
+            ReadUInt32(controlData, slots, 'm') != 0,
+            ReadUInt32(controlData, slots, 'N'));
 
     private static KgpParsedCommand.DisplayData ParseDisplay(
-        IReadOnlyDictionary<char, string> values)
+        ReadOnlySpan<char> controlData,
+        ReadOnlySpan<ControlSlot> slots)
         => new(
-            ReadUInt32(values, 'i'),
-            ReadUInt32(values, 'I'),
-            ReadUInt32(values, 'p'),
-            ReadUInt32(values, 'x'),
-            ReadUInt32(values, 'y'),
-            ReadUInt32(values, 'w'),
-            ReadUInt32(values, 'h'),
-            ReadUInt32(values, 'X'),
-            ReadUInt32(values, 'Y'),
-            ReadUInt32(values, 'c'),
-            ReadUInt32(values, 'r'),
-            ReadUInt32(values, 'C') == 1,
-            ReadUInt32(values, 'U') != 0,
-            ReadInt32(values, 'z'),
-            ReadUInt32(values, 'P'),
-            ReadUInt32(values, 'Q'),
-            ReadInt32(values, 'H'),
-            ReadInt32(values, 'V'));
+            ReadUInt32(controlData, slots, 'i'),
+            ReadUInt32(controlData, slots, 'I'),
+            ReadUInt32(controlData, slots, 'p'),
+            ReadUInt32(controlData, slots, 'x'),
+            ReadUInt32(controlData, slots, 'y'),
+            ReadUInt32(controlData, slots, 'w'),
+            ReadUInt32(controlData, slots, 'h'),
+            ReadUInt32(controlData, slots, 'X'),
+            ReadUInt32(controlData, slots, 'Y'),
+            ReadUInt32(controlData, slots, 'c'),
+            ReadUInt32(controlData, slots, 'r'),
+            ReadUInt32(controlData, slots, 'C') == 1,
+            ReadUInt32(controlData, slots, 'U') != 0,
+            ReadInt32(controlData, slots, 'z'),
+            ReadUInt32(controlData, slots, 'P'),
+            ReadUInt32(controlData, slots, 'Q'),
+            ReadInt32(controlData, slots, 'H'),
+            ReadInt32(controlData, slots, 'V'));
 
     private static KgpParsedCommand.DeleteSelector ParseDelete(
-        IReadOnlyDictionary<char, string> values)
+        ReadOnlySpan<char> controlData,
+        ReadOnlySpan<ControlSlot> slots)
     {
-        var target = values.TryGetValue('d', out var rawTarget)
-            ? rawTarget[0]
+        var target = HasValue(slots, 'd')
+            ? ReadValue(controlData, slots, 'd')[0]
             : 'a';
 
         return target switch
@@ -373,291 +490,419 @@ internal static class KgpCommandParser
             'A' => new KgpParsedCommand.DeleteSelector.All(true),
             'i' => new KgpParsedCommand.DeleteSelector.ById(
                 false,
-                ReadUInt32(values, 'i'),
-                ReadUInt32(values, 'p')),
+                ReadUInt32(controlData, slots, 'i'),
+                ReadUInt32(controlData, slots, 'p')),
             'I' => new KgpParsedCommand.DeleteSelector.ById(
                 true,
-                ReadUInt32(values, 'i'),
-                ReadUInt32(values, 'p')),
+                ReadUInt32(controlData, slots, 'i'),
+                ReadUInt32(controlData, slots, 'p')),
             'n' => new KgpParsedCommand.DeleteSelector.ByNumber(
                 false,
-                ReadUInt32(values, 'I'),
-                ReadUInt32(values, 'p')),
+                ReadUInt32(controlData, slots, 'I'),
+                ReadUInt32(controlData, slots, 'p')),
             'N' => new KgpParsedCommand.DeleteSelector.ByNumber(
                 true,
-                ReadUInt32(values, 'I'),
-                ReadUInt32(values, 'p')),
+                ReadUInt32(controlData, slots, 'I'),
+                ReadUInt32(controlData, slots, 'p')),
             'c' => new KgpParsedCommand.DeleteSelector.AtCursor(false),
             'C' => new KgpParsedCommand.DeleteSelector.AtCursor(true),
             'f' => new KgpParsedCommand.DeleteSelector.AnimationFrames(
                 false,
-                ReadUInt32(values, 'i'),
-                ReadUInt32(values, 'I'),
-                ReadUInt32(values, 'r')),
+                ReadUInt32(controlData, slots, 'i'),
+                ReadUInt32(controlData, slots, 'I'),
+                ReadUInt32(controlData, slots, 'r')),
             'F' => new KgpParsedCommand.DeleteSelector.AnimationFrames(
                 true,
-                ReadUInt32(values, 'i'),
-                ReadUInt32(values, 'I'),
-                ReadUInt32(values, 'r')),
+                ReadUInt32(controlData, slots, 'i'),
+                ReadUInt32(controlData, slots, 'I'),
+                ReadUInt32(controlData, slots, 'r')),
             'p' => new KgpParsedCommand.DeleteSelector.AtCell(
                 false,
-                ReadUInt32(values, 'x'),
-                ReadUInt32(values, 'y')),
+                ReadUInt32(controlData, slots, 'x'),
+                ReadUInt32(controlData, slots, 'y')),
             'P' => new KgpParsedCommand.DeleteSelector.AtCell(
                 true,
-                ReadUInt32(values, 'x'),
-                ReadUInt32(values, 'y')),
+                ReadUInt32(controlData, slots, 'x'),
+                ReadUInt32(controlData, slots, 'y')),
             'q' => new KgpParsedCommand.DeleteSelector.AtCellWithZIndex(
                 false,
-                ReadUInt32(values, 'x'),
-                ReadUInt32(values, 'y'),
-                ReadInt32(values, 'z')),
+                ReadUInt32(controlData, slots, 'x'),
+                ReadUInt32(controlData, slots, 'y'),
+                ReadInt32(controlData, slots, 'z')),
             'Q' => new KgpParsedCommand.DeleteSelector.AtCellWithZIndex(
                 true,
-                ReadUInt32(values, 'x'),
-                ReadUInt32(values, 'y'),
-                ReadInt32(values, 'z')),
+                ReadUInt32(controlData, slots, 'x'),
+                ReadUInt32(controlData, slots, 'y'),
+                ReadInt32(controlData, slots, 'z')),
             'r' => new KgpParsedCommand.DeleteSelector.ByRange(
                 false,
-                ReadUInt32(values, 'x'),
-                ReadUInt32(values, 'y')),
+                ReadUInt32(controlData, slots, 'x'),
+                ReadUInt32(controlData, slots, 'y')),
             'R' => new KgpParsedCommand.DeleteSelector.ByRange(
                 true,
-                ReadUInt32(values, 'x'),
-                ReadUInt32(values, 'y')),
+                ReadUInt32(controlData, slots, 'x'),
+                ReadUInt32(controlData, slots, 'y')),
             'x' => new KgpParsedCommand.DeleteSelector.ByColumn(
                 false,
-                ReadUInt32(values, 'x')),
+                ReadUInt32(controlData, slots, 'x')),
             'X' => new KgpParsedCommand.DeleteSelector.ByColumn(
                 true,
-                ReadUInt32(values, 'x')),
+                ReadUInt32(controlData, slots, 'x')),
             'y' => new KgpParsedCommand.DeleteSelector.ByRow(
                 false,
-                ReadUInt32(values, 'y')),
+                ReadUInt32(controlData, slots, 'y')),
             'Y' => new KgpParsedCommand.DeleteSelector.ByRow(
                 true,
-                ReadUInt32(values, 'y')),
+                ReadUInt32(controlData, slots, 'y')),
             'z' => new KgpParsedCommand.DeleteSelector.ByZIndex(
                 false,
-                ReadInt32(values, 'z')),
+                ReadInt32(controlData, slots, 'z')),
             'Z' => new KgpParsedCommand.DeleteSelector.ByZIndex(
                 true,
-                ReadInt32(values, 'z')),
-            _ => throw new InvalidOperationException($"Unsupported KGP delete target: {target}."),
+                ReadInt32(controlData, slots, 'z')),
+            _ => throw new InvalidOperationException(
+                $"Unsupported KGP delete target: {target}."),
         };
     }
 
     private static KgpParsedCommand.AnimationFrameData ParseAnimationFrame(
-        IReadOnlyDictionary<char, string> values)
+        ReadOnlySpan<char> controlData,
+        ReadOnlySpan<ControlSlot> slots)
         => new(
-            ReadUInt32(values, 'x'),
-            ReadUInt32(values, 'y'),
-            ReadUInt32(values, 'c'),
-            ReadUInt32(values, 'r'),
-            ReadInt32(values, 'z'),
-            ReadUInt32(values, 'X') == 1
+            ReadUInt32(controlData, slots, 'x'),
+            ReadUInt32(controlData, slots, 'y'),
+            ReadUInt32(controlData, slots, 'c'),
+            ReadUInt32(controlData, slots, 'r'),
+            ReadInt32(controlData, slots, 'z'),
+            ReadUInt32(controlData, slots, 'X') == 1
                 ? KgpParsedCommand.CompositionMode.Overwrite
                 : KgpParsedCommand.CompositionMode.AlphaBlend,
-            ReadUInt32(values, 'Y'));
+            ReadUInt32(controlData, slots, 'Y'));
 
     private static KgpParsedCommand.AnimationControlData ParseAnimationControl(
-        IReadOnlyDictionary<char, string> values)
+        ReadOnlySpan<char> controlData,
+        ReadOnlySpan<ControlSlot> slots)
         => new(
-            ReadUInt32(values, 'i'),
-            ReadUInt32(values, 'I'),
-            ReadUInt32(values, 'p'),
-            ReadUInt32(values, 's') switch
+            ReadUInt32(controlData, slots, 'i'),
+            ReadUInt32(controlData, slots, 'I'),
+            ReadUInt32(controlData, slots, 'p'),
+            ReadUInt32(controlData, slots, 's') switch
             {
                 1 => KgpParsedCommand.AnimationPlaybackState.Stopped,
                 2 => KgpParsedCommand.AnimationPlaybackState.Loading,
                 3 => KgpParsedCommand.AnimationPlaybackState.Running,
                 _ => KgpParsedCommand.AnimationPlaybackState.None,
             },
-            ReadUInt32(values, 'v'),
-            ReadUInt32(values, 'c'),
-            ReadUInt32(values, 'r'),
-            ReadInt32(values, 'z'));
+            ReadUInt32(controlData, slots, 'v'),
+            ReadUInt32(controlData, slots, 'c'),
+            ReadUInt32(controlData, slots, 'r'),
+            ReadInt32(controlData, slots, 'z'));
 
     private static KgpParsedCommand.CompositionData ParseComposition(
-        IReadOnlyDictionary<char, string> values)
+        ReadOnlySpan<char> controlData,
+        ReadOnlySpan<ControlSlot> slots)
         => new(
-            ReadUInt32(values, 'i'),
-            ReadUInt32(values, 'I'),
-            ReadUInt32(values, 'p'),
-            ReadUInt32(values, 'c'),
-            ReadUInt32(values, 'r'),
-            ReadUInt32(values, 'x'),
-            ReadUInt32(values, 'y'),
-            ReadUInt32(values, 'w'),
-            ReadUInt32(values, 'h'),
-            ReadUInt32(values, 'X'),
-            ReadUInt32(values, 'Y'),
-            ReadUInt32(values, 'C') == 0
+            ReadUInt32(controlData, slots, 'i'),
+            ReadUInt32(controlData, slots, 'I'),
+            ReadUInt32(controlData, slots, 'p'),
+            ReadUInt32(controlData, slots, 'c'),
+            ReadUInt32(controlData, slots, 'r'),
+            ReadUInt32(controlData, slots, 'x'),
+            ReadUInt32(controlData, slots, 'y'),
+            ReadUInt32(controlData, slots, 'w'),
+            ReadUInt32(controlData, slots, 'h'),
+            ReadUInt32(controlData, slots, 'X'),
+            ReadUInt32(controlData, slots, 'Y'),
+            ReadUInt32(controlData, slots, 'C') == 0
                 ? KgpParsedCommand.CompositionMode.AlphaBlend
                 : KgpParsedCommand.CompositionMode.Overwrite);
 
-    private static KgpFormat ReadFormat(IReadOnlyDictionary<char, string> values)
+    private static KgpAction ReadAction(
+        ReadOnlySpan<char> controlData,
+        ReadOnlySpan<ControlSlot> slots)
     {
-        if (!values.TryGetValue('f', out var value))
+        if (!HasValue(slots, 'a'))
+            return KgpAction.Transmit;
+
+        _ = TryParseAction(
+            ReadValue(controlData, slots, 'a'),
+            out var action);
+        return action;
+    }
+
+    private static KgpFormat ReadFormat(
+        ReadOnlySpan<char> controlData,
+        ReadOnlySpan<ControlSlot> slots)
+    {
+        if (!HasValue(slots, 'f'))
             return KgpFormat.Rgba32;
 
-        _ = TryParseFormat(value, out var format);
+        _ = TryParseFormat(
+            ReadValue(controlData, slots, 'f'),
+            out var format);
         return format;
     }
 
     private static KgpTransmissionMedium ReadMedium(
-        IReadOnlyDictionary<char, string> values)
+        ReadOnlySpan<char> controlData,
+        ReadOnlySpan<ControlSlot> slots)
     {
-        if (!values.TryGetValue('t', out var value))
+        if (!HasValue(slots, 't'))
             return KgpTransmissionMedium.Direct;
 
-        _ = TryParseMedium(value, out var medium);
+        _ = TryParseMedium(
+            ReadValue(controlData, slots, 't'),
+            out var medium);
         return medium;
     }
 
     private static uint ReadUInt32(
-        IReadOnlyDictionary<char, string> values,
+        ReadOnlySpan<char> controlData,
+        ReadOnlySpan<ControlSlot> slots,
         char key)
     {
-        if (!values.TryGetValue(key, out var value))
+        if (!HasValue(slots, key))
             return 0;
 
-        _ = TryParseUInt32(value, out var result);
+        _ = TryParseUInt32(
+            ReadValue(controlData, slots, key),
+            out var result);
         return result;
     }
 
     private static int ReadInt32(
-        IReadOnlyDictionary<char, string> values,
+        ReadOnlySpan<char> controlData,
+        ReadOnlySpan<ControlSlot> slots,
         char key)
     {
-        if (!values.TryGetValue(key, out var value))
+        if (!HasValue(slots, key))
             return 0;
 
-        _ = TryParseInt32(value, out var result);
+        _ = TryParseInt32(
+            ReadValue(controlData, slots, key),
+            out var result);
         return result;
     }
 
-    private static bool TryParseAction(string value, out KgpAction action)
+    private static bool HasValue(
+        ReadOnlySpan<ControlSlot> slots,
+        char key)
+        => slots[GetKeyIndex(key)].IsPresent;
+
+    private static ReadOnlySpan<char> ReadValue(
+        ReadOnlySpan<char> controlData,
+        ReadOnlySpan<ControlSlot> slots,
+        char key)
     {
-        action = value switch
-        {
-            "t" => KgpAction.Transmit,
-            "T" => KgpAction.TransmitAndDisplay,
-            "q" => KgpAction.Query,
-            "p" => KgpAction.Put,
-            "d" => KgpAction.Delete,
-            "f" => KgpAction.AnimationFrame,
-            "a" => KgpAction.AnimationControl,
-            "c" => KgpAction.Compose,
-            _ => default,
-        };
-        return value is "t" or "T" or "q" or "p" or "d" or "f" or "a" or "c";
+        ref readonly var slot = ref slots[GetKeyIndex(key)];
+        return slot.IsPresent
+            ? controlData.Slice(slot.ValueStart, slot.ValueLength)
+            : [];
     }
 
-    private static bool TryParseFormat(string value, out KgpFormat format)
+    private static bool TryParseAction(
+        ReadOnlySpan<char> value,
+        out KgpAction action)
     {
-        format = value switch
+        if (value.Length != 1)
         {
-            "24" => KgpFormat.Rgb24,
-            "32" => KgpFormat.Rgba32,
-            "100" => KgpFormat.Png,
+            action = default;
+            return false;
+        }
+
+        action = value[0] switch
+        {
+            't' => KgpAction.Transmit,
+            'T' => KgpAction.TransmitAndDisplay,
+            'q' => KgpAction.Query,
+            'p' => KgpAction.Put,
+            'd' => KgpAction.Delete,
+            'f' => KgpAction.AnimationFrame,
+            'a' => KgpAction.AnimationControl,
+            'c' => KgpAction.Compose,
             _ => default,
         };
-        return value is "24" or "32" or "100";
+        return value[0] is 't' or 'T' or 'q' or 'p' or 'd' or 'f' or 'a' or 'c';
+    }
+
+    private static bool TryParseFormat(
+        ReadOnlySpan<char> value,
+        out KgpFormat format)
+    {
+        if (value.SequenceEqual("24"))
+        {
+            format = KgpFormat.Rgb24;
+            return true;
+        }
+
+        if (value.SequenceEqual("32"))
+        {
+            format = KgpFormat.Rgba32;
+            return true;
+        }
+
+        if (value.SequenceEqual("100"))
+        {
+            format = KgpFormat.Png;
+            return true;
+        }
+
+        format = default;
+        return false;
     }
 
     private static bool TryParseMedium(
-        string value,
+        ReadOnlySpan<char> value,
         out KgpTransmissionMedium medium)
     {
-        medium = value switch
+        if (value.Length != 1)
         {
-            "d" => KgpTransmissionMedium.Direct,
-            "f" => KgpTransmissionMedium.File,
-            "t" => KgpTransmissionMedium.TempFile,
-            "s" => KgpTransmissionMedium.SharedMemory,
+            medium = default;
+            return false;
+        }
+
+        medium = value[0] switch
+        {
+            'd' => KgpTransmissionMedium.Direct,
+            'f' => KgpTransmissionMedium.File,
+            't' => KgpTransmissionMedium.TempFile,
+            's' => KgpTransmissionMedium.SharedMemory,
             _ => default,
         };
-        return value is "d" or "f" or "t" or "s";
+        return value[0] is 'd' or 'f' or 't' or 's';
     }
 
     private static bool TryParseDeleteTarget(
-        string value,
+        ReadOnlySpan<char> value,
         out KgpDeleteTarget target)
     {
-        target = value switch
+        if (value.Length != 1)
         {
-            "a" => KgpDeleteTarget.All,
-            "A" => KgpDeleteTarget.AllFreeData,
-            "i" => KgpDeleteTarget.ById,
-            "I" => KgpDeleteTarget.ByIdFreeData,
-            "n" => KgpDeleteTarget.ByNumber,
-            "N" => KgpDeleteTarget.ByNumberFreeData,
-            "c" => KgpDeleteTarget.AtCursor,
-            "C" => KgpDeleteTarget.AtCursorFreeData,
-            "p" => KgpDeleteTarget.AtCell,
-            "P" => KgpDeleteTarget.AtCellFreeData,
-            "q" => KgpDeleteTarget.AtCellWithZIndex,
-            "Q" => KgpDeleteTarget.AtCellWithZIndexFreeData,
-            "x" => KgpDeleteTarget.ByColumn,
-            "X" => KgpDeleteTarget.ByColumnFreeData,
-            "y" => KgpDeleteTarget.ByRow,
-            "Y" => KgpDeleteTarget.ByRowFreeData,
-            "z" => KgpDeleteTarget.ByZIndex,
-            "Z" => KgpDeleteTarget.ByZIndexFreeData,
-            "r" => KgpDeleteTarget.ByRange,
-            "R" => KgpDeleteTarget.ByRangeFreeData,
-            "f" => KgpDeleteTarget.AnimationFrames,
-            "F" => KgpDeleteTarget.AnimationFramesFreeData,
+            target = default;
+            return false;
+        }
+
+        target = value[0] switch
+        {
+            'a' => KgpDeleteTarget.All,
+            'A' => KgpDeleteTarget.AllFreeData,
+            'i' => KgpDeleteTarget.ById,
+            'I' => KgpDeleteTarget.ByIdFreeData,
+            'n' => KgpDeleteTarget.ByNumber,
+            'N' => KgpDeleteTarget.ByNumberFreeData,
+            'c' => KgpDeleteTarget.AtCursor,
+            'C' => KgpDeleteTarget.AtCursorFreeData,
+            'p' => KgpDeleteTarget.AtCell,
+            'P' => KgpDeleteTarget.AtCellFreeData,
+            'q' => KgpDeleteTarget.AtCellWithZIndex,
+            'Q' => KgpDeleteTarget.AtCellWithZIndexFreeData,
+            'x' => KgpDeleteTarget.ByColumn,
+            'X' => KgpDeleteTarget.ByColumnFreeData,
+            'y' => KgpDeleteTarget.ByRow,
+            'Y' => KgpDeleteTarget.ByRowFreeData,
+            'z' => KgpDeleteTarget.ByZIndex,
+            'Z' => KgpDeleteTarget.ByZIndexFreeData,
+            'r' => KgpDeleteTarget.ByRange,
+            'R' => KgpDeleteTarget.ByRangeFreeData,
+            'f' => KgpDeleteTarget.AnimationFrames,
+            'F' => KgpDeleteTarget.AnimationFramesFreeData,
             _ => default,
         };
-        return value is
-            "a" or "A" or "i" or "I" or "n" or "N" or "c" or "C" or
-            "p" or "P" or "q" or "Q" or "x" or "X" or "y" or "Y" or
-            "z" or "Z" or "r" or "R" or "f" or "F";
+        return value[0] is
+            'a' or 'A' or 'i' or 'I' or 'n' or 'N' or 'c' or 'C' or
+            'p' or 'P' or 'q' or 'Q' or 'x' or 'X' or 'y' or 'Y' or
+            'z' or 'Z' or 'r' or 'R' or 'f' or 'F';
     }
 
-    private static bool TryParseUInt32(string value, out uint result)
+    private static bool TryParseUInt32(
+        ReadOnlySpan<char> value,
+        out uint result)
     {
-        if (value.Length == 0 || !value.All(IsAsciiDigit))
+        if (value.IsEmpty)
         {
             result = 0;
             return false;
         }
 
-        return uint.TryParse(
-            value,
-            NumberStyles.None,
-            CultureInfo.InvariantCulture,
-            out result);
-    }
-
-    private static bool TryParseInt32(string value, out int result)
-    {
-        var digits = value;
-        if (value[0] == '-')
+        uint parsed = 0;
+        foreach (var character in value)
         {
-            if (value.Length == 1)
+            if (!IsAsciiDigit(character))
             {
                 result = 0;
                 return false;
             }
 
-            digits = value[1..];
+            var digit = (uint)(character - '0');
+            if (parsed > (uint.MaxValue - digit) / 10)
+            {
+                result = 0;
+                return false;
+            }
+
+            parsed = (parsed * 10) + digit;
         }
 
-        if (digits.Length == 0 || !digits.All(IsAsciiDigit))
+        result = parsed;
+        return true;
+    }
+
+    private static bool TryParseInt32(
+        ReadOnlySpan<char> value,
+        out int result)
+    {
+        if (value.IsEmpty)
         {
             result = 0;
             return false;
         }
 
-        return int.TryParse(
-            value,
-            NumberStyles.AllowLeadingSign,
-            CultureInfo.InvariantCulture,
-            out result);
+        var negative = value[0] == '-';
+        var digits = negative ? value[1..] : value;
+        if (digits.IsEmpty)
+        {
+            result = 0;
+            return false;
+        }
+
+        var limit = negative
+            ? (uint)int.MaxValue + 1
+            : int.MaxValue;
+        uint parsed = 0;
+        foreach (var character in digits)
+        {
+            if (!IsAsciiDigit(character))
+            {
+                result = 0;
+                return false;
+            }
+
+            var digit = (uint)(character - '0');
+            if (parsed > (limit - digit) / 10)
+            {
+                result = 0;
+                return false;
+            }
+
+            parsed = (parsed * 10) + digit;
+        }
+
+        if (!negative)
+        {
+            result = (int)parsed;
+            return true;
+        }
+
+        result = parsed == (uint)int.MaxValue + 1
+            ? int.MinValue
+            : -(int)parsed;
+        return true;
     }
+
+    private static int GetKeyIndex(char key)
+        => key is >= 'a' and <= 'z'
+            ? key - 'a'
+            : 26 + key - 'A';
 
     private static bool IsAsciiLetter(char value)
         => value is >= 'a' and <= 'z' or >= 'A' and <= 'Z';

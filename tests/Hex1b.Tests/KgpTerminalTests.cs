@@ -305,6 +305,8 @@ public class KgpTerminalTests
     [DataRow("a=d,d=f,r=bad")]
     [DataRow("d=p,x=1,y=4294967296,a=d")]
     [DataRow("a=d,d=q,x=1,y=2,z=2147483648")]
+    [DataRow("a=x,a=d,d=?")]
+    [DataRow("a=d,a=x")]
     public void InvalidDeleteControl_IsNoResponseSafeNoOp(string controlData)
     {
         var workload = new RecordingWorkloadAdapter();

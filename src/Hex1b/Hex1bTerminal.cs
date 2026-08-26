@@ -6376,7 +6376,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         if (!KgpCommandParser.TryParse(token.ControlData, out var command, out var failure))
         {
-            ProcessKgpParseFailure(failure!);
+            ProcessKgpParseFailure(failure, token.ControlData);
             return;
         }
 
@@ -6404,15 +6404,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private void ProcessKgpParseFailure(KgpCommandParser.Failure failure)
+    private void ProcessKgpParseFailure(
+        KgpCommandParser.Failure failure,
+        string controlData)
     {
         if (failure.Action == KgpAction.Delete)
             return;
 
+        var reason = failure.FormatReason(controlData.AsSpan());
         SendKgpResponse(
             failure.ImageId,
             failure.ImageNumber,
-            $"EINVAL:{failure.Reason}",
+            $"EINVAL:{reason}",
             (int)failure.Quiet);
     }
 

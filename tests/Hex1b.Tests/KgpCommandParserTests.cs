@@ -3,6 +3,8 @@ namespace Hex1b.Tests;
 [TestClass]
 public class KgpCommandParserTests
 {
+    public TestContext TestContext { get; set; } = null!;
+
     [TestMethod]
     public void Parse_EmptyOrNullControlData_ReturnsDefaultTransmit()
     {
@@ -428,7 +430,8 @@ public class KgpCommandParserTests
         var failure = ParseFailure(controlData);
 
         Assert.ThrowsExactly<FormatException>(() => KgpCommand.Parse(controlData));
-        Assert.IsFalse(string.IsNullOrWhiteSpace(failure.Reason));
+        Assert.IsFalse(
+            string.IsNullOrWhiteSpace(failure.FormatReason(controlData.AsSpan())));
     }
 
     [TestMethod]
@@ -502,6 +505,8 @@ public class KgpCommandParserTests
     {
         var nonDelete = ParseFailure("a=t,i=7,I=8,p=9,q=2,f=99");
         var delete = ParseFailure("i=10,a=d,q=1,d=?,I=11,p=12");
+        var invalidThenDelete = ParseFailure("a=x,a=d,d=?");
+        var deleteThenInvalid = ParseFailure("a=d,a=x");
 
         Assert.AreEqual(KgpAction.Transmit, nonDelete.Action);
         Assert.AreEqual(7u, nonDelete.ImageId);
@@ -514,6 +519,37 @@ public class KgpCommandParserTests
         Assert.AreEqual(11u, delete.ImageNumber);
         Assert.AreEqual(12u, delete.PlacementId);
         Assert.AreEqual(KgpParsedCommand.QuietMode.SuppressSuccess, delete.Quiet);
+        Assert.AreEqual(KgpAction.Delete, invalidThenDelete.Action);
+        Assert.AreEqual(KgpAction.Delete, deleteThenInvalid.Action);
+    }
+
+    [TestMethod]
+    [DoNotParallelize]
+    public void TryParse_RepeatedCommands_StaysWithinAllocationBudget()
+    {
+        const int iterations = 10_000;
+        const string validControlData =
+            "a=T,f=24,t=d,s=100,v=200,S=300,O=400,i=42,p=7,m=0,q=1,N=1," +
+            "x=10,y=20,w=30,h=40,X=3,Y=5,c=6,r=8,C=1,U=1,z=-9,P=11,Q=12,H=-13,V=14";
+        const string invalidDeleteControlData = "a=d,d=f,i=42,r=bad,q=1";
+
+        var validBytes = MeasureParserAllocations(
+            validControlData,
+            expectedSuccess: true,
+            iterations);
+        var invalidDeleteBytes = MeasureParserAllocations(
+            invalidDeleteControlData,
+            expectedSuccess: false,
+            iterations);
+
+        TestContext.WriteLine(
+            $"Valid parse: {validBytes} bytes total, {(double)validBytes / iterations:F2} bytes/op.");
+        TestContext.WriteLine(
+            $"Invalid delete parse: {invalidDeleteBytes} bytes total, " +
+            $"{(double)invalidDeleteBytes / iterations:F2} bytes/op.");
+
+        Assert.IsLessThanOrEqualTo(256L, validBytes / iterations);
+        Assert.AreEqual(0L, invalidDeleteBytes);
     }
 
     private static TCommand ParseTyped<TCommand>(string controlData)
@@ -524,9 +560,11 @@ public class KgpCommandParserTests
             out var command,
             out var failure);
 
-        Assert.IsTrue(success, failure?.Reason);
+        Assert.IsTrue(
+            success,
+            success ? null : failure.FormatReason(controlData.AsSpan()));
         Assert.IsNotNull(command);
-        Assert.IsNull(failure);
+        Assert.AreEqual(KgpCommandParser.ErrorCode.None, failure.Code);
         return TestSeq.IsType<TCommand>(command);
     }
 
@@ -546,7 +584,7 @@ public class KgpCommandParserTests
 
         Assert.IsFalse(success, $"Expected parsing to fail: {controlData}");
         Assert.IsNull(command);
-        Assert.IsNotNull(failure);
+        Assert.AreNotEqual(KgpCommandParser.ErrorCode.None, failure.Code);
         return failure;
     }
 
@@ -557,8 +595,50 @@ public class KgpCommandParserTests
             out var command,
             out var failure);
 
-        Assert.IsTrue(success, $"{controlData}: {failure?.Reason}");
+        Assert.IsTrue(
+            success,
+            success ? null : $"{controlData}: {failure.FormatReason(controlData.AsSpan())}");
         Assert.IsNotNull(command);
+    }
+
+    private static long MeasureParserAllocations(
+        string controlData,
+        bool expectedSuccess,
+        int iterations)
+    {
+        for (var i = 0; i < 1_000; i++)
+        {
+            var success = KgpCommandParser.TryParse(
+                controlData,
+                out _,
+                out _);
+            Assert.AreEqual(expectedSuccess, success);
+        }
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        var successfulParses = 0;
+        KgpParsedCommand? lastCommand = null;
+        var lastFailure = default(KgpCommandParser.Failure);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < iterations; i++)
+        {
+            if (KgpCommandParser.TryParse(
+                controlData,
+                out lastCommand,
+                out lastFailure))
+            {
+                successfulParses++;
+            }
+        }
+
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.AreEqual(expectedSuccess ? iterations : 0, successfulParses);
+        GC.KeepAlive(lastCommand);
+        GC.KeepAlive(lastFailure);
+        return allocated;
     }
 
     private static (string Prefix, string Key)[] UnsignedControlContexts()
