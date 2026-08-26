@@ -1194,23 +1194,17 @@ public class KgpGhosttyCommandParsingConformanceTests
     }
 
     [TestMethod]
-    public void IgnoreUnknownKeys_LongKey()
+    public void RejectUnknownKeys_LongKey()
     {
-        // Multi-char keys like "hello=world" should be silently ignored
-        var parsed = KgpCommand.Parse("f=24,s=10,v=20,hello=world");
-        Assert.AreEqual(KgpFormat.Rgb24, parsed.Format);
-        Assert.AreEqual(10u, parsed.Width);
-        Assert.AreEqual(20u, parsed.Height);
+        Assert.ThrowsExactly<FormatException>(
+            () => KgpCommand.Parse("f=24,s=10,v=20,hello=world"));
     }
 
     [TestMethod]
-    public void IgnoreVeryLongValues_OverflowsGracefully()
+    public void RejectVeryLongValues_ThatOverflowUInt32()
     {
-        // Enormous values that overflow uint should parse to 0 via TryParse failure
-        var parsed = KgpCommand.Parse("f=24,s=10,v=2000000000000000000000000000000000000000");
-        Assert.AreEqual(KgpFormat.Rgb24, parsed.Format);
-        Assert.AreEqual(10u, parsed.Width);
-        Assert.AreEqual(0u, parsed.Height); // overflow → TryParse fails → default 0
+        Assert.ThrowsExactly<FormatException>(
+            () => KgpCommand.Parse("f=24,s=10,v=2000000000000000000000000000000000000000"));
     }
 
     [TestMethod]

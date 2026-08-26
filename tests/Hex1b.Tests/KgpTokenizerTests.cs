@@ -16,6 +16,16 @@ public class KgpTokenizerTests
     }
 
     [TestMethod]
+    public void Tokenize_KgpWithInvalidSemanticControls_StillProducesKgpToken()
+    {
+        var tokens = AnsiTokenizer.Tokenize("\x1b_Ga=invalid,f=99;AAAA\x1b\\");
+
+        var kgpToken = TestSeq.Single(tokens.OfType<KgpToken>());
+        Assert.AreEqual("a=invalid,f=99", kgpToken.ControlData);
+        Assert.AreEqual("AAAA", kgpToken.Payload);
+    }
+
+    [TestMethod]
     public void Tokenize_KgpWithNoPayload_ProducesKgpTokenWithEmptyPayload()
     {
         var tokens = AnsiTokenizer.Tokenize("\x1b_Ga=d,d=a\x1b\\");
