@@ -236,7 +236,7 @@ public sealed class KgpCommand
                 $"Invalid KGP control data: {failure.FormatReason(controlData.AsSpan())}");
         }
 
-        return FromParsed(command!);
+        return FromParsed(command);
     }
 
     internal KgpParsedCommand.TransmissionData ToTransmissionData()

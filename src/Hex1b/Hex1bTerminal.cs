@@ -6380,7 +6380,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         }
 
-        switch (command!)
+        switch (command)
         {
             case KgpParsedCommand.Transmit transmit:
                 ProcessKgpTransmit(transmit.Transmission, transmit.Quiet, token.Payload);

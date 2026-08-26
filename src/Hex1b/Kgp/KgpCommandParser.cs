@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Hex1b;
 
 internal static class KgpCommandParser
@@ -115,13 +117,13 @@ internal static class KgpCommandParser
 
     internal static bool TryParse(
         string? controlData,
-        out KgpParsedCommand? command,
+        [NotNullWhen(true)] out KgpParsedCommand? command,
         out Failure failure)
         => TryParse(controlData.AsSpan(), out command, out failure);
 
     internal static bool TryParse(
         ReadOnlySpan<char> controlData,
-        out KgpParsedCommand? command,
+        [NotNullWhen(true)] out KgpParsedCommand? command,
         out Failure failure)
     {
         Span<ControlSlot> slots = stackalloc ControlSlot[52];
