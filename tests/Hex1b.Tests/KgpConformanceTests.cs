@@ -633,16 +633,23 @@ public class KgpImageNumberConformanceTests
         // Transmit two images with same number
         var data1 = KgpTestHelper.CreatePixelData(2, 2, fillByte: 0xAA);
         SendKgp(terminal, KgpTestHelper.BuildCommand("a=t,f=32,s=2,v=2,I=5", data1));
+        var first = terminal.KgpImageStore.GetImageByNumber(5);
+        Assert.IsNotNull(first);
 
         var data2 = KgpTestHelper.CreatePixelData(3, 3, fillByte: 0xBB);
         SendKgp(terminal, KgpTestHelper.BuildCommand("a=t,f=32,s=3,v=3,I=5", data2));
+        var second = terminal.KgpImageStore.GetImageByNumber(5);
+        Assert.IsNotNull(second);
+        Assert.AreNotEqual(first.ImageId, second.ImageId);
 
         // Put by image number - should use the newest image
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1H"));
         SendKgp(terminal, KgpTestHelper.BuildCommand("a=p,I=5,c=2,r=2"));
 
         // Placement should exist
-        TestSeq.Single(terminal.KgpPlacements);
+        var placement = TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(second.ImageId, placement.ImageId);
+        Assert.AreEqual(0xBB, terminal.KgpImageStore.GetImageById(placement.ImageId)!.Data[0]);
     }
 
     [TestMethod]
@@ -671,7 +678,7 @@ public class KgpImageNumberConformanceTests
     }
 
     [TestMethod]
-    public void ImageNumber_ExplicitId_TakesPriority()
+    public void ImageNumber_WithExplicitId_IsRejectedWithoutMutation()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = CreateTerminal(workload);
@@ -681,10 +688,38 @@ public class KgpImageNumberConformanceTests
         var cmd = KgpTestHelper.BuildCommand("a=t,f=32,s=2,v=2,i=42,I=7", data);
         SendKgp(terminal, cmd);
 
-        // Explicit ID should be used
-        var img = terminal.KgpImageStore.GetImageById(42);
-        Assert.IsNotNull(img);
-        Assert.AreEqual(42u, img.ImageId);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(42));
+        Assert.IsNull(terminal.KgpImageStore.GetImageByNumber(7));
+        Assert.IsEmpty(terminal.KgpPlacements);
+    }
+
+    [TestMethod]
+    public void ImageNumber_RetransmitNewestById_FallsBackToPreviousImage()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        var data1 = KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xAA);
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=t,f=32,s=1,v=1,I=5", data1));
+        var first = terminal.KgpImageStore.GetImageByNumber(5);
+        Assert.IsNotNull(first);
+
+        var data2 = KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xBB);
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=t,f=32,s=1,v=1,I=5", data2));
+        var second = terminal.KgpImageStore.GetImageByNumber(5);
+        Assert.IsNotNull(second);
+
+        var replacement = KgpTestHelper.CreatePixelData(1, 1, fillByte: 0xCC);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            $"a=t,f=32,s=1,v=1,i={second.ImageId}",
+            replacement));
+
+        Assert.AreSame(first, terminal.KgpImageStore.GetImageByNumber(5));
+        var replaced = terminal.KgpImageStore.GetImageById(second.ImageId);
+        Assert.IsNotNull(replaced);
+        Assert.AreEqual(0u, replaced.ImageNumber);
+        Assert.AreEqual(0xCC, replaced.Data[0]);
     }
 }
 
@@ -1260,7 +1295,7 @@ public class KgpGhosttyCommandParsingConformanceTests
     }
 
     [TestMethod]
-    public void ResponseEncoding_BothIdAndNumber()
+    public void ResponseEncoding_ConflictingIdAndNumberDoesNotMutateState()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = CreateTerminal(workload);
@@ -1270,16 +1305,10 @@ public class KgpGhosttyCommandParsingConformanceTests
         var cmd = KgpTestHelper.BuildCommand("a=t,f=32,s=2,v=2,i=10,I=20", data);
         SendKgp(terminal, cmd);
 
-        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
-        var img = terminal.KgpImageStore.GetImageById(10);
-        Assert.IsNotNull(img);
-        Assert.AreEqual(10u, img.ImageId);
-        Assert.AreEqual(20u, img.ImageNumber);
-
-        // Also retrievable by number
-        var imgByNum = terminal.KgpImageStore.GetImageByNumber(20);
-        Assert.IsNotNull(imgByNum);
-        Assert.AreEqual(10u, imgByNum.ImageId);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(10));
+        Assert.IsNull(terminal.KgpImageStore.GetImageByNumber(20));
+        Assert.IsEmpty(terminal.KgpPlacements);
     }
 }
 

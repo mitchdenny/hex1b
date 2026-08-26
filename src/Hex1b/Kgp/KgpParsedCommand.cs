@@ -9,6 +9,13 @@ internal abstract record KgpParsedCommand(KgpParsedCommand.QuietMode Quiet)
         SuppressAll,
     }
 
+    internal enum ImageIdentityKind
+    {
+        Anonymous,
+        ExplicitId,
+        Number,
+    }
+
     internal enum CompressionMode
     {
         None,
@@ -75,7 +82,15 @@ internal abstract record KgpParsedCommand(KgpParsedCommand.QuietMode Quiet)
         uint PlacementId,
         CompressionMode Compression,
         bool MoreData,
-        uint UsageHints);
+        uint UsageHints)
+    {
+        internal ImageIdentityKind IdentityKind
+            => ImageId > 0
+                ? ImageIdentityKind.ExplicitId
+                : ImageNumber > 0
+                    ? ImageIdentityKind.Number
+                    : ImageIdentityKind.Anonymous;
+    }
 
     internal readonly record struct DisplayData(
         uint ImageId,

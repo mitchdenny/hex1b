@@ -19,6 +19,7 @@ internal static class KgpCommandParser
         InvalidImageFormat,
         InvalidSignedInteger,
         InvalidUnsignedInteger,
+        ConflictingImageIdentity,
     }
 
     internal readonly record struct Failure(
@@ -62,6 +63,8 @@ internal static class KgpCommandParser
                     => $"Invalid signed integer '{value.ToString()}' for control key '{Key}'.",
                 ErrorCode.InvalidUnsignedInteger
                     => $"Invalid unsigned integer '{value.ToString()}' for control key '{Key}'.",
+                ErrorCode.ConflictingImageIdentity
+                    => "Must not specify both image id and image number",
                 _ => "Invalid KGP control data.",
             };
         }
@@ -109,6 +112,7 @@ internal static class KgpCommandParser
 
     private struct ControlSlot
     {
+        internal int Position;
         internal int ValueStart;
         internal int ValueLength;
 
@@ -160,6 +164,24 @@ internal static class KgpCommandParser
                 error.Position,
                 error.ValueStart,
                 error.ValueLength,
+                action,
+                imageId,
+                imageNumber,
+                placementId,
+                quiet);
+            return false;
+        }
+
+        if (imageId > 0 && imageNumber > 0)
+        {
+            var slot = slots[GetKeyIndex('I')];
+            command = null;
+            failure = new Failure(
+                ErrorCode.ConflictingImageIdentity,
+                'I',
+                slot.Position,
+                slot.ValueStart,
+                slot.ValueLength,
                 action,
                 imageId,
                 imageNumber,
@@ -345,6 +367,7 @@ internal static class KgpCommandParser
         }
 
         ref var slot = ref slots[GetKeyIndex(key)];
+        slot.Position = pairIndex;
         slot.ValueStart = valueStart;
         slot.ValueLength = valueLength;
     }

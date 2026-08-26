@@ -6408,8 +6408,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         KgpCommandParser.Failure failure,
         string controlData)
     {
-        if (failure.Action == KgpAction.Delete)
+        if (failure.Action == KgpAction.Delete &&
+            failure.Code != KgpCommandParser.ErrorCode.ConflictingImageIdentity)
+        {
             return;
+        }
 
         var reason = failure.FormatReason(controlData.AsSpan());
         SendKgpResponse(
@@ -6419,7 +6422,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             (int)failure.Quiet);
     }
 
-    private void ProcessKgpTransmit(
+    private KgpImageData? ProcessKgpTransmit(
         KgpParsedCommand.TransmissionData command,
         KgpParsedCommand.QuietMode quiet,
         string base64Payload)
@@ -6428,79 +6431,114 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         if (command.MoreData || _kgpImageStore.IsChunkedTransferInProgress)
         {
-            var image = _kgpImageStore.ProcessChunk(command, decodedData);
-            if (image is not null)
-            {
-                _kgpImageStore.StoreImage(image);
-                SendKgpResponse(image.ImageId, image.ImageNumber, "OK", (int)quiet);
-            }
-            return;
-        }
+            var completed = _kgpImageStore.ProcessChunkAndStore(command, decodedData);
+            if (completed is null)
+                return null;
 
-        // Single-chunk transmit
-        var imageId = command.ImageId;
-        var imageNumber = command.ImageNumber;
-
-        if (imageId == 0 && imageNumber > 0)
-        {
-            imageId = _kgpImageStore.AllocateId();
-        }
-        else if (imageId == 0)
-        {
-            imageId = _kgpImageStore.AllocateId();
+            return CompleteKgpTransmit(
+                completed.Value.Transmission,
+                completed.Value.Store,
+                quiet);
         }
 
         var expectedSize = GetExpectedKgpDataSize(command);
         if (expectedSize > 0 && decodedData.Length < expectedSize)
         {
-            SendKgpResponse(imageId, imageNumber,
+            SendKgpTransmissionResponse(command, null,
                 $"ENODATA:Insufficient image data: {decodedData.Length} < {expectedSize}",
-                (int)quiet);
-            return;
+                quiet);
+            return null;
         }
 
-        var newImage = new KgpImageData(imageId, imageNumber, decodedData,
-            command.Width, command.Height, command.Format);
-        _kgpImageStore.StoreImage(newImage);
-        SendKgpResponse(imageId, imageNumber, "OK", (int)quiet);
+        var stored = _kgpImageStore.StoreImage(command, decodedData);
+        return CompleteKgpTransmit(command, stored, quiet);
     }
 
     private void ProcessKgpTransmitAndDisplay(
         KgpParsedCommand.TransmitAndDisplay command,
         string base64Payload)
     {
-        ProcessKgpTransmit(command.Transmission, command.Quiet, base64Payload);
+        var image = ProcessKgpTransmit(
+            command.Transmission,
+            command.Quiet,
+            base64Payload);
+        if (image is null)
+            return;
 
-        // Then place the image
-        var imageId = command.Transmission.ImageId;
-        if (imageId == 0 && command.Transmission.ImageNumber > 0)
+        var cols = command.Display.Columns > 0 ? (int)command.Display.Columns : 1;
+        var rows = command.Display.Rows > 0 ? (int)command.Display.Rows : 1;
+        var placementId = command.Transmission.IdentityKind ==
+            KgpParsedCommand.ImageIdentityKind.Anonymous
+                ? 0
+                : command.Display.PlacementId;
+
+        CreateKgpPlacement(
+            image.ImageId,
+            placementId,
+            (uint)cols,
+            (uint)rows,
+            command.Display);
+
+        if (!command.Display.SuppressCursorMovement)
         {
-            var img = _kgpImageStore.GetImageByNumber(command.Transmission.ImageNumber);
-            if (img is not null)
-                imageId = img.ImageId;
-        }
-
-        if (imageId > 0)
-        {
-            var cols = command.Display.Columns > 0 ? (int)command.Display.Columns : 1;
-            var rows = command.Display.Rows > 0 ? (int)command.Display.Rows : 1;
-
-            CreateKgpPlacement(
-                imageId,
-                command.Display.PlacementId,
-                (uint)cols,
-                (uint)rows,
-                command.Display);
-
-            if (!command.Display.SuppressCursorMovement)
+            _cursorX = Math.Min(_cursorX + cols, _width - 1);
+            for (int r = 1; r < rows; r++)
             {
-                _cursorX = Math.Min(_cursorX + cols, _width - 1);
-                for (int r = 1; r < rows; r++)
+                if (_cursorY < _height - 1)
+                    _cursorY++;
+            }
+        }
+    }
+
+    private KgpImageData CompleteKgpTransmit(
+        KgpParsedCommand.TransmissionData transmission,
+        KgpImageStore.StoreResult stored,
+        KgpParsedCommand.QuietMode quiet)
+    {
+        if (stored.Relocation is { } relocation)
+        {
+            for (var i = 0; i < _kgpPlacements.Count; i++)
+            {
+                if (_kgpPlacements[i].ImageId == relocation.PreviousId)
                 {
-                    if (_cursorY < _height - 1)
-                        _cursorY++;
+                    // Replace rather than mutate so existing snapshots keep
+                    // their original placement-to-image identity.
+                    _kgpPlacements[i] = _kgpPlacements[i].WithImageId(relocation.CurrentId);
                 }
             }
+        }
+
+        if (stored.Replaced)
+            _kgpPlacements.RemoveAll(p => p.ImageId == stored.Image.ImageId);
+
+        SendKgpTransmissionResponse(transmission, stored.Image, "OK", quiet);
+        return stored.Image;
+    }
+
+    private void SendKgpTransmissionResponse(
+        KgpParsedCommand.TransmissionData transmission,
+        KgpImageData? storedImage,
+        string message,
+        KgpParsedCommand.QuietMode quiet)
+    {
+        switch (transmission.IdentityKind)
+        {
+            case KgpParsedCommand.ImageIdentityKind.Anonymous:
+                return;
+            case KgpParsedCommand.ImageIdentityKind.ExplicitId:
+                SendKgpResponse(
+                    transmission.ImageId,
+                    0,
+                    message,
+                    (int)quiet);
+                break;
+            case KgpParsedCommand.ImageIdentityKind.Number:
+                SendKgpResponse(
+                    storedImage?.ImageId ?? 0,
+                    transmission.ImageNumber,
+                    message,
+                    (int)quiet);
+                break;
         }
     }
 
@@ -6532,7 +6570,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         KgpImageData? image = null;
 
         if (imageId > 0)
-            image = _kgpImageStore.GetImageById(imageId);
+            image = _kgpImageStore.GetImageByClientId(imageId);
         else if (command.ImageNumber > 0)
             image = _kgpImageStore.GetImageByNumber(command.ImageNumber);
 
