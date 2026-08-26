@@ -1621,11 +1621,12 @@ public class KgpTerminalTests
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = CreateTerminal(workload, 20, 10);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("MAIN"));
         SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(
             1, 1, 1, displayColumns: 1, cursorMovement: 1, quiet: 2, fillByte: 0xAA));
 
         var enterAlternate = AnsiTokenizer.Tokenize(
-            "\x1b[?1049h" +
+            "\x1b[?1049hALT" +
             KgpTestHelper.BuildTransmitAndDisplayCommand(
                 1, 2, 1, displayColumns: 2, cursorMovement: 1, quiet: 2, fillByte: 0xBB));
         var exitAlternate = AnsiTokenizer.Tokenize("\x1b[?1049l");
@@ -1653,12 +1654,16 @@ public class KgpTerminalTests
                     Assert.AreEqual(2u, placement.DisplayColumns);
                     Assert.AreEqual(2u, image.Width);
                     Assert.AreEqual(0xBB, image.Data[0]);
+                    Assert.IsTrue(snapshot.ContainsText("ALT"));
+                    Assert.IsFalse(snapshot.ContainsText("MAIN"));
                 }
                 else
                 {
                     Assert.AreEqual(1u, placement.DisplayColumns);
                     Assert.AreEqual(1u, image.Width);
                     Assert.AreEqual(0xAA, image.Data[0]);
+                    Assert.IsTrue(snapshot.ContainsText("MAIN"));
+                    Assert.IsFalse(snapshot.ContainsText("ALT"));
                 }
 
                 if (i % 16 == 0)
@@ -2365,6 +2370,8 @@ public class KgpTerminalTests
         Assert.AreEqual(1, mainStore.ImageCount);
         Assert.IsTrue(mainStore.IsChunkedTransferInProgress);
         TestSeq.Single(terminal.KgpPlacements);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b[2;3HMAIN\x1b[4;6H"));
 
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049h"));
         SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(
@@ -2376,6 +2383,8 @@ public class KgpTerminalTests
         Assert.AreEqual(1, alternateStore.ImageCount);
         Assert.IsTrue(alternateStore.IsChunkedTransferInProgress);
         TestSeq.Single(terminal.KgpPlacements);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b[1;1HALT\x1b[2;2H"));
 
         return (mainStore, alternateStore);
     }
@@ -2398,6 +2407,10 @@ public class KgpTerminalTests
         Assert.IsFalse(snapshot.InAlternateScreen);
         Assert.IsEmpty(snapshot.KgpPlacements);
         Assert.IsEmpty(snapshot.KgpImages);
+        Assert.IsTrue(snapshot.ContainsText("MAIN"));
+        Assert.IsFalse(snapshot.ContainsText("ALT"));
+        Assert.AreEqual(5, snapshot.CursorX);
+        Assert.AreEqual(3, snapshot.CursorY);
 
         terminal.EnterAlternateScreen();
         var applied = terminal.ApplyTokensWithImpacts(
@@ -2406,6 +2419,18 @@ public class KgpTerminalTests
         using var afterTokenSnapshot = terminal.CreateSnapshot();
         Assert.IsFalse(afterTokenSnapshot.InAlternateScreen);
         Assert.AreSame(mainStore, terminal.KgpImageStore);
+    }
+
+    private static IReadOnlyList<AppliedToken> ApplyDisposalTestTokens(
+        Hex1bTerminal terminal,
+        IReadOnlyList<AnsiToken> tokens,
+        bool captureImpacts)
+    {
+        if (captureImpacts)
+            return terminal.ApplyTokensWithImpacts(tokens);
+
+        terminal.ApplyTokens(tokens);
+        return [];
     }
 
     [TestMethod]
@@ -2436,12 +2461,13 @@ public class KgpTerminalTests
             var tokens = AnsiTokenizer.Tokenize(
                 "\x1b[2S\x1b[?1049h");
 
-            if (captureImpacts)
-                terminal.ApplyTokensWithImpacts(tokens);
-            else
-                terminal.ApplyTokens(tokens);
+            var applied = ApplyDisposalTestTokens(
+                terminal,
+                tokens,
+                captureImpacts);
 
             Assert.AreEqual(1, callbackCount);
+            Assert.IsEmpty(applied);
             Assert.AreSame(mainStore, terminal.KgpImageStore);
             Assert.AreEqual(0, mainStore.ImageCount);
             Assert.IsEmpty(terminal.KgpPlacements);
@@ -2450,6 +2476,130 @@ public class KgpTerminalTests
 
             terminal.Dispose();
             Assert.AreEqual(1, callbackCount);
+        }
+        finally
+        {
+            terminal.Dispose();
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void Dispose_ReentrantScrollbackCallback_AbortsWrappingTextToken(
+        bool captureImpacts)
+    {
+        var workload = new RecordingWorkloadAdapter();
+        Hex1bTerminal? terminal = null;
+        var callbackCount = 0;
+        terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(KgpCapabilities)
+            .WithDimensions(4, 2)
+            .WithScrollback(10, _ =>
+            {
+                callbackCount++;
+                terminal.Dispose();
+            })
+            .Build();
+
+        try
+        {
+            SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(
+                91, 1, 1, cursorMovement: 1, quiet: 2));
+            var mainStore = terminal.KgpImageStore;
+            var tokens = AnsiTokenizer.Tokenize(
+                "123456789Z\x1b[?1049h");
+
+            var applied = ApplyDisposalTestTokens(
+                terminal,
+                tokens,
+                captureImpacts);
+
+            Assert.AreEqual(1, callbackCount);
+            Assert.IsEmpty(applied);
+            Assert.AreSame(mainStore, terminal.KgpImageStore);
+            Assert.AreEqual(0, mainStore.ImageCount);
+            using var snapshot = terminal.CreateSnapshot();
+            Assert.IsFalse(snapshot.InAlternateScreen);
+            Assert.IsFalse(snapshot.ContainsText("9"));
+            Assert.IsFalse(snapshot.ContainsText("Z"));
+        }
+        finally
+        {
+            terminal.Dispose();
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void Dispose_ReentrantScrollbackCallback_AbortsRepeatCharacterToken(
+        bool captureImpacts)
+    {
+        var workload = new RecordingWorkloadAdapter();
+        Hex1bTerminal? terminal = null;
+        var callbackCount = 0;
+        terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(KgpCapabilities)
+            .WithDimensions(4, 2)
+            .WithScrollback(10, _ =>
+            {
+                callbackCount++;
+                terminal.Dispose();
+            })
+            .Build();
+
+        try
+        {
+            SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(
+                92, 1, 1, cursorMovement: 1, quiet: 2));
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[2;4HR"));
+            var mainStore = terminal.KgpImageStore;
+            var tokens = AnsiTokenizer.Tokenize(
+                "\x1b[3b\x1b[?1049h");
+
+            var applied = ApplyDisposalTestTokens(
+                terminal,
+                tokens,
+                captureImpacts);
+
+            Assert.AreEqual(1, callbackCount);
+            Assert.IsEmpty(applied);
+            Assert.AreSame(mainStore, terminal.KgpImageStore);
+            Assert.AreEqual(0, mainStore.ImageCount);
+            using var snapshot = terminal.CreateSnapshot();
+            Assert.IsFalse(snapshot.InAlternateScreen);
+            Assert.AreEqual(
+                1,
+                snapshot.GetScreenText().Count(character => character == 'R'));
+        }
+        finally
+        {
+            terminal.Dispose();
+        }
+    }
+
+    [TestMethod]
+    public void Dispose_InAlternateAfterResize_RestoresClampedMainCursor()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        var terminal = CreateTerminal(workload, width: 10, height: 5);
+        try
+        {
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+                "M\x1b[5;10H\x1b[?1049hALT"));
+            terminal.Resize(2, 1);
+
+            terminal.Dispose();
+
+            using var snapshot = terminal.CreateSnapshot();
+            Assert.IsFalse(snapshot.InAlternateScreen);
+            Assert.IsTrue(snapshot.ContainsText("M"));
+            Assert.IsFalse(snapshot.ContainsText("ALT"));
+            Assert.AreEqual(1, snapshot.CursorX);
+            Assert.AreEqual(0, snapshot.CursorY);
         }
         finally
         {

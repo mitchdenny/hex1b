@@ -78,7 +78,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private UnderlineStyle _currentUnderlineStyle;
     private CellAttributes _currentAttributes;
     private TrackedObject<HyperlinkData>? _currentHyperlink; // Active hyperlink from OSC 8
-    private bool _disposed;
+    private volatile bool _disposed;
     private bool _inAlternateScreen;
     private TerminalCell[,]? _savedMainScreenBuffer; // Saved main screen when entering alternate screen
     private int _alternateScreenSavedCursorX; // Saved cursor X for alternate screen (mode 1049)
@@ -1439,6 +1439,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     // Still apply tokens to internal buffer so CreateSnapshot() works
                     ApplyTokens(tokens);
+                    if (_disposed)
+                        continue;
                     
                     // Forward raw bytes to presentation if present
                     if (_presentation != null)
@@ -1454,6 +1456,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
                 // Apply tokens to our internal buffer and collect cell impacts
                 var appliedTokens = ApplyTokensWithImpacts(tokens);
+                if (_disposed)
+                    continue;
                 
                 // Forward to presentation if present
                 if (_presentation != null)
@@ -1465,6 +1469,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         if (_presentationFilters.Count > 0)
                         {
                             await NotifyPresentationFiltersOutputAsync(appliedTokens);
+                            if (_disposed)
+                                continue;
                         }
                         // Send applied tokens with impacts directly to the adapter
                         await impactAware.WriteOutputWithImpactsAsync(appliedTokens, ct);
@@ -1489,6 +1495,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     {
                         // Pass through presentation filters, serialize and send
                         var filteredTokens = await NotifyPresentationFiltersOutputAsync(appliedTokens);
+                        if (_disposed)
+                            continue;
                         var filteredBytes = Tokens.AnsiTokenUtf8Serializer.Serialize(filteredTokens);
                         await _presentation.WriteOutputAsync(filteredBytes, ct);
                         _metrics.TerminalOutputBytes.Record(filteredBytes.Length);
@@ -1893,6 +1901,74 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             var copy = new TerminalCell[_height, _width];
             Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
             return (copy, _width, _height, _cursorX, _cursorY);
+        }
+    }
+
+    internal Hex1bTerminalSnapshotState CaptureSnapshotState(
+        int scrollbackLines,
+        ScrollbackWidth scrollbackWidth)
+    {
+        lock (_bufferLock)
+        {
+            var screenBuffer = new TerminalCell[_height, _width];
+            Array.Copy(_screenBuffer, screenBuffer, _screenBuffer.Length);
+            for (int y = 0; y < _height; y++)
+            {
+                for (int x = 0; x < _width; x++)
+                {
+                    screenBuffer[y, x].TrackedSixel?.AddRef();
+                    screenBuffer[y, x].TrackedHyperlink?.AddRef();
+                }
+            }
+
+            var scrollbackRows = scrollbackLines > 0
+                ? _scrollbackBuffer?.GetLines(scrollbackLines) ?? []
+                : [];
+            var retainedScrollbackWidth = _width;
+            if (scrollbackWidth == ScrollbackWidth.Original)
+            {
+                foreach (var row in scrollbackRows)
+                    retainedScrollbackWidth = Math.Max(retainedScrollbackWidth, row.OriginalWidth);
+            }
+
+            foreach (var row in scrollbackRows)
+            {
+                var retainedCellCount = Math.Min(row.Cells.Length, retainedScrollbackWidth);
+                for (int x = 0; x < retainedCellCount; x++)
+                {
+                    row.Cells[x].TrackedSixel?.AddRef();
+                    row.Cells[x].TrackedHyperlink?.AddRef();
+                }
+            }
+
+            var kgp = _kgpGraphicsState.CaptureActiveSnapshot();
+            return new Hex1bTerminalSnapshotState(
+                _width,
+                _height,
+                _cursorX,
+                _cursorY,
+                _inAlternateScreen,
+                _cursorVisible,
+                _bracketedPasteMode,
+                _appCursorKeysMode,
+                _appKeypadMode,
+                _focusEventReporting,
+                _mouseProtocolX10,
+                _mouseProtocolNormal,
+                _mouseProtocolHighlight,
+                _mouseProtocolButton,
+                _mouseProtocolAny,
+                _mouseEncodingUtf8,
+                _mouseEncodingSgr,
+                _mouseEncodingUrxvt,
+                _cursorShape,
+                DateTimeOffset.UtcNow,
+                Capabilities.CellPixelWidth,
+                Capabilities.CellPixelHeight,
+                screenBuffer,
+                scrollbackRows,
+                kgp.Placements,
+                kgp.Images);
         }
     }
 
@@ -2317,6 +2393,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     continue;
                     
                 _screenBuffer[y, x].TrackedSixel?.Release();
+                _screenBuffer[y, x].TrackedHyperlink?.Release();
             }
         }
 
@@ -2530,7 +2607,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (_disposed)
                     break;
 
-                ApplyToken(token, null);
+                if (!ApplyToken(token, null))
+                    break;
             }
         }
     }
@@ -2563,7 +2641,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 int cursorYBefore = _cursorY;
                 
                 var impacts = new List<CellImpact>();
-                ApplyToken(token, impacts);
+                if (!ApplyToken(token, impacts))
+                    break;
                 
                 result.Add(new AppliedToken(
                     token,
@@ -2581,17 +2660,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     /// <param name="token">The token to apply.</param>
     /// <param name="impacts">Optional list to record cell impacts for delta tracking.</param>
-    private void ApplyToken(AnsiToken token, List<CellImpact>? impacts)
+    private bool ApplyToken(AnsiToken token, List<CellImpact>? impacts)
     {
         switch (token)
         {
             case TextToken textToken:
-                ApplyTextToken(textToken, impacts);
-                break;
+                return ApplyTextToken(textToken, impacts);
                 
             case ControlCharacterToken controlToken:
-                ApplyControlCharacter(controlToken, impacts);
-                break;
+                return ApplyControlCharacter(controlToken, impacts);
                 
             case SgrToken sgrToken:
                 ProcessSgr(sgrToken.Parameters);
@@ -2879,12 +2956,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case ScrollUpToken scrollUpToken:
                 for (int i = 0; i < scrollUpToken.Count; i++)
-                    ScrollUp(impacts);
+                {
+                    if (!ScrollUp(impacts))
+                        return false;
+                }
                 break;
                 
             case ScrollDownToken scrollDownToken:
                 for (int i = 0; i < scrollDownToken.Count; i++)
-                    ScrollDown(impacts);
+                {
+                    if (!ScrollDown(impacts))
+                        return false;
+                }
                 break;
                 
             case InsertLinesToken insertLinesToken:
@@ -2897,8 +2980,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case RisToken:
                 // RIS (ESC c): Full terminal reset — clear screen, reset all state
+                ReleaseSavedMainScreenBuffer();
                 _inAlternateScreen = false;
-                _savedMainScreenBuffer = null;
                 _alternateScreenSavedCursorX = 0;
                 _alternateScreenSavedCursorY = 0;
                 _scrollTop = 0;
@@ -2990,8 +3073,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
                 
             case RepeatCharacterToken repeatToken:
-                RepeatLastCharacter(repeatToken.Count, impacts);
-                break;
+                return RepeatLastCharacter(repeatToken.Count, impacts);
                 
             case BackTabToken:
                 // CBT (CSI Z): Back tab — move cursor to previous tab stop.
@@ -3011,7 +3093,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     // At bottom of scroll region — scroll if within L/R margins (or no L/R margins)
                     if (!_declrmm || (_cursorX >= _marginLeft && _cursorX <= _marginRight))
-                        ScrollUp(impacts);
+                    {
+                        if (!ScrollUp(impacts))
+                            return false;
+                    }
                     // else: cursor stays put (stuck at scroll bottom, outside L/R margin)
                 }
                 else if (_cursorY < _height - 1)
@@ -3026,7 +3111,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     // At top of scroll region — scroll down if within L/R margins (or no L/R margins)
                     if (!_declrmm || (_cursorX >= _marginLeft && _cursorX <= _marginRight))
-                        ScrollDown(impacts);
+                    {
+                        if (!ScrollDown(impacts))
+                            return false;
+                    }
                     // else: cursor stays put (stuck at scroll top, outside L/R margin)
                 }
                 else if (_cursorY > 0)
@@ -3082,6 +3170,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 HandleDeviceStatusReport(dsr);
                 break;
         }
+
+        return !_disposed;
     }
     
     private void HandleDeviceStatusReport(DeviceStatusReportToken dsr)
@@ -3119,13 +3209,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private void ApplyTextToken(TextToken token, List<CellImpact>? impacts)
+    private bool ApplyTextToken(TextToken token, List<CellImpact>? impacts)
     {
         var text = token.Text;
         int i = 0;
         
         while (i < text.Length)
         {
+            if (_disposed)
+                return false;
+
             string grapheme;
             if (_graphemeClusterMode)
             {
@@ -3166,6 +3259,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (cp == 0xFE0E || cp == 0xFE0F)
                 {
                     ApplyRetroactiveVariationSelector(cp, impacts);
+                    if (_disposed)
+                        return false;
                     i += grapheme.Length;
                     continue;
                 }
@@ -3262,7 +3357,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                                 
                                 if (newY > _scrollBottom)
                                 {
-                                    ScrollUp(null);
+                                    if (!ScrollUp(null))
+                                        return false;
                                     newY = _scrollBottom;
                                 }
                                 
@@ -3349,7 +3445,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Scroll if cursor is past the bottom of the screen BEFORE writing
             if (_cursorY >= _height)
             {
-                ScrollUp(impacts);
+                if (!ScrollUp(impacts))
+                    return false;
                 _cursorY = _height - 1;
             }
             
@@ -3382,7 +3479,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         _cursorY++;
                         if (_cursorY >= _height)
                         {
-                            ScrollUp(impacts);
+                            if (!ScrollUp(impacts))
+                                return false;
                             _cursorY = _height - 1;
                         }
                     }
@@ -3402,7 +3500,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         _cursorY++;
                         if (_cursorY >= _height)
                         {
-                            ScrollUp(impacts);
+                            if (!ScrollUp(impacts))
+                                return false;
                             _cursorY = _height - 1;
                         }
                     }
@@ -3499,6 +3598,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
             i += grapheme.Length;
         }
+
+        return true;
     }
 
     /// <summary>
@@ -3624,7 +3725,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 int scrollBottom = _scrollBottom;
                 if (newRow > scrollBottom)
                 {
-                    ScrollUp(null);
+                    if (!ScrollUp(null))
+                        return;
                     newRow = scrollBottom;
                 }
                 _cursorY = newRow;
@@ -3773,7 +3875,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         return leftEdge;
     }
 
-    private void ApplyControlCharacter(ControlCharacterToken token, List<CellImpact>? impacts)
+    private bool ApplyControlCharacter(ControlCharacterToken token, List<CellImpact>? impacts)
     {
         switch (token.Character)
         {
@@ -3793,7 +3895,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // LF moves cursor down. If at bottom of scroll region, scroll up.
                 if (_cursorY >= _scrollBottom)
                 {
-                    ScrollUp(impacts);
+                    if (!ScrollUp(impacts))
+                        return false;
                     // Cursor stays at _scrollBottom
                 }
                 else if (_cursorY < _height - 1)
@@ -3834,6 +3937,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _activeCharsetSlot = 0;
                 break;
         }
+
+        return !_disposed;
     }
 
     private void ApplyCursorMove(CursorMoveToken token)
@@ -4285,7 +4390,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             for (int x = 0; x < _width; x++)
             {
-                _savedMainScreenBuffer[y, x] = _screenBuffer[y, x];
+                var cell = _screenBuffer[y, x];
+                cell.TrackedSixel?.AddRef();
+                cell.TrackedHyperlink?.AddRef();
+                _savedMainScreenBuffer[y, x] = cell;
             }
         }
         
@@ -4312,60 +4420,68 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void DoExitAlternateScreen(List<CellImpact>? impacts = null)
     {
-        // Only restore if we actually saved state when entering alternate screen
-        // If _savedMainScreenBuffer is null, this is an unbalanced exit - do nothing
-        if (!_inAlternateScreen || _savedMainScreenBuffer is null)
+        if (!RestoreMainScreenBuffer(impacts))
             return;
 
-        // If the presentation handles alternate screen natively, the real terminal
-        // will restore its buffer when it receives the escape sequence. We just need
-        // to update our internal buffer to match (for snapshot purposes).
-        // If not, we need to generate impacts so the presentation layer gets restored.
-        bool generateImpacts = !Capabilities.HandlesAlternateScreenNatively;
+        _kgpGraphicsState.ExitAlternateScreen();
+        _inAlternateScreen = false;
+    }
 
-        // Restore the saved buffer (or as much as fits in current dimensions)
-        int restoreHeight = Math.Min(_height, _savedMainScreenBuffer.GetLength(0));
-        int restoreWidth = Math.Min(_width, _savedMainScreenBuffer.GetLength(1));
+    private bool RestoreMainScreenBuffer(List<CellImpact>? impacts = null)
+    {
+        if (!_inAlternateScreen || _savedMainScreenBuffer is not { } savedBuffer)
+            return false;
 
+        var restoreImpacts = Capabilities.HandlesAlternateScreenNatively ? null : impacts;
+        int savedHeight = savedBuffer.GetLength(0);
+        int savedWidth = savedBuffer.GetLength(1);
+        int restoreHeight = Math.Min(_height, savedHeight);
+        int restoreWidth = Math.Min(_width, savedWidth);
         for (int y = 0; y < restoreHeight; y++)
         {
             for (int x = 0; x < restoreWidth; x++)
-            {
-                if (generateImpacts)
-                {
-                    SetCell(y, x, _savedMainScreenBuffer[y, x], impacts);
-                }
-                else
-                {
-                    // Direct assignment for internal buffer only
-                    _screenBuffer[y, x] = _savedMainScreenBuffer[y, x];
-                }
-            }
+                SetCell(y, x, savedBuffer[y, x], restoreImpacts);
         }
 
-        // Clear any remaining area if current dimensions are larger
         for (int y = 0; y < _height; y++)
         {
             for (int x = (y < restoreHeight ? restoreWidth : 0); x < _width; x++)
+                SetCell(y, x, TerminalCell.Empty, restoreImpacts);
+        }
+
+        for (int y = 0; y < savedHeight; y++)
+        {
+            for (int x = 0; x < savedWidth; x++)
             {
-                if (generateImpacts)
-                {
-                    SetCell(y, x, TerminalCell.Empty, impacts);
-                }
-                else
-                {
-                    _screenBuffer[y, x] = TerminalCell.Empty;
-                }
+                if (y < restoreHeight && x < restoreWidth)
+                    continue;
+
+                savedBuffer[y, x].TrackedSixel?.Release();
+                savedBuffer[y, x].TrackedHyperlink?.Release();
             }
         }
 
         _savedMainScreenBuffer = null;
+        _cursorX = Math.Clamp(_alternateScreenSavedCursorX, 0, _width - 1);
+        _cursorY = Math.Clamp(_alternateScreenSavedCursorY, 0, _height - 1);
+        return true;
+    }
 
-        // Restore cursor position from alternate screen save
-        _cursorX = _alternateScreenSavedCursorX;
-        _cursorY = _alternateScreenSavedCursorY;
-        _kgpGraphicsState.ExitAlternateScreen();
-        _inAlternateScreen = false;
+    private void ReleaseSavedMainScreenBuffer()
+    {
+        if (_savedMainScreenBuffer is not { } savedBuffer)
+            return;
+
+        for (int y = 0; y < savedBuffer.GetLength(0); y++)
+        {
+            for (int x = 0; x < savedBuffer.GetLength(1); x++)
+            {
+                savedBuffer[y, x].TrackedSixel?.Release();
+                savedBuffer[y, x].TrackedHyperlink?.Release();
+            }
+        }
+
+        _savedMainScreenBuffer = null;
     }
 
     private void ProcessSgr(string parameters)
@@ -4759,10 +4875,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private void ScrollUp(List<CellImpact>? impacts = null)
+    private bool ScrollUp(List<CellImpact>? impacts = null)
     {
         if (_disposed)
-            return;
+            return false;
 
         // Scroll up within the scroll region
         // When DECLRMM is enabled, only scroll within left/right margins
@@ -4779,7 +4895,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             CaptureRowToScrollback(_scrollTop);
             if (_disposed)
-                return;
+                return false;
         }
         
         // First, release Sixel data from the top row of the region (being scrolled off)
@@ -4823,10 +4939,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
         }
+
+        return true;
     }
     
-    private void ScrollDown(List<CellImpact>? impacts = null)
+    private bool ScrollDown(List<CellImpact>? impacts = null)
     {
+        if (_disposed)
+            return false;
+
         // Scroll down within the scroll region
         // When DECLRMM is enabled, only scroll within left/right margins
         int leftCol = _declrmm ? _marginLeft : 0;
@@ -4873,6 +4994,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
         }
+
+        return true;
     }
     
     private void CaptureRowToScrollback(int row)
@@ -5220,11 +5343,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
     
-    private void RepeatLastCharacter(int count, List<CellImpact>? impacts)
+    private bool RepeatLastCharacter(int count, List<CellImpact>? impacts)
     {
         // Repeat the last printed graphic character n times
         if (!_hasLastPrintedCell || string.IsNullOrEmpty(_lastPrintedCell.Character))
-            return;
+            return true;
             
         var graphemeWidth = DisplayWidth.GetGraphemeWidth(_lastPrintedCell.Character);
         
@@ -5233,6 +5356,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         for (int i = 0; i < count; i++)
         {
+            if (_disposed)
+                return false;
+
             // Handle deferred wrap
             if (_pendingWrap)
             {
@@ -5251,7 +5377,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Scroll if needed
             if (_cursorY >= _height)
             {
-                ScrollUp(impacts);
+                if (!ScrollUp(impacts))
+                    return false;
                 _cursorY = _height - 1;
             }
             
@@ -5293,6 +5420,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
         }
+
+        return true;
     }
 
     // === Sixel Parsing ===
@@ -6117,10 +6246,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 return false;
 
             _disposed = true;
+            if (!RestoreMainScreenBuffer())
+                ReleaseSavedMainScreenBuffer();
             // History must release its owners before the per-screen image stores reset.
             _scrollbackBuffer?.Clear();
             _kgpGraphicsState.Reset();
-            _savedMainScreenBuffer = null;
             _inAlternateScreen = false;
             return true;
         }
@@ -6412,19 +6542,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     internal IReadOnlyList<KgpPlacement> KgpPlacements
     {
         get { lock (_bufferLock) return _kgpGraphicsState.ActivePlacements.ToList(); }
-    }
-
-    internal (
-        bool InAlternateScreen,
-        IReadOnlyList<KgpPlacement> Placements,
-        IReadOnlyDictionary<uint, KgpImageData> Images) CaptureKgpSnapshot()
-    {
-        lock (_bufferLock)
-        {
-            // KGP mutations already acquire locks in buffer -> store order.
-            var snapshot = _kgpGraphicsState.CaptureActiveSnapshot();
-            return (_inAlternateScreen, snapshot.Placements, snapshot.Images);
-        }
     }
 
     private const int KgpMaximumEncodedChunkLength = 4096;
