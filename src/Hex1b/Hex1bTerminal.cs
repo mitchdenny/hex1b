@@ -5992,6 +5992,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        AbortPendingKgpUploadForDisposal();
 
         // Complete any active paste context
         if (_activePasteContext != null)
@@ -6030,10 +6031,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _escapeFlushTimer?.Dispose();
 
         _disposeCts.Cancel();
-        lock (_bufferLock)
-        {
-            _kgpImageStore.AbortChunkedTransfer();
-        }
         _disposeCts.Dispose();
     }
 
@@ -6042,6 +6039,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        AbortPendingKgpUploadForDisposal();
 
         // Complete any active paste context
         if (_activePasteContext != null)
@@ -6083,11 +6081,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _escapeFlushTimer?.Dispose();
 
         _disposeCts.Cancel();
+        _disposeCts.Dispose();
+    }
+
+    private void AbortPendingKgpUploadForDisposal()
+    {
         lock (_bufferLock)
         {
             _kgpImageStore.AbortChunkedTransfer();
         }
-        _disposeCts.Dispose();
     }
 
     // === Filter Notification Helpers ===

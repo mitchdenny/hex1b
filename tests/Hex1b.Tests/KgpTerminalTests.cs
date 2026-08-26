@@ -2037,6 +2037,48 @@ public class KgpTerminalTests
         Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
     }
 
+    [TestMethod]
+    public void Dispose_ThrowingAdapter_AbortsPendingUploadBeforeRethrowing()
+    {
+        var workload = new ThrowingDisposeWorkloadAdapter();
+        var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=60,m=1,q=2",
+            new byte[] { 1, 2, 3 }));
+        Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+
+        var exception = Assert.ThrowsExactly<InvalidOperationException>(
+            terminal.Dispose);
+
+        Assert.AreSame(workload.DisposalException, exception);
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(1, workload.DisposeCallCount);
+
+        terminal.Dispose();
+        Assert.AreEqual(1, workload.DisposeCallCount);
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_ThrowingAdapter_AbortsPendingUploadBeforeRethrowing()
+    {
+        var workload = new ThrowingDisposeWorkloadAdapter();
+        var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=61,m=1,q=2",
+            new byte[] { 1, 2, 3 }));
+        Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+
+        var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await terminal.DisposeAsync());
+
+        Assert.AreSame(workload.DisposalException, exception);
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(1, workload.DisposeCallCount);
+
+        await terminal.DisposeAsync();
+        Assert.AreEqual(1, workload.DisposeCallCount);
+    }
+
     private static string BuildEncodedKgpCommand(
         string controlData,
         string encodedPayload)
@@ -2107,6 +2149,48 @@ public class KgpTerminalTests
                 TimeSpan.FromMilliseconds(100));
 
             Assert.IsFalse(received, "Expected no KGP protocol response.");
+        }
+    }
+
+    private sealed class ThrowingDisposeWorkloadAdapter : IHex1bTerminalWorkloadAdapter
+    {
+        private bool _stopping;
+
+        internal InvalidOperationException DisposalException { get; } =
+            new("Workload disposal failed.");
+
+        internal int DisposeCallCount { get; private set; }
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(
+            CancellationToken ct = default)
+            => _stopping
+                ? new ValueTask<ReadOnlyMemory<byte>>(
+                    Task.FromCanceled<ReadOnlyMemory<byte>>(
+                        new CancellationToken(canceled: true)))
+                : ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+
+        public ValueTask WriteInputAsync(
+            ReadOnlyMemory<byte> data,
+            CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask ResizeAsync(
+            int width,
+            int height,
+            CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeCallCount++;
+            _stopping = true;
+            return new ValueTask(Task.FromException(DisposalException));
         }
     }
 }
