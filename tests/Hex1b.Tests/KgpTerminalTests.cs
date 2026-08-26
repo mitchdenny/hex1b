@@ -2351,21 +2351,105 @@ public class KgpTerminalTests
         Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
     }
 
+    private static (
+        KgpImageStore MainStore,
+        KgpImageStore AlternateStore) PopulateBothScreensForDisposal(
+            Hex1bTerminal terminal)
+    {
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(
+            70, 1, 1, cursorMovement: 1, quiet: 2, fillByte: 0xAA));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=71,m=1,q=2",
+            new byte[] { 1, 2, 3 }));
+        var mainStore = terminal.KgpImageStore;
+        Assert.AreEqual(1, mainStore.ImageCount);
+        Assert.IsTrue(mainStore.IsChunkedTransferInProgress);
+        TestSeq.Single(terminal.KgpPlacements);
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049h"));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(
+            80, 1, 1, cursorMovement: 1, quiet: 2, fillByte: 0xBB));
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=32,s=1,v=1,i=81,m=1,q=2",
+            new byte[] { 4, 5, 6 }));
+        var alternateStore = terminal.KgpImageStore;
+        Assert.AreEqual(1, alternateStore.ImageCount);
+        Assert.IsTrue(alternateStore.IsChunkedTransferInProgress);
+        TestSeq.Single(terminal.KgpPlacements);
+
+        return (mainStore, alternateStore);
+    }
+
+    private static void AssertDisposalReleasedKgpState(
+        Hex1bTerminal terminal,
+        KgpImageStore mainStore,
+        KgpImageStore alternateStore)
+    {
+        Assert.AreSame(mainStore, terminal.KgpImageStore);
+        Assert.AreEqual(0, mainStore.ImageCount);
+        Assert.AreEqual(0, mainStore.TotalSize);
+        Assert.IsFalse(mainStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, alternateStore.ImageCount);
+        Assert.AreEqual(0, alternateStore.TotalSize);
+        Assert.IsFalse(alternateStore.IsChunkedTransferInProgress);
+        Assert.IsEmpty(terminal.KgpPlacements);
+
+        using var snapshot = terminal.CreateSnapshot();
+        Assert.IsFalse(snapshot.InAlternateScreen);
+        Assert.IsEmpty(snapshot.KgpPlacements);
+        Assert.IsEmpty(snapshot.KgpImages);
+
+        terminal.EnterAlternateScreen();
+        var applied = terminal.ApplyTokensWithImpacts(
+            AnsiTokenizer.Tokenize("\x1b[?1049h"));
+        Assert.IsEmpty(applied);
+        using var afterTokenSnapshot = terminal.CreateSnapshot();
+        Assert.IsFalse(afterTokenSnapshot.InAlternateScreen);
+        Assert.AreSame(mainStore, terminal.KgpImageStore);
+    }
+
     [TestMethod]
-    public void Dispose_WithPendingUpload_AbortsState()
+    [DataRow(false)]
+    [DataRow(true)]
+    public void Dispose_ReentrantScrollbackCallback_StopsTokenBatch(
+        bool captureImpacts)
     {
         var workload = new RecordingWorkloadAdapter();
-        var terminal = CreateTerminal(workload);
+        Hex1bTerminal? terminal = null;
+        var callbackCount = 0;
+        terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(KgpCapabilities)
+            .WithDimensions(10, 2)
+            .WithScrollback(10, _ =>
+            {
+                callbackCount++;
+                terminal.Dispose();
+            })
+            .Build();
+
         try
         {
-            SendKgp(terminal, KgpTestHelper.BuildCommand(
-                "a=t,f=32,s=1,v=1,i=51,m=1,q=2",
-                new byte[] { 1, 2, 3 }));
-            Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+            SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(
+                90, 1, 1, cursorMovement: 1, quiet: 2));
+            var mainStore = terminal.KgpImageStore;
+            var tokens = AnsiTokenizer.Tokenize(
+                "\x1b[2S\x1b[?1049h");
+
+            if (captureImpacts)
+                terminal.ApplyTokensWithImpacts(tokens);
+            else
+                terminal.ApplyTokens(tokens);
+
+            Assert.AreEqual(1, callbackCount);
+            Assert.AreSame(mainStore, terminal.KgpImageStore);
+            Assert.AreEqual(0, mainStore.ImageCount);
+            Assert.IsEmpty(terminal.KgpPlacements);
+            using var snapshot = terminal.CreateSnapshot();
+            Assert.IsFalse(snapshot.InAlternateScreen);
 
             terminal.Dispose();
-
-            Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+            Assert.AreEqual(1, callbackCount);
         }
         finally
         {
@@ -2374,35 +2458,58 @@ public class KgpTerminalTests
     }
 
     [TestMethod]
-    public async Task DisposeAsync_WithPendingUpload_AbortsState()
+    public void Dispose_WithBothScreenStates_ReleasesAllKgpState()
     {
         var workload = new RecordingWorkloadAdapter();
         var terminal = CreateTerminal(workload);
-        SendKgp(terminal, KgpTestHelper.BuildCommand(
-            "a=t,f=32,s=1,v=1,i=55,m=1,q=2",
-            new byte[] { 1, 2, 3 }));
-        Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        try
+        {
+            var stores = PopulateBothScreensForDisposal(terminal);
 
-        await terminal.DisposeAsync();
+            terminal.Dispose();
 
-        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+            AssertDisposalReleasedKgpState(
+                terminal,
+                stores.MainStore,
+                stores.AlternateStore);
+        }
+        finally
+        {
+            terminal.Dispose();
+        }
     }
 
     [TestMethod]
-    public void Dispose_ThrowingAdapter_AbortsPendingUploadBeforeRethrowing()
+    public async Task DisposeAsync_WithBothScreenStates_ReleasesAllKgpState()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        var terminal = CreateTerminal(workload);
+        var stores = PopulateBothScreensForDisposal(terminal);
+
+        await terminal.DisposeAsync();
+
+        AssertDisposalReleasedKgpState(
+            terminal,
+            stores.MainStore,
+            stores.AlternateStore);
+        await terminal.DisposeAsync();
+    }
+
+    [TestMethod]
+    public void Dispose_ThrowingAdapter_ReleasesBothScreenStatesBeforeRethrowing()
     {
         var workload = new ThrowingDisposeWorkloadAdapter();
         var terminal = CreateTerminal(workload);
-        SendKgp(terminal, KgpTestHelper.BuildCommand(
-            "a=t,f=32,s=1,v=1,i=60,m=1,q=2",
-            new byte[] { 1, 2, 3 }));
-        Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        var stores = PopulateBothScreensForDisposal(terminal);
 
         var exception = Assert.ThrowsExactly<InvalidOperationException>(
             terminal.Dispose);
 
         Assert.AreSame(workload.DisposalException, exception);
-        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        AssertDisposalReleasedKgpState(
+            terminal,
+            stores.MainStore,
+            stores.AlternateStore);
         Assert.AreEqual(1, workload.DisposeCallCount);
 
         terminal.Dispose();
@@ -2410,20 +2517,20 @@ public class KgpTerminalTests
     }
 
     [TestMethod]
-    public async Task DisposeAsync_ThrowingAdapter_AbortsPendingUploadBeforeRethrowing()
+    public async Task DisposeAsync_ThrowingAdapter_ReleasesBothScreenStatesBeforeRethrowing()
     {
         var workload = new ThrowingDisposeWorkloadAdapter();
         var terminal = CreateTerminal(workload);
-        SendKgp(terminal, KgpTestHelper.BuildCommand(
-            "a=t,f=32,s=1,v=1,i=61,m=1,q=2",
-            new byte[] { 1, 2, 3 }));
-        Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        var stores = PopulateBothScreensForDisposal(terminal);
 
         var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             async () => await terminal.DisposeAsync());
 
         Assert.AreSame(workload.DisposalException, exception);
-        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        AssertDisposalReleasedKgpState(
+            terminal,
+            stores.MainStore,
+            stores.AlternateStore);
         Assert.AreEqual(1, workload.DisposeCallCount);
 
         await terminal.DisposeAsync();

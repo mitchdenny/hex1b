@@ -2522,8 +2522,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         lock (_bufferLock)
         {
+            if (_disposed)
+                return;
+
             foreach (var token in tokens)
             {
+                if (_disposed)
+                    break;
+
                 ApplyToken(token, null);
             }
         }
@@ -2543,10 +2549,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         lock (_bufferLock)
         {
+            if (_disposed)
+                return [];
+
             var result = new List<AppliedToken>(tokens.Count);
             
             foreach (var token in tokens)
             {
+                if (_disposed)
+                    break;
+
                 int cursorXBefore = _cursorX;
                 int cursorYBefore = _cursorY;
                 
@@ -4749,6 +4761,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void ScrollUp(List<CellImpact>? impacts = null)
     {
+        if (_disposed)
+            return;
+
         // Scroll up within the scroll region
         // When DECLRMM is enabled, only scroll within left/right margins
         int leftCol = _declrmm ? _marginLeft : 0;
@@ -4763,6 +4778,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             && leftCol == 0 && rightCol == _width - 1)
         {
             CaptureRowToScrollback(_scrollTop);
+            if (_disposed)
+                return;
         }
         
         // First, release Sixel data from the top row of the region (being scrolled off)
@@ -6006,9 +6023,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-        AbortPendingKgpUploadForDisposal();
+        if (!TryBeginDisposalAndResetScreenOwnedState())
+            return;
 
         // Complete any active paste context
         if (_activePasteContext != null)
@@ -6017,9 +6033,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _activePasteContext = null;
             _inBracketedPaste = false;
         }
-
-        // Release all scrollback buffer tracked object references
-        _scrollbackBuffer?.Clear();
 
         // Notify filters of session end (fire-and-forget from sync Dispose)
         var elapsed = _timeProvider.GetUtcNow() - _sessionStart;
@@ -6053,9 +6066,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_disposed) return;
-        _disposed = true;
-        AbortPendingKgpUploadForDisposal();
+        if (!TryBeginDisposalAndResetScreenOwnedState())
+            return;
 
         // Complete any active paste context
         if (_activePasteContext != null)
@@ -6064,9 +6076,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _activePasteContext = null;
             _inBracketedPaste = false;
         }
-
-        // Release all scrollback buffer tracked object references
-        _scrollbackBuffer?.Clear();
 
         // Notify filters of session end
         var elapsed = _timeProvider.GetUtcNow() - _sessionStart;
@@ -6100,11 +6109,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _disposeCts.Dispose();
     }
 
-    private void AbortPendingKgpUploadForDisposal()
+    private bool TryBeginDisposalAndResetScreenOwnedState()
     {
         lock (_bufferLock)
         {
-            _kgpGraphicsState.AbortPendingUploads();
+            if (_disposed)
+                return false;
+
+            _disposed = true;
+            // History must release its owners before the per-screen image stores reset.
+            _scrollbackBuffer?.Clear();
+            _kgpGraphicsState.Reset();
+            _savedMainScreenBuffer = null;
+            _inAlternateScreen = false;
+            return true;
         }
     }
 

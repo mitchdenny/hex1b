@@ -60,12 +60,6 @@ internal sealed class KgpTerminalGraphicsState
         _alternateActive = false;
     }
 
-    internal void AbortPendingUploads()
-    {
-        _main.ImageStore.AbortChunkedTransfer();
-        _alternate?.ImageStore.AbortChunkedTransfer();
-    }
-
     internal void ClearActiveScreen(bool clearHistory)
     {
         var active = Active;

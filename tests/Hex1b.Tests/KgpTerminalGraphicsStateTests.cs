@@ -129,32 +129,33 @@ public class KgpTerminalGraphicsStateTests
         var state = new KgpTerminalGraphicsState();
         state.ActiveImageStore.StoreImage(CreateImage(1, 0xAA));
         state.ActivePlacements.Add(CreatePlacement(1));
+        state.RetainActiveHistoryImage(1);
+        StartUpload(state.ActiveImageStore, 10);
+        var mainStore = state.ActiveImageStore;
         state.EnterAlternateScreen();
         state.ActiveImageStore.StoreImage(CreateImage(2, 0xBB));
         state.ActivePlacements.Add(CreatePlacement(2));
+        state.RetainActiveHistoryImage(2);
+        StartUpload(state.ActiveImageStore, 20);
+        var alternateStore = state.ActiveImageStore;
 
         state.Reset();
 
+        Assert.AreEqual(0, mainStore.ImageCount);
+        Assert.AreEqual(0, mainStore.TotalSize);
+        Assert.IsFalse(mainStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(0, alternateStore.ImageCount);
+        Assert.AreEqual(0, alternateStore.TotalSize);
+        Assert.IsFalse(alternateStore.IsChunkedTransferInProgress);
         Assert.AreEqual(0, state.ActiveImageStore.ImageCount);
         Assert.IsEmpty(state.ActivePlacements);
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => state.ReleaseActiveHistoryImage(1));
 
         state.EnterAlternateScreen();
         Assert.AreEqual(0, state.ActiveImageStore.ImageCount);
         Assert.IsEmpty(state.ActivePlacements);
-    }
-
-    [TestMethod]
-    public void AbortPendingUploads_AbortsMainAndAlternateUploads()
-    {
-        var state = new KgpTerminalGraphicsState();
-        StartUpload(state.ActiveImageStore, 1);
-        state.EnterAlternateScreen();
-        StartUpload(state.ActiveImageStore, 2);
-
-        state.AbortPendingUploads();
-
-        Assert.IsFalse(state.ActiveImageStore.IsChunkedTransferInProgress);
-        state.ExitAlternateScreen();
-        Assert.IsFalse(state.ActiveImageStore.IsChunkedTransferInProgress);
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => state.ReleaseActiveHistoryImage(2));
     }
 }
