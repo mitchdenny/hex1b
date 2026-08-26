@@ -61,8 +61,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly DateTimeOffset _sessionStart;
     private readonly TrackedObjectStore _trackedObjects = new();
     private readonly TimeProvider _timeProvider;
-    private readonly KgpImageStore _kgpImageStore = new();
-    private readonly List<KgpPlacement> _kgpPlacements = new();
+    private readonly KgpTerminalGraphicsState _kgpGraphicsState = new();
     
     // Lock to protect screen buffer state from concurrent access.
     // The resize event comes from the input thread while the output pump
@@ -2886,6 +2885,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case RisToken:
                 // RIS (ESC c): Full terminal reset — clear screen, reset all state
+                _inAlternateScreen = false;
+                _savedMainScreenBuffer = null;
+                _alternateScreenSavedCursorX = 0;
+                _alternateScreenSavedCursorY = 0;
                 _scrollTop = 0;
                 _scrollBottom = _height - 1;
                 _marginLeft = 0;
@@ -2935,9 +2938,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         SetCell(row, col, TerminalCell.Empty, impacts);
                     }
                 }
-                // Clear KGP state
-                _kgpPlacements.Clear();
-                _kgpImageStore.Clear();
+                _scrollbackBuffer?.Clear();
+                _kgpGraphicsState.Reset();
                 break;
                 
             case DecalnToken:
@@ -3989,9 +3991,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             case ClearMode.All:
             case ClearMode.AllAndScrollback:
                 ClearBuffer(respectProtection, impacts);
+                _kgpGraphicsState.ClearActiveScreen(mode == ClearMode.AllAndScrollback);
                 if (mode == ClearMode.AllAndScrollback)
                 {
-                    _scrollbackBuffer?.Clear();
+                    if (!_inAlternateScreen)
+                        _scrollbackBuffer?.Clear();
                 }
                 break;
         }
@@ -4247,6 +4251,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void DoEnterAlternateScreen(List<CellImpact>? impacts = null)
     {
+        if (_inAlternateScreen)
+        {
+            _kgpGraphicsState.EnterAlternateScreen();
+            if (Capabilities.HandlesAlternateScreenNatively)
+                ClearBufferInternal();
+            else
+                ClearBuffer(respectProtection: false, impacts);
+            return;
+        }
+
         // Save cursor position before switching to alternate screen
         // This uses separate fields from DECSC/DECRC to avoid conflicts
         _alternateScreenSavedCursorX = _cursorX;
@@ -4263,6 +4277,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
         }
         
+        _kgpGraphicsState.EnterAlternateScreen();
         _inAlternateScreen = true;
         
         // If the presentation handles alternate screen natively, the real terminal
@@ -4285,61 +4300,60 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void DoExitAlternateScreen(List<CellImpact>? impacts = null)
     {
-        _inAlternateScreen = false;
-        
         // Only restore if we actually saved state when entering alternate screen
         // If _savedMainScreenBuffer is null, this is an unbalanced exit - do nothing
-        if (_savedMainScreenBuffer != null)
+        if (!_inAlternateScreen || _savedMainScreenBuffer is null)
+            return;
+
+        // If the presentation handles alternate screen natively, the real terminal
+        // will restore its buffer when it receives the escape sequence. We just need
+        // to update our internal buffer to match (for snapshot purposes).
+        // If not, we need to generate impacts so the presentation layer gets restored.
+        bool generateImpacts = !Capabilities.HandlesAlternateScreenNatively;
+
+        // Restore the saved buffer (or as much as fits in current dimensions)
+        int restoreHeight = Math.Min(_height, _savedMainScreenBuffer.GetLength(0));
+        int restoreWidth = Math.Min(_width, _savedMainScreenBuffer.GetLength(1));
+
+        for (int y = 0; y < restoreHeight; y++)
         {
-            // If the presentation handles alternate screen natively, the real terminal
-            // will restore its buffer when it receives the escape sequence. We just need
-            // to update our internal buffer to match (for snapshot purposes).
-            // If not, we need to generate impacts so the presentation layer gets restored.
-            bool generateImpacts = !Capabilities.HandlesAlternateScreenNatively;
-            
-            // Restore the saved buffer (or as much as fits in current dimensions)
-            int restoreHeight = Math.Min(_height, _savedMainScreenBuffer.GetLength(0));
-            int restoreWidth = Math.Min(_width, _savedMainScreenBuffer.GetLength(1));
-            
-            for (int y = 0; y < restoreHeight; y++)
+            for (int x = 0; x < restoreWidth; x++)
             {
-                for (int x = 0; x < restoreWidth; x++)
+                if (generateImpacts)
                 {
-                    if (generateImpacts)
-                    {
-                        SetCell(y, x, _savedMainScreenBuffer[y, x], impacts);
-                    }
-                    else
-                    {
-                        // Direct assignment for internal buffer only
-                        _screenBuffer[y, x] = _savedMainScreenBuffer[y, x];
-                    }
+                    SetCell(y, x, _savedMainScreenBuffer[y, x], impacts);
+                }
+                else
+                {
+                    // Direct assignment for internal buffer only
+                    _screenBuffer[y, x] = _savedMainScreenBuffer[y, x];
                 }
             }
-            
-            // Clear any remaining area if current dimensions are larger
-            for (int y = 0; y < _height; y++)
-            {
-                for (int x = (y < restoreHeight ? restoreWidth : 0); x < _width; x++)
-                {
-                    if (generateImpacts)
-                    {
-                        SetCell(y, x, TerminalCell.Empty, impacts);
-                    }
-                    else
-                    {
-                        _screenBuffer[y, x] = TerminalCell.Empty;
-                    }
-                }
-            }
-            
-            _savedMainScreenBuffer = null;
-            
-            // Restore cursor position from alternate screen save
-            _cursorX = _alternateScreenSavedCursorX;
-            _cursorY = _alternateScreenSavedCursorY;
         }
-        // If no saved buffer, this is an unbalanced exit - leave everything as-is
+
+        // Clear any remaining area if current dimensions are larger
+        for (int y = 0; y < _height; y++)
+        {
+            for (int x = (y < restoreHeight ? restoreWidth : 0); x < _width; x++)
+            {
+                if (generateImpacts)
+                {
+                    SetCell(y, x, TerminalCell.Empty, impacts);
+                }
+                else
+                {
+                    _screenBuffer[y, x] = TerminalCell.Empty;
+                }
+            }
+        }
+
+        _savedMainScreenBuffer = null;
+
+        // Restore cursor position from alternate screen save
+        _cursorX = _alternateScreenSavedCursorX;
+        _cursorY = _alternateScreenSavedCursorY;
+        _kgpGraphicsState.ExitAlternateScreen();
+        _inAlternateScreen = false;
     }
 
     private void ProcessSgr(string parameters)
@@ -4776,17 +4790,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         // Scroll KGP placements up within the scroll region
-        if (_kgpPlacements.Count > 0)
+        var kgpPlacements = _kgpGraphicsState.ActivePlacements;
+        if (kgpPlacements.Count > 0)
         {
-            for (int i = _kgpPlacements.Count - 1; i >= 0; i--)
+            for (int i = kgpPlacements.Count - 1; i >= 0; i--)
             {
-                var p = _kgpPlacements[i];
+                var p = kgpPlacements[i];
                 if (p.Row >= _scrollTop && p.Row <= _scrollBottom)
                 {
                     p.Row--;
                     if (p.Row < _scrollTop)
                     {
-                        _kgpPlacements.RemoveAt(i);
+                        kgpPlacements.RemoveAt(i);
                     }
                 }
             }
@@ -4825,17 +4840,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         // Scroll KGP placements down within the scroll region
-        if (_kgpPlacements.Count > 0)
+        var kgpPlacements = _kgpGraphicsState.ActivePlacements;
+        if (kgpPlacements.Count > 0)
         {
-            for (int i = _kgpPlacements.Count - 1; i >= 0; i--)
+            for (int i = kgpPlacements.Count - 1; i >= 0; i--)
             {
-                var p = _kgpPlacements[i];
+                var p = kgpPlacements[i];
                 if (p.Row >= _scrollTop && p.Row <= _scrollBottom)
                 {
                     p.Row++;
                     if (p.Row > _scrollBottom)
                     {
-                        _kgpPlacements.RemoveAt(i);
+                        kgpPlacements.RemoveAt(i);
                     }
                 }
             }
@@ -6088,7 +6104,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         lock (_bufferLock)
         {
-            _kgpImageStore.AbortChunkedTransfer();
+            _kgpGraphicsState.AbortPendingUploads();
         }
     }
 
@@ -6363,27 +6379,33 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     // ---- KGP (Kitty Graphics Protocol) ----
 
+    private KgpImageStore ActiveKgpImageStore => _kgpGraphicsState.ActiveImageStore;
+
+    private List<KgpPlacement> ActiveKgpPlacements => _kgpGraphicsState.ActivePlacements;
+
     /// <summary>
     /// Gets the KGP image store for testing and inspection.
     /// </summary>
-    internal KgpImageStore KgpImageStore => _kgpImageStore;
+    internal KgpImageStore KgpImageStore => _kgpGraphicsState.ActiveImageStore;
 
     /// <summary>
     /// Gets the active KGP placements for testing and inspection.
     /// </summary>
     internal IReadOnlyList<KgpPlacement> KgpPlacements
     {
-        get { lock (_bufferLock) return _kgpPlacements.ToList(); }
+        get { lock (_bufferLock) return _kgpGraphicsState.ActivePlacements.ToList(); }
     }
 
     internal (
+        bool InAlternateScreen,
         IReadOnlyList<KgpPlacement> Placements,
         IReadOnlyDictionary<uint, KgpImageData> Images) CaptureKgpSnapshot()
     {
         lock (_bufferLock)
         {
             // KGP mutations already acquire locks in buffer -> store order.
-            return _kgpImageStore.CaptureSnapshot(_kgpPlacements);
+            var snapshot = _kgpGraphicsState.CaptureActiveSnapshot();
+            return (_inAlternateScreen, snapshot.Placements, snapshot.Images);
         }
     }
 
@@ -6405,7 +6427,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         if (!KgpCommandParser.TryParse(token.ControlData, out var command, out var failure))
         {
-            var pending = _kgpImageStore.GetPendingTransmission();
+            var pending = ActiveKgpImageStore.GetPendingTransmission();
             if (pending is null)
             {
                 ProcessKgpParseFailure(failure, token.ControlData);
@@ -6414,12 +6436,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
             if (failure.Action == KgpAction.Delete)
             {
-                _kgpImageStore.AbortChunkedTransfer();
+                ActiveKgpImageStore.AbortChunkedTransfer();
                 ProcessKgpParseFailure(failure, token.ControlData);
                 return;
             }
 
-            _kgpImageStore.AbortChunkedTransfer();
+            ActiveKgpImageStore.AbortChunkedTransfer();
             var failureQuiet = failure.Quiet == KgpParsedCommand.QuietMode.Normal
                 ? pending.Value.Quiet
                 : failure.Quiet;
@@ -6431,7 +6453,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         }
 
-        if (_kgpImageStore.GetPendingTransmission() is { } pendingTransmission)
+        if (ActiveKgpImageStore.GetPendingTransmission() is { } pendingTransmission)
         {
             if (command is KgpParsedCommand.Delete delete)
             {
@@ -6530,10 +6552,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         }
 
-        var result = _kgpImageStore.ProcessChunk(
+        var result = ActiveKgpImageStore.ProcessChunk(
             command,
             decodedData,
-            _kgpImageStore.MaximumPendingUploadBytes);
+            ActiveKgpImageStore.MaximumPendingUploadBytes);
         switch (result.Status)
         {
             case KgpImageStore.ChunkStatus.Incomplete:
@@ -6596,7 +6618,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         string message,
         KgpParsedCommand.QuietMode quiet)
     {
-        _kgpImageStore.AbortChunkedTransfer();
+        ActiveKgpImageStore.AbortChunkedTransfer();
         SendKgpTransmissionResponse(
             pending.Transmission,
             storedImage: null,
@@ -6617,11 +6639,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         if (transmission.IdentityKind == KgpParsedCommand.ImageIdentityKind.ExplicitId)
         {
-            var start = _kgpImageStore.BeginExplicitTransmission(transmission.ImageId);
+            var start = ActiveKgpImageStore.BeginExplicitTransmission(transmission.ImageId);
             if (start.Relocation is { } relocation)
                 ApplyKgpImageRelocation(relocation);
             if (start.RemovedAddressableImage)
-                _kgpPlacements.RemoveAll(p => p.ImageId == transmission.ImageId);
+                _kgpGraphicsState.RemoveActiveImageReferences(transmission.ImageId);
         }
 
         var maximumEncodedLength = transmission.MoreData
@@ -6657,7 +6679,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 return;
             }
 
-            var result = _kgpImageStore.ProcessChunk(
+            var result = ActiveKgpImageStore.ProcessChunk(
                 command,
                 decodedData,
                 maximumBytes);
@@ -6686,7 +6708,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         out long maximumBytes,
         out string error)
     {
-        maximumBytes = _kgpImageStore.MaximumPendingUploadBytes;
+        maximumBytes = ActiveKgpImageStore.MaximumPendingUploadBytes;
         if (transmission.Compression != KgpParsedCommand.CompressionMode.None ||
             !TryGetExpectedKgpDataSize(transmission, out var expectedSize) ||
             expectedSize == 0)
@@ -6729,12 +6751,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         }
 
-        var stored = _kgpImageStore.StoreImage(transmission, decodedData);
+        var stored = ActiveKgpImageStore.StoreImage(transmission, decodedData);
         if (stored.Relocation is { } relocation)
             ApplyKgpImageRelocation(relocation);
 
         if (stored.Replaced)
-            _kgpPlacements.RemoveAll(p => p.ImageId == stored.Image.ImageId);
+            _kgpGraphicsState.RemoveActiveImageReferences(stored.Image.ImageId);
 
         if (command is KgpParsedCommand.TransmitAndDisplay transmitAndDisplay)
             DisplayTransmittedKgpImage(stored.Image, transmitAndDisplay);
@@ -6807,15 +6829,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void ApplyKgpImageRelocation(KgpImageStore.ImageRelocation relocation)
     {
-        for (var i = 0; i < _kgpPlacements.Count; i++)
-        {
-            if (_kgpPlacements[i].ImageId == relocation.PreviousId)
-            {
-                // Replace rather than mutate so existing snapshots keep
-                // their original placement-to-image identity.
-                _kgpPlacements[i] = _kgpPlacements[i].WithImageId(relocation.CurrentId);
-            }
-        }
+        // Replace rather than mutate so existing snapshots keep
+        // their original placement-to-image identity.
+        _kgpGraphicsState.RelocateActiveImage(relocation);
     }
 
     private void SendKgpTransmissionResponse(
@@ -6874,9 +6890,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         KgpImageData? image = null;
 
         if (imageId > 0)
-            image = _kgpImageStore.GetImageByClientId(imageId);
+            image = ActiveKgpImageStore.GetImageByClientId(imageId);
         else if (command.ImageNumber > 0)
-            image = _kgpImageStore.GetImageByNumber(command.ImageNumber);
+            image = ActiveKgpImageStore.GetImageByNumber(command.ImageNumber);
 
         if (image is null)
         {
@@ -6906,52 +6922,52 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void ProcessKgpDelete(KgpParsedCommand.DeleteSelector selector)
     {
-        _kgpImageStore.AbortChunkedTransfer();
+        ActiveKgpImageStore.AbortChunkedTransfer();
 
         switch (selector)
         {
             case KgpParsedCommand.DeleteSelector.All { FreeData: false }:
-                _kgpPlacements.Clear();
+                ActiveKgpPlacements.Clear();
                 break;
             case KgpParsedCommand.DeleteSelector.All { FreeData: true }:
-                _kgpPlacements.Clear();
-                _kgpImageStore.Clear();
+                ActiveKgpPlacements.Clear();
+                ActiveKgpImageStore.Clear();
                 break;
             case KgpParsedCommand.DeleteSelector.ById byId:
                 if (byId.ImageId > 0 &&
-                    _kgpImageStore.SelectAddressableImage(byId.ImageId, byId.FreeData))
+                    ActiveKgpImageStore.SelectAddressableImage(byId.ImageId, byId.FreeData))
                 {
                     if (byId.PlacementId > 0)
-                        _kgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId && p.PlacementId == byId.PlacementId);
+                        ActiveKgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId && p.PlacementId == byId.PlacementId);
                     else
-                        _kgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId);
+                        ActiveKgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId);
                 }
                 break;
             case KgpParsedCommand.DeleteSelector.ByNumber byNumber:
                 if (byNumber.ImageNumber > 0)
                 {
-                    var img = _kgpImageStore.GetImageByNumber(byNumber.ImageNumber);
+                    var img = ActiveKgpImageStore.GetImageByNumber(byNumber.ImageNumber);
                     if (img is not null)
-                        _kgpPlacements.RemoveAll(p => p.ImageId == img.ImageId);
-                    _kgpImageStore.RemoveImageByNumber(byNumber.ImageNumber);
+                        ActiveKgpPlacements.RemoveAll(p => p.ImageId == img.ImageId);
+                    ActiveKgpImageStore.RemoveImageByNumber(byNumber.ImageNumber);
                 }
                 break;
             case KgpParsedCommand.DeleteSelector.AtCursor:
-                _kgpPlacements.RemoveAll(p => p.IntersectsCell(_cursorY, _cursorX));
+                ActiveKgpPlacements.RemoveAll(p => p.IntersectsCell(_cursorY, _cursorX));
                 break;
             case KgpParsedCommand.DeleteSelector.AnimationFrames:
                 break;
             case KgpParsedCommand.DeleteSelector.AtCell atCell:
-                _kgpPlacements.RemoveAll(p => p.IntersectsCell((int)atCell.Y - 1, (int)atCell.X - 1));
+                ActiveKgpPlacements.RemoveAll(p => p.IntersectsCell((int)atCell.Y - 1, (int)atCell.X - 1));
                 break;
             case KgpParsedCommand.DeleteSelector.ByColumn column:
-                _kgpPlacements.RemoveAll(p => p.IntersectsColumn((int)column.Column - 1));
+                ActiveKgpPlacements.RemoveAll(p => p.IntersectsColumn((int)column.Column - 1));
                 break;
             case KgpParsedCommand.DeleteSelector.ByRow row:
-                _kgpPlacements.RemoveAll(p => p.IntersectsRow((int)row.Row - 1));
+                ActiveKgpPlacements.RemoveAll(p => p.IntersectsRow((int)row.Row - 1));
                 break;
             case KgpParsedCommand.DeleteSelector.ByZIndex zIndex:
-                _kgpPlacements.RemoveAll(p => p.ZIndex == zIndex.ZIndex);
+                ActiveKgpPlacements.RemoveAll(p => p.ZIndex == zIndex.ZIndex);
                 break;
             case KgpParsedCommand.DeleteSelector.ByRange range:
             {
@@ -6959,11 +6975,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var hi = range.LastImageId;
                 if (lo > 0 && hi > 0 && lo <= hi)
                 {
-                    var selected = _kgpImageStore.SelectAddressableImagesInRange(
+                    var selected = ActiveKgpImageStore.SelectAddressableImagesInRange(
                         lo,
                         hi,
                         range.FreeData);
-                    _kgpPlacements.RemoveAll(p => selected.Contains(p.ImageId));
+                    ActiveKgpPlacements.RemoveAll(p => selected.Contains(p.ImageId));
                 }
                 break;
             }
@@ -6972,7 +6988,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var cellRow = (int)atCellWithZ.Y - 1;
                 var cellCol = (int)atCellWithZ.X - 1;
                 var targetZ = atCellWithZ.ZIndex;
-                _kgpPlacements.RemoveAll(p => p.IntersectsCell(cellRow, cellCol) && p.ZIndex == targetZ);
+                ActiveKgpPlacements.RemoveAll(p => p.IntersectsCell(cellRow, cellCol) && p.ZIndex == targetZ);
                 break;
             }
         }
@@ -6989,7 +7005,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // If same image+placement combo exists, replace it
         if (placementId > 0)
         {
-            _kgpPlacements.RemoveAll(p => p.ImageId == imageId && p.PlacementId == placementId);
+            ActiveKgpPlacements.RemoveAll(p => p.ImageId == imageId && p.PlacementId == placementId);
         }
 
         var placement = new KgpPlacement(
@@ -7004,7 +7020,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             command.CellOffsetX,
             command.CellOffsetY);
 
-        _kgpPlacements.Add(placement);
+        ActiveKgpPlacements.Add(placement);
     }
 
     private void SendKgpResponse(uint imageId, uint imageNumber, string message, int quiet)
@@ -7158,7 +7174,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private int GetMaximumKgpEncodedPayloadLength()
     {
-        var maximumDecodedLength = _kgpImageStore.MaximumPendingUploadBytes;
+        var maximumDecodedLength = ActiveKgpImageStore.MaximumPendingUploadBytes;
         var maximumEncodedLength = (maximumDecodedLength + 2) / 3 * 4;
         return checked((int)Math.Min(maximumEncodedLength, int.MaxValue));
     }

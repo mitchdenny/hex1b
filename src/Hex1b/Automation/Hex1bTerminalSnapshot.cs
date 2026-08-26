@@ -28,7 +28,6 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         var terminalHeight = terminal.Height;
         CursorX = terminal.CursorX;
         CursorY = terminal.CursorY;
-        InAlternateScreen = terminal.InAlternateScreen;
         CursorVisible = terminal.CursorVisible;
         BracketedPasteEnabled = terminal.BracketedPasteEnabled;
         ApplicationCursorKeysEnabled = terminal.ApplicationCursorKeysEnabled;
@@ -48,6 +47,7 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         CellPixelHeight = terminal.Capabilities.CellPixelHeight;
 
         var kgp = terminal.CaptureKgpSnapshot();
+        InAlternateScreen = kgp.InAlternateScreen;
         KgpPlacements = kgp.Placements;
         KgpImages = kgp.Images;
 

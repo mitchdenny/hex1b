@@ -179,6 +179,40 @@ public class KgpImageStoreTests
         Assert.AreEqual(0, store.TotalSize);
     }
 
+    [TestMethod]
+    public void RemoveUnreferencedImages_RemovesOnlyImagesWithoutOwners()
+    {
+        var store = new KgpImageStore();
+        store.StoreImage(CreateImage(1));
+        store.StoreImage(CreateImage(2));
+        store.StoreImage(CreateImage(3));
+
+        store.RemoveUnreferencedImages([1, 3]);
+
+        Assert.IsNotNull(store.GetImageById(1));
+        Assert.IsNull(store.GetImageById(2));
+        Assert.IsNotNull(store.GetImageById(3));
+        Assert.AreEqual(2, store.ImageCount);
+    }
+
+    [TestMethod]
+    public void RemoveUnreferencedImages_DoesNotAbortPendingUpload()
+    {
+        var store = new KgpImageStore();
+        store.StoreImage(CreateImage(1));
+        var command = ParseCommand("a=t,f=32,s=1,v=1,i=2,m=1");
+        var result = store.ProcessChunk(
+            command,
+            new byte[] { 1, 2, 3 },
+            maximumBytes: 4);
+        Assert.AreEqual(KgpImageStore.ChunkStatus.Incomplete, result.Status);
+
+        store.RemoveUnreferencedImages([]);
+
+        Assert.AreEqual(0, store.ImageCount);
+        Assert.IsTrue(store.IsChunkedTransferInProgress);
+    }
+
     // --- ID allocation ---
 
     [TestMethod]

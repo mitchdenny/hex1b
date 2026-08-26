@@ -305,6 +305,22 @@ public sealed class KgpImageStore
         }
     }
 
+    internal void RemoveUnreferencedImages(IEnumerable<uint> retainedImageIds)
+    {
+        ArgumentNullException.ThrowIfNull(retainedImageIds);
+
+        lock (_lock)
+        {
+            var retained = retainedImageIds as HashSet<uint> ?? [.. retainedImageIds];
+            var imageIds = _imagesById.Keys.ToArray();
+            foreach (var imageId in imageIds)
+            {
+                if (!retained.Contains(imageId))
+                    RemoveImageUnsafe(imageId);
+            }
+        }
+    }
+
     /// <summary>
     /// Begins or continues a chunked transfer. Returns the completed image when the final chunk arrives.
     /// </summary>

@@ -1077,8 +1077,23 @@ public class KgpScreenInteractionConformanceTests
         // ESC[2J should clear all images per spec
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[2J"));
 
-        // Per KGP spec: "Images that are entirely covered ... will be deleted"
-        // ESC[2J is defined to clear all placements
+        Assert.IsEmpty(terminal.KgpPlacements);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [TestMethod]
+    public void ClearScreen_ED3_ClearsAllPlacementsAndData()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 40, 20);
+
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(1, 4, 4, quiet: 2));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(2, 4, 4, quiet: 2));
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3J"));
+
+        Assert.IsEmpty(terminal.KgpPlacements);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
     }
 
     [TestMethod]
@@ -1093,10 +1108,10 @@ public class KgpScreenInteractionConformanceTests
         Assert.AreEqual(2, terminal.KgpImageStore.ImageCount);
 
         // RIS (Reset to Initial State)
-        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bc"));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b" + "c"));
 
-        // After reset, all state should be cleared
-        // Note: This documents the expected behavior
+        Assert.IsEmpty(terminal.KgpPlacements);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
     }
 
     [TestMethod]
