@@ -1038,6 +1038,59 @@ public class KgpScrollingTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void MainNoReflowResize_TrimmedHistoryTailDoesNotResurrect(
+        bool explicitNoReflow)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            width: 6,
+            height: 4,
+            scrollbackCapacity: 2,
+            reflow: explicitNoReflow ? NoReflowStrategy.Instance : null);
+        Apply(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=T,f=32,s=10,v=80,i=1,p=1,x=0,y=10,w=10,h=60,c=1,r=3,C=1,q=2",
+                KgpTestHelper.CreatePixelData(10, 80)));
+        Apply(terminal, "\x1b[S");
+
+        terminal.Resize(6, 1);
+
+        AssertHistoryOwner(terminal, expectedPlacements: 1, expectedReferences: 1);
+        AssertPlacement(
+            terminal.CreateSnapshot(scrollbackLines: 1),
+            row: 0,
+            rows: 2,
+            sourceY: 10,
+            sourceHeight: 40);
+        AssertPlacement(
+            terminal.CreateSnapshot(),
+            row: 0,
+            rows: 1,
+            sourceY: 30,
+            sourceHeight: 20);
+
+        terminal.Resize(6, 4);
+
+        AssertHistoryOwner(terminal, expectedPlacements: 1, expectedReferences: 1);
+        AssertPlacement(
+            terminal.CreateSnapshot(scrollbackLines: 1),
+            row: 0,
+            rows: 2,
+            sourceY: 10,
+            sourceHeight: 40);
+        AssertPlacement(
+            terminal.CreateSnapshot(),
+            row: 0,
+            rows: 1,
+            sourceY: 30,
+            sourceHeight: 20);
+    }
+
+    [TestMethod]
     public void PngUnknownDimensions_PlacementUsesDestinationOnlyScrollClipping()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

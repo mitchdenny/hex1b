@@ -2431,6 +2431,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 Capabilities.CellPixelWidth,
                 Capabilities.CellPixelHeight);
         }
+
+        if (!_inAlternateScreen)
+        {
+            _kgpGraphicsState.ClipActiveScreenToViewport(
+                replacement.Entries,
+                newWidth,
+                newHeight,
+                Capabilities.CellPixelWidth,
+                Capabilities.CellPixelHeight);
+        }
     }
 
     private void ResizeWithCrop(int newWidth, int newHeight)
@@ -2477,11 +2487,26 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _height = newHeight;
         _cursorX = Math.Min(_cursorX, newWidth - 1);
         _cursorY = Math.Min(_cursorY, newHeight - 1);
-        _kgpGraphicsState.ClipActivePlacementsToViewport(
-            newWidth,
-            newHeight,
-            Capabilities.CellPixelWidth,
-            Capabilities.CellPixelHeight);
+        if (_inAlternateScreen)
+        {
+            _kgpGraphicsState.ClipActivePlacementsToViewport(
+                newWidth,
+                newHeight,
+                Capabilities.CellPixelWidth,
+                Capabilities.CellPixelHeight);
+        }
+        else
+        {
+            var historyRows = _scrollbackBuffer is { } scrollback
+                ? scrollback.GetEntries(scrollback.Count)
+                : [];
+            _kgpGraphicsState.ClipActiveScreenToViewport(
+                historyRows,
+                newWidth,
+                newHeight,
+                Capabilities.CellPixelWidth,
+                Capabilities.CellPixelHeight);
+        }
     }
 
     // === Screen Buffer Parsing ===
