@@ -675,6 +675,52 @@ public class Hex1bTerminalTests
     }
 
     [TestMethod]
+    public async Task RunAsync_KgpUnicodePlaceholder_ForwardsExactUtf8AndUpdatesSnapshot()
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 20,
+            Height = 8
+        });
+
+        using var cts = new CancellationTokenSource();
+        var runTask = terminal.RunAsync(cts.Token);
+        var placeholder = char.ConvertFromUtf32(0x10EEEE) + "\u0305\u0305";
+        var output =
+            KgpTestHelper.BuildCommand(
+                "a=T,U=1,f=24,s=10,v=20,i=42,c=1,r=1,q=2",
+                KgpTestHelper.CreatePixelData(10, 20, KgpFormat.Rgb24)) +
+            "\x1b[38;5;42m" +
+            placeholder +
+            "\x1b[39m";
+        var bytes = Encoding.UTF8.GetBytes(output);
+
+        workload.Write(bytes);
+        await presentation.WaitForOutputLengthAsync(
+                bytes.Length,
+                TestContext.Current.CancellationToken)
+            .WaitAsync(
+                TimeSpan.FromSeconds(2),
+                TestContext.Current.CancellationToken);
+
+        TestSeq.AreEqual(bytes, presentation.CapturedOutput);
+        using (var snapshot = terminal.CreateSnapshot())
+        {
+            var placement = TestSeq.Single(snapshot.KgpPlacements);
+            Assert.AreEqual(42u, placement.ImageId);
+            Assert.AreEqual(placeholder, snapshot.GetCell(0, 0).Character);
+        }
+
+        cts.Cancel();
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            async () => await runTask);
+    }
+
+    [TestMethod]
     [DataRow("\x1b_Gi=123", ";OK\x1b\\")]
     [DataRow("\x1b_Gi=123;OK\x1b", "\\")]
     public async Task AppInput_SplitKgpResponse_DoesNotTriggerEscapeBinding(string firstChunk, string secondChunk)

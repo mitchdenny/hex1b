@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Web;
 
@@ -239,22 +240,94 @@ public static class TerminalRegionSvgExtensions
         if (region is Hex1bTerminalSnapshot snapshot2)
         {
             var sortedPlacements = snapshot2.KgpPlacements.OrderBy(p => p.ZIndex).ToList();
+            var placeholderImageDefinitions =
+                new Dictionary<uint, (string ElementId, string DataUri, uint Width, uint Height)>();
+            foreach (var placement in sortedPlacements)
+            {
+                if (placement.RenderGeometry is null ||
+                    placeholderImageDefinitions.ContainsKey(placement.ImageId) ||
+                    !snapshot2.KgpImages.TryGetValue(placement.ImageId, out var image))
+                {
+                    continue;
+                }
+
+                var dataUri = EncodeRgbaToDataUri(
+                    image.Data,
+                    image.Width,
+                    image.Height,
+                    image.Format);
+                if (dataUri is not null)
+                {
+                    placeholderImageDefinitions.Add(
+                        placement.ImageId,
+                        (
+                            $"kgp-placeholder-image-{placeholderImageDefinitions.Count}",
+                            dataUri,
+                            image.Width,
+                            image.Height));
+                }
+            }
+
+            if (placeholderImageDefinitions.Count > 0)
+            {
+                sb.AppendLine("    <defs>");
+                foreach (var definition in placeholderImageDefinitions.Values)
+                {
+                    sb.AppendLine($"""      <symbol id="{definition.ElementId}" viewBox="0 0 {definition.Width} {definition.Height}" preserveAspectRatio="none"><image x="0" y="0" width="{definition.Width}" height="{definition.Height}" href="{definition.DataUri}" preserveAspectRatio="none"/></symbol>""");
+                }
+                sb.AppendLine("    </defs>");
+            }
+
+            var placeholderClipIndex = 0;
             foreach (var placement in sortedPlacements)
             {
                 if (snapshot2.KgpImages.TryGetValue(placement.ImageId, out var imageData))
                 {
-                    var imgX = placement.Column * cellWidth;
-                    var imgY = placement.Row * cellHeight;
-                    var imgWidth = (int)placement.DisplayColumns * cellWidth;
-                    var imgHeight = (int)placement.DisplayRows * cellHeight;
-
-                    var dataUri = EncodeRgbaToDataUri(
-                        imageData.Data, imageData.Width, imageData.Height, imageData.Format,
-                        placement.SourceX, placement.SourceY,
-                        placement.SourceWidth, placement.SourceHeight);
-                    if (dataUri is not null)
+                    if (placement.RenderGeometry is { } geometry)
                     {
-                        sb.AppendLine($"""    <image x="{imgX}" y="{imgY}" width="{imgWidth}" height="{imgHeight}" href="{dataUri}" preserveAspectRatio="none" style="image-rendering: pixelated;"/>""");
+                        var imageX = (placement.Column +
+                            geometry.ImageOffsetXInCells) * cellWidth;
+                        var imageY = (placement.Row +
+                            geometry.ImageOffsetYInCells) * cellHeight;
+                        var imageWidth = geometry.ImageWidthInCells * cellWidth;
+                        var imageHeight = geometry.ImageHeightInCells * cellHeight;
+                        var clipX = (placement.Column +
+                            geometry.ClipOffsetXInCells) * cellWidth;
+                        var clipY = (placement.Row +
+                            geometry.ClipOffsetYInCells) * cellHeight;
+                        var clipWidth = geometry.ClipWidthInCells * cellWidth;
+                        var clipHeight = geometry.ClipHeightInCells * cellHeight;
+                        if (!placeholderImageDefinitions.TryGetValue(
+                                placement.ImageId,
+                                out var definition))
+                        {
+                            continue;
+                        }
+
+                        var placeholderClipId =
+                            $"kgp-placeholder-clip-{placeholderClipIndex++}";
+                        sb.AppendLine($"""    <clipPath id="{placeholderClipId}"><rect x="{FormatSvgNumber(clipX)}" y="{FormatSvgNumber(clipY)}" width="{FormatSvgNumber(clipWidth)}" height="{FormatSvgNumber(clipHeight)}"/></clipPath>""");
+                        sb.AppendLine($"""    <g clip-path="url(#{placeholderClipId})"><use href="#{definition.ElementId}" x="{FormatSvgNumber(imageX)}" y="{FormatSvgNumber(imageY)}" width="{FormatSvgNumber(imageWidth)}" height="{FormatSvgNumber(imageHeight)}" style="image-rendering: pixelated;"/></g>""");
+                    }
+                    else
+                    {
+                        var imgX = placement.Column * cellWidth;
+                        var imgY = placement.Row * cellHeight;
+                        var imgWidth = (int)placement.DisplayColumns * cellWidth;
+                        var imgHeight = (int)placement.DisplayRows * cellHeight;
+                        var dataUri = EncodeRgbaToDataUri(
+                            imageData.Data,
+                            imageData.Width,
+                            imageData.Height,
+                            imageData.Format,
+                            placement.SourceX,
+                            placement.SourceY,
+                            placement.SourceWidth,
+                            placement.SourceHeight);
+                        if (dataUri is not null)
+                        {
+                            sb.AppendLine($"""    <image x="{imgX}" y="{imgY}" width="{imgWidth}" height="{imgHeight}" href="{dataUri}" preserveAspectRatio="none" style="image-rendering: pixelated;"/>""");
+                        }
                     }
                 }
             }
@@ -321,7 +394,9 @@ public static class TerminalRegionSvgExtensions
                     displayCh = " ";
 
                 // Hidden attribute: don't render the character at all
-                var shouldRenderText = (attrs & CellAttributes.Hidden) == 0;
+                var shouldRenderText =
+                    (attrs & CellAttributes.Hidden) == 0 &&
+                    !KgpUnicodePlaceholder.IsPlaceholder(displayCh);
 
                 // Skip spaces unless they have a foreground color or special attributes
                 if (displayCh == " " && !cell.Foreground.HasValue && attrs == CellAttributes.None)
@@ -599,11 +674,15 @@ public static class TerminalRegionSvgExtensions
                     bmp[headerSize + di + 1] = data[si + 1]; // G
                     bmp[headerSize + di + 2] = data[si]; // R
                 }
+
             }
         }
 
         return "data:image/bmp;base64," + Convert.ToBase64String(bmp);
     }
+
+    private static string FormatSvgNumber(double value)
+        => value.ToString("0.###", CultureInfo.InvariantCulture);
 }
 
 /// <summary>

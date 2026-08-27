@@ -39,14 +39,20 @@ internal sealed class KgpTerminalGraphicsState
     {
         internal KgpImageStore ImageStore { get; } = new();
         internal List<KgpPlacement> Placements { get; } = [];
+        internal List<KgpVirtualPlacement> VirtualPlacements { get; } = [];
         internal Dictionary<long, List<HistoryPlacement>> HistoryPlacements { get; } = [];
         internal Dictionary<uint, int> HistoryReferences { get; } = [];
+        internal Dictionary<uint, int> VirtualReferences { get; } = [];
+        internal long NextVirtualPlacementOrdinal { get; set; } = 1;
 
         internal void Clear()
         {
             Placements.Clear();
+            VirtualPlacements.Clear();
             HistoryPlacements.Clear();
             HistoryReferences.Clear();
+            VirtualReferences.Clear();
+            NextVirtualPlacementOrdinal = 1;
             ImageStore.Clear();
         }
     }
@@ -64,8 +70,143 @@ internal sealed class KgpTerminalGraphicsState
 
     internal List<KgpPlacement> ActivePlacements => Active.Placements;
 
+    internal int ActiveVirtualPlacementCount => Active.VirtualPlacements.Count;
+
+    internal int ActiveVirtualReferenceCount(uint imageId)
+        => Active.VirtualReferences.TryGetValue(imageId, out var count) ? count : 0;
+
     internal void ReconcileActiveImageReferences()
         => ReconcileImageReferences(Active);
+
+    internal void ReplaceActiveVirtualPlacement(
+        uint imageId,
+        uint placementId,
+        uint columns,
+        uint rows)
+    {
+        if (imageId == 0)
+            throw new ArgumentOutOfRangeException(nameof(imageId));
+
+        var active = Active;
+        if (placementId > 0)
+        {
+            for (var i = 0; i < active.VirtualPlacements.Count; i++)
+            {
+                var existing = active.VirtualPlacements[i];
+                if (existing.ImageId == imageId &&
+                    existing.PlacementId == placementId)
+                {
+                    active.VirtualPlacements[i] = existing with
+                    {
+                        Columns = columns,
+                        Rows = rows,
+                    };
+                    active.Placements.RemoveAll(
+                        placement => placement.ImageId == imageId &&
+                            placement.PlacementId == placementId);
+                    RemoveHistoryPlacementsByIdentity(
+                        active,
+                        imageId,
+                        placementId);
+                    return;
+                }
+            }
+        }
+
+        active.VirtualPlacements.Add(new KgpVirtualPlacement(
+            imageId,
+            placementId,
+            columns,
+            rows,
+            active.NextVirtualPlacementOrdinal++));
+        active.VirtualReferences.TryGetValue(imageId, out var count);
+        active.VirtualReferences[imageId] = checked(count + 1);
+
+        if (placementId > 0)
+        {
+            active.Placements.RemoveAll(
+                placement => placement.ImageId == imageId &&
+                    placement.PlacementId == placementId);
+            RemoveHistoryPlacementsByIdentity(
+                active,
+                imageId,
+                placementId);
+        }
+    }
+
+    internal int RemoveActiveVirtualPlacements(
+        uint imageId,
+        uint placementId = 0)
+    {
+        if (imageId == 0)
+            return 0;
+
+        var active = Active;
+        var removed = active.VirtualPlacements.RemoveAll(
+            placement => placement.ImageId == imageId &&
+                (placementId == 0 || placement.PlacementId == placementId));
+        if (removed > 0)
+            RebuildVirtualReferences(active);
+        return removed;
+    }
+
+    internal int RemoveActiveVirtualPlacementsInRange(
+        uint firstImageId,
+        uint lastImageId)
+    {
+        if (firstImageId == 0 ||
+            lastImageId == 0 ||
+            firstImageId > lastImageId)
+        {
+            return 0;
+        }
+
+        var active = Active;
+        var removed = active.VirtualPlacements.RemoveAll(
+            placement => placement.ImageId >= firstImageId &&
+                placement.ImageId <= lastImageId);
+        if (removed > 0)
+            RebuildVirtualReferences(active);
+        return removed;
+    }
+
+    internal void DeleteAllActiveOrdinaryPlacements(bool freeData)
+    {
+        var active = Active;
+        active.Placements.Clear();
+        if (!freeData)
+            return;
+
+        active.HistoryPlacements.Clear();
+        active.HistoryReferences.Clear();
+        active.ImageStore.RemoveUnreferencedImages(active.VirtualReferences.Keys);
+        ReconcileImageReferences(active);
+    }
+
+    internal void RemoveActiveOrdinaryPlacements(
+        uint imageId,
+        uint placementId = 0)
+    {
+        if (imageId == 0)
+            return;
+
+        var active = Active;
+        active.Placements.RemoveAll(
+            placement => placement.ImageId == imageId &&
+                (placementId == 0 || placement.PlacementId == placementId));
+        foreach (var rowId in active.HistoryPlacements.Keys.ToArray())
+        {
+            var placements = active.HistoryPlacements[rowId];
+            placements.RemoveAll(
+                placement => placement.Placement.ImageId == imageId &&
+                    (placementId == 0 ||
+                     placement.Placement.PlacementId == placementId));
+            if (placements.Count == 0)
+                active.HistoryPlacements.Remove(rowId);
+        }
+
+        ReconcileImageReferences(active);
+    }
 
     internal void EnterAlternateScreen()
     {
@@ -108,7 +249,7 @@ internal sealed class KgpTerminalGraphicsState
             active.HistoryReferences.Clear();
         }
 
-        active.ImageStore.RemoveUnreferencedImages(active.HistoryReferences.Keys);
+        active.ImageStore.RemoveUnreferencedImages(GetRetainedImageIds(active));
     }
 
     internal void RetainActiveHistoryImage(uint imageId)
@@ -130,7 +271,7 @@ internal sealed class KgpTerminalGraphicsState
         if (count == 1)
         {
             Active.HistoryReferences.Remove(imageId);
-            if (!Active.Placements.Any(placement => placement.ImageId == imageId))
+            if (!HasPlacementReference(Active, imageId))
                 Active.ImageStore.RemoveImage(imageId);
         }
         else
@@ -143,6 +284,9 @@ internal sealed class KgpTerminalGraphicsState
     {
         var active = Active;
         active.Placements.RemoveAll(placement => placement.ImageId == imageId);
+        active.VirtualPlacements.RemoveAll(
+            placement => placement.ImageId == imageId);
+        RebuildVirtualReferences(active);
         foreach (var rowId in active.HistoryPlacements.Keys.ToArray())
         {
             var placements = active.HistoryPlacements[rowId];
@@ -176,25 +320,13 @@ internal sealed class KgpTerminalGraphicsState
         if (replacement is not null)
             active.Placements.Add(replacement);
 
-        foreach (var rowId in active.HistoryPlacements.Keys.ToArray())
+        if (active.VirtualPlacements.RemoveAll(
+                placement => placement.ImageId == imageId &&
+                    placement.PlacementId == placementId) > 0)
         {
-            var placements = active.HistoryPlacements[rowId];
-            for (var i = placements.Count - 1; i >= 0; i--)
-            {
-                var placement = placements[i].Placement;
-                if (placement.ImageId != imageId ||
-                    placement.PlacementId != placementId)
-                {
-                    continue;
-                }
-
-                placements.RemoveAt(i);
-                ReleaseHistoryImage(active, imageId);
-            }
-
-            if (placements.Count == 0)
-                active.HistoryPlacements.Remove(rowId);
+            RebuildVirtualReferences(active);
         }
+        RemoveHistoryPlacementsByIdentity(active, imageId, placementId);
     }
 
     internal void RelocateActiveImage(KgpImageStore.ImageRelocation relocation)
@@ -226,6 +358,19 @@ internal sealed class KgpTerminalGraphicsState
             Active.HistoryReferences.TryGetValue(relocation.CurrentId, out var existing);
             Active.HistoryReferences[relocation.CurrentId] = checked(existing + count);
         }
+
+        var virtualPlacements = Active.VirtualPlacements;
+        for (var i = 0; i < virtualPlacements.Count; i++)
+        {
+            if (virtualPlacements[i].ImageId == relocation.PreviousId)
+            {
+                virtualPlacements[i] = virtualPlacements[i] with
+                {
+                    ImageId = relocation.CurrentId,
+                };
+            }
+        }
+        RebuildVirtualReferences(Active);
     }
 
     internal void MoveMainPlacementsIntoHistory(long rowId)
@@ -382,7 +527,7 @@ internal sealed class KgpTerminalGraphicsState
                 historyRows,
                 additionalRows: 0,
                 cellPixelHeight);
-        active.ImageStore.RemoveUnreferencedImages(active.HistoryReferences.Keys);
+        active.ImageStore.RemoveUnreferencedImages(GetRetainedImageIds(active));
     }
 
     internal void ClipActiveScreenToViewport(
@@ -595,6 +740,7 @@ internal sealed class KgpTerminalGraphicsState
         IReadOnlyDictionary<uint, KgpImageData> Images) CaptureActiveSnapshot(
             IReadOnlyList<ScrollbackEntry> historyRows,
             int selectedHistoryCount,
+            TerminalCell[,] screenBuffer,
             int width,
             int height,
             int cellPixelWidth,
@@ -654,7 +800,55 @@ internal sealed class KgpTerminalGraphicsState
             }
         }
 
-        return active.ImageStore.CaptureSnapshot(materialized);
+        var captured = active.ImageStore.CaptureSnapshot(
+            materialized,
+            active.VirtualPlacements.Select(placement => placement.ImageId));
+        var snapshotPlacements = captured.Placements.ToList();
+
+        for (var historyIndex = snapshotStart;
+             historyIndex < historyCount;
+             historyIndex++)
+        {
+            var cells = historyRows[historyIndex].Row.Cells;
+            KgpUnicodePlaceholder.MaterializeRow(
+                cells.AsSpan(0, Math.Min(cells.Length, width)),
+                historyIndex - snapshotStart,
+                active.VirtualPlacements,
+                captured.Images,
+                cellPixelWidth,
+                cellPixelHeight,
+                snapshotPlacements);
+        }
+
+        var screenWidth = Math.Min(width, screenBuffer.GetLength(1));
+        var screenHeight = Math.Min(height, screenBuffer.GetLength(0));
+        var screenRow = new TerminalCell[screenWidth];
+        for (var row = 0; row < screenHeight; row++)
+        {
+            for (var column = 0; column < screenWidth; column++)
+                screenRow[column] = screenBuffer[row, column];
+
+            KgpUnicodePlaceholder.MaterializeRow(
+                screenRow,
+                checked(selectedCount + row),
+                active.VirtualPlacements,
+                captured.Images,
+                cellPixelWidth,
+                cellPixelHeight,
+                snapshotPlacements);
+        }
+
+        var snapshotImages = new Dictionary<uint, KgpImageData>();
+        foreach (var placement in snapshotPlacements)
+        {
+            if (!snapshotImages.ContainsKey(placement.ImageId) &&
+                captured.Images.TryGetValue(placement.ImageId, out var image))
+            {
+                snapshotImages.Add(placement.ImageId, image);
+            }
+        }
+
+        return (snapshotPlacements, snapshotImages);
     }
 
     internal int ActiveHistoryReferenceCount(uint imageId)
@@ -679,6 +873,8 @@ internal sealed class KgpTerminalGraphicsState
     {
         // Deletion and quota policy live in the image store. If either removes
         // data, discard only the now-invalid placement ownership here.
+        // Virtual prototypes intentionally survive missing data so a later
+        // transmission with the same client ID can realize existing text cells.
         screen.Placements.RemoveAll(
             placement => screen.ImageStore.GetImageById(placement.ImageId) is null);
 
@@ -703,6 +899,54 @@ internal sealed class KgpTerminalGraphicsState
         screen.HistoryReferences.Clear();
         foreach (var (imageId, count) in historyReferences)
             screen.HistoryReferences.Add(imageId, count);
+        RebuildVirtualReferences(screen);
+    }
+
+    private static HashSet<uint> GetRetainedImageIds(ScreenState screen)
+    {
+        var retained = new HashSet<uint>(screen.HistoryReferences.Keys);
+        retained.UnionWith(screen.VirtualReferences.Keys);
+        return retained;
+    }
+
+    private static bool HasPlacementReference(ScreenState screen, uint imageId)
+        => screen.Placements.Any(placement => placement.ImageId == imageId) ||
+           screen.VirtualReferences.ContainsKey(imageId);
+
+    private static void RebuildVirtualReferences(ScreenState screen)
+    {
+        screen.VirtualReferences.Clear();
+        foreach (var placement in screen.VirtualPlacements)
+        {
+            screen.VirtualReferences.TryGetValue(placement.ImageId, out var count);
+            screen.VirtualReferences[placement.ImageId] = checked(count + 1);
+        }
+    }
+
+    private static void RemoveHistoryPlacementsByIdentity(
+        ScreenState screen,
+        uint imageId,
+        uint placementId)
+    {
+        foreach (var rowId in screen.HistoryPlacements.Keys.ToArray())
+        {
+            var placements = screen.HistoryPlacements[rowId];
+            for (var i = placements.Count - 1; i >= 0; i--)
+            {
+                var placement = placements[i].Placement;
+                if (placement.ImageId != imageId ||
+                    placement.PlacementId != placementId)
+                {
+                    continue;
+                }
+
+                placements.RemoveAt(i);
+                ReleaseHistoryImage(screen, imageId);
+            }
+
+            if (placements.Count == 0)
+                screen.HistoryPlacements.Remove(rowId);
+        }
     }
 
     private static void AddHistoryPlacement(
@@ -741,7 +985,7 @@ internal sealed class KgpTerminalGraphicsState
         if (count == 1)
         {
             screen.HistoryReferences.Remove(imageId);
-            if (!screen.Placements.Any(placement => placement.ImageId == imageId))
+            if (!HasPlacementReference(screen, imageId))
                 screen.ImageStore.RemoveImage(imageId);
         }
         else

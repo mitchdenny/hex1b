@@ -45,6 +45,18 @@ public sealed class KgpPlacement
     public uint CellOffsetY { get; }
 
     /// <summary>
+    /// Gets exact destination geometry for a realized Unicode-placeholder
+    /// fragment, or <see langword="null"/> for an ordinary KGP placement.
+    /// </summary>
+    /// <remarks>
+    /// Values are measured in terminal-cell units relative to
+    /// <see cref="Column"/> and <see cref="Row"/>. Render the complete image at
+    /// the image bounds and clip it to the clip bounds to preserve fractional
+    /// aspect-fit boundaries without duplicating source pixels.
+    /// </remarks>
+    public KgpPlacementRenderGeometry? RenderGeometry { get; }
+
+    /// <summary>
     /// Creates a new KGP placement anchored at the specified cell position.
     /// </summary>
     /// <param name="imageId">The image this placement refers to.</param>
@@ -74,6 +86,72 @@ public sealed class KgpPlacement
         int zIndex = 0,
         uint cellOffsetX = 0,
         uint cellOffsetY = 0)
+        : this(
+            imageId,
+            placementId,
+            row,
+            column,
+            displayColumns,
+            displayRows,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            zIndex,
+            cellOffsetX,
+            cellOffsetY,
+            renderGeometry: null)
+    {
+    }
+
+    internal KgpPlacement(
+        uint imageId,
+        uint placementId,
+        int row,
+        int column,
+        uint displayColumns,
+        uint displayRows,
+        uint sourceX,
+        uint sourceY,
+        uint sourceWidth,
+        uint sourceHeight,
+        int zIndex,
+        uint cellOffsetX,
+        uint cellOffsetY,
+        KgpPlacementRenderGeometry renderGeometry)
+        : this(
+            imageId,
+            placementId,
+            row,
+            column,
+            displayColumns,
+            displayRows,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            zIndex,
+            cellOffsetX,
+            cellOffsetY,
+            (KgpPlacementRenderGeometry?)renderGeometry)
+    {
+    }
+
+    private KgpPlacement(
+        uint imageId,
+        uint placementId,
+        int row,
+        int column,
+        uint displayColumns,
+        uint displayRows,
+        uint sourceX,
+        uint sourceY,
+        uint sourceWidth,
+        uint sourceHeight,
+        int zIndex,
+        uint cellOffsetX,
+        uint cellOffsetY,
+        KgpPlacementRenderGeometry? renderGeometry)
     {
         ImageId = imageId;
         PlacementId = placementId;
@@ -88,6 +166,7 @@ public sealed class KgpPlacement
         ZIndex = zIndex;
         CellOffsetX = cellOffsetX;
         CellOffsetY = cellOffsetY;
+        RenderGeometry = renderGeometry;
     }
 
     /// <summary>
@@ -123,7 +202,8 @@ public sealed class KgpPlacement
             SourceHeight,
             ZIndex,
             CellOffsetX,
-            CellOffsetY);
+            CellOffsetY,
+            RenderGeometry);
 
     internal KgpPlacement WithPosition(int row, int column)
         => new(
@@ -139,7 +219,8 @@ public sealed class KgpPlacement
             SourceHeight,
             ZIndex,
             CellOffsetX,
-            CellOffsetY);
+            CellOffsetY,
+            RenderGeometry);
 
     internal KgpPlacement? ClipToCellRectangle(
         KgpImageData image,

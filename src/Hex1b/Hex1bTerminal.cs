@@ -1952,6 +1952,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             var kgp = _kgpGraphicsState.CaptureActiveSnapshot(
                 allScrollbackEntries,
                 selectedScrollbackEntries.Length,
+                screenBuffer,
                 retainedScrollbackWidth,
                 _height,
                 Capabilities.CellPixelWidth,
@@ -6734,9 +6735,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             lock (_bufferLock)
             {
                 _kgpGraphicsState.ReconcileActiveImageReferences();
-                if (_inAlternateScreen ||
-                    _scrollbackBuffer is null ||
-                    _kgpGraphicsState.MainHistoryPlacementCount == 0)
+                if (_kgpGraphicsState.ActiveVirtualPlacementCount == 0 &&
+                    (_inAlternateScreen ||
+                     _scrollbackBuffer is null ||
+                     _kgpGraphicsState.MainHistoryPlacementCount == 0))
                 {
                     return _kgpGraphicsState.ActivePlacements.ToList();
                 }
@@ -6747,6 +6749,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 return _kgpGraphicsState.CaptureActiveSnapshot(
                     historyRows,
                     selectedHistoryCount: 0,
+                    _screenBuffer,
                     _width,
                     _height,
                     Capabilities.CellPixelWidth,
@@ -6768,6 +6771,21 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         lock (_bufferLock)
             return _kgpGraphicsState.ActiveHistoryReferenceCount(imageId);
+    }
+
+    internal int KgpVirtualPlacementCount
+    {
+        get
+        {
+            lock (_bufferLock)
+                return _kgpGraphicsState.ActiveVirtualPlacementCount;
+        }
+    }
+
+    internal int GetKgpVirtualReferenceCount(uint imageId)
+    {
+        lock (_bufferLock)
+            return _kgpGraphicsState.ActiveVirtualReferenceCount(imageId);
     }
 
     private const int KgpMaximumEncodedChunkLength = 4096;
@@ -7120,20 +7138,38 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _kgpGraphicsState.RemoveActiveImageReferences(stored.Image.ImageId);
         _kgpGraphicsState.ReconcileActiveImageReferences();
 
-        if (command is KgpParsedCommand.TransmitAndDisplay transmitAndDisplay)
-            DisplayTransmittedKgpImage(stored.Image, transmitAndDisplay);
+        var response = command is KgpParsedCommand.TransmitAndDisplay transmitAndDisplay
+            ? DisplayTransmittedKgpImage(stored.Image, transmitAndDisplay)
+            : "OK";
 
         SendKgpTransmissionResponse(
             transmission,
             stored.Image,
-            "OK",
+            response,
             quiet);
     }
 
-    private void DisplayTransmittedKgpImage(
+    private string DisplayTransmittedKgpImage(
         KgpImageData image,
         KgpParsedCommand.TransmitAndDisplay command)
     {
+        if (command.Display.UnicodePlaceholder)
+        {
+            if (command.Display.ParentImageId > 0)
+                return "EINVAL:Virtual placement cannot refer to a parent";
+
+            if (command.Transmission.IdentityKind !=
+                KgpParsedCommand.ImageIdentityKind.Anonymous)
+            {
+                _kgpGraphicsState.ReplaceActiveVirtualPlacement(
+                    image.ImageId,
+                    command.Display.PlacementId,
+                    command.Display.Columns,
+                    command.Display.Rows);
+            }
+            return "OK";
+        }
+
         var cols = command.Display.Columns > 0 ? (int)command.Display.Columns : 1;
         var rows = command.Display.Rows > 0 ? (int)command.Display.Rows : 1;
         var placementId = command.Transmission.IdentityKind ==
@@ -7157,6 +7193,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _cursorY++;
             }
         }
+        return "OK";
     }
 
     private static bool TryValidateKgpData(
@@ -7249,6 +7286,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         KgpParsedCommand.QuietMode quiet)
     {
         var imageId = command.ImageId;
+        if (command.UnicodePlaceholder && command.ParentImageId > 0)
+        {
+            SendKgpResponse(
+                imageId,
+                command.ImageNumber,
+                "EINVAL:Virtual placement cannot refer to a parent",
+                (int)quiet);
+            return;
+        }
+
         KgpImageData? image = null;
 
         if (imageId > 0)
@@ -7259,6 +7306,17 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (image is null)
         {
             SendKgpResponse(imageId, command.ImageNumber, "ENOENT:Image not found", (int)quiet);
+            return;
+        }
+
+        if (command.UnicodePlaceholder)
+        {
+            _kgpGraphicsState.ReplaceActiveVirtualPlacement(
+                image.ImageId,
+                command.PlacementId,
+                command.Columns,
+                command.Rows);
+            SendKgpResponse(image.ImageId, image.ImageNumber, "OK", (int)quiet);
             return;
         }
 
@@ -7289,20 +7347,49 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         switch (selector)
         {
             case KgpParsedCommand.DeleteSelector.All { FreeData: false }:
-                ActiveKgpPlacements.Clear();
+                _kgpGraphicsState.DeleteAllActiveOrdinaryPlacements(
+                    freeData: false);
                 break;
             case KgpParsedCommand.DeleteSelector.All { FreeData: true }:
-                ActiveKgpPlacements.Clear();
-                ActiveKgpImageStore.Clear();
+                _kgpGraphicsState.DeleteAllActiveOrdinaryPlacements(
+                    freeData: true);
                 break;
             case KgpParsedCommand.DeleteSelector.ById byId:
-                if (byId.ImageId > 0 &&
-                    ActiveKgpImageStore.SelectAddressableImage(byId.ImageId, byId.FreeData))
+                if (byId.ImageId > 0)
                 {
-                    if (byId.PlacementId > 0)
-                        ActiveKgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId && p.PlacementId == byId.PlacementId);
-                    else
-                        ActiveKgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId);
+                    _kgpGraphicsState.RemoveActiveVirtualPlacements(
+                        byId.ImageId,
+                        byId.PlacementId);
+                    var hasVirtualOwner =
+                        _kgpGraphicsState.ActiveVirtualReferenceCount(
+                            byId.ImageId) > 0;
+                    if (ActiveKgpImageStore.SelectAddressableImage(
+                            byId.ImageId,
+                            removeData: false))
+                    {
+                        if (hasVirtualOwner)
+                        {
+                            _kgpGraphicsState.RemoveActiveOrdinaryPlacements(
+                                byId.ImageId,
+                                byId.PlacementId);
+                        }
+                        else if (byId.PlacementId > 0)
+                        {
+                            ActiveKgpPlacements.RemoveAll(
+                                placement => placement.ImageId == byId.ImageId &&
+                                    placement.PlacementId == byId.PlacementId);
+                        }
+                        else
+                        {
+                            ActiveKgpPlacements.RemoveAll(
+                                placement => placement.ImageId == byId.ImageId);
+                        }
+
+                        if (byId.FreeData && !hasVirtualOwner)
+                        {
+                            ActiveKgpImageStore.RemoveImage(byId.ImageId);
+                        }
+                    }
                 }
                 break;
             case KgpParsedCommand.DeleteSelector.ByNumber byNumber:
@@ -7310,8 +7397,25 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     var img = ActiveKgpImageStore.GetImageByNumber(byNumber.ImageNumber);
                     if (img is not null)
-                        ActiveKgpPlacements.RemoveAll(p => p.ImageId == img.ImageId);
-                    ActiveKgpImageStore.RemoveImageByNumber(byNumber.ImageNumber);
+                    {
+                        _kgpGraphicsState.RemoveActiveVirtualPlacements(
+                            img.ImageId,
+                            byNumber.PlacementId);
+                        if (_kgpGraphicsState.ActiveVirtualReferenceCount(
+                                img.ImageId) > 0)
+                        {
+                            _kgpGraphicsState.RemoveActiveOrdinaryPlacements(
+                                img.ImageId,
+                                byNumber.PlacementId);
+                        }
+                        else
+                        {
+                            ActiveKgpPlacements.RemoveAll(
+                                placement => placement.ImageId == img.ImageId);
+                            ActiveKgpImageStore.RemoveImageByNumber(
+                                byNumber.ImageNumber);
+                        }
+                    }
                 }
                 break;
             case KgpParsedCommand.DeleteSelector.AtCursor:
@@ -7337,6 +7441,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var hi = range.LastImageId;
                 if (lo > 0 && hi > 0 && lo <= hi)
                 {
+                    _kgpGraphicsState.RemoveActiveVirtualPlacementsInRange(lo, hi);
                     var selected = ActiveKgpImageStore.SelectAddressableImagesInRange(
                         lo,
                         hi,
