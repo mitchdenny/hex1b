@@ -67,12 +67,7 @@ internal static class InternalTerminalReflow
             if (anchor.Row < oldHistoryCount)
             {
                 if (anchor.Row < newHistoryCount)
-                {
-                    mapped.Add(anchor with
-                    {
-                        Column = Math.Clamp(anchor.Column, 0, context.NewWidth - 1)
-                    });
-                }
+                    mapped.Add(anchor);
 
                 continue;
             }
@@ -82,8 +77,7 @@ internal static class InternalTerminalReflow
             {
                 mapped.Add(anchor with
                 {
-                    Row = checked(newHistoryCount + screenRow),
-                    Column = Math.Clamp(anchor.Column, 0, context.NewWidth - 1)
+                    Row = checked(newHistoryCount + screenRow)
                 });
             }
         }

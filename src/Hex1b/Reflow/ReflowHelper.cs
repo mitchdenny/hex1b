@@ -130,7 +130,7 @@ internal static class ReflowHelper
             {
                 foreach (var (anchor, rowInLine) in lineAnchors)
                 {
-                    var (row, column) = ComputeCursorInWrappedLine(
+                    var (row, column) = ComputeAnchorInWrappedLine(
                         logicalLine,
                         wrappedRows,
                         rowsSoFar,
@@ -192,6 +192,28 @@ internal static class ReflowHelper
         }
 
         return (row, col);
+    }
+
+    private static (int row, int col) ComputeAnchorInWrappedLine(
+        List<TerminalCell> logicalLine,
+        List<TerminalCell[]> wrappedRows,
+        int rowsSoFar,
+        int rowInLogicalLine,
+        int column,
+        int oldWidth,
+        int newWidth)
+    {
+        if (logicalLine.Count == 0)
+            return (rowsSoFar, Math.Clamp(column, 0, newWidth - 1));
+
+        return ComputeCursorInWrappedLine(
+            logicalLine,
+            wrappedRows,
+            rowsSoFar,
+            rowInLogicalLine,
+            column,
+            oldWidth,
+            newWidth);
     }
 
     /// <summary>

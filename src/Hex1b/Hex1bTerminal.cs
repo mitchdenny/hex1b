@@ -4556,6 +4556,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
 
         _kgpGraphicsState.ExitAlternateScreen();
+        var historyRows = _scrollbackBuffer is { } scrollback
+            ? scrollback.GetEntries(scrollback.Count)
+            : [];
+        _kgpGraphicsState.ClipActiveScreenToViewport(
+            historyRows,
+            _width,
+            _height,
+            Capabilities.CellPixelWidth,
+            Capabilities.CellPixelHeight);
         _inAlternateScreen = false;
     }
 
@@ -7331,12 +7340,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         uint rows,
         KgpParsedCommand.DisplayData command)
     {
-        // If same image+placement combo exists, replace it
-        if (placementId > 0)
-        {
-            ActiveKgpPlacements.RemoveAll(p => p.ImageId == imageId && p.PlacementId == placementId);
-        }
-
         var placement = new KgpPlacement(
             imageId, placementId,
             _cursorY, _cursorX,
@@ -7360,8 +7363,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _width,
             Capabilities.CellPixelWidth,
             Capabilities.CellPixelHeight);
-        if (clipped is not null)
-            ActiveKgpPlacements.Add(clipped);
+        _kgpGraphicsState.ReplaceActivePlacement(
+            imageId,
+            placementId,
+            clipped);
     }
 
     private void SendKgpResponse(uint imageId, uint imageNumber, string message, int quiet)

@@ -998,7 +998,8 @@ public class KgpScrollingTests
             workload,
             width: 6,
             height: 3,
-            scrollbackCapacity: 2);
+            scrollbackCapacity: 2,
+            reflow: NoReflowStrategy.Instance);
         PlaceImage(
             terminal,
             1,
@@ -1028,6 +1029,400 @@ public class KgpScrollingTests
         Assert.AreEqual(4, placement.Column);
         Assert.AreEqual(2u, placement.DisplayColumns);
         Assert.IsTrue(originalWidth.KgpImages.ContainsKey(1));
+
+        terminal.Resize(6, 3);
+        using var enlarged = terminal.CreateSnapshot(scrollbackLines: 1);
+        var enlargedPlacement = SinglePlacement(enlarged);
+        Assert.AreEqual(4, enlargedPlacement.Column);
+        Assert.AreEqual(2u, enlargedPlacement.DisplayColumns);
+    }
+
+    [TestMethod]
+    public void PngUnknownDimensions_PlacementUsesDestinationOnlyScrollClipping()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, height: 4);
+        Apply(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=T,f=100,i=1,p=1,c=1,r=2,C=1,q=2",
+                [0x89, 0x50, 0x4E, 0x47]));
+
+        var initial = TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(2u, initial.DisplayRows);
+        Assert.AreEqual(0u, initial.SourceX);
+        Assert.AreEqual(0u, initial.SourceY);
+        Assert.AreEqual(0u, initial.SourceWidth);
+        Assert.AreEqual(0u, initial.SourceHeight);
+        Assert.AreEqual(0u, terminal.KgpImageStore.GetImageById(1)!.Width);
+        Assert.AreEqual(0u, terminal.KgpImageStore.GetImageById(1)!.Height);
+
+        Apply(terminal, "\x1b[S");
+
+        var clipped = TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(0, clipped.Row);
+        Assert.AreEqual(1u, clipped.DisplayRows);
+        Assert.AreEqual(0u, clipped.SourceX);
+        Assert.AreEqual(0u, clipped.SourceY);
+        Assert.AreEqual(0u, clipped.SourceWidth);
+        Assert.AreEqual(0u, clipped.SourceHeight);
+
+        Apply(terminal, "\x1b[S");
+        Assert.IsEmpty(terminal.KgpPlacements);
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(1));
+    }
+
+    [TestMethod]
+    public void PngUnknownDimensions_HistoryReanchorsUntilDestinationIsPruned()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            height: 4,
+            scrollbackCapacity: 1);
+        Apply(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=T,f=100,i=1,p=1,c=1,r=2,C=1,q=2",
+                [0x89, 0x50, 0x4E, 0x47]));
+
+        Apply(terminal, "\x1b[S");
+        using (var first = terminal.CreateSnapshot(scrollbackLines: 1))
+        {
+            var placement = SinglePlacement(first);
+            Assert.AreEqual(2u, placement.DisplayRows);
+            Assert.AreEqual(0u, placement.SourceWidth);
+            Assert.AreEqual(0u, placement.SourceHeight);
+        }
+        AssertHistoryOwner(terminal, expectedPlacements: 1, expectedReferences: 1);
+
+        Apply(terminal, "\x1b[S");
+        using (var second = terminal.CreateSnapshot(scrollbackLines: 1))
+        {
+            var placement = SinglePlacement(second);
+            Assert.AreEqual(1u, placement.DisplayRows);
+            Assert.AreEqual(0u, placement.SourceWidth);
+            Assert.AreEqual(0u, placement.SourceHeight);
+        }
+        AssertHistoryOwner(terminal, expectedPlacements: 1, expectedReferences: 1);
+
+        Apply(terminal, "\x1b[S");
+        Assert.AreEqual(0, terminal.KgpHistoryPlacementCount);
+        Assert.AreEqual(0, terminal.GetKgpHistoryReferenceCount(1));
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(1));
+    }
+
+    [TestMethod]
+    public void Put_NonzeroPair_ReplacesExactActiveAndHistoryPlacement()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            height: 4,
+            scrollbackCapacity: 3);
+        Apply(terminal, KgpTestHelper.BuildTransmitCommand(1, 10, 10, quiet: 2));
+        Apply(terminal, "\x1b[1;1H");
+        Apply(terminal, KgpTestHelper.BuildPutCommand(
+            1,
+            placementId: 7,
+            displayColumns: 1,
+            displayRows: 1,
+            cursorMovement: 1));
+        Apply(terminal, KgpTestHelper.BuildPutCommand(
+            1,
+            placementId: 8,
+            displayColumns: 1,
+            displayRows: 1,
+            cursorMovement: 1));
+        Apply(terminal, "\x1b[S");
+        Assert.AreEqual(2, terminal.KgpHistoryPlacementCount);
+        Assert.AreEqual(2, terminal.GetKgpHistoryReferenceCount(1));
+
+        Apply(terminal, "\x1b[3;2H");
+        Apply(terminal, KgpTestHelper.BuildPutCommand(
+            1,
+            placementId: 7,
+            displayColumns: 2,
+            displayRows: 1,
+            cursorMovement: 1));
+
+        Assert.AreEqual(1, terminal.KgpHistoryPlacementCount);
+        Assert.AreEqual(1, terminal.GetKgpHistoryReferenceCount(1));
+        var active = TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(7u, active.PlacementId);
+        Assert.AreEqual(2, active.Row);
+        Assert.AreEqual(1, active.Column);
+        Assert.AreEqual(2u, active.DisplayColumns);
+        using var withHistory = terminal.CreateSnapshot(scrollbackLines: 1);
+        var placements = withHistory.KgpPlacements
+            .OrderBy(placement => placement.PlacementId)
+            .ToArray();
+        Assert.AreEqual(2, placements.Length);
+        Assert.AreEqual(7u, placements[0].PlacementId);
+        Assert.AreEqual(8u, placements[1].PlacementId);
+    }
+
+    [TestMethod]
+    public void Put_ZeroPlacementId_RemainsAppendOnlyAcrossHistory()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            height: 4,
+            scrollbackCapacity: 2);
+        Apply(terminal, KgpTestHelper.BuildTransmitCommand(1, 10, 10, quiet: 2));
+        Apply(terminal, "\x1b[1;1H");
+        Apply(terminal, KgpTestHelper.BuildPutCommand(
+            1,
+            displayColumns: 1,
+            displayRows: 1,
+            cursorMovement: 1));
+        Apply(terminal, "\x1b[S\x1b[2;1H");
+        Apply(terminal, KgpTestHelper.BuildPutCommand(
+            1,
+            displayColumns: 1,
+            displayRows: 1,
+            cursorMovement: 1));
+
+        Assert.AreEqual(1, terminal.KgpHistoryPlacementCount);
+        Assert.AreEqual(1, terminal.GetKgpHistoryReferenceCount(1));
+        using var snapshot = terminal.CreateSnapshot(scrollbackLines: 1);
+        Assert.AreEqual(2, snapshot.KgpPlacements.Count);
+        TestSeq.All(
+            snapshot.KgpPlacements,
+            placement => Assert.AreEqual(0u, placement.PlacementId));
+    }
+
+    [TestMethod]
+    public void Put_NonzeroPair_InAlternateScreen_DoesNotReplaceMainHistory()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            height: 4,
+            scrollbackCapacity: 2);
+        Apply(terminal, KgpTestHelper.BuildTransmitCommand(1, 10, 10, quiet: 2));
+        Apply(terminal, "\x1b[1;1H");
+        Apply(terminal, KgpTestHelper.BuildPutCommand(
+            1,
+            placementId: 7,
+            displayColumns: 1,
+            displayRows: 1,
+            cursorMovement: 1));
+        Apply(terminal, "\x1b[S\x1b[?1049h");
+        Apply(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=T,f=32,s=10,v=10,i=1,p=7,c=1,r=1,C=1,q=2",
+                KgpTestHelper.CreatePixelData(10, 10, fillByte: 0x44)));
+        Apply(terminal, "\x1b[?1049l");
+
+        AssertHistoryOwner(terminal, expectedPlacements: 1, expectedReferences: 1);
+        using var snapshot = terminal.CreateSnapshot(scrollbackLines: 1);
+        var placement = SinglePlacement(snapshot);
+        Assert.AreEqual(7u, placement.PlacementId);
+        Assert.AreEqual(0xFF, snapshot.KgpImages[1].Data[0]);
+    }
+
+    [TestMethod]
+    public void NoReflow_ActiveAnchorOutsideShrinkViewport_DoesNotClampOrResurrect()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            width: 6,
+            height: 3,
+            reflow: NoReflowStrategy.Instance);
+        PlaceImage(
+            terminal,
+            1,
+            imageWidth: 20,
+            imageHeight: 10,
+            displayColumns: 2,
+            displayRows: 1,
+            column: 4);
+
+        terminal.Resize(3, 3);
+        Assert.IsEmpty(terminal.KgpPlacements);
+
+        terminal.Resize(6, 3);
+        Assert.IsEmpty(terminal.KgpPlacements);
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(1));
+    }
+
+    [TestMethod]
+    public void BuiltInReflow_BlankRowHeightChange_PreservesAnchorColumn()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            width: 6,
+            height: 4,
+            reflow: KittyReflowStrategy.Instance);
+        PlaceImage(
+            terminal,
+            1,
+            imageWidth: 10,
+            imageHeight: 10,
+            displayColumns: 1,
+            displayRows: 1,
+            column: 4);
+
+        terminal.Resize(6, 3);
+
+        var placement = TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(4, placement.Column);
+    }
+
+    [TestMethod]
+    public void BuiltInReflow_BlankRowWidthChange_ClampsAnchorColumnInsteadOfCollapsingToZero()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            width: 6,
+            height: 3,
+            reflow: KittyReflowStrategy.Instance);
+        PlaceImage(
+            terminal,
+            1,
+            imageWidth: 10,
+            imageHeight: 10,
+            displayColumns: 1,
+            displayRows: 1,
+            column: 4);
+
+        terminal.Resize(3, 3);
+
+        var placement = TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(2, placement.Column);
+    }
+
+    [TestMethod]
+    public void BuiltInReflow_PopulatedWrappedRow_MapsAnchorColumnWithText()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            width: 6,
+            height: 3,
+            reflow: KittyReflowStrategy.Instance);
+        Apply(terminal, "ABCDEF\x1b[1;5H");
+        Apply(
+            terminal,
+            KgpTestHelper.BuildTransmitAndDisplayCommand(
+                1,
+                10,
+                10,
+                displayColumns: 1,
+                displayRows: 1,
+                cursorMovement: 1,
+                quiet: 2));
+
+        terminal.Resize(3, 3);
+
+        var placement = TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(1, placement.Column);
+    }
+
+    [TestMethod]
+    public void AlternateResize_ExitCropsHiddenMainPlacementAndPreventsResurrection()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, width: 6, height: 4);
+        PlaceImage(
+            terminal,
+            1,
+            imageWidth: 20,
+            imageHeight: 20,
+            displayColumns: 2,
+            displayRows: 2,
+            row: 2,
+            column: 4);
+        Apply(terminal, "\x1b[?1049h");
+
+        terminal.Resize(3, 2);
+        Apply(terminal, "\x1b[?1049l");
+
+        Assert.IsEmpty(terminal.KgpPlacements);
+        terminal.Resize(6, 4);
+        Assert.IsEmpty(terminal.KgpPlacements);
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(1));
+    }
+
+    [TestMethod]
+    public void AlternateResize_ExitPermanentlyClipsPartiallyVisibleMainPlacement()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, width: 6, height: 4);
+        PlaceImage(
+            terminal,
+            1,
+            imageWidth: 20,
+            imageHeight: 20,
+            displayColumns: 2,
+            displayRows: 2,
+            row: 1,
+            column: 2);
+        Apply(terminal, "\x1b[?1049h");
+
+        terminal.Resize(3, 2);
+        Apply(terminal, "\x1b[?1049l");
+
+        using (var cropped = terminal.CreateSnapshot())
+        {
+            var placement = SinglePlacement(cropped);
+            Assert.AreEqual(1, placement.Row);
+            Assert.AreEqual(2, placement.Column);
+            Assert.AreEqual(1u, placement.DisplayRows);
+            Assert.AreEqual(1u, placement.DisplayColumns);
+            Assert.AreEqual(10u, placement.SourceWidth);
+            Assert.AreEqual(10u, placement.SourceHeight);
+        }
+
+        terminal.Resize(6, 4);
+        using var enlarged = terminal.CreateSnapshot();
+        var enlargedPlacement = SinglePlacement(enlarged);
+        Assert.AreEqual(1u, enlargedPlacement.DisplayRows);
+        Assert.AreEqual(1u, enlargedPlacement.DisplayColumns);
+        Assert.AreEqual(10u, enlargedPlacement.SourceWidth);
+        Assert.AreEqual(10u, enlargedPlacement.SourceHeight);
+    }
+
+    [TestMethod]
+    public void AlternateResize_ExitTrimsMainHistoryTailToCurrentHeight()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            width: 6,
+            height: 4,
+            scrollbackCapacity: 2);
+        PlaceImage(
+            terminal,
+            1,
+            imageWidth: 10,
+            imageHeight: 30,
+            displayColumns: 1,
+            displayRows: 3);
+        Apply(terminal, "\x1b[S\x1b[?1049h");
+
+        terminal.Resize(6, 1);
+        Apply(terminal, "\x1b[?1049l");
+
+        AssertPlacement(
+            terminal.CreateSnapshot(scrollbackLines: 1),
+            row: 0,
+            rows: 2,
+            sourceY: 0,
+            sourceHeight: 20);
+        terminal.Resize(6, 4);
+        AssertPlacement(
+            terminal.CreateSnapshot(scrollbackLines: 1),
+            row: 0,
+            rows: 2,
+            sourceY: 0,
+            sourceHeight: 20);
     }
 
     private static void AssertPlacement(

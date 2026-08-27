@@ -154,6 +154,49 @@ internal sealed class KgpTerminalGraphicsState
         active.HistoryReferences.Remove(imageId);
     }
 
+    internal void ReplaceActivePlacement(
+        uint imageId,
+        uint placementId,
+        KgpPlacement? replacement)
+    {
+        var active = Active;
+        if (placementId == 0)
+        {
+            if (replacement is not null)
+                active.Placements.Add(replacement);
+            return;
+        }
+
+        active.Placements.RemoveAll(
+            placement => placement.ImageId == imageId &&
+                placement.PlacementId == placementId);
+
+        // Add first so releasing the last history owner cannot remove image
+        // data needed by the replacement placement.
+        if (replacement is not null)
+            active.Placements.Add(replacement);
+
+        foreach (var rowId in active.HistoryPlacements.Keys.ToArray())
+        {
+            var placements = active.HistoryPlacements[rowId];
+            for (var i = placements.Count - 1; i >= 0; i--)
+            {
+                var placement = placements[i].Placement;
+                if (placement.ImageId != imageId ||
+                    placement.PlacementId != placementId)
+                {
+                    continue;
+                }
+
+                placements.RemoveAt(i);
+                ReleaseHistoryImage(active, imageId);
+            }
+
+            if (placements.Count == 0)
+                active.HistoryPlacements.Remove(rowId);
+        }
+    }
+
     internal void RelocateActiveImage(KgpImageStore.ImageRelocation relocation)
     {
         var placements = Active.Placements;
@@ -335,8 +378,34 @@ internal sealed class KgpTerminalGraphicsState
         ReconcileImageReferences(active);
         active.Placements.Clear();
         if (!_alternateActive)
-            ClipMainHistoryToHistoryRows(historyRows, cellPixelHeight);
+            ClipMainHistoryToRetainedRows(
+                historyRows,
+                additionalRows: 0,
+                cellPixelHeight);
         active.ImageStore.RemoveUnreferencedImages(active.HistoryReferences.Keys);
+    }
+
+    internal void ClipActiveScreenToViewport(
+        IReadOnlyList<ScrollbackEntry> historyRows,
+        int width,
+        int height,
+        int cellPixelWidth,
+        int cellPixelHeight)
+    {
+        // This first step reconciles both active and history references before
+        // the history geometry below reads image data.
+        ClipActivePlacementsToViewport(
+            width,
+            height,
+            cellPixelWidth,
+            cellPixelHeight);
+        if (!_alternateActive)
+        {
+            ClipMainHistoryToRetainedRows(
+                historyRows,
+                height,
+                cellPixelHeight);
+        }
     }
 
     internal KgpReflowPlan PrepareActiveReflow(
@@ -681,8 +750,9 @@ internal sealed class KgpTerminalGraphicsState
         }
     }
 
-    private void ClipMainHistoryToHistoryRows(
+    private void ClipMainHistoryToRetainedRows(
         IReadOnlyList<ScrollbackEntry> historyRows,
+        int additionalRows,
         int cellPixelHeight)
     {
         if (_main.HistoryPlacements.Count == 0)
@@ -703,7 +773,8 @@ internal sealed class KgpTerminalGraphicsState
                 continue;
             }
 
-            var retainedRowCount = checked((uint)(historyRows.Count - rowIndex));
+            var retainedRowCount = checked(
+                (uint)(historyRows.Count - rowIndex + additionalRows));
             var placements = _main.HistoryPlacements[rowId];
             for (var i = placements.Count - 1; i >= 0; i--)
             {

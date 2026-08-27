@@ -164,34 +164,32 @@ public sealed class KgpPlacement
         if (clippedTop >= clippedBottom || clippedLeft >= clippedRight)
             return null;
 
-        if (!TryNormalizeSourceAxis(image.Width, SourceX, SourceWidth, out var sourceX, out var sourceWidth) ||
-            !TryNormalizeSourceAxis(image.Height, SourceY, SourceHeight, out var sourceY, out var sourceHeight))
-        {
-            return null;
-        }
-
         var firstColumn = checked((uint)(clippedLeft - placementLeft));
         var retainedColumns = checked((uint)(clippedRight - clippedLeft));
         var firstRow = checked((uint)(clippedTop - placementTop));
         var retainedRows = checked((uint)(clippedBottom - clippedTop));
-        if (!TryProjectSourceAxis(
-                sourceWidth,
+        if (!TryClipSourceAxis(
+                image.Width,
+                SourceX,
+                SourceWidth,
                 firstColumn,
                 retainedColumns,
                 DisplayColumns,
                 cellPixelWidth,
                 CellOffsetX,
-                out var projectedX,
-                out var projectedWidth) ||
-            !TryProjectSourceAxis(
-                sourceHeight,
+                out var clippedSourceX,
+                out var clippedSourceWidth) ||
+            !TryClipSourceAxis(
+                image.Height,
+                SourceY,
+                SourceHeight,
                 firstRow,
                 retainedRows,
                 DisplayRows,
                 cellPixelHeight,
                 CellOffsetY,
-                out var projectedY,
-                out var projectedHeight))
+                out var clippedSourceY,
+                out var clippedSourceHeight))
         {
             return null;
         }
@@ -203,10 +201,10 @@ public sealed class KgpPlacement
             checked((int)clippedLeft),
             retainedColumns,
             retainedRows,
-            checked(sourceX + projectedX),
-            checked(sourceY + projectedY),
-            projectedWidth,
-            projectedHeight,
+            clippedSourceX,
+            clippedSourceY,
+            clippedSourceWidth,
+            clippedSourceHeight,
             ZIndex,
             firstColumn == 0 ? CellOffsetX : 0,
             firstRow == 0 ? CellOffsetY : 0);
@@ -226,17 +224,23 @@ public sealed class KgpPlacement
             return null;
         }
 
-        if (!TryNormalizeSourceAxis(image.Width, SourceX, SourceWidth, out var sourceX, out var sourceWidth) ||
-            !TryNormalizeSourceAxis(image.Height, SourceY, SourceHeight, out var sourceY, out var sourceHeight) ||
-            !TryProjectSourceAxis(
-                sourceHeight,
+        if (!TryNormalizeOrPreserveUnknownSourceAxis(
+                image.Width,
+                SourceX,
+                SourceWidth,
+                out var sourceX,
+                out var sourceWidth) ||
+            !TryClipSourceAxis(
+                image.Height,
+                SourceY,
+                SourceHeight,
                 firstRow,
                 retainedRows,
                 DisplayRows,
                 cellPixelHeight,
                 CellOffsetY,
-                out var projectedY,
-                out var projectedHeight))
+                out var clippedSourceY,
+                out var clippedSourceHeight))
         {
             return null;
         }
@@ -249,9 +253,9 @@ public sealed class KgpPlacement
             DisplayColumns,
             retainedRows,
             sourceX,
-            checked(sourceY + projectedY),
+            clippedSourceY,
             sourceWidth,
-            projectedHeight,
+            clippedSourceHeight,
             ZIndex,
             CellOffsetX,
             firstRow == 0 ? CellOffsetY : 0);
@@ -277,6 +281,76 @@ public sealed class KgpPlacement
             ? available
             : Math.Min(requestedSize, available);
         return normalizedSize > 0;
+    }
+
+    private static bool TryNormalizeOrPreserveUnknownSourceAxis(
+        uint imageSize,
+        uint sourceOffset,
+        uint requestedSize,
+        out uint normalizedOffset,
+        out uint normalizedSize)
+    {
+        if (imageSize == 0)
+        {
+            normalizedOffset = sourceOffset;
+            normalizedSize = requestedSize;
+            return true;
+        }
+
+        return TryNormalizeSourceAxis(
+            imageSize,
+            sourceOffset,
+            requestedSize,
+            out normalizedOffset,
+            out normalizedSize);
+    }
+
+    private static bool TryClipSourceAxis(
+        uint imageSize,
+        uint sourceOffset,
+        uint requestedSize,
+        uint firstCell,
+        uint retainedCells,
+        uint totalCells,
+        int cellPixelSize,
+        uint cellOffset,
+        out uint clippedOffset,
+        out uint clippedSize)
+    {
+        if (imageSize == 0)
+        {
+            // PNG dimensions are populated by a future decoding path. Until
+            // then source zeroes retain their "unknown/full source" meaning,
+            // and clipping affects destination geometry only.
+            clippedOffset = sourceOffset;
+            clippedSize = requestedSize;
+            return true;
+        }
+
+        if (!TryNormalizeSourceAxis(
+                imageSize,
+                sourceOffset,
+                requestedSize,
+                out var normalizedOffset,
+                out var normalizedSize) ||
+            !TryProjectSourceAxis(
+                normalizedSize,
+                firstCell,
+                retainedCells,
+                totalCells,
+                cellPixelSize,
+                cellOffset,
+                out var projectedOffset,
+                out var projectedSize))
+        {
+            clippedOffset = 0;
+            clippedSize = 0;
+            return false;
+        }
+
+        clippedOffset = checked(normalizedOffset + projectedOffset);
+        clippedSize = projectedSize;
+        return true;
     }
 
     private static bool TryProjectSourceAxis(
