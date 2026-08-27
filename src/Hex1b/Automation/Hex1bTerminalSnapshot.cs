@@ -228,12 +228,13 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     public int CellPixelHeight { get; }
 
     /// <summary>
-    /// KGP image placements active at snapshot time.
+    /// KGP image placement fragments visible in this snapshot, including any
+    /// requested scrollback rows.
     /// </summary>
     public IReadOnlyList<KgpPlacement> KgpPlacements { get; }
 
     /// <summary>
-    /// KGP image data referenced by placements, keyed by image ID.
+    /// KGP image data referenced by the visible snapshot placements, keyed by image ID.
     /// </summary>
     public IReadOnlyDictionary<uint, KgpImageData> KgpImages { get; }
 

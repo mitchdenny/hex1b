@@ -12,7 +12,10 @@ namespace Hex1b;
 /// This adapter uses raw terminal mode (termios on Unix, SetConsoleMode on Windows)
 /// to properly capture mouse events, escape sequences, and control characters.
 /// </remarks>
-public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapter, ITerminalReflowProvider
+public sealed class ConsolePresentationAdapter :
+    IHex1bTerminalPresentationAdapter,
+    ITerminalReflowProvider,
+    IInternalTerminalReflowProvider
 {
     private const uint KgpProbeImageId = 2147483647u;
     private static readonly byte[] KgpProbeQuery = Encoding.ASCII.GetBytes(
@@ -108,6 +111,16 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
 
     /// <inheritdoc/>
     public ReflowResult Reflow(ReflowContext context) => _reflowStrategy.Reflow(context);
+
+    bool IInternalTerminalReflowProvider.TryReflowWithAnchors(
+        ReflowContext context,
+        IReadOnlyList<TerminalReflowAnchor> anchors,
+        out InternalReflowResult result)
+        => InternalTerminalReflow.TryReflow(
+            _reflowStrategy,
+            context,
+            anchors,
+            out result);
 
     /// <summary>
     /// Detects the current terminal emulator and returns the appropriate reflow strategy.

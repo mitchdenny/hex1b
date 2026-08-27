@@ -1,4 +1,31 @@
+using Hex1b.Reflow;
+
 namespace Hex1b;
+
+internal enum ScrollbackPruneReason
+{
+    Capacity,
+    Clear,
+}
+
+internal readonly record struct ScrollbackPrunedRow(
+    long RowId,
+    long? SuccessorRowId,
+    ScrollbackPruneReason Reason);
+
+internal readonly record struct ScrollbackEntry(
+    long RowId,
+    ScrollbackRow Row);
+
+internal readonly record struct ScrollbackPushResult(
+    long RowId,
+    ScrollbackRow? EvictedRow,
+    long? EvictedRowId,
+    long? SuccessorRowId);
+
+internal readonly record struct ScrollbackReplacementResult(
+    ScrollbackEntry[] Entries,
+    int DiscardedRowCount);
 
 /// <summary>
 /// A fixed-capacity circular buffer that stores terminal rows scrolled off screen.
@@ -15,19 +42,31 @@ namespace Hex1b;
 internal sealed class ScrollbackBuffer
 {
     private readonly ScrollbackRow[] _rows;
+    private readonly long[] _rowIds;
+    private readonly Action<ScrollbackPrunedRow>? _rowPruned;
     private int _head; // Next write position
     private int _count;
+    private long _nextRowId = 1;
 
     /// <summary>
     /// Creates a scrollback buffer with the specified maximum line capacity.
     /// </summary>
     /// <param name="capacity">Maximum number of rows to retain.</param>
     public ScrollbackBuffer(int capacity)
+        : this(capacity, rowPruned: null)
+    {
+    }
+
+    internal ScrollbackBuffer(
+        int capacity,
+        Action<ScrollbackPrunedRow>? rowPruned)
     {
         if (capacity <= 0)
             throw new ArgumentOutOfRangeException(nameof(capacity), "Capacity must be positive.");
 
         _rows = new ScrollbackRow[capacity];
+        _rowIds = new long[capacity];
+        _rowPruned = rowPruned;
         Capacity = capacity;
     }
 
@@ -50,13 +89,21 @@ internal sealed class ScrollbackBuffer
     /// <param name="timestamp">When the row was scrolled off screen.</param>
     /// <returns>The evicted row if the buffer was full; otherwise <c>null</c>.</returns>
     public ScrollbackRow? Push(TerminalCell[] cells, int originalWidth, DateTimeOffset timestamp)
+        => PushWithIdentity(cells, originalWidth, timestamp).EvictedRow;
+
+    internal ScrollbackPushResult PushWithIdentity(
+        TerminalCell[] cells,
+        int originalWidth,
+        DateTimeOffset timestamp)
     {
         ScrollbackRow? evicted = null;
+        long? evictedRowId = null;
 
         // Evict oldest row if full
         if (_count == Capacity)
         {
             evicted = _rows[_head];
+            evictedRowId = _rowIds[_head];
             ReleaseTrackedObjects(evicted.Value);
         }
         else
@@ -71,10 +118,27 @@ internal sealed class ScrollbackBuffer
             cells[i].TrackedHyperlink?.AddRef();
         }
 
+        var rowId = _nextRowId;
+        _nextRowId = checked(_nextRowId + 1);
         _rows[_head] = new ScrollbackRow(cells, originalWidth, timestamp);
+        _rowIds[_head] = rowId;
         _head = (_head + 1) % Capacity;
 
-        return evicted;
+        long? successorRowId = null;
+        if (evictedRowId.HasValue)
+        {
+            successorRowId = _rowIds[_head];
+            _rowPruned?.Invoke(new ScrollbackPrunedRow(
+                evictedRowId.Value,
+                successorRowId,
+                ScrollbackPruneReason.Capacity));
+        }
+
+        return new ScrollbackPushResult(
+            rowId,
+            evicted,
+            evictedRowId,
+            successorRowId);
     }
 
     /// <summary>
@@ -82,22 +146,32 @@ internal sealed class ScrollbackBuffer
     /// </summary>
     public ScrollbackRow[] GetLines(int count)
     {
+        var entries = GetEntries(count);
+        var result = new ScrollbackRow[entries.Length];
+        for (var i = 0; i < entries.Length; i++)
+            result[i] = entries[i].Row;
+        return result;
+    }
+
+    internal ScrollbackEntry[] GetEntries(int count)
+    {
         if (count <= 0)
             return [];
 
-        int actual = Math.Min(count, _count);
-        var result = new ScrollbackRow[actual];
+        var actual = Math.Min(count, _count);
+        var result = new ScrollbackEntry[actual];
 
         // Start index: oldest of the requested lines
         // _head points to the next write slot. The newest row is at (_head - 1).
         // The oldest row in the buffer is at (_head) when full, or at index 0 when not full.
-        int startIndex = _count == Capacity
+        var startIndex = _count == Capacity
             ? (_head - actual + Capacity) % Capacity
             : _count - actual;
 
-        for (int i = 0; i < actual; i++)
+        for (var i = 0; i < actual; i++)
         {
-            result[i] = _rows[(startIndex + i) % Capacity];
+            var index = (startIndex + i) % Capacity;
+            result[i] = new ScrollbackEntry(_rowIds[index], _rows[index]);
         }
 
         return result;
@@ -117,11 +191,59 @@ internal sealed class ScrollbackBuffer
         {
             int idx = (startIndex + i) % Capacity;
             ReleaseTrackedObjects(_rows[idx]);
+            var rowId = _rowIds[idx];
             _rows[idx] = default;
+            _rowIds[idx] = 0;
+            _rowPruned?.Invoke(new ScrollbackPrunedRow(
+                rowId,
+                SuccessorRowId: null,
+                ScrollbackPruneReason.Clear));
         }
 
         _head = 0;
         _count = 0;
+    }
+
+    internal ScrollbackReplacementResult ReplaceRows(
+        IReadOnlyList<ReflowScrollbackRow> rows,
+        DateTimeOffset timestamp)
+    {
+        var startIndex = _count == Capacity ? _head : 0;
+        for (var i = 0; i < _count; i++)
+        {
+            var index = (startIndex + i) % Capacity;
+            ReleaseTrackedObjects(_rows[index]);
+            _rows[index] = default;
+            _rowIds[index] = 0;
+        }
+
+        _head = 0;
+        _count = 0;
+
+        var discarded = Math.Max(0, rows.Count - Capacity);
+        for (var rowIndex = discarded; rowIndex < rows.Count; rowIndex++)
+        {
+            var row = rows[rowIndex];
+            for (var cellIndex = 0; cellIndex < row.Cells.Length; cellIndex++)
+            {
+                row.Cells[cellIndex].TrackedSixel?.AddRef();
+                row.Cells[cellIndex].TrackedHyperlink?.AddRef();
+            }
+
+            var id = _nextRowId;
+            _nextRowId = checked(_nextRowId + 1);
+            _rows[_head] = new ScrollbackRow(
+                row.Cells,
+                row.OriginalWidth,
+                timestamp);
+            _rowIds[_head] = id;
+            _head = (_head + 1) % Capacity;
+            _count++;
+        }
+
+        return new ScrollbackReplacementResult(
+            GetEntries(_count),
+            discarded);
     }
 
     private static void ReleaseTrackedObjects(ScrollbackRow row)
