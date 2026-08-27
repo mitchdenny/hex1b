@@ -222,4 +222,55 @@ public class ScrollbackBufferTests
         var buffer = CreateBuffer(42);
         Assert.AreEqual(42, buffer.Capacity);
     }
+
+    [TestMethod]
+    public void PushWithIdentity_AtCapacity_ReportsRetainedSuccessor()
+    {
+        var pruned = new List<ScrollbackPrunedRow>();
+        var buffer = new ScrollbackBuffer(1, pruned.Add);
+
+        var first = buffer.PushWithIdentity(
+            MakeRow("A"),
+            10,
+            DateTimeOffset.UtcNow);
+        var second = buffer.PushWithIdentity(
+            MakeRow("B"),
+            10,
+            DateTimeOffset.UtcNow);
+
+        var notification = TestSeq.Single(pruned);
+        Assert.AreEqual(first.RowId, notification.RowId);
+        Assert.AreEqual(second.RowId, notification.SuccessorRowId);
+        Assert.AreEqual(ScrollbackPruneReason.Capacity, notification.Reason);
+        Assert.AreEqual(first.RowId, second.EvictedRowId);
+    }
+
+    [TestMethod]
+    public void Clear_ReportsAllRowsWithoutSuccessors()
+    {
+        var pruned = new List<ScrollbackPrunedRow>();
+        var buffer = new ScrollbackBuffer(2, pruned.Add);
+        var first = buffer.PushWithIdentity(
+            MakeRow("A"),
+            10,
+            DateTimeOffset.UtcNow);
+        var second = buffer.PushWithIdentity(
+            MakeRow("B"),
+            10,
+            DateTimeOffset.UtcNow);
+
+        buffer.Clear();
+
+        Assert.AreEqual(2, pruned.Count);
+        TestSeq.AreEqual(
+            new[] { first.RowId, second.RowId },
+            pruned.Select(notification => notification.RowId));
+        TestSeq.All(
+            pruned,
+            notification =>
+            {
+                Assert.IsNull(notification.SuccessorRowId);
+                Assert.AreEqual(ScrollbackPruneReason.Clear, notification.Reason);
+            });
+    }
 }

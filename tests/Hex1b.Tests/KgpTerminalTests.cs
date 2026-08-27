@@ -1742,9 +1742,8 @@ public class KgpTerminalTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[5;1H")); // Go to last row
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\n")); // This triggers scroll
 
-        // After scroll, placement row should decrease by 1 (scrolled up)
-        // Note: This test documents the expected behavior - implementation
-        // may need to handle placement scrolling in the scroll logic
+        Assert.IsEmpty(terminal.KgpPlacements);
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(1));
     }
 
     // =============================================

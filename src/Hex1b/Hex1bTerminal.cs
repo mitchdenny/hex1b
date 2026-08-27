@@ -339,7 +339,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Initialize scrollback buffer if configured
         if (options.ScrollbackCapacity is int scrollbackCapacity)
         {
-            _scrollbackBuffer = new ScrollbackBuffer(scrollbackCapacity);
+            _scrollbackBuffer = new ScrollbackBuffer(
+                scrollbackCapacity,
+                OnScrollbackRowPruned);
             _scrollbackCallback = options.ScrollbackCallback;
         }
         
@@ -1921,9 +1923,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
 
-            var scrollbackRows = scrollbackLines > 0
-                ? _scrollbackBuffer?.GetLines(scrollbackLines) ?? []
+            var allScrollbackEntries = !_inAlternateScreen && _scrollbackBuffer is { } scrollback
+                ? scrollback.GetEntries(scrollback.Count)
                 : [];
+            var selectedScrollbackEntries = !_inAlternateScreen && scrollbackLines > 0
+                ? _scrollbackBuffer?.GetEntries(scrollbackLines) ?? []
+                : [];
+            var scrollbackRows = new ScrollbackRow[selectedScrollbackEntries.Length];
+            for (var i = 0; i < selectedScrollbackEntries.Length; i++)
+                scrollbackRows[i] = selectedScrollbackEntries[i].Row;
             var retainedScrollbackWidth = _width;
             if (scrollbackWidth == ScrollbackWidth.Original)
             {
@@ -1941,7 +1949,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
 
-            var kgp = _kgpGraphicsState.CaptureActiveSnapshot();
+            var kgp = _kgpGraphicsState.CaptureActiveSnapshot(
+                allScrollbackEntries,
+                selectedScrollbackEntries.Length,
+                retainedScrollbackWidth,
+                _height,
+                Capabilities.CellPixelWidth,
+                Capabilities.CellPixelHeight);
             return new Hex1bTerminalSnapshotState(
                 _width,
                 _height,
@@ -2284,11 +2298,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         // Get scrollback rows
-        var scrollbackData = _scrollbackBuffer?.GetLines(_scrollbackBuffer.Count) ?? [];
-        var scrollbackRows = new ReflowScrollbackRow[scrollbackData.Length];
-        for (int i = 0; i < scrollbackData.Length; i++)
+        var scrollbackEntries = !_inAlternateScreen && _scrollbackBuffer is { } scrollback
+            ? scrollback.GetEntries(scrollback.Count)
+            : [];
+        var scrollbackRows = new ReflowScrollbackRow[scrollbackEntries.Length];
+        for (int i = 0; i < scrollbackEntries.Length; i++)
         {
-            scrollbackRows[i] = new ReflowScrollbackRow(scrollbackData[i].Cells, scrollbackData[i].OriginalWidth);
+            var row = scrollbackEntries[i].Row;
+            scrollbackRows[i] = new ReflowScrollbackRow(row.Cells, row.OriginalWidth);
         }
 
         var context = new ReflowContext(
@@ -2298,8 +2315,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _cursorSaved ? _savedCursorX : null,
             _cursorSaved ? _savedCursorY : null);
 
-        // Call the adapter's reflow implementation
-        var result = reflowProvider.Reflow(context);
+        var kgpReflow = _kgpGraphicsState.PrepareActiveReflow(scrollbackEntries);
+        var internalResult = default(InternalReflowResult);
+        var hasKgpLineage = false;
+        if (reflowProvider is IInternalTerminalReflowProvider internalReflow)
+        {
+            hasKgpLineage = internalReflow.TryReflowWithAnchors(
+                context,
+                kgpReflow.Anchors,
+                out internalResult);
+        }
+
+        var result = hasKgpLineage
+            ? internalResult.Reflow
+            : reflowProvider.Reflow(context);
 
         // Release tracked objects from old screen buffer (all cells)
         for (int y = 0; y < _height; y++)
@@ -2334,14 +2363,36 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
         }
 
-        // Apply reflowed scrollback if scrollback is enabled
-        if (_scrollbackBuffer is not null)
+        ScrollbackReplacementResult replacement;
+        if (_inAlternateScreen)
+        {
+            replacement = new ScrollbackReplacementResult(
+                Entries: [],
+                DiscardedRowCount: result.ScrollbackRows.Length);
+        }
+        else if (_scrollbackBuffer is not null && hasKgpLineage)
+        {
+            replacement = _scrollbackBuffer.ReplaceRows(
+                result.ScrollbackRows,
+                _timeProvider.GetUtcNow());
+        }
+        else if (_scrollbackBuffer is not null)
         {
             _scrollbackBuffer.Clear();
             foreach (var sbRow in result.ScrollbackRows)
             {
                 _scrollbackBuffer.Push(sbRow.Cells, sbRow.OriginalWidth, _timeProvider.GetUtcNow());
             }
+
+            replacement = new ScrollbackReplacementResult(
+                _scrollbackBuffer.GetEntries(_scrollbackBuffer.Count),
+                Math.Max(0, result.ScrollbackRows.Length - _scrollbackBuffer.Capacity));
+        }
+        else
+        {
+            replacement = new ScrollbackReplacementResult(
+                Entries: [],
+                DiscardedRowCount: result.ScrollbackRows.Length);
         }
 
         _screenBuffer = newBuffer;
@@ -2355,6 +2406,30 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             _savedCursorX = Math.Clamp(result.NewSavedCursorX.Value, 0, newWidth - 1);
             _savedCursorY = Math.Clamp(result.NewSavedCursorY.Value, 0, newHeight - 1);
+        }
+
+        if (hasKgpLineage)
+        {
+            _kgpGraphicsState.ApplyActiveReflow(
+                kgpReflow,
+                internalResult.Anchors,
+                result.ScrollbackRows.Length,
+                replacement,
+                newWidth,
+                newHeight,
+                Capabilities.CellPixelWidth,
+                Capabilities.CellPixelHeight);
+        }
+        else
+        {
+            // Public third-party reflow providers do not expose row lineage.
+            // Keep active placements at physical coordinates and clip them;
+            // clearing the old main scrollback released unprovable history.
+            _kgpGraphicsState.ClipActivePlacementsToViewport(
+                newWidth,
+                newHeight,
+                Capabilities.CellPixelWidth,
+                Capabilities.CellPixelHeight);
         }
     }
 
@@ -2402,6 +2477,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _height = newHeight;
         _cursorX = Math.Min(_cursorX, newWidth - 1);
         _cursorY = Math.Min(_cursorY, newHeight - 1);
+        _kgpGraphicsState.ClipActivePlacementsToViewport(
+            newWidth,
+            newHeight,
+            Capabilities.CellPixelWidth,
+            Capabilities.CellPixelHeight);
     }
 
     // === Screen Buffer Parsing ===
@@ -4148,11 +4228,23 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             case ClearMode.All:
             case ClearMode.AllAndScrollback:
                 ClearBuffer(respectProtection, impacts);
-                _kgpGraphicsState.ClearActiveScreen(mode == ClearMode.AllAndScrollback);
-                if (mode == ClearMode.AllAndScrollback)
+                if (mode == ClearMode.All)
                 {
-                    if (!_inAlternateScreen)
-                        _scrollbackBuffer?.Clear();
+                    var historyRows = _inAlternateScreen || _scrollbackBuffer is null
+                        ? []
+                        : _scrollbackBuffer.GetEntries(_scrollbackBuffer.Count);
+                    _kgpGraphicsState.ClearActiveViewport(
+                        historyRows,
+                        Capabilities.CellPixelHeight);
+                }
+                else if (_inAlternateScreen)
+                {
+                    _kgpGraphicsState.ClearActiveScreen(clearHistory: true);
+                }
+                else
+                {
+                    _kgpGraphicsState.ClearActiveScreen(clearHistory: false);
+                    _scrollbackBuffer?.Clear();
                 }
                 break;
         }
@@ -4924,6 +5016,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // When DECLRMM is enabled, only scroll within left/right margins
         int leftCol = _declrmm ? _marginLeft : 0;
         int rightCol = _declrmm ? _marginRight : _width - 1;
+        var scrollingRectangle = new KgpScrollRectangle(
+            _scrollTop,
+            _scrollBottom,
+            leftCol,
+            rightCol);
+        var createsKgpHistory = !_inAlternateScreen &&
+            _scrollbackBuffer is not null &&
+            _scrollTop == 0 &&
+            _scrollBottom == _height - 1 &&
+            leftCol == 0 &&
+            rightCol == _width - 1;
+        long? capturedHistoryRowId = null;
         
         // Capture the top row into the scrollback buffer before it's overwritten.
         // Only capture when: scrollback is enabled, not in alternate screen, scroll region
@@ -4933,7 +5037,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             && _scrollTop == 0
             && leftCol == 0 && rightCol == _width - 1)
         {
-            CaptureRowToScrollback(_scrollTop);
+            capturedHistoryRowId = CaptureRowToScrollback(_scrollTop);
             if (_disposed)
                 return false;
         }
@@ -4962,22 +5066,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             SetCell(_scrollBottom, x, eraseCell, impacts);
         }
 
-        // Scroll KGP placements up within the scroll region
-        var kgpPlacements = _kgpGraphicsState.ActivePlacements;
-        if (kgpPlacements.Count > 0)
+        if (createsKgpHistory)
         {
-            for (int i = kgpPlacements.Count - 1; i >= 0; i--)
-            {
-                var p = kgpPlacements[i];
-                if (p.Row >= _scrollTop && p.Row <= _scrollBottom)
-                {
-                    p.Row--;
-                    if (p.Row < _scrollTop)
-                    {
-                        kgpPlacements.RemoveAt(i);
-                    }
-                }
-            }
+            _kgpGraphicsState.MoveMainPlacementsIntoHistory(
+                capturedHistoryRowId
+                    ?? throw new InvalidOperationException(
+                        "A history-producing KGP scroll must capture a scrollback row."));
+        }
+        else
+        {
+            _kgpGraphicsState.AdjustActivePlacementsForScroll(
+                rowDelta: -1,
+                scrollingRectangle,
+                Capabilities.CellPixelWidth,
+                Capabilities.CellPixelHeight);
         }
 
         return true;
@@ -4992,6 +5094,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // When DECLRMM is enabled, only scroll within left/right margins
         int leftCol = _declrmm ? _marginLeft : 0;
         int rightCol = _declrmm ? _marginRight : _width - 1;
+        var scrollingRectangle = new KgpScrollRectangle(
+            _scrollTop,
+            _scrollBottom,
+            leftCol,
+            rightCol);
         
         // First, release Sixel data from the bottom row of the region (being scrolled off)
         for (int x = leftCol; x <= rightCol; x++)
@@ -5017,28 +5124,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             SetCell(_scrollTop, x, eraseCell, impacts);
         }
 
-        // Scroll KGP placements down within the scroll region
-        var kgpPlacements = _kgpGraphicsState.ActivePlacements;
-        if (kgpPlacements.Count > 0)
-        {
-            for (int i = kgpPlacements.Count - 1; i >= 0; i--)
-            {
-                var p = kgpPlacements[i];
-                if (p.Row >= _scrollTop && p.Row <= _scrollBottom)
-                {
-                    p.Row++;
-                    if (p.Row > _scrollBottom)
-                    {
-                        kgpPlacements.RemoveAt(i);
-                    }
-                }
-            }
-        }
+        // Reverse scrolling does not pull rows from history. Placements whose
+        // anchors are already in scrollback stay pinned to those unchanged rows.
+        _kgpGraphicsState.AdjustActivePlacementsForScroll(
+            rowDelta: 1,
+            scrollingRectangle,
+            Capabilities.CellPixelWidth,
+            Capabilities.CellPixelHeight);
 
         return true;
     }
     
-    private void CaptureRowToScrollback(int row)
+    private long CaptureRowToScrollback(int row)
     {
         var cells = new TerminalCell[_width];
         for (int x = 0; x < _width; x++)
@@ -5047,15 +5144,23 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         var timestamp = _timeProvider.GetUtcNow();
-        _scrollbackBuffer!.Push(cells, _width, timestamp);
+        var push = _scrollbackBuffer!.PushWithIdentity(cells, _width, timestamp);
         _scrollbackCallback?.Invoke(new ScrollbackRowEventArgs(this, cells, _width, timestamp));
+        return push.RowId;
     }
+
+    private void OnScrollbackRowPruned(ScrollbackPrunedRow pruned)
+        => _kgpGraphicsState.PruneMainHistoryRow(
+            pruned,
+            Capabilities.CellPixelHeight);
     
     private void InsertLines(int count, List<CellImpact>? impacts = null)
     {
         // Insert blank lines at cursor position within scroll region
         // Lines pushed off the bottom of the scroll region are lost
         // When DECLRMM is enabled, only affect columns within left/right margins
+        // Ordinary KGP placements intentionally stay fixed for IL/DL. KGP does
+        // not define these commands, and both pinned Kitty and Ghostty do this.
         
         // IL resets pending wrap and moves cursor to left margin
         _pendingWrap = false;
@@ -5102,6 +5207,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Delete lines at cursor position within scroll region
         // Blank lines are inserted at the bottom of the scroll region
         // When DECLRMM is enabled, only affect columns within left/right margins
+        // See InsertLines for the Kitty/Ghostty ordinary-placement policy.
         
         // DL resets pending wrap and moves cursor to left margin
         _pendingWrap = false;
@@ -6589,7 +6695,45 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     internal IReadOnlyList<KgpPlacement> KgpPlacements
     {
-        get { lock (_bufferLock) return _kgpGraphicsState.ActivePlacements.ToList(); }
+        get
+        {
+            lock (_bufferLock)
+            {
+                _kgpGraphicsState.ReconcileActiveImageReferences();
+                if (_inAlternateScreen ||
+                    _scrollbackBuffer is null ||
+                    _kgpGraphicsState.MainHistoryPlacementCount == 0)
+                {
+                    return _kgpGraphicsState.ActivePlacements.ToList();
+                }
+
+                var historyRows = _inAlternateScreen || _scrollbackBuffer is null
+                    ? []
+                    : _scrollbackBuffer.GetEntries(_scrollbackBuffer.Count);
+                return _kgpGraphicsState.CaptureActiveSnapshot(
+                    historyRows,
+                    selectedHistoryCount: 0,
+                    _width,
+                    _height,
+                    Capabilities.CellPixelWidth,
+                    Capabilities.CellPixelHeight).Placements;
+            }
+        }
+    }
+
+    internal int KgpHistoryPlacementCount
+    {
+        get
+        {
+            lock (_bufferLock)
+                return _kgpGraphicsState.MainHistoryPlacementCount;
+        }
+    }
+
+    internal int GetKgpHistoryReferenceCount(uint imageId)
+    {
+        lock (_bufferLock)
+            return _kgpGraphicsState.ActiveHistoryReferenceCount(imageId);
     }
 
     private const int KgpMaximumEncodedChunkLength = 4096;
@@ -6940,6 +7084,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         if (stored.Replaced)
             _kgpGraphicsState.RemoveActiveImageReferences(stored.Image.ImageId);
+        _kgpGraphicsState.ReconcileActiveImageReferences();
 
         if (command is KgpParsedCommand.TransmitAndDisplay transmitAndDisplay)
             DisplayTransmittedKgpImage(stored.Image, transmitAndDisplay);
@@ -7176,6 +7321,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
         }
 
+        _kgpGraphicsState.ReconcileActiveImageReferences();
     }
 
     private void CreateKgpPlacement(
@@ -7203,7 +7349,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             command.CellOffsetX,
             command.CellOffsetY);
 
-        ActiveKgpPlacements.Add(placement);
+        var image = ActiveKgpImageStore.GetImageById(imageId)
+            ?? throw new InvalidOperationException(
+                $"Cannot create a KGP placement for missing image {imageId}.");
+        var clipped = placement.ClipToCellRectangle(
+            image,
+            0,
+            _height,
+            0,
+            _width,
+            Capabilities.CellPixelWidth,
+            Capabilities.CellPixelHeight);
+        if (clipped is not null)
+            ActiveKgpPlacements.Add(clipped);
     }
 
     private void SendKgpResponse(uint imageId, uint imageNumber, string message, int quiet)

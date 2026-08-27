@@ -1005,11 +1005,11 @@ public class KgpScrollConformanceTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\n"));
 
         // After scroll, placement should have moved up by 1
-        var placements = terminal.KgpPlacements;
-        if (placements.Count > 0)
-        {
-            Assert.AreEqual(1, placements[0].Row);
-        }
+        var placement = TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(1, placement.Row);
+        Assert.AreEqual(1u, placement.DisplayRows);
+        Assert.AreEqual(0u, placement.SourceY);
+        Assert.AreEqual(4u, placement.SourceHeight);
     }
 
     [TestMethod]
@@ -1029,10 +1029,8 @@ public class KgpScrollConformanceTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[5;1H"));
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\n\n"));
 
-        // After scrolling off, placement should be removed
-        var placements = terminal.KgpPlacements;
-        // Either removed or row < 0
-        Assert.IsTrue(placements.Count == 0 || placements[0].Row < 0);
+        Assert.IsEmpty(terminal.KgpPlacements);
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(1));
     }
 }
 

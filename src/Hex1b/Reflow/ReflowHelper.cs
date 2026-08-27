@@ -34,14 +34,31 @@ internal static class ReflowHelper
     /// <returns>The reflowed terminal state.</returns>
     public static ReflowResult PerformReflow(ReflowContext context, bool preserveCursorRow,
         bool reflowSavedCursor = false)
+        => PerformReflowWithAnchors(
+            context,
+            preserveCursorRow,
+            reflowSavedCursor,
+            []).Reflow;
+
+    internal static InternalReflowResult PerformReflowWithAnchors(
+        ReflowContext context,
+        bool preserveCursorRow,
+        bool reflowSavedCursor,
+        IReadOnlyList<TerminalReflowAnchor> anchors)
     {
         bool hasSavedCursor = reflowSavedCursor && context.SavedCursorX.HasValue && context.SavedCursorY.HasValue;
 
         if (context.NewWidth == context.OldWidth && context.NewHeight == context.OldHeight)
         {
-            return new ReflowResult(context.ScreenRows, context.ScrollbackRows, context.CursorX, context.CursorY,
-                hasSavedCursor ? context.SavedCursorX : null,
-                hasSavedCursor ? context.SavedCursorY : null);
+            return new InternalReflowResult(
+                new ReflowResult(
+                    context.ScreenRows,
+                    context.ScrollbackRows,
+                    context.CursorX,
+                    context.CursorY,
+                    hasSavedCursor ? context.SavedCursorX : null,
+                    hasSavedCursor ? context.SavedCursorY : null),
+                anchors.ToArray());
         }
 
         // Step 1: Collect all rows into a unified sequence (scrollback + screen)
@@ -57,6 +74,23 @@ internal static class ReflowHelper
              savedCursorLogicalLine, savedCursorRowInLogicalLine) =
             GroupLogicalLinesWithCursors(allRows, cursorAbsoluteRow,
                 hasSavedCursor ? savedCursorAbsoluteRow : null);
+        var rowLocations = BuildLogicalRowLocations(allRows);
+        var anchorsByLogicalLine =
+            new Dictionary<int, List<(TerminalReflowAnchor Anchor, int RowInLine)>>();
+        foreach (var anchor in anchors)
+        {
+            if (anchor.Row < 0 || anchor.Row >= rowLocations.Length)
+                continue;
+
+            var location = rowLocations[anchor.Row];
+            if (!anchorsByLogicalLine.TryGetValue(location.LogicalLine, out var lineAnchors))
+            {
+                lineAnchors = [];
+                anchorsByLogicalLine.Add(location.LogicalLine, lineAnchors);
+            }
+
+            lineAnchors.Add((anchor, location.RowInLine));
+        }
 
         // Step 3: Re-wrap all logical lines to the new width
         var rewrappedRows = new List<TerminalCell[]>();
@@ -67,6 +101,7 @@ internal static class ReflowHelper
         int rowsSoFar = 0;
         bool cursorFound = false;
         bool savedCursorFound = false;
+        var mappedAnchors = new List<TerminalReflowAnchor>(anchors.Count);
 
         for (int lineIdx = 0; lineIdx < logicalLines.Count; lineIdx++)
         {
@@ -91,6 +126,22 @@ internal static class ReflowHelper
                 savedCursorFound = true;
             }
 
+            if (anchorsByLogicalLine.TryGetValue(lineIdx, out var lineAnchors))
+            {
+                foreach (var (anchor, rowInLine) in lineAnchors)
+                {
+                    var (row, column) = ComputeCursorInWrappedLine(
+                        logicalLine,
+                        wrappedRows,
+                        rowsSoFar,
+                        rowInLine,
+                        anchor.Column,
+                        context.OldWidth,
+                        context.NewWidth);
+                    mappedAnchors.Add(anchor with { Row = row, Column = column });
+                }
+            }
+
             rewrappedRows.AddRange(wrappedRows);
             rowsSoFar += wrappedRows.Count;
         }
@@ -108,9 +159,12 @@ internal static class ReflowHelper
         }
 
         // Step 4: Distribute rows into scrollback and screen
-        return DistributeRows(rewrappedRows, context, newCursorRow, newCursorCol, preserveCursorRow,
+        var reflow = DistributeRows(rewrappedRows, context, newCursorRow, newCursorCol, preserveCursorRow,
             hasSavedCursor ? newSavedCursorRow : null,
             hasSavedCursor ? newSavedCursorCol : null);
+        var retainedRowCount = reflow.ScrollbackRows.Length + reflow.ScreenRows.Length;
+        mappedAnchors.RemoveAll(anchor => anchor.Row < 0 || anchor.Row >= retainedRowCount);
+        return new InternalReflowResult(reflow, mappedAnchors);
     }
 
     /// <summary>
@@ -173,6 +227,32 @@ internal static class ReflowHelper
         }
 
         return allRows;
+    }
+
+    private static (int LogicalLine, int RowInLine)[] BuildLogicalRowLocations(
+        List<TerminalCell[]> allRows)
+    {
+        var locations = new (int LogicalLine, int RowInLine)[allRows.Count];
+        var logicalLine = 0;
+        var rowInLine = 0;
+        for (var rowIndex = 0; rowIndex < allRows.Count; rowIndex++)
+        {
+            locations[rowIndex] = (logicalLine, rowInLine);
+            var row = allRows[rowIndex];
+            var hasSoftWrap = row.Length > 0 &&
+                (row[^1].Attributes & CellAttributes.SoftWrap) != 0;
+            if (hasSoftWrap)
+            {
+                rowInLine++;
+            }
+            else
+            {
+                logicalLine++;
+                rowInLine = 0;
+            }
+        }
+
+        return locations;
     }
 
     /// <summary>

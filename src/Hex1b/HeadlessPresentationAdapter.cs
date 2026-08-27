@@ -39,7 +39,12 @@ namespace Hex1b;
 ///     .RunAsync();
 /// </code>
 /// </example>
-public sealed class HeadlessPresentationAdapter : IHex1bTerminalPresentationAdapter, ITerminalReflowProvider, IAsyncDisposable, IDisposable
+public sealed class HeadlessPresentationAdapter :
+    IHex1bTerminalPresentationAdapter,
+    ITerminalReflowProvider,
+    IInternalTerminalReflowProvider,
+    IAsyncDisposable,
+    IDisposable
 {
     private readonly int _width;
     private readonly int _height;
@@ -141,6 +146,16 @@ public sealed class HeadlessPresentationAdapter : IHex1bTerminalPresentationAdap
 
     /// <inheritdoc/>
     public ReflowResult Reflow(ReflowContext context) => _reflowStrategy.Reflow(context);
+
+    bool IInternalTerminalReflowProvider.TryReflowWithAnchors(
+        ReflowContext context,
+        IReadOnlyList<TerminalReflowAnchor> anchors,
+        out InternalReflowResult result)
+        => InternalTerminalReflow.TryReflow(
+            _reflowStrategy,
+            context,
+            anchors,
+            out result);
 
     /// <summary>
     /// Triggers a resize event for testing purposes.

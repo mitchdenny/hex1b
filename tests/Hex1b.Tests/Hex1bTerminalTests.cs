@@ -660,6 +660,15 @@ public class Hex1bTerminalTests
             Assert.AreEqual(0x22, restoredSnapshot.KgpImages[2].Data[0]);
         }
 
+        const string scrollingAndHistoryClear =
+            "\x1b[?69h\x1b[2;10s\x1b[2;7r\x1b[S\x1b[T\x1b[3J";
+        await WriteAndAssertForwardedAsync(scrollingAndHistoryClear);
+        using (var clearedSnapshot = terminal.CreateSnapshot())
+        {
+            Assert.IsEmpty(clearedSnapshot.KgpPlacements);
+            Assert.IsEmpty(clearedSnapshot.KgpImages);
+        }
+
         cts.Cancel();
         await Assert.ThrowsAsync<OperationCanceledException>(
             async () => await runTask);
