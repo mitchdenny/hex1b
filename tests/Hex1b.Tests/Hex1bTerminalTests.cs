@@ -14,6 +14,9 @@ public class Hex1bTerminalTests
     private sealed class QueuedInputPresentationAdapter : IHex1bTerminalPresentationAdapter
     {
         private readonly Channel<ReadOnlyMemory<byte>> _input = Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
+        private readonly List<byte> _output = [];
+        private TaskCompletionSource _outputChanged =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int Width => 80;
         public int Height => 24;
@@ -21,7 +24,8 @@ public class Hex1bTerminalTests
         {
             SupportsMouse = true,
             Supports256Colors = true,
-            SupportsTrueColor = true
+            SupportsTrueColor = true,
+            SupportsKgp = true
         };
 
         public event Action<int, int>? Resized
@@ -39,8 +43,52 @@ public class Hex1bTerminalTests
         public void EnqueueInput(string text)
             => _input.Writer.TryWrite(Encoding.UTF8.GetBytes(text));
 
+        public byte[] CapturedOutput
+        {
+            get
+            {
+                lock (_output)
+                {
+                    return [.. _output];
+                }
+            }
+        }
+
+        public async Task WaitForOutputLengthAsync(
+            int minimumLength,
+            CancellationToken ct)
+        {
+            while (true)
+            {
+                Task outputChanged;
+                lock (_output)
+                {
+                    if (_output.Count >= minimumLength)
+                        return;
+
+                    outputChanged = _outputChanged.Task;
+                }
+
+                await outputChanged.WaitAsync(ct);
+            }
+        }
+
         public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
-            => ValueTask.CompletedTask;
+        {
+            TaskCompletionSource outputChanged;
+            lock (_output)
+            {
+                foreach (var value in data.Span)
+                    _output.Add(value);
+
+                outputChanged = _outputChanged;
+                _outputChanged = new(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+
+            outputChanged.TrySetResult();
+            return ValueTask.CompletedTask;
+        }
 
         public async ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
         {
@@ -524,6 +572,97 @@ public class Hex1bTerminalTests
 
         cts.Cancel();
         await Assert.ThrowsAsync<OperationCanceledException>(async () => await runTask);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_KgpScreenLifecycle_ForwardsOriginalBytesAndUpdatesSnapshots()
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 20,
+            Height = 8
+        });
+
+        using var cts = new CancellationTokenSource();
+        var runTask = terminal.RunAsync(cts.Token);
+        var expectedOutput = new List<byte>();
+
+        async Task WriteAndAssertForwardedAsync(string output)
+        {
+            var bytes = Encoding.UTF8.GetBytes(output);
+            expectedOutput.AddRange(bytes);
+            workload.Write(bytes);
+
+            await presentation.WaitForOutputLengthAsync(
+                    expectedOutput.Count,
+                    TestContext.Current.CancellationToken)
+                .WaitAsync(
+                    TimeSpan.FromSeconds(2),
+                    TestContext.Current.CancellationToken);
+            TestSeq.AreEqual(expectedOutput, presentation.CapturedOutput);
+        }
+
+        var mainOutput =
+            "REMOVE-MAIN" +
+            KgpTestHelper.BuildTransmitAndDisplayCommand(
+                1, 1, 1, cursorMovement: 1, quiet: 2, fillByte: 0x11) +
+            "\x1b[2J" +
+            "MAIN" +
+            KgpTestHelper.BuildTransmitAndDisplayCommand(
+                2, 1, 1, cursorMovement: 1, quiet: 2, fillByte: 0x22);
+        await WriteAndAssertForwardedAsync(mainOutput);
+
+        using (var mainSnapshot = terminal.CreateSnapshot())
+        {
+            Assert.IsFalse(mainSnapshot.InAlternateScreen);
+            Assert.IsTrue(mainSnapshot.ContainsText("MAIN"));
+            Assert.IsFalse(mainSnapshot.ContainsText("REMOVE-MAIN"));
+            var placement = TestSeq.Single(mainSnapshot.KgpPlacements);
+            Assert.AreEqual(2u, placement.ImageId);
+            Assert.AreEqual(0x22, mainSnapshot.KgpImages[2].Data[0]);
+        }
+
+        var alternateOutput =
+            "\x1b[?1049h\x1b[H" +
+            "REMOVE-ALT" +
+            KgpTestHelper.BuildTransmitAndDisplayCommand(
+                3, 1, 1, cursorMovement: 1, quiet: 2, fillByte: 0x33) +
+            "\x1b[3J\x1b[H" +
+            "SECONDARY" +
+            KgpTestHelper.BuildTransmitAndDisplayCommand(
+                4, 1, 1, cursorMovement: 1, quiet: 2, fillByte: 0x44);
+        await WriteAndAssertForwardedAsync(alternateOutput);
+
+        using (var alternateSnapshot = terminal.CreateSnapshot())
+        {
+            Assert.IsTrue(alternateSnapshot.InAlternateScreen);
+            Assert.IsTrue(alternateSnapshot.ContainsText("SECONDARY"));
+            Assert.IsFalse(alternateSnapshot.ContainsText("REMOVE-ALT"));
+            var placement = TestSeq.Single(alternateSnapshot.KgpPlacements);
+            Assert.AreEqual(4u, placement.ImageId);
+            Assert.AreEqual(0x44, alternateSnapshot.KgpImages[4].Data[0]);
+        }
+
+        const string exitAlternate = "\x1b[?1049l";
+        await WriteAndAssertForwardedAsync(exitAlternate);
+
+        using (var restoredSnapshot = terminal.CreateSnapshot())
+        {
+            Assert.IsFalse(restoredSnapshot.InAlternateScreen);
+            Assert.IsTrue(restoredSnapshot.ContainsText("MAIN"));
+            Assert.IsFalse(restoredSnapshot.ContainsText("SECONDARY"));
+            var placement = TestSeq.Single(restoredSnapshot.KgpPlacements);
+            Assert.AreEqual(2u, placement.ImageId);
+            Assert.AreEqual(0x22, restoredSnapshot.KgpImages[2].Data[0]);
+        }
+
+        cts.Cancel();
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            async () => await runTask);
     }
 
     [TestMethod]
