@@ -61,8 +61,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly DateTimeOffset _sessionStart;
     private readonly TrackedObjectStore _trackedObjects = new();
     private readonly TimeProvider _timeProvider;
-    private readonly KgpImageStore _kgpImageStore = new();
-    private readonly List<KgpPlacement> _kgpPlacements = new();
+    private readonly KgpTerminalGraphicsState _kgpGraphicsState = new();
     
     // Lock to protect screen buffer state from concurrent access.
     // The resize event comes from the input thread while the output pump
@@ -79,7 +78,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private UnderlineStyle _currentUnderlineStyle;
     private CellAttributes _currentAttributes;
     private TrackedObject<HyperlinkData>? _currentHyperlink; // Active hyperlink from OSC 8
-    private bool _disposed;
+    private volatile bool _disposed;
     private bool _inAlternateScreen;
     private TerminalCell[,]? _savedMainScreenBuffer; // Saved main screen when entering alternate screen
     private int _alternateScreenSavedCursorX; // Saved cursor X for alternate screen (mode 1049)
@@ -1440,6 +1439,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     // Still apply tokens to internal buffer so CreateSnapshot() works
                     ApplyTokens(tokens);
+                    if (_disposed)
+                        continue;
                     
                     // Forward raw bytes to presentation if present
                     if (_presentation != null)
@@ -1455,6 +1456,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
                 // Apply tokens to our internal buffer and collect cell impacts
                 var appliedTokens = ApplyTokensWithImpacts(tokens);
+                if (_disposed)
+                    continue;
                 
                 // Forward to presentation if present
                 if (_presentation != null)
@@ -1466,6 +1469,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         if (_presentationFilters.Count > 0)
                         {
                             await NotifyPresentationFiltersOutputAsync(appliedTokens);
+                            if (_disposed)
+                                continue;
                         }
                         // Send applied tokens with impacts directly to the adapter
                         await impactAware.WriteOutputWithImpactsAsync(appliedTokens, ct);
@@ -1490,6 +1495,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     {
                         // Pass through presentation filters, serialize and send
                         var filteredTokens = await NotifyPresentationFiltersOutputAsync(appliedTokens);
+                        if (_disposed)
+                            continue;
                         var filteredBytes = Tokens.AnsiTokenUtf8Serializer.Serialize(filteredTokens);
                         await _presentation.WriteOutputAsync(filteredBytes, ct);
                         _metrics.TerminalOutputBytes.Record(filteredBytes.Length);
@@ -1894,6 +1901,74 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             var copy = new TerminalCell[_height, _width];
             Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
             return (copy, _width, _height, _cursorX, _cursorY);
+        }
+    }
+
+    internal Hex1bTerminalSnapshotState CaptureSnapshotState(
+        int scrollbackLines,
+        ScrollbackWidth scrollbackWidth)
+    {
+        lock (_bufferLock)
+        {
+            var screenBuffer = new TerminalCell[_height, _width];
+            Array.Copy(_screenBuffer, screenBuffer, _screenBuffer.Length);
+            for (int y = 0; y < _height; y++)
+            {
+                for (int x = 0; x < _width; x++)
+                {
+                    screenBuffer[y, x].TrackedSixel?.AddRef();
+                    screenBuffer[y, x].TrackedHyperlink?.AddRef();
+                }
+            }
+
+            var scrollbackRows = scrollbackLines > 0
+                ? _scrollbackBuffer?.GetLines(scrollbackLines) ?? []
+                : [];
+            var retainedScrollbackWidth = _width;
+            if (scrollbackWidth == ScrollbackWidth.Original)
+            {
+                foreach (var row in scrollbackRows)
+                    retainedScrollbackWidth = Math.Max(retainedScrollbackWidth, row.OriginalWidth);
+            }
+
+            foreach (var row in scrollbackRows)
+            {
+                var retainedCellCount = Math.Min(row.Cells.Length, retainedScrollbackWidth);
+                for (int x = 0; x < retainedCellCount; x++)
+                {
+                    row.Cells[x].TrackedSixel?.AddRef();
+                    row.Cells[x].TrackedHyperlink?.AddRef();
+                }
+            }
+
+            var kgp = _kgpGraphicsState.CaptureActiveSnapshot();
+            return new Hex1bTerminalSnapshotState(
+                _width,
+                _height,
+                _cursorX,
+                _cursorY,
+                _inAlternateScreen,
+                _cursorVisible,
+                _bracketedPasteMode,
+                _appCursorKeysMode,
+                _appKeypadMode,
+                _focusEventReporting,
+                _mouseProtocolX10,
+                _mouseProtocolNormal,
+                _mouseProtocolHighlight,
+                _mouseProtocolButton,
+                _mouseProtocolAny,
+                _mouseEncodingUtf8,
+                _mouseEncodingSgr,
+                _mouseEncodingUrxvt,
+                _cursorShape,
+                DateTimeOffset.UtcNow,
+                Capabilities.CellPixelWidth,
+                Capabilities.CellPixelHeight,
+                screenBuffer,
+                scrollbackRows,
+                kgp.Placements,
+                kgp.Images);
         }
     }
 
@@ -2318,6 +2393,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     continue;
                     
                 _screenBuffer[y, x].TrackedSixel?.Release();
+                _screenBuffer[y, x].TrackedHyperlink?.Release();
             }
         }
 
@@ -2523,9 +2599,21 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         lock (_bufferLock)
         {
+            if (_disposed)
+                return;
+
             foreach (var token in tokens)
             {
-                ApplyToken(token, null);
+                if (_disposed)
+                    break;
+
+                int cursorXBefore = _cursorX;
+                int cursorYBefore = _cursorY;
+                if (!ApplyToken(token, null))
+                {
+                    RestoreValidCursorAfterAbortedScroll(cursorXBefore, cursorYBefore);
+                    break;
+                }
             }
         }
     }
@@ -2544,15 +2632,25 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         lock (_bufferLock)
         {
+            if (_disposed)
+                return [];
+
             var result = new List<AppliedToken>(tokens.Count);
             
             foreach (var token in tokens)
             {
+                if (_disposed)
+                    break;
+
                 int cursorXBefore = _cursorX;
                 int cursorYBefore = _cursorY;
                 
                 var impacts = new List<CellImpact>();
-                ApplyToken(token, impacts);
+                if (!ApplyToken(token, impacts))
+                {
+                    RestoreValidCursorAfterAbortedScroll(cursorXBefore, cursorYBefore);
+                    break;
+                }
                 
                 result.Add(new AppliedToken(
                     token,
@@ -2570,17 +2668,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     /// <param name="token">The token to apply.</param>
     /// <param name="impacts">Optional list to record cell impacts for delta tracking.</param>
-    private void ApplyToken(AnsiToken token, List<CellImpact>? impacts)
+    private bool ApplyToken(AnsiToken token, List<CellImpact>? impacts)
     {
         switch (token)
         {
             case TextToken textToken:
-                ApplyTextToken(textToken, impacts);
-                break;
+                return ApplyTextToken(textToken, impacts);
                 
             case ControlCharacterToken controlToken:
-                ApplyControlCharacter(controlToken, impacts);
-                break;
+                return ApplyControlCharacter(controlToken, impacts);
                 
             case SgrToken sgrToken:
                 ProcessSgr(sgrToken.Parameters);
@@ -2868,12 +2964,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case ScrollUpToken scrollUpToken:
                 for (int i = 0; i < scrollUpToken.Count; i++)
-                    ScrollUp(impacts);
+                {
+                    if (!ScrollUp(impacts))
+                        return false;
+                }
                 break;
                 
             case ScrollDownToken scrollDownToken:
                 for (int i = 0; i < scrollDownToken.Count; i++)
-                    ScrollDown(impacts);
+                {
+                    if (!ScrollDown(impacts))
+                        return false;
+                }
                 break;
                 
             case InsertLinesToken insertLinesToken:
@@ -2886,6 +2988,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case RisToken:
                 // RIS (ESC c): Full terminal reset — clear screen, reset all state
+                ReleaseSavedMainScreenBuffer();
+                _inAlternateScreen = false;
+                _alternateScreenSavedCursorX = 0;
+                _alternateScreenSavedCursorY = 0;
                 _scrollTop = 0;
                 _scrollBottom = _height - 1;
                 _marginLeft = 0;
@@ -2935,9 +3041,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         SetCell(row, col, TerminalCell.Empty, impacts);
                     }
                 }
-                // Clear KGP state
-                _kgpPlacements.Clear();
-                _kgpImageStore.Clear();
+                _scrollbackBuffer?.Clear();
+                _kgpGraphicsState.Reset();
                 break;
                 
             case DecalnToken:
@@ -2976,8 +3081,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
                 
             case RepeatCharacterToken repeatToken:
-                RepeatLastCharacter(repeatToken.Count, impacts);
-                break;
+                return RepeatLastCharacter(repeatToken.Count, impacts);
                 
             case BackTabToken:
                 // CBT (CSI Z): Back tab — move cursor to previous tab stop.
@@ -2997,7 +3101,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     // At bottom of scroll region — scroll if within L/R margins (or no L/R margins)
                     if (!_declrmm || (_cursorX >= _marginLeft && _cursorX <= _marginRight))
-                        ScrollUp(impacts);
+                    {
+                        if (!ScrollUp(impacts))
+                            return false;
+                    }
                     // else: cursor stays put (stuck at scroll bottom, outside L/R margin)
                 }
                 else if (_cursorY < _height - 1)
@@ -3012,7 +3119,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     // At top of scroll region — scroll down if within L/R margins (or no L/R margins)
                     if (!_declrmm || (_cursorX >= _marginLeft && _cursorX <= _marginRight))
-                        ScrollDown(impacts);
+                    {
+                        if (!ScrollDown(impacts))
+                            return false;
+                    }
                     // else: cursor stays put (stuck at scroll top, outside L/R margin)
                 }
                 else if (_cursorY > 0)
@@ -3068,6 +3178,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 HandleDeviceStatusReport(dsr);
                 break;
         }
+
+        return !_disposed;
     }
     
     private void HandleDeviceStatusReport(DeviceStatusReportToken dsr)
@@ -3105,13 +3217,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private void ApplyTextToken(TextToken token, List<CellImpact>? impacts)
+    private bool ApplyTextToken(TextToken token, List<CellImpact>? impacts)
     {
         var text = token.Text;
         int i = 0;
         
         while (i < text.Length)
         {
+            if (_disposed)
+                return false;
+
             string grapheme;
             if (_graphemeClusterMode)
             {
@@ -3152,6 +3267,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (cp == 0xFE0E || cp == 0xFE0F)
                 {
                     ApplyRetroactiveVariationSelector(cp, impacts);
+                    if (_disposed)
+                        return false;
                     i += grapheme.Length;
                     continue;
                 }
@@ -3248,7 +3365,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                                 
                                 if (newY > _scrollBottom)
                                 {
-                                    ScrollUp(null);
+                                    if (!ScrollUp(null))
+                                        return false;
                                     newY = _scrollBottom;
                                 }
                                 
@@ -3305,6 +3423,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
             _pendingGraphemeCombine = false;
+
+            int cursorXBeforeDeferredWrap = _cursorX;
+            int cursorYBeforeDeferredWrap = _cursorY;
             
             // Deferred wrap: If a wrap was pending from a previous character, perform it now
             // This is standard VT100/xterm behavior - wrap only happens when the NEXT
@@ -3335,7 +3456,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Scroll if cursor is past the bottom of the screen BEFORE writing
             if (_cursorY >= _height)
             {
-                ScrollUp(impacts);
+                if (!ScrollUp(impacts))
+                {
+                    RestoreValidCursorAfterAbortedScroll(
+                        cursorXBeforeDeferredWrap,
+                        cursorYBeforeDeferredWrap);
+                    return false;
+                }
                 _cursorY = _height - 1;
             }
             
@@ -3358,6 +3485,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Wide char at edge: if the character won't fit (needs 2+ cells but only 1 remains)
             if (graphemeWidth > 1 && _cursorX + graphemeWidth - 1 > effectiveRightMargin && !_pendingWrap)
             {
+                int cursorXBeforeWideWrap = _cursorX;
+                int cursorYBeforeWideWrap = _cursorY;
                 if (_wraparoundMode)
                 {
                     if (_declrmm)
@@ -3368,7 +3497,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         _cursorY++;
                         if (_cursorY >= _height)
                         {
-                            ScrollUp(impacts);
+                            if (!ScrollUp(impacts))
+                            {
+                                RestoreValidCursorAfterAbortedScroll(
+                                    cursorXBeforeWideWrap,
+                                    cursorYBeforeWideWrap);
+                                return false;
+                            }
                             _cursorY = _height - 1;
                         }
                     }
@@ -3388,7 +3523,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         _cursorY++;
                         if (_cursorY >= _height)
                         {
-                            ScrollUp(impacts);
+                            if (!ScrollUp(impacts))
+                            {
+                                RestoreValidCursorAfterAbortedScroll(
+                                    cursorXBeforeWideWrap,
+                                    cursorYBeforeWideWrap);
+                                return false;
+                            }
                             _cursorY = _height - 1;
                         }
                     }
@@ -3485,6 +3626,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
             i += grapheme.Length;
         }
+
+        return true;
+    }
+
+    private void RestoreValidCursorAfterAbortedScroll(int fallbackX, int fallbackY)
+    {
+        if (_cursorX >= 0 && _cursorX < _width &&
+            _cursorY >= 0 && _cursorY < _height)
+        {
+            return;
+        }
+
+        _cursorX = Math.Clamp(fallbackX, 0, _width - 1);
+        _cursorY = Math.Clamp(fallbackY, 0, _height - 1);
     }
 
     /// <summary>
@@ -3610,7 +3765,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 int scrollBottom = _scrollBottom;
                 if (newRow > scrollBottom)
                 {
-                    ScrollUp(null);
+                    if (!ScrollUp(null))
+                        return;
                     newRow = scrollBottom;
                 }
                 _cursorY = newRow;
@@ -3759,7 +3915,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         return leftEdge;
     }
 
-    private void ApplyControlCharacter(ControlCharacterToken token, List<CellImpact>? impacts)
+    private bool ApplyControlCharacter(ControlCharacterToken token, List<CellImpact>? impacts)
     {
         switch (token.Character)
         {
@@ -3779,7 +3935,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // LF moves cursor down. If at bottom of scroll region, scroll up.
                 if (_cursorY >= _scrollBottom)
                 {
-                    ScrollUp(impacts);
+                    if (!ScrollUp(impacts))
+                        return false;
                     // Cursor stays at _scrollBottom
                 }
                 else if (_cursorY < _height - 1)
@@ -3820,6 +3977,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _activeCharsetSlot = 0;
                 break;
         }
+
+        return !_disposed;
     }
 
     private void ApplyCursorMove(CursorMoveToken token)
@@ -3989,9 +4148,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             case ClearMode.All:
             case ClearMode.AllAndScrollback:
                 ClearBuffer(respectProtection, impacts);
+                _kgpGraphicsState.ClearActiveScreen(mode == ClearMode.AllAndScrollback);
                 if (mode == ClearMode.AllAndScrollback)
                 {
-                    _scrollbackBuffer?.Clear();
+                    if (!_inAlternateScreen)
+                        _scrollbackBuffer?.Clear();
                 }
                 break;
         }
@@ -4247,6 +4408,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void DoEnterAlternateScreen(List<CellImpact>? impacts = null)
     {
+        if (_inAlternateScreen)
+        {
+            _kgpGraphicsState.EnterAlternateScreen();
+            if (Capabilities.HandlesAlternateScreenNatively)
+                ClearBufferInternal();
+            else
+                ClearBuffer(respectProtection: false, impacts);
+            return;
+        }
+
         // Save cursor position before switching to alternate screen
         // This uses separate fields from DECSC/DECRC to avoid conflicts
         _alternateScreenSavedCursorX = _cursorX;
@@ -4259,10 +4430,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             for (int x = 0; x < _width; x++)
             {
-                _savedMainScreenBuffer[y, x] = _screenBuffer[y, x];
+                var cell = _screenBuffer[y, x];
+                cell.TrackedSixel?.AddRef();
+                cell.TrackedHyperlink?.AddRef();
+                _savedMainScreenBuffer[y, x] = cell;
             }
         }
         
+        _kgpGraphicsState.EnterAlternateScreen();
         _inAlternateScreen = true;
         
         // If the presentation handles alternate screen natively, the real terminal
@@ -4285,61 +4460,68 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void DoExitAlternateScreen(List<CellImpact>? impacts = null)
     {
+        if (!RestoreMainScreenBuffer(impacts))
+            return;
+
+        _kgpGraphicsState.ExitAlternateScreen();
         _inAlternateScreen = false;
-        
-        // Only restore if we actually saved state when entering alternate screen
-        // If _savedMainScreenBuffer is null, this is an unbalanced exit - do nothing
-        if (_savedMainScreenBuffer != null)
+    }
+
+    private bool RestoreMainScreenBuffer(List<CellImpact>? impacts = null)
+    {
+        if (!_inAlternateScreen || _savedMainScreenBuffer is not { } savedBuffer)
+            return false;
+
+        var restoreImpacts = Capabilities.HandlesAlternateScreenNatively ? null : impacts;
+        int savedHeight = savedBuffer.GetLength(0);
+        int savedWidth = savedBuffer.GetLength(1);
+        int restoreHeight = Math.Min(_height, savedHeight);
+        int restoreWidth = Math.Min(_width, savedWidth);
+        for (int y = 0; y < restoreHeight; y++)
         {
-            // If the presentation handles alternate screen natively, the real terminal
-            // will restore its buffer when it receives the escape sequence. We just need
-            // to update our internal buffer to match (for snapshot purposes).
-            // If not, we need to generate impacts so the presentation layer gets restored.
-            bool generateImpacts = !Capabilities.HandlesAlternateScreenNatively;
-            
-            // Restore the saved buffer (or as much as fits in current dimensions)
-            int restoreHeight = Math.Min(_height, _savedMainScreenBuffer.GetLength(0));
-            int restoreWidth = Math.Min(_width, _savedMainScreenBuffer.GetLength(1));
-            
-            for (int y = 0; y < restoreHeight; y++)
-            {
-                for (int x = 0; x < restoreWidth; x++)
-                {
-                    if (generateImpacts)
-                    {
-                        SetCell(y, x, _savedMainScreenBuffer[y, x], impacts);
-                    }
-                    else
-                    {
-                        // Direct assignment for internal buffer only
-                        _screenBuffer[y, x] = _savedMainScreenBuffer[y, x];
-                    }
-                }
-            }
-            
-            // Clear any remaining area if current dimensions are larger
-            for (int y = 0; y < _height; y++)
-            {
-                for (int x = (y < restoreHeight ? restoreWidth : 0); x < _width; x++)
-                {
-                    if (generateImpacts)
-                    {
-                        SetCell(y, x, TerminalCell.Empty, impacts);
-                    }
-                    else
-                    {
-                        _screenBuffer[y, x] = TerminalCell.Empty;
-                    }
-                }
-            }
-            
-            _savedMainScreenBuffer = null;
-            
-            // Restore cursor position from alternate screen save
-            _cursorX = _alternateScreenSavedCursorX;
-            _cursorY = _alternateScreenSavedCursorY;
+            for (int x = 0; x < restoreWidth; x++)
+                SetCell(y, x, savedBuffer[y, x], restoreImpacts);
         }
-        // If no saved buffer, this is an unbalanced exit - leave everything as-is
+
+        for (int y = 0; y < _height; y++)
+        {
+            for (int x = (y < restoreHeight ? restoreWidth : 0); x < _width; x++)
+                SetCell(y, x, TerminalCell.Empty, restoreImpacts);
+        }
+
+        for (int y = 0; y < savedHeight; y++)
+        {
+            for (int x = 0; x < savedWidth; x++)
+            {
+                if (y < restoreHeight && x < restoreWidth)
+                    continue;
+
+                savedBuffer[y, x].TrackedSixel?.Release();
+                savedBuffer[y, x].TrackedHyperlink?.Release();
+            }
+        }
+
+        _savedMainScreenBuffer = null;
+        _cursorX = Math.Clamp(_alternateScreenSavedCursorX, 0, _width - 1);
+        _cursorY = Math.Clamp(_alternateScreenSavedCursorY, 0, _height - 1);
+        return true;
+    }
+
+    private void ReleaseSavedMainScreenBuffer()
+    {
+        if (_savedMainScreenBuffer is not { } savedBuffer)
+            return;
+
+        for (int y = 0; y < savedBuffer.GetLength(0); y++)
+        {
+            for (int x = 0; x < savedBuffer.GetLength(1); x++)
+            {
+                savedBuffer[y, x].TrackedSixel?.Release();
+                savedBuffer[y, x].TrackedHyperlink?.Release();
+            }
+        }
+
+        _savedMainScreenBuffer = null;
     }
 
     private void ProcessSgr(string parameters)
@@ -4733,8 +4915,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private void ScrollUp(List<CellImpact>? impacts = null)
+    private bool ScrollUp(List<CellImpact>? impacts = null)
     {
+        if (_disposed)
+            return false;
+
         // Scroll up within the scroll region
         // When DECLRMM is enabled, only scroll within left/right margins
         int leftCol = _declrmm ? _marginLeft : 0;
@@ -4749,6 +4934,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             && leftCol == 0 && rightCol == _width - 1)
         {
             CaptureRowToScrollback(_scrollTop);
+            if (_disposed)
+                return false;
         }
         
         // First, release Sixel data from the top row of the region (being scrolled off)
@@ -4776,25 +4963,31 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         // Scroll KGP placements up within the scroll region
-        if (_kgpPlacements.Count > 0)
+        var kgpPlacements = _kgpGraphicsState.ActivePlacements;
+        if (kgpPlacements.Count > 0)
         {
-            for (int i = _kgpPlacements.Count - 1; i >= 0; i--)
+            for (int i = kgpPlacements.Count - 1; i >= 0; i--)
             {
-                var p = _kgpPlacements[i];
+                var p = kgpPlacements[i];
                 if (p.Row >= _scrollTop && p.Row <= _scrollBottom)
                 {
                     p.Row--;
                     if (p.Row < _scrollTop)
                     {
-                        _kgpPlacements.RemoveAt(i);
+                        kgpPlacements.RemoveAt(i);
                     }
                 }
             }
         }
+
+        return true;
     }
     
-    private void ScrollDown(List<CellImpact>? impacts = null)
+    private bool ScrollDown(List<CellImpact>? impacts = null)
     {
+        if (_disposed)
+            return false;
+
         // Scroll down within the scroll region
         // When DECLRMM is enabled, only scroll within left/right margins
         int leftCol = _declrmm ? _marginLeft : 0;
@@ -4825,21 +5018,24 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         // Scroll KGP placements down within the scroll region
-        if (_kgpPlacements.Count > 0)
+        var kgpPlacements = _kgpGraphicsState.ActivePlacements;
+        if (kgpPlacements.Count > 0)
         {
-            for (int i = _kgpPlacements.Count - 1; i >= 0; i--)
+            for (int i = kgpPlacements.Count - 1; i >= 0; i--)
             {
-                var p = _kgpPlacements[i];
+                var p = kgpPlacements[i];
                 if (p.Row >= _scrollTop && p.Row <= _scrollBottom)
                 {
                     p.Row++;
                     if (p.Row > _scrollBottom)
                     {
-                        _kgpPlacements.RemoveAt(i);
+                        kgpPlacements.RemoveAt(i);
                     }
                 }
             }
         }
+
+        return true;
     }
     
     private void CaptureRowToScrollback(int row)
@@ -5187,11 +5383,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
     
-    private void RepeatLastCharacter(int count, List<CellImpact>? impacts)
+    private bool RepeatLastCharacter(int count, List<CellImpact>? impacts)
     {
         // Repeat the last printed graphic character n times
         if (!_hasLastPrintedCell || string.IsNullOrEmpty(_lastPrintedCell.Character))
-            return;
+            return true;
             
         var graphemeWidth = DisplayWidth.GetGraphemeWidth(_lastPrintedCell.Character);
         
@@ -5200,6 +5396,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         for (int i = 0; i < count; i++)
         {
+            if (_disposed)
+                return false;
+
+            int cursorXBeforeDeferredWrap = _cursorX;
+            int cursorYBeforeDeferredWrap = _cursorY;
+
             // Handle deferred wrap
             if (_pendingWrap)
             {
@@ -5218,7 +5420,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Scroll if needed
             if (_cursorY >= _height)
             {
-                ScrollUp(impacts);
+                if (!ScrollUp(impacts))
+                {
+                    RestoreValidCursorAfterAbortedScroll(
+                        cursorXBeforeDeferredWrap,
+                        cursorYBeforeDeferredWrap);
+                    return false;
+                }
                 _cursorY = _height - 1;
             }
             
@@ -5260,6 +5468,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
         }
+
+        return true;
     }
 
     // === Sixel Parsing ===
@@ -5990,9 +6200,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-        AbortPendingKgpUploadForDisposal();
+        if (!TryBeginDisposalAndResetScreenOwnedState())
+            return;
 
         // Complete any active paste context
         if (_activePasteContext != null)
@@ -6001,9 +6210,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _activePasteContext = null;
             _inBracketedPaste = false;
         }
-
-        // Release all scrollback buffer tracked object references
-        _scrollbackBuffer?.Clear();
 
         // Notify filters of session end (fire-and-forget from sync Dispose)
         var elapsed = _timeProvider.GetUtcNow() - _sessionStart;
@@ -6037,9 +6243,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_disposed) return;
-        _disposed = true;
-        AbortPendingKgpUploadForDisposal();
+        if (!TryBeginDisposalAndResetScreenOwnedState())
+            return;
 
         // Complete any active paste context
         if (_activePasteContext != null)
@@ -6048,9 +6253,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _activePasteContext = null;
             _inBracketedPaste = false;
         }
-
-        // Release all scrollback buffer tracked object references
-        _scrollbackBuffer?.Clear();
 
         // Notify filters of session end
         var elapsed = _timeProvider.GetUtcNow() - _sessionStart;
@@ -6084,11 +6286,21 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _disposeCts.Dispose();
     }
 
-    private void AbortPendingKgpUploadForDisposal()
+    private bool TryBeginDisposalAndResetScreenOwnedState()
     {
         lock (_bufferLock)
         {
-            _kgpImageStore.AbortChunkedTransfer();
+            if (_disposed)
+                return false;
+
+            _disposed = true;
+            if (!RestoreMainScreenBuffer())
+                ReleaseSavedMainScreenBuffer();
+            // History must release its owners before the per-screen image stores reset.
+            _scrollbackBuffer?.Clear();
+            _kgpGraphicsState.Reset();
+            _inAlternateScreen = false;
+            return true;
         }
     }
 
@@ -6363,28 +6575,21 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     // ---- KGP (Kitty Graphics Protocol) ----
 
+    private KgpImageStore ActiveKgpImageStore => _kgpGraphicsState.ActiveImageStore;
+
+    private List<KgpPlacement> ActiveKgpPlacements => _kgpGraphicsState.ActivePlacements;
+
     /// <summary>
     /// Gets the KGP image store for testing and inspection.
     /// </summary>
-    internal KgpImageStore KgpImageStore => _kgpImageStore;
+    internal KgpImageStore KgpImageStore => _kgpGraphicsState.ActiveImageStore;
 
     /// <summary>
     /// Gets the active KGP placements for testing and inspection.
     /// </summary>
     internal IReadOnlyList<KgpPlacement> KgpPlacements
     {
-        get { lock (_bufferLock) return _kgpPlacements.ToList(); }
-    }
-
-    internal (
-        IReadOnlyList<KgpPlacement> Placements,
-        IReadOnlyDictionary<uint, KgpImageData> Images) CaptureKgpSnapshot()
-    {
-        lock (_bufferLock)
-        {
-            // KGP mutations already acquire locks in buffer -> store order.
-            return _kgpImageStore.CaptureSnapshot(_kgpPlacements);
-        }
+        get { lock (_bufferLock) return _kgpGraphicsState.ActivePlacements.ToList(); }
     }
 
     private const int KgpMaximumEncodedChunkLength = 4096;
@@ -6405,7 +6610,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         if (!KgpCommandParser.TryParse(token.ControlData, out var command, out var failure))
         {
-            var pending = _kgpImageStore.GetPendingTransmission();
+            var pending = ActiveKgpImageStore.GetPendingTransmission();
             if (pending is null)
             {
                 ProcessKgpParseFailure(failure, token.ControlData);
@@ -6414,12 +6619,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
             if (failure.Action == KgpAction.Delete)
             {
-                _kgpImageStore.AbortChunkedTransfer();
+                ActiveKgpImageStore.AbortChunkedTransfer();
                 ProcessKgpParseFailure(failure, token.ControlData);
                 return;
             }
 
-            _kgpImageStore.AbortChunkedTransfer();
+            ActiveKgpImageStore.AbortChunkedTransfer();
             var failureQuiet = failure.Quiet == KgpParsedCommand.QuietMode.Normal
                 ? pending.Value.Quiet
                 : failure.Quiet;
@@ -6431,7 +6636,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         }
 
-        if (_kgpImageStore.GetPendingTransmission() is { } pendingTransmission)
+        if (ActiveKgpImageStore.GetPendingTransmission() is { } pendingTransmission)
         {
             if (command is KgpParsedCommand.Delete delete)
             {
@@ -6530,10 +6735,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         }
 
-        var result = _kgpImageStore.ProcessChunk(
+        var result = ActiveKgpImageStore.ProcessChunk(
             command,
             decodedData,
-            _kgpImageStore.MaximumPendingUploadBytes);
+            ActiveKgpImageStore.MaximumPendingUploadBytes);
         switch (result.Status)
         {
             case KgpImageStore.ChunkStatus.Incomplete:
@@ -6596,7 +6801,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         string message,
         KgpParsedCommand.QuietMode quiet)
     {
-        _kgpImageStore.AbortChunkedTransfer();
+        ActiveKgpImageStore.AbortChunkedTransfer();
         SendKgpTransmissionResponse(
             pending.Transmission,
             storedImage: null,
@@ -6617,11 +6822,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         if (transmission.IdentityKind == KgpParsedCommand.ImageIdentityKind.ExplicitId)
         {
-            var start = _kgpImageStore.BeginExplicitTransmission(transmission.ImageId);
+            var start = ActiveKgpImageStore.BeginExplicitTransmission(transmission.ImageId);
             if (start.Relocation is { } relocation)
                 ApplyKgpImageRelocation(relocation);
             if (start.RemovedAddressableImage)
-                _kgpPlacements.RemoveAll(p => p.ImageId == transmission.ImageId);
+                _kgpGraphicsState.RemoveActiveImageReferences(transmission.ImageId);
         }
 
         var maximumEncodedLength = transmission.MoreData
@@ -6657,7 +6862,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 return;
             }
 
-            var result = _kgpImageStore.ProcessChunk(
+            var result = ActiveKgpImageStore.ProcessChunk(
                 command,
                 decodedData,
                 maximumBytes);
@@ -6686,7 +6891,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         out long maximumBytes,
         out string error)
     {
-        maximumBytes = _kgpImageStore.MaximumPendingUploadBytes;
+        maximumBytes = ActiveKgpImageStore.MaximumPendingUploadBytes;
         if (transmission.Compression != KgpParsedCommand.CompressionMode.None ||
             !TryGetExpectedKgpDataSize(transmission, out var expectedSize) ||
             expectedSize == 0)
@@ -6729,12 +6934,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         }
 
-        var stored = _kgpImageStore.StoreImage(transmission, decodedData);
+        var stored = ActiveKgpImageStore.StoreImage(transmission, decodedData);
         if (stored.Relocation is { } relocation)
             ApplyKgpImageRelocation(relocation);
 
         if (stored.Replaced)
-            _kgpPlacements.RemoveAll(p => p.ImageId == stored.Image.ImageId);
+            _kgpGraphicsState.RemoveActiveImageReferences(stored.Image.ImageId);
 
         if (command is KgpParsedCommand.TransmitAndDisplay transmitAndDisplay)
             DisplayTransmittedKgpImage(stored.Image, transmitAndDisplay);
@@ -6807,15 +7012,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void ApplyKgpImageRelocation(KgpImageStore.ImageRelocation relocation)
     {
-        for (var i = 0; i < _kgpPlacements.Count; i++)
-        {
-            if (_kgpPlacements[i].ImageId == relocation.PreviousId)
-            {
-                // Replace rather than mutate so existing snapshots keep
-                // their original placement-to-image identity.
-                _kgpPlacements[i] = _kgpPlacements[i].WithImageId(relocation.CurrentId);
-            }
-        }
+        // Replace rather than mutate so existing snapshots keep
+        // their original placement-to-image identity.
+        _kgpGraphicsState.RelocateActiveImage(relocation);
     }
 
     private void SendKgpTransmissionResponse(
@@ -6874,9 +7073,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         KgpImageData? image = null;
 
         if (imageId > 0)
-            image = _kgpImageStore.GetImageByClientId(imageId);
+            image = ActiveKgpImageStore.GetImageByClientId(imageId);
         else if (command.ImageNumber > 0)
-            image = _kgpImageStore.GetImageByNumber(command.ImageNumber);
+            image = ActiveKgpImageStore.GetImageByNumber(command.ImageNumber);
 
         if (image is null)
         {
@@ -6906,52 +7105,52 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void ProcessKgpDelete(KgpParsedCommand.DeleteSelector selector)
     {
-        _kgpImageStore.AbortChunkedTransfer();
+        ActiveKgpImageStore.AbortChunkedTransfer();
 
         switch (selector)
         {
             case KgpParsedCommand.DeleteSelector.All { FreeData: false }:
-                _kgpPlacements.Clear();
+                ActiveKgpPlacements.Clear();
                 break;
             case KgpParsedCommand.DeleteSelector.All { FreeData: true }:
-                _kgpPlacements.Clear();
-                _kgpImageStore.Clear();
+                ActiveKgpPlacements.Clear();
+                ActiveKgpImageStore.Clear();
                 break;
             case KgpParsedCommand.DeleteSelector.ById byId:
                 if (byId.ImageId > 0 &&
-                    _kgpImageStore.SelectAddressableImage(byId.ImageId, byId.FreeData))
+                    ActiveKgpImageStore.SelectAddressableImage(byId.ImageId, byId.FreeData))
                 {
                     if (byId.PlacementId > 0)
-                        _kgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId && p.PlacementId == byId.PlacementId);
+                        ActiveKgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId && p.PlacementId == byId.PlacementId);
                     else
-                        _kgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId);
+                        ActiveKgpPlacements.RemoveAll(p => p.ImageId == byId.ImageId);
                 }
                 break;
             case KgpParsedCommand.DeleteSelector.ByNumber byNumber:
                 if (byNumber.ImageNumber > 0)
                 {
-                    var img = _kgpImageStore.GetImageByNumber(byNumber.ImageNumber);
+                    var img = ActiveKgpImageStore.GetImageByNumber(byNumber.ImageNumber);
                     if (img is not null)
-                        _kgpPlacements.RemoveAll(p => p.ImageId == img.ImageId);
-                    _kgpImageStore.RemoveImageByNumber(byNumber.ImageNumber);
+                        ActiveKgpPlacements.RemoveAll(p => p.ImageId == img.ImageId);
+                    ActiveKgpImageStore.RemoveImageByNumber(byNumber.ImageNumber);
                 }
                 break;
             case KgpParsedCommand.DeleteSelector.AtCursor:
-                _kgpPlacements.RemoveAll(p => p.IntersectsCell(_cursorY, _cursorX));
+                ActiveKgpPlacements.RemoveAll(p => p.IntersectsCell(_cursorY, _cursorX));
                 break;
             case KgpParsedCommand.DeleteSelector.AnimationFrames:
                 break;
             case KgpParsedCommand.DeleteSelector.AtCell atCell:
-                _kgpPlacements.RemoveAll(p => p.IntersectsCell((int)atCell.Y - 1, (int)atCell.X - 1));
+                ActiveKgpPlacements.RemoveAll(p => p.IntersectsCell((int)atCell.Y - 1, (int)atCell.X - 1));
                 break;
             case KgpParsedCommand.DeleteSelector.ByColumn column:
-                _kgpPlacements.RemoveAll(p => p.IntersectsColumn((int)column.Column - 1));
+                ActiveKgpPlacements.RemoveAll(p => p.IntersectsColumn((int)column.Column - 1));
                 break;
             case KgpParsedCommand.DeleteSelector.ByRow row:
-                _kgpPlacements.RemoveAll(p => p.IntersectsRow((int)row.Row - 1));
+                ActiveKgpPlacements.RemoveAll(p => p.IntersectsRow((int)row.Row - 1));
                 break;
             case KgpParsedCommand.DeleteSelector.ByZIndex zIndex:
-                _kgpPlacements.RemoveAll(p => p.ZIndex == zIndex.ZIndex);
+                ActiveKgpPlacements.RemoveAll(p => p.ZIndex == zIndex.ZIndex);
                 break;
             case KgpParsedCommand.DeleteSelector.ByRange range:
             {
@@ -6959,11 +7158,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var hi = range.LastImageId;
                 if (lo > 0 && hi > 0 && lo <= hi)
                 {
-                    var selected = _kgpImageStore.SelectAddressableImagesInRange(
+                    var selected = ActiveKgpImageStore.SelectAddressableImagesInRange(
                         lo,
                         hi,
                         range.FreeData);
-                    _kgpPlacements.RemoveAll(p => selected.Contains(p.ImageId));
+                    ActiveKgpPlacements.RemoveAll(p => selected.Contains(p.ImageId));
                 }
                 break;
             }
@@ -6972,7 +7171,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var cellRow = (int)atCellWithZ.Y - 1;
                 var cellCol = (int)atCellWithZ.X - 1;
                 var targetZ = atCellWithZ.ZIndex;
-                _kgpPlacements.RemoveAll(p => p.IntersectsCell(cellRow, cellCol) && p.ZIndex == targetZ);
+                ActiveKgpPlacements.RemoveAll(p => p.IntersectsCell(cellRow, cellCol) && p.ZIndex == targetZ);
                 break;
             }
         }
@@ -6989,7 +7188,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // If same image+placement combo exists, replace it
         if (placementId > 0)
         {
-            _kgpPlacements.RemoveAll(p => p.ImageId == imageId && p.PlacementId == placementId);
+            ActiveKgpPlacements.RemoveAll(p => p.ImageId == imageId && p.PlacementId == placementId);
         }
 
         var placement = new KgpPlacement(
@@ -7004,7 +7203,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             command.CellOffsetX,
             command.CellOffsetY);
 
-        _kgpPlacements.Add(placement);
+        ActiveKgpPlacements.Add(placement);
     }
 
     private void SendKgpResponse(uint imageId, uint imageNumber, string message, int quiet)
@@ -7158,7 +7357,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private int GetMaximumKgpEncodedPayloadLength()
     {
-        var maximumDecodedLength = _kgpImageStore.MaximumPendingUploadBytes;
+        var maximumDecodedLength = ActiveKgpImageStore.MaximumPendingUploadBytes;
         var maximumEncodedLength = (maximumDecodedLength + 2) / 3 * 4;
         return checked((int)Math.Min(maximumEncodedLength, int.MaxValue));
     }

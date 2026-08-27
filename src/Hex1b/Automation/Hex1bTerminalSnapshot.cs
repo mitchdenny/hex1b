@@ -24,39 +24,33 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     internal Hex1bTerminalSnapshot(Hex1bTerminal terminal, int scrollbackLines, ScrollbackWidth scrollbackWidth, TerminalCell voidCell)
     {
         Terminal = terminal;
-        var terminalWidth = terminal.Width;
-        var terminalHeight = terminal.Height;
-        CursorX = terminal.CursorX;
-        CursorY = terminal.CursorY;
-        InAlternateScreen = terminal.InAlternateScreen;
-        CursorVisible = terminal.CursorVisible;
-        BracketedPasteEnabled = terminal.BracketedPasteEnabled;
-        ApplicationCursorKeysEnabled = terminal.ApplicationCursorKeysEnabled;
-        ApplicationKeypadEnabled = terminal.ApplicationKeypadEnabled;
-        FocusEventsEnabled = terminal.FocusEventsEnabled;
-        MouseProtocolX10Enabled = terminal.MouseProtocolX10Enabled;
-        MouseProtocolNormalEnabled = terminal.MouseProtocolNormalEnabled;
-        MouseProtocolHighlightEnabled = terminal.MouseProtocolHighlightEnabled;
-        MouseProtocolButtonEnabled = terminal.MouseProtocolButtonEnabled;
-        MouseProtocolAnyEnabled = terminal.MouseProtocolAnyEnabled;
-        MouseEncodingUtf8Enabled = terminal.MouseEncodingUtf8Enabled;
-        MouseEncodingSgrEnabled = terminal.MouseEncodingSgrEnabled;
-        MouseEncodingUrxvtEnabled = terminal.MouseEncodingUrxvtEnabled;
-        CursorShape = terminal.CursorShape;
-        Timestamp = DateTimeOffset.UtcNow;
-        CellPixelWidth = terminal.Capabilities.CellPixelWidth;
-        CellPixelHeight = terminal.Capabilities.CellPixelHeight;
+        var state = terminal.CaptureSnapshotState(scrollbackLines, scrollbackWidth);
+        var terminalWidth = state.TerminalWidth;
+        var terminalHeight = state.TerminalHeight;
+        CursorX = state.CursorX;
+        CursorY = state.CursorY;
+        InAlternateScreen = state.InAlternateScreen;
+        CursorVisible = state.CursorVisible;
+        BracketedPasteEnabled = state.BracketedPasteEnabled;
+        ApplicationCursorKeysEnabled = state.ApplicationCursorKeysEnabled;
+        ApplicationKeypadEnabled = state.ApplicationKeypadEnabled;
+        FocusEventsEnabled = state.FocusEventsEnabled;
+        MouseProtocolX10Enabled = state.MouseProtocolX10Enabled;
+        MouseProtocolNormalEnabled = state.MouseProtocolNormalEnabled;
+        MouseProtocolHighlightEnabled = state.MouseProtocolHighlightEnabled;
+        MouseProtocolButtonEnabled = state.MouseProtocolButtonEnabled;
+        MouseProtocolAnyEnabled = state.MouseProtocolAnyEnabled;
+        MouseEncodingUtf8Enabled = state.MouseEncodingUtf8Enabled;
+        MouseEncodingSgrEnabled = state.MouseEncodingSgrEnabled;
+        MouseEncodingUrxvtEnabled = state.MouseEncodingUrxvtEnabled;
+        CursorShape = state.CursorShape;
+        Timestamp = state.Timestamp;
+        CellPixelWidth = state.CellPixelWidth;
+        CellPixelHeight = state.CellPixelHeight;
+        KgpPlacements = state.KgpPlacements;
+        KgpImages = state.KgpImages;
 
-        var kgp = terminal.CaptureKgpSnapshot();
-        KgpPlacements = kgp.Placements;
-        KgpImages = kgp.Images;
-
-        // Get scrollback rows if requested
-        ScrollbackRow[] scrollbackRows = [];
-        if (scrollbackLines > 0 && terminal.Scrollback is { } scrollback)
-        {
-            scrollbackRows = scrollback.GetLines(scrollbackLines);
-        }
+        var scrollbackRows = state.ScrollbackRows;
         ScrollbackLineCount = scrollbackRows.Length;
 
         // Determine snapshot dimensions
@@ -99,15 +93,11 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
             var row = scrollbackRows[rowIdx];
             int copyWidth = Math.Min(row.Cells.Length, snapshotWidth);
             for (int x = 0; x < copyWidth; x++)
-            {
                 _cells[rowIdx, x] = row.Cells[x];
-                row.Cells[x].TrackedSixel?.AddRef();
-                row.Cells[x].TrackedHyperlink?.AddRef();
-            }
         }
 
         // Fill visible area (below scrollback)
-        var screenBuffer = terminal.GetScreenBuffer(addTrackedObjectRefs: true);
+        var screenBuffer = state.ScreenBuffer;
         for (int y = 0; y < terminalHeight; y++)
         {
             int copyWidth = Math.Min(terminalWidth, snapshotWidth);

@@ -117,6 +117,31 @@ public class Hex1bTerminalScrollbackTests
     }
 
     [TestMethod]
+    public void CSI3J_InAlternateScreen_PreservesMainScrollbackBuffer()
+    {
+        using var terminal = CreateTerminal(width: 10, height: 3);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("A\r\nB\r\nC\r\nD\r\nE"));
+        var mainScrollbackCount = terminal.Scrollback!.Count;
+        Assert.IsGreaterThan(0, mainScrollbackCount);
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049h\x1b[3J\x1b[?1049l"));
+
+        Assert.AreEqual(mainScrollbackCount, terminal.Scrollback.Count);
+    }
+
+    [TestMethod]
+    public void RIS_ClearsScrollbackBuffer()
+    {
+        using var terminal = CreateTerminal(width: 10, height: 3);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("A\r\nB\r\nC\r\nD\r\nE"));
+        Assert.IsGreaterThan(0, terminal.Scrollback!.Count);
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b" + "c"));
+
+        Assert.AreEqual(0, terminal.Scrollback.Count);
+    }
+
+    [TestMethod]
     public void Callback_InvokedWhenRowScrollsOff()
     {
         var callbackRows = new List<ScrollbackRowEventArgs>();
