@@ -6799,6 +6799,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return _kgpGraphicsState.ActiveVirtualReferenceCount(imageId);
     }
 
+    internal void ValidateKgpDeletionInvariants()
+    {
+        lock (_bufferLock)
+            _kgpGraphicsState.ValidateActiveDeletionInvariants();
+    }
+
     private const int KgpMaximumEncodedChunkLength = 4096;
 
     private static readonly KgpControlKeySet KgpImageContinuationControls =
@@ -6826,7 +6832,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
             if (failure.Action == KgpAction.Delete)
             {
-                ActiveKgpImageStore.AbortChunkedTransfer();
+                _kgpGraphicsState.AbortActivePendingUpload();
                 ProcessKgpParseFailure(failure, token.ControlData);
                 return;
             }
@@ -6848,7 +6854,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             if (command is KgpParsedCommand.Delete delete)
             {
-                ProcessKgpDelete(delete.Selector);
+                ProcessKgpDelete(delete);
                 return;
             }
 
@@ -6881,7 +6887,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 ProcessKgpPut(put.Display, put.Quiet);
                 break;
             case KgpParsedCommand.Delete delete:
-                ProcessKgpDelete(delete.Selector);
+                ProcessKgpDelete(delete);
                 break;
             case KgpParsedCommand.AnimationFrame animationFrame:
                 ProcessKgpAnimationFrame(animationFrame, token.Payload);
@@ -7314,7 +7320,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             placementId,
             (uint)cols,
             (uint)rows,
-            command.Display);
+            command.Display,
+            imageIsAddressable: command.Transmission.IdentityKind !=
+                KgpParsedCommand.ImageIdentityKind.Anonymous);
         if (placementError != KgpTerminalGraphicsState.PlacementError.None)
             return FormatKgpPlacementError(placementError);
 
@@ -7551,7 +7559,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var rows = command.Rows > 0 ? (int)command.Rows : 1;
 
         var placementError = CreateKgpPlacement(image.ImageId, command.PlacementId,
-            (uint)cols, (uint)rows, command);
+            (uint)cols, (uint)rows, command, imageIsAddressable: true);
         if (placementError != KgpTerminalGraphicsState.PlacementError.None)
         {
             SendKgpResponse(
@@ -7568,140 +7576,22 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         SendKgpResponse(image.ImageId, image.ImageNumber, "OK", (int)quiet);
     }
 
-    private void ProcessKgpDelete(KgpParsedCommand.DeleteSelector selector)
+    private void ProcessKgpDelete(KgpParsedCommand.Delete command)
     {
-        ActiveKgpImageStore.AbortChunkedTransfer();
-        IReadOnlyList<KgpPlacement>? materialized = null;
-
-        void RemoveMaterialized(Func<KgpPlacement, bool> predicate)
-        {
-            materialized ??= CaptureActiveKgpPlacementsForMutation();
-            _kgpGraphicsState.RemoveActivePlacementsByGraphId(
-                materialized
-                    .Where(placement => placement.RenderGeometry is null)
-                    .Where(predicate)
-                    .Select(placement => placement.GraphId)
-                    .Distinct()
-                    .ToArray());
-        }
-
-        switch (selector)
-        {
-            case KgpParsedCommand.DeleteSelector.All { FreeData: false }:
-                RemoveMaterialized(_ => true);
-                break;
-            case KgpParsedCommand.DeleteSelector.All { FreeData: true }:
-                RemoveMaterialized(_ => true);
-                _kgpGraphicsState.DeleteAllActiveOrdinaryPlacements(
-                    freeData: true);
-                break;
-            case KgpParsedCommand.DeleteSelector.ById byId:
-                if (byId.ImageId > 0)
-                {
-                    var hasVirtualPlacement =
-                        _kgpGraphicsState.HasActiveVirtualPlacement(
-                            byId.ImageId,
-                            byId.PlacementId);
-                    var hasAddressableImage =
-                        ActiveKgpImageStore.SelectAddressableImage(
-                            byId.ImageId,
-                            removeData: false);
-                    if (hasAddressableImage || hasVirtualPlacement)
-                    {
-                        _kgpGraphicsState.RemoveActivePlacements(
-                            byId.ImageId,
-                            byId.PlacementId);
-                        if (byId.FreeData &&
-                            !_kgpGraphicsState.HasActivePlacementOwner(
-                                byId.ImageId))
-                            ActiveKgpImageStore.RemoveImage(byId.ImageId);
-                    }
-                }
-                break;
-            case KgpParsedCommand.DeleteSelector.ByNumber byNumber:
-                if (byNumber.ImageNumber > 0)
-                {
-                    var img = ActiveKgpImageStore.GetImageByNumber(byNumber.ImageNumber);
-                    if (img is not null)
-                    {
-                        _kgpGraphicsState.RemoveActivePlacements(
-                            img.ImageId,
-                            byNumber.PlacementId);
-                        if (!_kgpGraphicsState.HasActivePlacementOwner(
-                                img.ImageId))
-                        {
-                            ActiveKgpImageStore.RemoveImageByNumber(
-                                byNumber.ImageNumber);
-                        }
-                    }
-                }
-                break;
-            case KgpParsedCommand.DeleteSelector.AtCursor:
-                RemoveMaterialized(
-                    placement => placement.IntersectsCell(_cursorY, _cursorX));
-                break;
-            case KgpParsedCommand.DeleteSelector.AnimationFrames frames:
-            {
-                var result = ActiveKgpImageStore.DeleteAnimationFrame(
-                    frames.ImageId,
-                    frames.ImageNumber,
-                    frames.FrameNumber,
-                    frames.FreeData);
-                if (result.Status ==
-                    KgpImageStore.AnimationFrameDeleteStatus.ImageRemoved)
-                {
-                    _kgpGraphicsState.RemoveActiveImageReferences(
-                        result.ImageId);
-                }
-                break;
-            }
-            case KgpParsedCommand.DeleteSelector.AtCell atCell:
-                RemoveMaterialized(
-                    placement => placement.IntersectsCell(
-                        (int)atCell.Y - 1,
-                        (int)atCell.X - 1));
-                break;
-            case KgpParsedCommand.DeleteSelector.ByColumn column:
-                RemoveMaterialized(
-                    placement => placement.IntersectsColumn(
-                        (int)column.Column - 1));
-                break;
-            case KgpParsedCommand.DeleteSelector.ByRow row:
-                RemoveMaterialized(
-                    placement => placement.IntersectsRow((int)row.Row - 1));
-                break;
-            case KgpParsedCommand.DeleteSelector.ByZIndex zIndex:
-                _kgpGraphicsState.RemoveActivePlacementsByZIndex(
-                    zIndex.ZIndex);
-                break;
-            case KgpParsedCommand.DeleteSelector.ByRange range:
-            {
-                var lo = range.FirstImageId;
-                var hi = range.LastImageId;
-                if (lo > 0 && hi > 0 && lo <= hi)
-                {
-                    _kgpGraphicsState.RemoveActiveVirtualPlacementsInRange(lo, hi);
-                    var selected = ActiveKgpImageStore.SelectAddressableImagesInRange(
-                        lo,
-                        hi,
-                        range.FreeData);
-                    _kgpGraphicsState.RemoveActivePlacementsInImageSet(selected);
-                }
-                break;
-            }
-            case KgpParsedCommand.DeleteSelector.AtCellWithZIndex atCellWithZ:
-            {
-                var cellRow = (int)atCellWithZ.Y - 1;
-                var cellCol = (int)atCellWithZ.X - 1;
-                var targetZ = atCellWithZ.ZIndex;
-                RemoveMaterialized(
-                    placement => placement.IntersectsCell(cellRow, cellCol) &&
-                        placement.ZIndex == targetZ);
-                break;
-            }
-        }
-
-        _kgpGraphicsState.ReconcileActiveImageReferences();
+        var historyRows = _inAlternateScreen || _scrollbackBuffer is null
+            ? []
+            : _scrollbackBuffer.GetEntries(_scrollbackBuffer.Count);
+        _kgpGraphicsState.DeleteActive(
+            command,
+            new KgpTerminalGraphicsState.DeletionContext(
+                _cursorY,
+                _cursorX,
+                historyRows,
+                _screenBuffer,
+                _width,
+                _height,
+                Capabilities.CellPixelWidth,
+                Capabilities.CellPixelHeight));
     }
 
     private IReadOnlyList<KgpPlacement> CaptureActiveKgpPlacementsForMutation()
@@ -7724,7 +7614,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         uint placementId,
         uint cols,
         uint rows,
-        KgpParsedCommand.DisplayData command)
+        KgpParsedCommand.DisplayData command,
+        bool imageIsAddressable)
     {
         var isRelative = command.ParentImageId > 0;
         var placement = new KgpPlacement(
@@ -7738,7 +7629,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             command.SourceHeight,
             command.ZIndex,
             command.CellOffsetX,
-            command.CellOffsetY);
+            command.CellOffsetY)
+            .WithImageAddressability(imageIsAddressable);
 
         var image = ActiveKgpImageStore.GetImageById(imageId)
             ?? throw new InvalidOperationException(

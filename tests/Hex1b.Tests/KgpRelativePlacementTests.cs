@@ -805,7 +805,7 @@ public class KgpRelativePlacementTests
     }
 
     [TestMethod]
-    public void DeleteAll_VisibleChildOfHistoryParent_RemovesChildPlacement()
+    public void DeleteAll_VisibleChildOfHistoryParent_RetainsRelativeGroup()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = CreateTerminal(
@@ -827,9 +827,17 @@ public class KgpRelativePlacementTests
 
         Apply(terminal, KgpTestHelper.BuildCommand("a=d,d=a"));
 
-        Assert.IsEmpty(terminal.CreateSnapshot().KgpPlacements);
+        using var snapshot = terminal.CreateSnapshot();
+        AssertPlacement(
+            snapshot,
+            imageId: 2,
+            placementId: 2,
+            row: 0,
+            column: 0);
         Assert.AreEqual(1, terminal.KgpHistoryPlacementCount);
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(1));
         Assert.IsNotNull(terminal.KgpImageStore.GetImageById(2));
+        terminal.ValidateKgpDeletionInvariants();
     }
 
     [TestMethod]
