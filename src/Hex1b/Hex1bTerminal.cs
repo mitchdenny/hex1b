@@ -7578,21 +7578,23 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void ProcessKgpDelete(KgpParsedCommand.Delete command)
     {
-        var historyRows = _inAlternateScreen || _scrollbackBuffer is null
-            ? []
-            : _scrollbackBuffer.GetEntries(_scrollbackBuffer.Count);
         _kgpGraphicsState.DeleteActive(
             command,
             new KgpTerminalGraphicsState.DeletionContext(
                 _cursorY,
                 _cursorX,
-                historyRows,
+                GetKgpDeletionHistoryRows,
                 _screenBuffer,
                 _width,
                 _height,
                 Capabilities.CellPixelWidth,
                 Capabilities.CellPixelHeight));
     }
+
+    private IReadOnlyList<ScrollbackEntry> GetKgpDeletionHistoryRows()
+        => _inAlternateScreen || _scrollbackBuffer is null
+            ? []
+            : _scrollbackBuffer.GetEntries(_scrollbackBuffer.Count);
 
     private IReadOnlyList<KgpPlacement> CaptureActiveKgpPlacementsForMutation()
     {

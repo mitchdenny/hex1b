@@ -78,6 +78,23 @@ public class KgpDeletionTests
         }
     }
 
+    public static IEnumerable<object[]> NonGeometryDeleteCommands
+    {
+        get
+        {
+            yield return ["a=d,d=i,i=99"];
+            yield return ["a=d,d=I,i=99"];
+            yield return ["a=d,d=n,I=99"];
+            yield return ["a=d,d=N,I=99"];
+            yield return ["a=d,d=r,x=0,y=99"];
+            yield return ["a=d,d=R,x=0,y=99"];
+            yield return ["a=d,d=z"];
+            yield return ["a=d,d=Z"];
+            yield return ["a=d,d=f,i=99"];
+            yield return ["a=d,d=F,i=99"];
+        }
+    }
+
     [TestMethod]
     [DataRow('a', 'A', "all")]
     [DataRow('i', 'I', "id")]
@@ -97,6 +114,71 @@ public class KgpDeletionTests
     {
         AssertSelectorCase(lowercase, scenario, freeData: false);
         AssertSelectorCase(uppercase, scenario, freeData: true);
+    }
+
+    [TestMethod]
+    [DynamicData(nameof(NonGeometryDeleteCommands))]
+    public void Delete_NonGeometrySelectorDoesNotRequestHistory(
+        string controlData)
+    {
+        var state = new KgpTerminalGraphicsState();
+        var historyRequested = false;
+
+        state.DeleteActive(
+            ParseDelete(controlData),
+            new KgpTerminalGraphicsState.DeletionContext(
+                CursorRow: 0,
+                CursorColumn: 0,
+                HistoryRowsProvider: () =>
+                {
+                    historyRequested = true;
+                    return [];
+                },
+                ScreenBuffer: new TerminalCell[1, 1],
+                Width: 1,
+                Height: 1,
+                CellPixelWidth: 1,
+                CellPixelHeight: 1));
+
+        Assert.IsFalse(historyRequested);
+    }
+
+    [TestMethod]
+    public void Delete_GeometrySelectorAbortsUploadBeforeRequestingHistory()
+    {
+        var state = new KgpTerminalGraphicsState();
+        state.ActiveImageStore.ProcessChunk(
+            new KgpCommand
+            {
+                Width = 2,
+                Height = 2,
+                Format = KgpFormat.Rgba32,
+                ImageId = 1,
+                MoreData = 1,
+            },
+            [1, 2, 3, 4]);
+        Assert.IsTrue(state.ActiveImageStore.IsChunkedTransferInProgress);
+        var historyRequested = false;
+
+        state.DeleteActive(
+            ParseDelete("a=d,d=a"),
+            new KgpTerminalGraphicsState.DeletionContext(
+                CursorRow: 0,
+                CursorColumn: 0,
+                HistoryRowsProvider: () =>
+                {
+                    Assert.IsFalse(
+                        state.ActiveImageStore.IsChunkedTransferInProgress);
+                    historyRequested = true;
+                    return [];
+                },
+                ScreenBuffer: new TerminalCell[1, 1],
+                Width: 1,
+                Height: 1,
+                CellPixelWidth: 1,
+                CellPixelHeight: 1));
+
+        Assert.IsTrue(historyRequested);
     }
 
     [TestMethod]
@@ -978,12 +1060,15 @@ public class KgpDeletionTests
         store.StoreImage(CreateImage(1, 0x11));
         store.StoreImage(CreateImage(2, 0x22));
         store.StoreImage(CreateImage(3, 0x33));
-        var deletionIndex = store.CaptureDeletionIndex();
+        var candidates = new Dictionary<uint, KgpImageStore.DeletionImage>
+        {
+            [1] = store.GetDeletionImage(1)!.Value,
+            [2] = store.GetDeletionImage(2)!.Value,
+        };
 
         store.DeleteIfUnreferenced(
-            new HashSet<uint> { 1, 2 },
-            new HashSet<uint> { 2 },
-            deletionIndex.Images);
+            candidates,
+            new HashSet<uint> { 2 });
 
         Assert.IsNull(store.GetImageById(1));
         Assert.IsNotNull(store.GetImageById(2));
@@ -997,14 +1082,16 @@ public class KgpDeletionTests
     {
         var store = new KgpImageStore();
         store.StoreImage(CreateImage(1, 0x11));
-        var deletionIndex = store.CaptureDeletionIndex();
+        var candidate = store.GetDeletionImage(1)!.Value;
         var replacement = CreateImage(1, 0x22);
         store.StoreImage(replacement);
 
         store.DeleteIfUnreferenced(
-            new HashSet<uint> { 1 },
-            new HashSet<uint>(),
-            deletionIndex.Images);
+            new Dictionary<uint, KgpImageStore.DeletionImage>
+            {
+                [1] = candidate,
+            },
+            new HashSet<uint>());
 
         Assert.AreSame(replacement, store.GetImageById(1));
         Assert.AreEqual(4L, store.TotalSize);
@@ -1025,8 +1112,7 @@ public class KgpDeletionTests
         var deletion = Task.Factory.StartNew(
             () => store.ExecuteDeletion(() =>
             {
-                var index = store.CaptureDeletionIndex();
-                Assert.IsTrue(index.Images.ContainsKey(1));
+                Assert.IsNotNull(store.GetDeletionImage(1));
                 entered.SetResult();
                 release.Task.GetAwaiter().GetResult();
                 Assert.AreEqual(0x11, store.GetImageById(1)!.Data[0]);
@@ -1058,6 +1144,78 @@ public class KgpDeletionTests
             TimeSpan.FromSeconds(10),
             TestContext.Current.CancellationToken);
         Assert.AreSame(replacement, store.GetImageById(1));
+    }
+
+    [TestMethod]
+    [DoNotParallelize]
+    public void Delete_UnmatchedIdentityAllocationDoesNotScaleWithScrollback()
+    {
+        using var smallWorkload = new Hex1bAppWorkloadAdapter();
+        using var small = CreateTerminal(
+            smallWorkload,
+            width: 8,
+            height: 4,
+            scrollbackCapacity: 2048);
+        using var fullWorkload = new Hex1bAppWorkloadAdapter();
+        using var full = CreateTerminal(
+            fullWorkload,
+            width: 8,
+            height: 4,
+            scrollbackCapacity: 2048);
+        Apply(
+            full,
+            string.Concat(Enumerable.Repeat("history\r\n", 4096)));
+        var deleteTokens = AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=d,d=I,i=999999")).ToArray();
+
+        var smallBytes = MeasureDeleteAllocations(small, deleteTokens);
+        var fullBytes = MeasureDeleteAllocations(full, deleteTokens);
+
+        Assert.IsTrue(
+            fullBytes <= smallBytes + 4096,
+            $"Empty scrollback: {smallBytes} B/op; full scrollback: {fullBytes} B/op.");
+        Assert.IsTrue(
+            fullBytes <= checked(smallBytes * 2 + 512),
+            $"Allocation ratio exceeded 2x: {smallBytes} versus {fullBytes} B/op.");
+    }
+
+    [TestMethod]
+    [DoNotParallelize]
+    public void Delete_TargetedStoreAllocationDoesNotScaleWithUnrelatedImages()
+    {
+        using var smallWorkload = new Hex1bAppWorkloadAdapter();
+        using var small = CreateTerminal(smallWorkload);
+        using var largeWorkload = new Hex1bAppWorkloadAdapter();
+        using var large = CreateTerminal(largeWorkload);
+        PopulateTinyImages(small, count: 1);
+        PopulateTinyImages(large, count: 4096);
+        var unmatchedTokens = AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=d,d=I,i=999999")).ToArray();
+        var narrowTokens = AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=d,d=I,i=1,p=999")).ToArray();
+        var rangeTokens = AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=d,d=R,x=1,y=1")).ToArray();
+        var imageOne = CreateImage(1, 0x11);
+
+        var smallBytes = MeasureStoreDeleteAllocations(
+            small,
+            unmatchedTokens,
+            narrowTokens,
+            rangeTokens,
+            imageOne);
+        var largeBytes = MeasureStoreDeleteAllocations(
+            large,
+            unmatchedTokens,
+            narrowTokens,
+            rangeTokens,
+            imageOne);
+
+        Assert.IsTrue(
+            largeBytes <= smallBytes + 4096,
+            $"One image: {smallBytes} B/op; 4096 images: {largeBytes} B/op.");
+        Assert.IsTrue(
+            largeBytes <= checked(smallBytes * 2 + 512),
+            $"Allocation ratio exceeded 2x: {smallBytes} versus {largeBytes} B/op.");
     }
 
     private static void AssertSelectorCase(
@@ -1141,6 +1299,78 @@ public class KgpDeletionTests
         Assert.IsNotNull(terminal.KgpImageStore.GetImageById(survivorImageId));
         Assert.AreEqual(freeData ? 4L : 8L, terminal.KgpImageStore.TotalSize);
         AssertIntegrity(terminal);
+    }
+
+    private static KgpParsedCommand.Delete ParseDelete(string controlData)
+    {
+        var success = KgpCommandParser.TryParse(
+            controlData,
+            out var command,
+            out var failure);
+        Assert.IsTrue(
+            success,
+            success ? null : failure.FormatReason(controlData.AsSpan()));
+        return TestSeq.IsType<KgpParsedCommand.Delete>(command);
+    }
+
+    private static long MeasureDeleteAllocations(
+        Hex1bTerminal terminal,
+        IReadOnlyList<AnsiToken> deleteTokens)
+    {
+        const int iterations = 200;
+        for (var i = 0; i < 20; i++)
+            terminal.ApplyTokens(deleteTokens);
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < iterations; i++)
+            terminal.ApplyTokens(deleteTokens);
+        return (GC.GetAllocatedBytesForCurrentThread() - before) / iterations;
+    }
+
+    private static long MeasureStoreDeleteAllocations(
+        Hex1bTerminal terminal,
+        IReadOnlyList<AnsiToken> unmatchedTokens,
+        IReadOnlyList<AnsiToken> narrowTokens,
+        IReadOnlyList<AnsiToken> rangeTokens,
+        KgpImageData imageOne)
+    {
+        const int iterations = 100;
+        for (var i = 0; i < 10; i++)
+        {
+            terminal.ApplyTokens(unmatchedTokens);
+            terminal.ApplyTokens(narrowTokens);
+            terminal.ApplyTokens(rangeTokens);
+            terminal.KgpImageStore.StoreImage(imageOne);
+        }
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < iterations; i++)
+        {
+            terminal.ApplyTokens(unmatchedTokens);
+            terminal.ApplyTokens(narrowTokens);
+            terminal.ApplyTokens(rangeTokens);
+            terminal.KgpImageStore.StoreImage(imageOne);
+        }
+        return (GC.GetAllocatedBytesForCurrentThread() - before) / iterations;
+    }
+
+    private static void PopulateTinyImages(
+        Hex1bTerminal terminal,
+        int count)
+    {
+        for (var imageId = 1; imageId <= count; imageId++)
+        {
+            terminal.KgpImageStore.StoreImage(
+                CreateImage(checked((uint)imageId), (byte)imageId));
+        }
     }
 
     private static uint CreateSharedOwnerScenario(

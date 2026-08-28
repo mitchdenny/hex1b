@@ -42,7 +42,7 @@ internal sealed class KgpTerminalGraphicsState
     internal readonly record struct DeletionContext(
         int CursorRow,
         int CursorColumn,
-        IReadOnlyList<ScrollbackEntry> HistoryRows,
+        Func<IReadOnlyList<ScrollbackEntry>> HistoryRowsProvider,
         TerminalCell[,] ScreenBuffer,
         int Width,
         int Height,
@@ -135,7 +135,7 @@ internal sealed class KgpTerminalGraphicsState
         DeletionContext context)
     {
         ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(context.HistoryRows);
+        ArgumentNullException.ThrowIfNull(context.HistoryRowsProvider);
         ArgumentNullException.ThrowIfNull(context.ScreenBuffer);
 
         var active = Active;
@@ -153,16 +153,20 @@ internal sealed class KgpTerminalGraphicsState
 
         // Freeze selector inputs before any placement or image mutation.
         var nodes = CaptureDeletionNodes(active);
-        var nodesByGraphId = nodes.ToDictionary(node => node.GraphId);
-        var imageIndex = active.ImageStore.CaptureDeletionIndex();
+        Dictionary<long, DeletionNode>? nodesByGraphId = null;
         IReadOnlyList<KgpPlacement>? materialized = null;
         var selectedGraphIds = new HashSet<long>();
-        var directImageCandidates = new HashSet<uint>();
+        var directImageCandidates =
+            new Dictionary<uint, KgpImageStore.DeletionImage>();
+
+        IReadOnlyDictionary<long, DeletionNode> GetNodesByGraphId()
+            => nodesByGraphId ??= nodes.ToDictionary(node => node.GraphId);
 
         IReadOnlyList<KgpPlacement> GetMaterialized()
         {
+            var historyRows = context.HistoryRowsProvider();
             materialized ??= CaptureActiveSnapshot(
-                context.HistoryRows,
+                historyRows,
                 selectedHistoryCount: 0,
                 context.ScreenBuffer,
                 context.Width,
@@ -180,7 +184,7 @@ internal sealed class KgpTerminalGraphicsState
             {
                 if (placement.RenderGeometry is not null ||
                     !predicate(placement) ||
-                    !nodesByGraphId.TryGetValue(
+                    !GetNodesByGraphId().TryGetValue(
                         placement.GraphId,
                         out var node) ||
                     node.Kind == DeletionNodeKind.Virtual ||
@@ -203,6 +207,8 @@ internal sealed class KgpTerminalGraphicsState
                 if (byId.ImageId == 0)
                     break;
 
+                var targetImage = active.ImageStore
+                    .GetAddressableDeletionImage(byId.ImageId);
                 var matched = false;
                 foreach (var node in nodes)
                 {
@@ -218,30 +224,29 @@ internal sealed class KgpTerminalGraphicsState
                     matched = true;
                 }
 
-                if (byId.PlacementId == 0 &&
-                    imageIndex.AddressableImageIds.Contains(byId.ImageId))
-                {
+                if (byId.PlacementId == 0 && targetImage.HasValue)
                     matched = true;
-                }
 
                 if (byId.FreeData &&
                     matched &&
                     byId.PlacementId == 0 &&
-                    imageIndex.AddressableImageIds.Contains(byId.ImageId))
+                    targetImage is { } frozenTarget)
                 {
-                    directImageCandidates.Add(byId.ImageId);
+                    directImageCandidates.TryAdd(
+                        frozenTarget.ImageId,
+                        frozenTarget);
                 }
                 break;
             }
             case KgpParsedCommand.DeleteSelector.ByNumber byNumber:
             {
                 if (byNumber.ImageNumber == 0 ||
-                    !imageIndex.NewestImageIdsByNumber.TryGetValue(
-                        byNumber.ImageNumber,
-                        out var imageId))
+                    active.ImageStore.GetNewestDeletionImage(
+                        byNumber.ImageNumber) is not { } targetImage)
                 {
                     break;
                 }
+                var imageId = targetImage.ImageId;
 
                 var matched = false;
                 foreach (var node in nodes)
@@ -262,7 +267,7 @@ internal sealed class KgpTerminalGraphicsState
                 if (byNumber.FreeData && matched &&
                     byNumber.PlacementId == 0)
                 {
-                    directImageCandidates.Add(imageId);
+                    directImageCandidates.TryAdd(imageId, targetImage);
                 }
                 break;
             }
@@ -274,7 +279,7 @@ internal sealed class KgpTerminalGraphicsState
                         context.CursorColumn));
                 break;
             case KgpParsedCommand.DeleteSelector.AnimationFrames frames:
-                DeleteAnimationFrames(active, nodes, imageIndex, frames);
+                DeleteAnimationFrames(active, nodes, frames);
                 return;
             case KgpParsedCommand.DeleteSelector.AtCell atCell:
                 if (atCell.X > 0 && atCell.Y > 0)
@@ -305,24 +310,27 @@ internal sealed class KgpTerminalGraphicsState
                     break;
                 }
 
-                var addressableRangeImageIds = imageIndex.AddressableImageIds
-                    .Where(imageId => imageId >= range.FirstImageId &&
-                        imageId <= range.LastImageId)
-                    .ToHashSet();
                 foreach (var node in nodes)
                 {
                     if (node.IsImageAddressable &&
-                        (addressableRangeImageIds.Contains(node.ImageId) ||
-                         (node.Kind == DeletionNodeKind.Virtual &&
-                         node.ImageId >= range.FirstImageId &&
-                         node.ImageId <= range.LastImageId)))
+                        node.ImageId >= range.FirstImageId &&
+                        node.ImageId <= range.LastImageId)
                     {
                         selectedGraphIds.Add(node.GraphId);
                     }
                 }
                 if (range.FreeData)
-                    directImageCandidates.UnionWith(
-                        addressableRangeImageIds);
+                {
+                    foreach (var image in active.ImageStore
+                        .GetAddressableDeletionImagesInRange(
+                            range.FirstImageId,
+                            range.LastImageId))
+                    {
+                        directImageCandidates.TryAdd(
+                            image.ImageId,
+                            image);
+                    }
+                }
                 break;
             case KgpParsedCommand.DeleteSelector.ByColumn column:
                 if (column.Column > 0)
@@ -352,42 +360,64 @@ internal sealed class KgpTerminalGraphicsState
                 break;
         }
 
-        var expansion = ExpandDeletionSubtrees(nodes, selectedGraphIds);
-        var imageCandidates = directImageCandidates;
-        if (command.Selector.DeleteImageData)
+        if (selectedGraphIds.Count == 0 &&
+            directImageCandidates.Count == 0)
         {
-            AddSelectedImageCandidates(
-                imageCandidates,
-                selectedGraphIds,
-                nodesByGraphId,
-                imageIndex);
-        }
-        // Orphaned descendants and private images cannot be reused by clients.
-        AddImageCandidates(
-            imageCandidates,
-            expansion.DescendantGraphIds,
-            nodesByGraphId);
-        foreach (var graphId in expansion.GraphIds)
-        {
-            if (nodesByGraphId.TryGetValue(graphId, out var node) &&
-                !node.IsImageAddressable)
-            {
-                imageCandidates.Add(node.ImageId);
-            }
+            return;
         }
 
-        RemoveGraphNodes(active, expansion.GraphIds);
+        var expansion = ExpandDeletionSubtrees(nodes, selectedGraphIds);
+        var imageCandidates = directImageCandidates;
+        if (expansion.GraphIds.Count > 0)
+        {
+            var removalNodesByGraphId = nodes
+                .Where(node => expansion.GraphIds.Contains(node.GraphId))
+                .ToDictionary(node => node.GraphId);
+            if (command.Selector.DeleteImageData)
+            {
+                AddImageCandidates(
+                    active.ImageStore,
+                    imageCandidates,
+                    selectedGraphIds,
+                    removalNodesByGraphId);
+            }
+            // Orphaned descendants and private images cannot be reused by clients.
+            AddImageCandidates(
+                active.ImageStore,
+                imageCandidates,
+                expansion.DescendantGraphIds,
+                removalNodesByGraphId);
+            foreach (var graphId in expansion.GraphIds)
+            {
+                if (removalNodesByGraphId.TryGetValue(
+                        graphId,
+                        out var node) &&
+                    !node.IsImageAddressable)
+                {
+                    AddImageCandidate(
+                        active.ImageStore,
+                        imageCandidates,
+                        node);
+                }
+            }
+
+            RemoveGraphNodes(active, expansion.GraphIds);
+        }
+
+        if (imageCandidates.Count == 0)
+            return;
+
+        var referencedImageIds = GetReferencedImageCandidates(
+            active,
+            imageCandidates);
         active.ImageStore.DeleteIfUnreferenced(
             imageCandidates,
-            GetRetainedImageIds(active),
-            imageIndex.Images);
+            referencedImageIds);
     }
 
     internal void ValidateActiveDeletionInvariants()
     {
         var active = Active;
-        var imageIndex = active.ImageStore.CaptureDeletionIndex();
-        var imageIds = imageIndex.Images;
         var nodes = CaptureDeletionNodes(active);
         var graphIds = new HashSet<long>();
         foreach (var node in nodes)
@@ -397,9 +427,9 @@ internal sealed class KgpTerminalGraphicsState
                 throw new InvalidOperationException(
                     $"Duplicate KGP placement graph ID {node.GraphId}.");
             }
-            if (!imageIds.ContainsKey(node.ImageId) ||
-                imageIndex.AddressableImageIds.Contains(node.ImageId) !=
-                    node.IsImageAddressable)
+            if (active.ImageStore.GetDeletionImage(node.ImageId)
+                    is not { } image ||
+                image.IsAddressable != node.IsImageAddressable)
             {
                 throw new InvalidOperationException(
                     $"KGP placement graph {node.GraphId} references missing image generation {node.ImageId}.");
@@ -1104,11 +1134,10 @@ internal sealed class KgpTerminalGraphicsState
         IReadOnlyDictionary<uint, KgpImageData> virtualImages = captured.Images;
         if (active.VirtualPlacements.Count > 0)
         {
-            var addressableImageIds = active.ImageStore
-                .CaptureDeletionIndex()
-                .AddressableImageIds;
             virtualImages = captured.Images
-                .Where(image => addressableImageIds.Contains(image.Key))
+                .Where(image => active.ImageStore
+                    .GetAddressableDeletionImage(image.Key)
+                    .HasValue)
                 .ToDictionary();
         }
         var rowIndices = new Dictionary<long, int>(historyRows.Count);
@@ -1333,7 +1362,6 @@ internal sealed class KgpTerminalGraphicsState
     private static void DeleteAnimationFrames(
         ScreenState active,
         IReadOnlyList<DeletionNode> nodes,
-        KgpImageStore.DeletionIndex imageIndex,
         KgpParsedCommand.DeleteSelector.AnimationFrames selector)
     {
         var result = active.ImageStore.DeleteAnimationFrame(
@@ -1351,10 +1379,14 @@ internal sealed class KgpTerminalGraphicsState
             .Where(node => node.ImageId == result.ImageId)
             .Select(node => node.GraphId)
             .ToHashSet();
-        var nodesByGraphId = nodes.ToDictionary(node => node.GraphId);
         var expansion = ExpandDeletionSubtrees(nodes, selectedGraphIds);
-        var imageCandidates = new HashSet<uint>();
+        var nodesByGraphId = nodes
+            .Where(node => expansion.GraphIds.Contains(node.GraphId))
+            .ToDictionary(node => node.GraphId);
+        var imageCandidates =
+            new Dictionary<uint, KgpImageStore.DeletionImage>();
         AddImageCandidates(
+            active.ImageStore,
             imageCandidates,
             expansion.DescendantGraphIds,
             nodesByGraphId);
@@ -1363,15 +1395,20 @@ internal sealed class KgpTerminalGraphicsState
             if (nodesByGraphId.TryGetValue(graphId, out var node) &&
                 !node.IsImageAddressable)
             {
-                imageCandidates.Add(node.ImageId);
+                AddImageCandidate(
+                    active.ImageStore,
+                    imageCandidates,
+                    node);
             }
         }
 
         RemoveGraphNodes(active, expansion.GraphIds);
+        if (imageCandidates.Count == 0)
+            return;
+
         active.ImageStore.DeleteIfUnreferenced(
             imageCandidates,
-            GetRetainedImageIds(active),
-            imageIndex.Images);
+            GetReferencedImageCandidates(active, imageCandidates));
     }
 
     private static DeletionNode[] CaptureDeletionNodes(ScreenState screen)
@@ -1443,34 +1480,72 @@ internal sealed class KgpTerminalGraphicsState
     }
 
     private static void AddImageCandidates(
-        HashSet<uint> imageCandidates,
+        KgpImageStore imageStore,
+        Dictionary<uint, KgpImageStore.DeletionImage> imageCandidates,
         IEnumerable<long> graphIds,
         IReadOnlyDictionary<long, DeletionNode> nodesByGraphId)
     {
         foreach (var graphId in graphIds)
         {
             if (nodesByGraphId.TryGetValue(graphId, out var node))
-                imageCandidates.Add(node.ImageId);
+                AddImageCandidate(imageStore, imageCandidates, node);
         }
     }
 
-    private static void AddSelectedImageCandidates(
-        HashSet<uint> imageCandidates,
-        IEnumerable<long> graphIds,
-        IReadOnlyDictionary<long, DeletionNode> nodesByGraphId,
-        KgpImageStore.DeletionIndex imageIndex)
+    private static void AddImageCandidate(
+        KgpImageStore imageStore,
+        Dictionary<uint, KgpImageStore.DeletionImage> imageCandidates,
+        DeletionNode node)
     {
-        foreach (var graphId in graphIds)
+        if (imageCandidates.ContainsKey(node.ImageId) ||
+            imageStore.GetDeletionImage(node.ImageId) is not { } image ||
+            image.IsAddressable != node.IsImageAddressable)
         {
-            if (!nodesByGraphId.TryGetValue(graphId, out var node) ||
-                (node.IsImageAddressable &&
-                 !imageIndex.AddressableImageIds.Contains(node.ImageId) &&
-                 imageIndex.Images.ContainsKey(node.ImageId)))
-            {
-                continue;
-            }
+            return;
+        }
 
-            imageCandidates.Add(node.ImageId);
+        imageCandidates.Add(node.ImageId, image);
+    }
+
+    private static HashSet<uint> GetReferencedImageCandidates(
+        ScreenState screen,
+        IReadOnlyDictionary<uint, KgpImageStore.DeletionImage> imageCandidates)
+    {
+        var referenced = new HashSet<uint>(imageCandidates.Count);
+        foreach (var placement in screen.Placements)
+            RetainCandidate(placement);
+        foreach (var placement in screen.HistoryPlacements.Values
+            .SelectMany(placements => placements))
+        {
+            RetainCandidate(placement.Placement);
+        }
+        foreach (var placement in screen.VirtualPlacements)
+        {
+            if (imageCandidates.TryGetValue(
+                    placement.ImageId,
+                    out var image) &&
+                image.IsAddressable)
+            {
+                referenced.Add(placement.ImageId);
+            }
+        }
+        foreach (var imageId in screen.HistoryReferences.Keys)
+        {
+            if (imageCandidates.ContainsKey(imageId))
+                referenced.Add(imageId);
+        }
+
+        return referenced;
+
+        void RetainCandidate(KgpPlacement placement)
+        {
+            if (imageCandidates.TryGetValue(
+                    placement.ImageId,
+                    out var image) &&
+                image.IsAddressable == placement.IsImageAddressable)
+            {
+                referenced.Add(placement.ImageId);
+            }
         }
     }
 
@@ -1598,25 +1673,25 @@ internal sealed class KgpTerminalGraphicsState
 
     private static HashSet<uint> GetRetainedImageIds(ScreenState screen)
     {
-        var imageIndex = screen.ImageStore.CaptureDeletionIndex();
         var retained = new HashSet<uint>();
         foreach (var node in CaptureDeletionNodes(screen))
         {
-            if (!imageIndex.Images.ContainsKey(node.ImageId))
+            if (screen.ImageStore.GetDeletionImage(node.ImageId)
+                is not { } image)
+            {
                 continue;
+            }
 
-            var isAddressable =
-                imageIndex.AddressableImageIds.Contains(node.ImageId);
             if (node.Kind == DeletionNodeKind.Virtual
-                    ? isAddressable
-                    : node.IsImageAddressable == isAddressable)
+                    ? image.IsAddressable
+                    : node.IsImageAddressable == image.IsAddressable)
             {
                 retained.Add(node.ImageId);
             }
         }
         foreach (var imageId in screen.HistoryReferences.Keys)
         {
-            if (imageIndex.Images.ContainsKey(imageId))
+            if (screen.ImageStore.GetDeletionImage(imageId).HasValue)
                 retained.Add(imageId);
         }
         return retained;
@@ -1624,17 +1699,14 @@ internal sealed class KgpTerminalGraphicsState
 
     private static bool HasPlacementReference(ScreenState screen, uint imageId)
     {
-        var imageIndex = screen.ImageStore.CaptureDeletionIndex();
-        if (!imageIndex.Images.ContainsKey(imageId))
+        if (screen.ImageStore.GetDeletionImage(imageId) is not { } image)
             return false;
 
-        var isAddressable =
-            imageIndex.AddressableImageIds.Contains(imageId);
         return CaptureDeletionNodes(screen).Any(node =>
             node.ImageId == imageId &&
             (node.Kind == DeletionNodeKind.Virtual
-                ? isAddressable
-                : node.IsImageAddressable == isAddressable));
+                ? image.IsAddressable
+                : node.IsImageAddressable == image.IsAddressable));
     }
 
     private static void RebuildHistoryReferences(ScreenState screen)
