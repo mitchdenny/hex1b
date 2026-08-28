@@ -1,3 +1,6 @@
+using System.Buffers.Binary;
+using System.IO.Compression;
+using System.Text;
 using Hex1b.Reflow;
 
 namespace Hex1b.Tests;
@@ -427,6 +430,123 @@ public partial class KgpUnicodePlaceholderTests
     }
 
     [TestMethod]
+    [DataRow(0)]
+    [DataRow(128)]
+    [DataRow(255)]
+    public void Svg_RgbaPlaceholder_PreservesAlphaOverCellBackground(
+        int alpha)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        Apply(terminal, KgpTestHelper.BuildCommand(
+            "a=T,U=1,f=32,s=1,v=1,i=42,c=1,r=1,q=2",
+            [0xD1, 0x42, 0x73, checked((byte)alpha)]));
+        Apply(terminal,
+            Foreground(42) +
+            "\x1b[48;2;17;34;51m" +
+            Placeholder(row: 0, column: 0) +
+            "\x1b[0m");
+
+        using var snapshot = terminal.CreateSnapshot();
+        var cell = snapshot.GetCell(0, 0);
+        Assert.AreEqual(17, cell.Background!.Value.R);
+        Assert.AreEqual(34, cell.Background.Value.G);
+        Assert.AreEqual(51, cell.Background.Value.B);
+
+        var svg = snapshot.ToSvg();
+        Assert.Contains("fill=\"rgb(17,34,51)\"", svg);
+        Assert.Contains("data:image/png;base64,", svg);
+        Assert.IsLessThan(
+            svg.IndexOf("class=\"terminal-images\"", StringComparison.Ordinal),
+            svg.IndexOf("class=\"terminal-bg\"", StringComparison.Ordinal));
+
+        var decoded = DecodeRgbaPng(ExtractDataUri(svg, "data:image/png;base64,"));
+        Assert.AreEqual(1, decoded.Width);
+        Assert.AreEqual(1, decoded.Height);
+        TestSeq.AreEqual(
+            new byte[] { 0xD1, 0x42, 0x73, checked((byte)alpha) },
+            decoded.Pixels);
+    }
+
+    [TestMethod]
+    [DataRow(true, 20u, 10u)]
+    [DataRow(false, 20u, 10u)]
+    [DataRow(true, 10u, 20u)]
+    [DataRow(false, 10u, 20u)]
+    public void Svg_EqualZOrdinaryAndVirtualPlacements_SortByImageId(
+        bool ordinaryFirst,
+        uint ordinaryImageId,
+        uint virtualImageId)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        void AddOrdinary()
+        {
+            Apply(terminal, KgpTestHelper.BuildTransmitCommand(
+                ordinaryImageId,
+                1,
+                1,
+                KgpFormat.Rgb24,
+                quiet: 2,
+                fillByte: 0x11));
+            Apply(terminal, KgpTestHelper.BuildCommand(
+                $"a=p,i={ordinaryImageId},p=1,c=1,r=1,C=1,z=-1,q=2"));
+        }
+
+        void AddVirtual()
+            => AddVirtualImage(
+                terminal,
+                virtualImageId,
+                1,
+                1,
+                columns: 1,
+                rows: 1,
+                placementId: 2,
+                fillByte: 0x22);
+
+        if (ordinaryFirst)
+        {
+            AddOrdinary();
+            AddVirtual();
+        }
+        else
+        {
+            AddVirtual();
+            AddOrdinary();
+        }
+
+        Apply(terminal,
+            "\x1b[H" +
+            Foreground(virtualImageId) +
+            UnderlineColor(2) +
+            Placeholder(row: 0, column: 0) +
+            "\x1b[0m");
+
+        using var snapshot = terminal.CreateSnapshot();
+        Assert.AreEqual(2, snapshot.KgpPlacements.Count);
+        TestSeq.All(snapshot.KgpPlacements, placement =>
+        {
+            Assert.AreEqual(-1, placement.ZIndex);
+            Assert.AreEqual(0, placement.Row);
+            Assert.AreEqual(0, placement.Column);
+        });
+
+        var svg = snapshot.ToSvg();
+        var lowerId = Math.Min(ordinaryImageId, virtualImageId);
+        var higherId = Math.Max(ordinaryImageId, virtualImageId);
+        var lowerIndex = svg.IndexOf(
+            $"data-image-id=\"{lowerId}\"",
+            StringComparison.Ordinal);
+        var higherIndex = svg.IndexOf(
+            $"data-image-id=\"{higherId}\"",
+            StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, lowerIndex);
+        Assert.IsGreaterThanOrEqualTo(0, higherIndex);
+        Assert.IsLessThan(higherIndex, lowerIndex);
+    }
+
+    [TestMethod]
     public void Svg_FractionalSourceBoundary_ClipsFullImageWithoutRasterCropDistortion()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -474,5 +594,96 @@ public partial class KgpUnicodePlaceholderTests
 
         public ReflowResult Reflow(ReflowContext context)
             => NoReflowStrategy.Instance.Reflow(context);
+    }
+
+    private static byte[] ExtractDataUri(string svg, string marker)
+    {
+        var start = svg.IndexOf(marker, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, start);
+        start += marker.Length;
+        var end = svg.IndexOf('"', start);
+        Assert.IsGreaterThan(start, end);
+        return Convert.FromBase64String(svg[start..end]);
+    }
+
+    private static (int Width, int Height, byte[] Pixels) DecodeRgbaPng(
+        byte[] png)
+    {
+        TestSeq.AreEqual(
+            new byte[]
+            {
+                0x89, (byte)'P', (byte)'N', (byte)'G',
+                0x0D, 0x0A, 0x1A, 0x0A,
+            },
+            png[..8]);
+
+        var width = 0;
+        var height = 0;
+        using var compressed = new MemoryStream();
+        for (var offset = 8; offset < png.Length;)
+        {
+            var length = checked((int)BinaryPrimitives.ReadUInt32BigEndian(
+                png.AsSpan(offset, 4)));
+            var type = png.AsSpan(offset + 4, 4);
+            var payload = png.AsSpan(offset + 8, length);
+            var expectedCrc = BinaryPrimitives.ReadUInt32BigEndian(
+                png.AsSpan(offset + 8 + length, 4));
+            Assert.AreEqual(expectedCrc, ComputePngCrc(type, payload));
+
+            if (type.SequenceEqual("IHDR"u8))
+            {
+                width = checked((int)BinaryPrimitives.ReadUInt32BigEndian(payload));
+                height = checked((int)BinaryPrimitives.ReadUInt32BigEndian(payload[4..]));
+                Assert.AreEqual(8, payload[8]);
+                Assert.AreEqual(6, payload[9]);
+            }
+            else if (type.SequenceEqual("IDAT"u8))
+            {
+                compressed.Write(payload);
+            }
+
+            offset += checked(12 + length);
+        }
+
+        Assert.IsGreaterThan(0, width);
+        Assert.IsGreaterThan(0, height);
+        compressed.Position = 0;
+        using var zlib = new ZLibStream(compressed, CompressionMode.Decompress);
+        using var decoded = new MemoryStream();
+        zlib.CopyTo(decoded);
+        var scanlines = decoded.ToArray();
+        var pixels = new byte[checked(width * height * 4)];
+        for (var y = 0; y < height; y++)
+        {
+            var scanlineOffset = y * (width * 4 + 1);
+            Assert.AreEqual(0, scanlines[scanlineOffset]);
+            scanlines.AsSpan(scanlineOffset + 1, width * 4)
+                .CopyTo(pixels.AsSpan(y * width * 4));
+        }
+
+        return (width, height, pixels);
+    }
+
+    private static uint ComputePngCrc(
+        ReadOnlySpan<byte> type,
+        ReadOnlySpan<byte> payload)
+    {
+        var crc = uint.MaxValue;
+        foreach (var value in type)
+            UpdatePngCrc(ref crc, value);
+        foreach (var value in payload)
+            UpdatePngCrc(ref crc, value);
+        return ~crc;
+    }
+
+    private static void UpdatePngCrc(ref uint crc, byte value)
+    {
+        crc ^= value;
+        for (var bit = 0; bit < 8; bit++)
+        {
+            crc = (crc & 1) != 0
+                ? (crc >> 1) ^ 0xEDB88320u
+                : crc >> 1;
+        }
     }
 }

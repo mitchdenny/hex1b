@@ -1399,6 +1399,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
                 try
                 {
+                var rawPassthrough =
+                    _workloadFilters.Count == 0 &&
+                    _presentationFilters.Count == 0 &&
+                    _presentation is not ICellImpactAwarePresentationAdapter;
+                if (rawPassthrough && !_disposed && _presentation is not null)
+                {
+                    // Forward each workload read before internal UTF-8/APC
+                    // reconstruction so incomplete reads are never dropped.
+                    await _presentation.WriteOutputAsync(data, ct);
+                    _metrics.TerminalOutputBytes.Record(data.Length);
+                }
+
                 string? completeText = null;
                 IReadOnlyList<AnsiToken> tokens;
 
@@ -1436,20 +1448,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // FAST PATH: If no filters are active AND presentation doesn't need cell impacts,
                 // apply tokens to buffer and forward bytes directly.
                 // This is crucial for programs like tmux that are sensitive to output timing
-                if (_workloadFilters.Count == 0 && _presentationFilters.Count == 0 
-                    && _presentation is not ICellImpactAwarePresentationAdapter)
+                if (rawPassthrough)
                 {
                     // Still apply tokens to internal buffer so CreateSnapshot() works
                     ApplyTokens(tokens);
-                    if (_disposed)
-                        continue;
-                    
-                    // Forward raw bytes to presentation if present
-                    if (_presentation != null)
-                    {
-                        await _presentation.WriteOutputAsync(data, ct);
-                        _metrics.TerminalOutputBytes.Record(data.Length);
-                    }
                     continue;
                 }
                 

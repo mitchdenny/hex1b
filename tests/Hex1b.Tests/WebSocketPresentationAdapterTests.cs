@@ -30,8 +30,42 @@ public class WebSocketPresentationAdapterTests
         }
     }
 
+    [TestMethod]
+    [DataRow(1)]
+    [DataRow(2)]
+    [DataRow(3)]
+    public async Task WriteOutputAsync_SplitUtf8Scalar_UsesFragmentedTextMessage(
+        int splitIndex)
+    {
+        using var webSocket = new StubWebSocket();
+        await using var adapter = new WebSocketPresentationAdapter(
+            webSocket,
+            80,
+            24);
+        var bytes = "\U0010EEEE"u8.ToArray();
+
+        await adapter.WriteOutputAsync(bytes.AsMemory(0, splitIndex));
+        await adapter.WriteOutputAsync(bytes.AsMemory(splitIndex));
+
+        Assert.AreEqual(2, webSocket.SentFrames.Count);
+        Assert.AreEqual(WebSocketMessageType.Text, webSocket.SentFrames[0].MessageType);
+        Assert.IsFalse(webSocket.SentFrames[0].EndOfMessage);
+        Assert.AreEqual(WebSocketMessageType.Text, webSocket.SentFrames[1].MessageType);
+        Assert.IsTrue(webSocket.SentFrames[1].EndOfMessage);
+        TestSeq.AreEqual(
+            bytes,
+            webSocket.SentFrames.SelectMany(frame => frame.Data));
+    }
+
     private sealed class StubWebSocket : WebSocket
     {
+        internal readonly record struct SentFrame(
+            byte[] Data,
+            WebSocketMessageType MessageType,
+            bool EndOfMessage);
+
+        internal List<SentFrame> SentFrames { get; } = [];
+
         public override WebSocketCloseStatus? CloseStatus => null;
 
         public override string? CloseStatusDescription => null;
@@ -70,12 +104,20 @@ public class WebSocketPresentationAdapterTests
 
         public override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException();
+            SentFrames.Add(new SentFrame(
+                buffer.ToArray(),
+                messageType,
+                endOfMessage));
+            return Task.CompletedTask;
         }
 
         public override ValueTask SendAsync(ReadOnlyMemory<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            SentFrames.Add(new SentFrame(
+                buffer.ToArray(),
+                messageType,
+                endOfMessage));
+            return ValueTask.CompletedTask;
         }
     }
 }

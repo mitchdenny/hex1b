@@ -1,4 +1,6 @@
+using System.Buffers.Binary;
 using System.Globalization;
+using System.IO.Compression;
 using System.Text;
 using System.Web;
 
@@ -239,7 +241,10 @@ public static class TerminalRegionSvgExtensions
         // KGP images - sort by ZIndex so lower z-values render first (further back)
         if (region is Hex1bTerminalSnapshot snapshot2)
         {
-            var sortedPlacements = snapshot2.KgpPlacements.OrderBy(p => p.ZIndex).ToList();
+            var sortedPlacements = snapshot2.KgpPlacements
+                .OrderBy(placement => placement.ZIndex)
+                .ThenBy(placement => placement.ImageId)
+                .ToList();
             var placeholderImageDefinitions =
                 new Dictionary<uint, (string ElementId, string DataUri, uint Width, uint Height)>();
             foreach (var placement in sortedPlacements)
@@ -251,7 +256,7 @@ public static class TerminalRegionSvgExtensions
                     continue;
                 }
 
-                var dataUri = EncodeRgbaToDataUri(
+                var dataUri = EncodeKgpImageToDataUri(
                     image.Data,
                     image.Width,
                     image.Height,
@@ -307,7 +312,7 @@ public static class TerminalRegionSvgExtensions
                         var placeholderClipId =
                             $"kgp-placeholder-clip-{placeholderClipIndex++}";
                         sb.AppendLine($"""    <clipPath id="{placeholderClipId}"><rect x="{FormatSvgNumber(clipX)}" y="{FormatSvgNumber(clipY)}" width="{FormatSvgNumber(clipWidth)}" height="{FormatSvgNumber(clipHeight)}"/></clipPath>""");
-                        sb.AppendLine($"""    <g clip-path="url(#{placeholderClipId})"><use href="#{definition.ElementId}" x="{FormatSvgNumber(imageX)}" y="{FormatSvgNumber(imageY)}" width="{FormatSvgNumber(imageWidth)}" height="{FormatSvgNumber(imageHeight)}" style="image-rendering: pixelated;"/></g>""");
+                        sb.AppendLine($"""    <g clip-path="url(#{placeholderClipId})"><use href="#{definition.ElementId}" x="{FormatSvgNumber(imageX)}" y="{FormatSvgNumber(imageY)}" width="{FormatSvgNumber(imageWidth)}" height="{FormatSvgNumber(imageHeight)}" data-image-id="{placement.ImageId}" style="image-rendering: pixelated;"/></g>""");
                     }
                     else
                     {
@@ -315,7 +320,7 @@ public static class TerminalRegionSvgExtensions
                         var imgY = placement.Row * cellHeight;
                         var imgWidth = (int)placement.DisplayColumns * cellWidth;
                         var imgHeight = (int)placement.DisplayRows * cellHeight;
-                        var dataUri = EncodeRgbaToDataUri(
+                        var dataUri = EncodeKgpImageToDataUri(
                             imageData.Data,
                             imageData.Width,
                             imageData.Height,
@@ -326,7 +331,7 @@ public static class TerminalRegionSvgExtensions
                             placement.SourceHeight);
                         if (dataUri is not null)
                         {
-                            sb.AppendLine($"""    <image x="{imgX}" y="{imgY}" width="{imgWidth}" height="{imgHeight}" href="{dataUri}" preserveAspectRatio="none" style="image-rendering: pixelated;"/>""");
+                            sb.AppendLine($"""    <image x="{imgX}" y="{imgY}" width="{imgWidth}" height="{imgHeight}" href="{dataUri}" preserveAspectRatio="none" data-image-id="{placement.ImageId}" style="image-rendering: pixelated;"/>""");
                         }
                     }
                 }
@@ -617,33 +622,72 @@ public static class TerminalRegionSvgExtensions
         return sb.ToString();
     }
 
-    private static string? EncodeRgbaToDataUri(
+    private static string? EncodeKgpImageToDataUri(
         byte[] data, uint width, uint height, KgpFormat format,
         uint sourceX = 0, uint sourceY = 0,
         uint sourceWidth = 0, uint sourceHeight = 0)
     {
-        if (data.Length == 0 || width == 0 || height == 0)
+        if (data.Length == 0)
             return null;
 
-        int bytesPerPixel = format == KgpFormat.Rgb24 ? 3 : 4;
-        int fullW = (int)width;
+        if (format == KgpFormat.Png)
+        {
+            return sourceX == 0 &&
+                sourceY == 0 &&
+                sourceWidth == 0 &&
+                sourceHeight == 0
+                    ? "data:image/png;base64," + Convert.ToBase64String(data)
+                    : null;
+        }
 
-        // Apply source crop region (0 means full extent)
-        int cropX = (int)sourceX;
-        int cropY = (int)sourceY;
-        int w = sourceWidth > 0 ? (int)sourceWidth : fullW - cropX;
-        int h = sourceHeight > 0 ? (int)sourceHeight : (int)height - cropY;
-
-        // Clamp to image bounds
-        w = Math.Min(w, fullW - cropX);
-        h = Math.Min(h, (int)height - cropY);
-        if (w <= 0 || h <= 0)
+        var bytesPerPixel = format == KgpFormat.Rgb24 ? 3 : 4;
+        if (!TryGetRasterCrop(
+                data,
+                width,
+                height,
+                bytesPerPixel,
+                sourceX,
+                sourceY,
+                sourceWidth,
+                sourceHeight,
+                out var fullWidth,
+                out var cropX,
+                out var cropY,
+                out var cropWidth,
+                out var cropHeight))
+        {
             return null;
+        }
 
+        return format == KgpFormat.Rgba32
+            ? EncodeRgbaPng(
+                data,
+                fullWidth,
+                cropX,
+                cropY,
+                cropWidth,
+                cropHeight)
+            : EncodeRgbBmp(
+                data,
+                fullWidth,
+                cropX,
+                cropY,
+                cropWidth,
+                cropHeight);
+    }
+
+    private static string EncodeRgbBmp(
+        byte[] data,
+        int fullWidth,
+        int cropX,
+        int cropY,
+        int width,
+        int height)
+    {
         // Create BMP with bottom-up row order
-        int rowSize = (w * 3 + 3) & ~3; // BMP rows are 4-byte aligned
+        int rowSize = (width * 3 + 3) & ~3; // BMP rows are 4-byte aligned
         int headerSize = 54;
-        int imageSize = rowSize * h;
+        int imageSize = rowSize * height;
         int fileSize = headerSize + imageSize;
         var bmp = new byte[fileSize];
 
@@ -653,32 +697,159 @@ public static class TerminalRegionSvgExtensions
         BitConverter.TryWriteBytes(bmp.AsSpan(10), headerSize);
         // DIB header
         BitConverter.TryWriteBytes(bmp.AsSpan(14), 40);
-        BitConverter.TryWriteBytes(bmp.AsSpan(18), w);
-        BitConverter.TryWriteBytes(bmp.AsSpan(22), h);
+        BitConverter.TryWriteBytes(bmp.AsSpan(18), width);
+        BitConverter.TryWriteBytes(bmp.AsSpan(22), height);
         bmp[26] = 1; // planes
         bmp[28] = 24; // bits per pixel (output as RGB24)
         BitConverter.TryWriteBytes(bmp.AsSpan(34), imageSize);
 
         // Write pixel data (BMP is bottom-up, BGR order)
-        for (int y = 0; y < h; y++)
+        for (int y = 0; y < height; y++)
         {
-            int srcRow = (cropY + h - 1 - y) * fullW * bytesPerPixel;
+            int srcRow = (cropY + height - 1 - y) * fullWidth * 3;
             int dstRow = y * rowSize;
-            for (int x = 0; x < w; x++)
+            for (int x = 0; x < width; x++)
             {
-                int si = srcRow + (cropX + x) * bytesPerPixel;
+                int si = srcRow + (cropX + x) * 3;
                 int di = dstRow + x * 3;
-                if (si + 2 < data.Length)
-                {
-                    bmp[headerSize + di] = data[si + 2]; // B
-                    bmp[headerSize + di + 1] = data[si + 1]; // G
-                    bmp[headerSize + di + 2] = data[si]; // R
-                }
-
+                bmp[headerSize + di] = data[si + 2]; // B
+                bmp[headerSize + di + 1] = data[si + 1]; // G
+                bmp[headerSize + di + 2] = data[si]; // R
             }
         }
 
         return "data:image/bmp;base64," + Convert.ToBase64String(bmp);
+    }
+
+    private static string EncodeRgbaPng(
+        byte[] data,
+        int fullWidth,
+        int cropX,
+        int cropY,
+        int width,
+        int height)
+    {
+        using var compressed = new MemoryStream();
+        using (var zlib = new ZLibStream(
+            compressed,
+            CompressionLevel.SmallestSize,
+            leaveOpen: true))
+        {
+            for (var y = 0; y < height; y++)
+            {
+                zlib.WriteByte(0);
+                var sourceOffset =
+                    ((cropY + y) * fullWidth + cropX) * 4;
+                zlib.Write(data.AsSpan(sourceOffset, width * 4));
+            }
+        }
+
+        using var png = new MemoryStream();
+        png.Write(
+        [
+            0x89, (byte)'P', (byte)'N', (byte)'G',
+            0x0D, 0x0A, 0x1A, 0x0A,
+        ]);
+
+        Span<byte> header = stackalloc byte[13];
+        BinaryPrimitives.WriteUInt32BigEndian(header, checked((uint)width));
+        BinaryPrimitives.WriteUInt32BigEndian(header[4..], checked((uint)height));
+        header[8] = 8;
+        header[9] = 6;
+        WritePngChunk(png, "IHDR"u8, header);
+        WritePngChunk(png, "IDAT"u8, compressed.ToArray());
+        WritePngChunk(png, "IEND"u8, []);
+
+        return "data:image/png;base64," +
+            Convert.ToBase64String(png.ToArray());
+    }
+
+    private static void WritePngChunk(
+        Stream destination,
+        ReadOnlySpan<byte> type,
+        ReadOnlySpan<byte> payload)
+    {
+        Span<byte> value = stackalloc byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(
+            value,
+            checked((uint)payload.Length));
+        destination.Write(value);
+        destination.Write(type);
+        destination.Write(payload);
+        BinaryPrimitives.WriteUInt32BigEndian(
+            value,
+            ComputePngCrc(type, payload));
+        destination.Write(value);
+    }
+
+    private static uint ComputePngCrc(
+        ReadOnlySpan<byte> type,
+        ReadOnlySpan<byte> payload)
+    {
+        var crc = uint.MaxValue;
+        UpdatePngCrc(ref crc, type);
+        UpdatePngCrc(ref crc, payload);
+        return ~crc;
+    }
+
+    private static void UpdatePngCrc(
+        ref uint crc,
+        ReadOnlySpan<byte> data)
+    {
+        foreach (var value in data)
+        {
+            crc ^= value;
+            for (var bit = 0; bit < 8; bit++)
+            {
+                crc = (crc & 1) != 0
+                    ? (crc >> 1) ^ 0xEDB88320u
+                    : crc >> 1;
+            }
+        }
+    }
+
+    private static bool TryGetRasterCrop(
+        byte[] data,
+        uint width,
+        uint height,
+        int bytesPerPixel,
+        uint sourceX,
+        uint sourceY,
+        uint sourceWidth,
+        uint sourceHeight,
+        out int fullWidth,
+        out int cropX,
+        out int cropY,
+        out int cropWidth,
+        out int cropHeight)
+    {
+        fullWidth = 0;
+        cropX = 0;
+        cropY = 0;
+        cropWidth = 0;
+        cropHeight = 0;
+        if (width == 0 ||
+            height == 0 ||
+            width > int.MaxValue ||
+            height > int.MaxValue ||
+            sourceX >= width ||
+            sourceY >= height ||
+            data.LongLength < (long)width * height * bytesPerPixel)
+        {
+            return false;
+        }
+
+        fullWidth = checked((int)width);
+        var fullHeight = checked((int)height);
+        cropX = checked((int)sourceX);
+        cropY = checked((int)sourceY);
+        cropWidth = sourceWidth == 0
+            ? fullWidth - cropX
+            : checked((int)Math.Min(sourceWidth, width - sourceX));
+        cropHeight = sourceHeight == 0
+            ? fullHeight - cropY
+            : checked((int)Math.Min(sourceHeight, height - sourceY));
+        return cropWidth > 0 && cropHeight > 0;
     }
 
     private static string FormatSvgNumber(double value)

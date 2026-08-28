@@ -20,6 +20,8 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
 
     private readonly WebSocket _webSocket;
     private readonly CancellationTokenSource _disposeCts = new();
+    private readonly SemaphoreSlim _outputWriteLock = new(1, 1);
+    private int _pendingOutputUtf8ContinuationBytes;
     private bool _disposed;
     private int _width;
     private int _height;
@@ -182,15 +184,33 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     /// <inheritdoc />
     public async ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
-        if (_disposed || _webSocket.State != WebSocketState.Open)
+        if (_disposed ||
+            data.IsEmpty ||
+            _webSocket.State != WebSocketState.Open)
+        {
             return;
+        }
 
+        var lockTaken = false;
         try
         {
             TryTraceOutput(data);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
-            // Use Text message type since terminal output is UTF-8 and JavaScript expects strings
-            await _webSocket.SendAsync(data, WebSocketMessageType.Text, endOfMessage: true, linkedCts.Token);
+            await _outputWriteLock.WaitAsync(linkedCts.Token);
+            lockTaken = true;
+            var pendingContinuationBytes = GetPendingUtf8ContinuationBytes(
+                data.Span,
+                _pendingOutputUtf8ContinuationBytes);
+
+            // A WebSocket text message must contain valid UTF-8 as a whole. Keep
+            // a message open across terminal writes that split a scalar while
+            // still sending every raw byte frame immediately.
+            await _webSocket.SendAsync(
+                data,
+                WebSocketMessageType.Text,
+                endOfMessage: pendingContinuationBytes == 0,
+                linkedCts.Token);
+            _pendingOutputUtf8ContinuationBytes = pendingContinuationBytes;
         }
         catch (WebSocketException)
         {
@@ -200,6 +220,37 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         {
             // Cancelled
         }
+        finally
+        {
+            if (lockTaken)
+                _outputWriteLock.Release();
+        }
+    }
+
+    private static int GetPendingUtf8ContinuationBytes(
+        ReadOnlySpan<byte> data,
+        int pendingContinuationBytes)
+    {
+        foreach (var value in data)
+        {
+            if (pendingContinuationBytes > 0 &&
+                (value & 0xC0) == 0x80)
+            {
+                pendingContinuationBytes--;
+                continue;
+            }
+
+            pendingContinuationBytes = value switch
+            {
+                <= 0x7F => 0,
+                >= 0xC2 and <= 0xDF => 1,
+                >= 0xE0 and <= 0xEF => 2,
+                >= 0xF0 and <= 0xF4 => 3,
+                _ => 0,
+            };
+        }
+
+        return pendingContinuationBytes;
     }
 
     /// <inheritdoc />
