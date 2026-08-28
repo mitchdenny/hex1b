@@ -1082,6 +1082,41 @@ public class KgpTerminalTests
     }
 
     [TestMethod]
+    public void Put_RelativeUnicodePlaceholder_RespondsEinvalWithoutPrototype()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(
+            1, 1, 1, quiet: 2));
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=p,U=1,i=1,p=7,c=1,r=1,P=2"));
+
+        Assert.AreEqual(
+            "\x1b_Gi=1;EINVAL:Virtual placement cannot refer to a parent\x1b\\",
+            workload.ReadResponse());
+        Assert.AreEqual(0, terminal.KgpVirtualPlacementCount);
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(1));
+    }
+
+    [TestMethod]
+    public void TransmitAndDisplay_RelativeUnicodePlaceholder_StoresImageAndRespondsEinval()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,U=1,f=32,s=1,v=1,i=1,p=7,c=1,r=1,P=2",
+            KgpTestHelper.CreatePixelData(1, 1)));
+
+        Assert.AreEqual(
+            "\x1b_Gi=1;EINVAL:Virtual placement cannot refer to a parent\x1b\\",
+            workload.ReadResponse());
+        Assert.AreEqual(0, terminal.KgpVirtualPlacementCount);
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(1));
+    }
+
+    [TestMethod]
     public void Put_WithCursorMovementDisabled_DoesNotMove()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

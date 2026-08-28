@@ -606,6 +606,19 @@ public class Hex1bTerminalTests
             TestSeq.AreEqual(expectedOutput, presentation.CapturedOutput);
         }
 
+        async Task<Hex1bTerminalSnapshot> CaptureWhenAsync(
+            Func<Hex1bTerminalSnapshot, bool> predicate,
+            string description)
+            => await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(
+                    predicate,
+                    TimeSpan.FromSeconds(2),
+                    description)
+                .Build()
+                .ApplyWithCaptureAsync(
+                    terminal,
+                    TestContext.Current.CancellationToken);
+
         var mainOutput =
             "REMOVE-MAIN" +
             KgpTestHelper.BuildTransmitAndDisplayCommand(
@@ -616,7 +629,13 @@ public class Hex1bTerminalTests
                 2, 1, 1, cursorMovement: 1, quiet: 2, fillByte: 0x22);
         await WriteAndAssertForwardedAsync(mainOutput);
 
-        using (var mainSnapshot = terminal.CreateSnapshot())
+        using (var mainSnapshot = await CaptureWhenAsync(
+            snapshot => !snapshot.InAlternateScreen &&
+                snapshot.ContainsText("MAIN") &&
+                !snapshot.ContainsText("REMOVE-MAIN") &&
+                snapshot.KgpPlacements.Count == 1 &&
+                snapshot.KgpImages.ContainsKey(2),
+            "main KGP state applied"))
         {
             Assert.IsFalse(mainSnapshot.InAlternateScreen);
             Assert.IsTrue(mainSnapshot.ContainsText("MAIN"));
@@ -637,7 +656,13 @@ public class Hex1bTerminalTests
                 4, 1, 1, cursorMovement: 1, quiet: 2, fillByte: 0x44);
         await WriteAndAssertForwardedAsync(alternateOutput);
 
-        using (var alternateSnapshot = terminal.CreateSnapshot())
+        using (var alternateSnapshot = await CaptureWhenAsync(
+            snapshot => snapshot.InAlternateScreen &&
+                snapshot.ContainsText("SECONDARY") &&
+                !snapshot.ContainsText("REMOVE-ALT") &&
+                snapshot.KgpPlacements.Count == 1 &&
+                snapshot.KgpImages.ContainsKey(4),
+            "alternate KGP state applied"))
         {
             Assert.IsTrue(alternateSnapshot.InAlternateScreen);
             Assert.IsTrue(alternateSnapshot.ContainsText("SECONDARY"));
@@ -650,7 +675,13 @@ public class Hex1bTerminalTests
         const string exitAlternate = "\x1b[?1049l";
         await WriteAndAssertForwardedAsync(exitAlternate);
 
-        using (var restoredSnapshot = terminal.CreateSnapshot())
+        using (var restoredSnapshot = await CaptureWhenAsync(
+            snapshot => !snapshot.InAlternateScreen &&
+                snapshot.ContainsText("MAIN") &&
+                !snapshot.ContainsText("SECONDARY") &&
+                snapshot.KgpPlacements.Count == 1 &&
+                snapshot.KgpImages.ContainsKey(2),
+            "main KGP state restored"))
         {
             Assert.IsFalse(restoredSnapshot.InAlternateScreen);
             Assert.IsTrue(restoredSnapshot.ContainsText("MAIN"));
@@ -663,11 +694,205 @@ public class Hex1bTerminalTests
         const string scrollingAndHistoryClear =
             "\x1b[?69h\x1b[2;10s\x1b[2;7r\x1b[S\x1b[T\x1b[3J";
         await WriteAndAssertForwardedAsync(scrollingAndHistoryClear);
-        using (var clearedSnapshot = terminal.CreateSnapshot())
+        using (var clearedSnapshot = await CaptureWhenAsync(
+            snapshot => snapshot.KgpPlacements.Count == 0 &&
+                snapshot.KgpImages.Count == 0,
+            "KGP state cleared"))
         {
             Assert.IsEmpty(clearedSnapshot.KgpPlacements);
             Assert.IsEmpty(clearedSnapshot.KgpImages);
         }
+
+        cts.Cancel();
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            async () => await runTask);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_KgpUnicodePlaceholder_ForwardsExactUtf8AndUpdatesSnapshot()
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 20,
+            Height = 8
+        });
+
+        using var cts = new CancellationTokenSource();
+        var runTask = terminal.RunAsync(cts.Token);
+        var placeholder = char.ConvertFromUtf32(0x10EEEE) + "\u0305\u0305";
+        var output =
+            KgpTestHelper.BuildCommand(
+                "a=T,U=1,f=24,s=10,v=20,i=42,c=1,r=1,q=2",
+                KgpTestHelper.CreatePixelData(10, 20, KgpFormat.Rgb24)) +
+            "\x1b[38;5;42m" +
+            placeholder +
+            "\x1b[39m";
+        var bytes = Encoding.UTF8.GetBytes(output);
+
+        workload.Write(bytes);
+        await presentation.WaitForOutputLengthAsync(
+                bytes.Length,
+                TestContext.Current.CancellationToken)
+            .WaitAsync(
+                TimeSpan.FromSeconds(2),
+                TestContext.Current.CancellationToken);
+
+        TestSeq.AreEqual(bytes, presentation.CapturedOutput);
+        using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(
+                value => value.KgpPlacements.Count == 1,
+                TimeSpan.FromSeconds(2),
+                "placeholder realized after raw forwarding")
+            .Build()
+            .ApplyWithCaptureAsync(
+                terminal,
+                TestContext.Current.CancellationToken);
+        var placement = TestSeq.Single(snapshot.KgpPlacements);
+        Assert.AreEqual(42u, placement.ImageId);
+        Assert.AreEqual(placeholder, snapshot.GetCell(0, 0).Character);
+
+        cts.Cancel();
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            async () => await runTask);
+    }
+
+    [TestMethod]
+    [DataRow(1)]
+    [DataRow(2)]
+    [DataRow(3)]
+    public async Task RunAsync_IncompletePlaceholderUtf8Read_ForwardsEveryByte(
+        int splitIndex)
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 20,
+            Height = 8
+        });
+
+        using var cts = new CancellationTokenSource();
+        var runTask = terminal.RunAsync(cts.Token);
+        var expectedOutput = new List<byte>();
+
+        async Task WriteAndAssertForwardedAsync(ReadOnlyMemory<byte> bytes)
+        {
+            expectedOutput.AddRange(bytes.Span);
+            workload.Write(bytes.ToArray());
+            await presentation.WaitForOutputLengthAsync(
+                    expectedOutput.Count,
+                    TestContext.Current.CancellationToken)
+                .WaitAsync(
+                    TimeSpan.FromSeconds(2),
+                    TestContext.Current.CancellationToken);
+            TestSeq.AreEqual(expectedOutput, presentation.CapturedOutput);
+        }
+
+        await WriteAndAssertForwardedAsync(Encoding.UTF8.GetBytes(
+            KgpTestHelper.BuildCommand(
+                "a=T,U=1,f=24,s=1,v=1,i=42,c=1,r=1,q=2",
+                [0x11, 0x22, 0x33])));
+        await WriteAndAssertForwardedAsync(
+            "\x1b[38;5;42m"u8.ToArray());
+
+        var placeholderBytes = Encoding.UTF8.GetBytes(
+            char.ConvertFromUtf32(0x10EEEE));
+        await WriteAndAssertForwardedAsync(
+            placeholderBytes.AsMemory(0, splitIndex));
+        await WriteAndAssertForwardedAsync(
+            placeholderBytes.AsMemory(splitIndex)
+                .ToArray()
+                .Concat(Encoding.UTF8.GetBytes("\u0305\u0305\x1b[39m"))
+                .ToArray());
+
+        using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(
+                value => value.KgpPlacements.Count == 1,
+                TimeSpan.FromSeconds(2),
+                "split placeholder realized")
+            .Build()
+            .ApplyWithCaptureAsync(
+                terminal,
+                TestContext.Current.CancellationToken);
+        Assert.AreEqual(
+            char.ConvertFromUtf32(0x10EEEE) + "\u0305\u0305",
+            snapshot.GetCell(0, 0).Character);
+
+        cts.Cancel();
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            async () => await runTask);
+    }
+
+    [TestMethod]
+    [DataRow("esc")]
+    [DataRow("apc-prefix")]
+    [DataRow("terminator")]
+    public async Task RunAsync_IncompleteKgpApcRead_ForwardsEveryByte(
+        string split)
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 20,
+            Height = 8
+        });
+
+        using var cts = new CancellationTokenSource();
+        var runTask = terminal.RunAsync(cts.Token);
+        var expectedOutput = new List<byte>();
+
+        async Task WriteAndAssertForwardedAsync(ReadOnlyMemory<byte> bytes)
+        {
+            expectedOutput.AddRange(bytes.Span);
+            workload.Write(bytes.ToArray());
+            await presentation.WaitForOutputLengthAsync(
+                    expectedOutput.Count,
+                    TestContext.Current.CancellationToken)
+                .WaitAsync(
+                    TimeSpan.FromSeconds(2),
+                    TestContext.Current.CancellationToken);
+            TestSeq.AreEqual(expectedOutput, presentation.CapturedOutput);
+        }
+
+        var command = Encoding.UTF8.GetBytes(KgpTestHelper.BuildCommand(
+            "a=T,U=1,f=24,s=1,v=1,i=42,c=1,r=1,q=2",
+            [0x11, 0x22, 0x33]));
+        var splitIndex = split switch
+        {
+            "esc" => 1,
+            "apc-prefix" => 2,
+            "terminator" => command.Length - 1,
+            _ => throw new InvalidOperationException(split),
+        };
+        await WriteAndAssertForwardedAsync(
+            command.AsMemory(0, splitIndex));
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        await WriteAndAssertForwardedAsync(
+            command.AsMemory(splitIndex));
+        await WriteAndAssertForwardedAsync(Encoding.UTF8.GetBytes(
+            "\x1b[38;5;42m" +
+            char.ConvertFromUtf32(0x10EEEE) +
+            "\u0305\u0305\x1b[39m"));
+
+        using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(
+                value => value.KgpPlacements.Count == 1,
+                TimeSpan.FromSeconds(2),
+                "split KGP APC realized")
+            .Build()
+            .ApplyWithCaptureAsync(
+                terminal,
+                TestContext.Current.CancellationToken);
+        Assert.AreEqual(42u, TestSeq.Single(snapshot.KgpPlacements).ImageId);
 
         cts.Cancel();
         await Assert.ThrowsAsync<OperationCanceledException>(

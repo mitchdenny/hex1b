@@ -153,20 +153,33 @@ public sealed class KgpImageStore
     internal (
         IReadOnlyList<KgpPlacement> Placements,
         IReadOnlyDictionary<uint, KgpImageData> Images) CaptureSnapshot(
-            IReadOnlyList<KgpPlacement> sourcePlacements)
+            IReadOnlyList<KgpPlacement> sourcePlacements,
+            IEnumerable<uint>? additionalImageIds = null)
     {
         lock (_lock)
         {
-            var placements = new KgpPlacement[sourcePlacements.Count];
+            var placements = new List<KgpPlacement>(sourcePlacements.Count);
             var images = new Dictionary<uint, KgpImageData>();
-            for (var i = 0; i < sourcePlacements.Count; i++)
+            foreach (var sourcePlacement in sourcePlacements)
             {
-                var placement = sourcePlacements[i].Clone();
-                placements[i] = placement;
-                if (!images.ContainsKey(placement.ImageId) &&
-                    _imagesById.TryGetValue(placement.ImageId, out var image))
-                {
+                if (!_imagesById.TryGetValue(sourcePlacement.ImageId, out var image))
+                    continue;
+
+                var placement = sourcePlacement.Clone();
+                placements.Add(placement);
+                if (!images.ContainsKey(placement.ImageId))
                     images.Add(placement.ImageId, image);
+            }
+
+            if (additionalImageIds is not null)
+            {
+                foreach (var imageId in additionalImageIds)
+                {
+                    if (!images.ContainsKey(imageId) &&
+                        _imagesById.TryGetValue(imageId, out var image))
+                    {
+                        images.Add(imageId, image);
+                    }
                 }
             }
 
@@ -605,12 +618,26 @@ public sealed class KgpImageStore
         KgpParsedCommand.TransmissionData transmission,
         byte[] data)
     {
+        var width = transmission.Width;
+        var height = transmission.Height;
+        if (transmission.Format == KgpFormat.Png)
+        {
+            if (!KgpPngMetadata.TryReadDimensions(
+                    data,
+                    out width,
+                    out height))
+            {
+                width = 0;
+                height = 0;
+            }
+        }
+
         return new KgpImageData(
             imageId,
             transmission.ImageNumber,
             data,
-            transmission.Width,
-            transmission.Height,
+            width,
+            height,
             transmission.Format);
     }
 

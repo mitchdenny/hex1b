@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -15,11 +16,28 @@ namespace Hex1b;
 /// </remarks>
 public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAdapter
 {
+    private readonly record struct PreparedUtf8Output(
+        byte[] CompleteBytes,
+        byte[] PendingBytes);
+
+    private readonly record struct ReceivedInput(
+        byte[] Buffer,
+        ValueWebSocketReceiveResult Result);
+
     private const string ResizeTraceFileEnvironmentVariable = "HEX1B_WEBSOCKET_RESIZE_TRACE_FILE";
     private const string OutputTraceFileEnvironmentVariable = "HEX1B_WEBSOCKET_OUTPUT_TRACE_FILE";
 
     private readonly WebSocket _webSocket;
-    private readonly CancellationTokenSource _disposeCts = new();
+    private readonly CancellationTokenSource _readCts = new();
+    private readonly SemaphoreSlim _outputWriteLock = new(1, 1);
+    private readonly object _lifecycleLock = new();
+    private readonly byte[] _pendingOutputUtf8 = new byte[3];
+    private int _pendingOutputUtf8Count;
+    private int _activeWriters;
+    private int _activeReaders;
+    private TaskCompletionSource? _writersDrained;
+    private TaskCompletionSource? _readersDrained;
+    private Task? _disposeTask;
     private bool _disposed;
     private int _width;
     private int _height;
@@ -182,15 +200,35 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     /// <inheritdoc />
     public async ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
-        if (_disposed || _webSocket.State != WebSocketState.Open)
+        if (data.IsEmpty || !TryBeginWriter())
             return;
 
+        var lockTaken = false;
         try
         {
+            if (_webSocket.State != WebSocketState.Open)
+                return;
+
             TryTraceOutput(data);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
-            // Use Text message type since terminal output is UTF-8 and JavaScript expects strings
-            await _webSocket.SendAsync(data, WebSocketMessageType.Text, endOfMessage: true, linkedCts.Token);
+            await _outputWriteLock.WaitAsync(ct).ConfigureAwait(false);
+            lockTaken = true;
+            var prepared = PrepareUtf8Output(
+                data.Span,
+                flush: false);
+            if (prepared.CompleteBytes.Length > 0)
+            {
+                await _webSocket.SendAsync(
+                    prepared.CompleteBytes,
+                    WebSocketMessageType.Text,
+                    endOfMessage: true,
+                    ct).ConfigureAwait(false);
+            }
+            else
+            {
+                ct.ThrowIfCancellationRequested();
+            }
+
+            CommitPendingUtf8(prepared.PendingBytes);
         }
         catch (WebSocketException)
         {
@@ -200,26 +238,116 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         {
             // Cancelled
         }
+        finally
+        {
+            if (lockTaken)
+                _outputWriteLock.Release();
+            CompleteWriter();
+        }
+    }
+
+    private bool TryBeginWriter()
+    {
+        lock (_lifecycleLock)
+        {
+            if (_disposed)
+                return false;
+
+            if (_activeWriters++ == 0)
+            {
+                _writersDrained = new(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+            return true;
+        }
+    }
+
+    private void CompleteWriter()
+    {
+        TaskCompletionSource? writersDrained = null;
+        lock (_lifecycleLock)
+        {
+            _activeWriters--;
+            if (_activeWriters == 0)
+            {
+                writersDrained = _writersDrained;
+                _writersDrained = null;
+            }
+        }
+        writersDrained?.TrySetResult();
+    }
+
+    private PreparedUtf8Output PrepareUtf8Output(
+        ReadOnlySpan<byte> data,
+        bool flush)
+    {
+        var input = new byte[_pendingOutputUtf8Count + data.Length];
+        _pendingOutputUtf8
+            .AsSpan(0, _pendingOutputUtf8Count)
+            .CopyTo(input);
+        data.CopyTo(input.AsSpan(_pendingOutputUtf8Count));
+
+        var complete = new List<byte>(input.Length);
+        byte[] pending = [];
+        for (var offset = 0; offset < input.Length;)
+        {
+            var status = Rune.DecodeFromUtf8(
+                input.AsSpan(offset),
+                out _,
+                out var consumed);
+            switch (status)
+            {
+                case OperationStatus.Done:
+                    complete.AddRange(
+                        input.AsSpan(offset, consumed));
+                    offset += consumed;
+                    break;
+                case OperationStatus.NeedMoreData when !flush:
+                    pending = input[offset..];
+                    offset = input.Length;
+                    break;
+                case OperationStatus.NeedMoreData:
+                case OperationStatus.InvalidData:
+                    complete.AddRange([0xEF, 0xBF, 0xBD]);
+                    offset += Math.Max(consumed, 1);
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        $"Unsupported UTF-8 decode status: {status}.");
+            }
+        }
+
+        return new PreparedUtf8Output(
+            complete.ToArray(),
+            pending);
+    }
+
+    private void CommitPendingUtf8(ReadOnlySpan<byte> pending)
+    {
+        if (pending.Length > _pendingOutputUtf8.Length)
+        {
+            throw new InvalidOperationException(
+                "A UTF-8 scalar cannot require more than three pending bytes.");
+        }
+
+        pending.CopyTo(_pendingOutputUtf8);
+        _pendingOutputUtf8Count = pending.Length;
     }
 
     /// <inheritdoc />
     public async ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
     {
-        if (_disposed || _webSocket.State != WebSocketState.Open)
-            return ReadOnlyMemory<byte>.Empty;
-
-        var buffer = new byte[4096];
-        
-        try
+        while (true)
         {
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
-            var result = await _webSocket.ReceiveAsync(buffer.AsMemory(), linkedCts.Token);
-            
-            if (result.MessageType == WebSocketMessageType.Close)
-            {
+            var received = await ReceiveInputAsync(ct).ConfigureAwait(false);
+            if (received is not { } input)
                 return ReadOnlyMemory<byte>.Empty;
-            }
-            
+
+            var buffer = input.Buffer;
+            var result = input.Result;
+            if (result.MessageType == WebSocketMessageType.Close)
+                return ReadOnlyMemory<byte>.Empty;
+
             // Check for resize message (custom protocol)
             if (result.MessageType == WebSocketMessageType.Text)
             {
@@ -232,7 +360,7 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
                     {
                         Resize(newWidth, newHeight, cellWidth, cellHeight, actualCellWidth);
                         // Return empty for resize messages - not actual input
-                        return await ReadInputAsync(ct);
+                        continue;
                     }
                 }
                 
@@ -246,21 +374,78 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
                     {
                         Resize(width, height);
                         // Return empty for resize messages - not actual input
-                        return await ReadInputAsync(ct);
+                        continue;
                     }
                 }
+
             }
-            
             return buffer.AsMemory(0, result.Count);
+        }
+    }
+
+    private async ValueTask<ReceivedInput?> ReceiveInputAsync(
+        CancellationToken ct)
+    {
+        if (!TryBeginReader())
+            return null;
+
+        try
+        {
+            if (_webSocket.State != WebSocketState.Open)
+                return null;
+
+            var buffer = new byte[4096];
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                ct,
+                _readCts.Token);
+            var result = await _webSocket.ReceiveAsync(
+                buffer.AsMemory(),
+                linkedCts.Token).ConfigureAwait(false);
+            return new ReceivedInput(buffer, result);
         }
         catch (WebSocketException)
         {
-            return ReadOnlyMemory<byte>.Empty;
+            return null;
         }
         catch (OperationCanceledException)
         {
-            return ReadOnlyMemory<byte>.Empty;
+            return null;
         }
+        finally
+        {
+            CompleteReader();
+        }
+    }
+
+    private bool TryBeginReader()
+    {
+        lock (_lifecycleLock)
+        {
+            if (_disposed)
+                return false;
+
+            if (_activeReaders++ == 0)
+            {
+                _readersDrained = new(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+            return true;
+        }
+    }
+
+    private void CompleteReader()
+    {
+        TaskCompletionSource? readersDrained = null;
+        lock (_lifecycleLock)
+        {
+            _activeReaders--;
+            if (_activeReaders == 0)
+            {
+                readersDrained = _readersDrained;
+                _readersDrained = null;
+            }
+        }
+        readersDrained?.TrySetResult();
     }
 
     /// <inheritdoc />
@@ -288,26 +473,126 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     public (int Row, int Column) GetCursorPosition() => (0, 0);
 
     /// <inheritdoc />
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_disposed) return;
-        _disposed = true;
+        Task disposeTask;
+        lock (_lifecycleLock)
+        {
+            if (_disposeTask is null)
+            {
+                _disposed = true;
+                _disposeTask = Task.Run(DisposeCoreAsync);
+                _ = NotifyDisconnectedAfterDisposalAsync(_disposeTask);
+            }
+            disposeTask = _disposeTask;
+        }
 
-        Disconnected?.Invoke();
+        return new ValueTask(disposeTask);
+    }
 
-        _disposeCts.Cancel();
-        _disposeCts.Dispose();
-
-        if (_webSocket.State == WebSocketState.Open)
+    private async Task DisposeCoreAsync()
+    {
+        try
+        {
+            Task writersDrained;
+            lock (_lifecycleLock)
+            {
+                writersDrained = _activeWriters == 0
+                    ? Task.CompletedTask
+                    : _writersDrained!.Task;
+            }
+            await writersDrained.ConfigureAwait(false);
+            await _outputWriteLock.WaitAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+            try
+            {
+                await FlushPendingOutputUnsafeAsync().ConfigureAwait(false);
+                if (_webSocket.State is
+                    WebSocketState.Open or
+                    WebSocketState.CloseReceived)
+                {
+                    await _webSocket.CloseOutputAsync(
+                        WebSocketCloseStatus.NormalClosure,
+                        "Session ended",
+                        CancellationToken.None).ConfigureAwait(false);
+                }
+            }
+            catch (WebSocketException)
+            {
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            finally
+            {
+                _outputWriteLock.Release();
+            }
+        }
+        finally
         {
             try
             {
-                await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Session ended", CancellationToken.None);
+                _readCts.Cancel();
+                Task readersDrained;
+                lock (_lifecycleLock)
+                {
+                    readersDrained = _activeReaders == 0
+                        ? Task.CompletedTask
+                        : _readersDrained!.Task;
+                }
+                await readersDrained.ConfigureAwait(false);
             }
-            catch
+            finally
             {
-                // Ignore close errors
+                _readCts.Dispose();
+                _outputWriteLock.Dispose();
             }
+        }
+    }
+
+    private async Task NotifyDisconnectedAfterDisposalAsync(
+        Task disposal)
+    {
+        try
+        {
+            await disposal.ConfigureAwait(false);
+        }
+        catch
+        {
+            // The shared disposal task carries the cleanup failure to callers.
+        }
+
+        try
+        {
+            Disconnected?.Invoke();
+        }
+        catch
+        {
+            // Observers run after cleanup and cannot alter disposal completion.
+        }
+    }
+
+    private async ValueTask FlushPendingOutputUnsafeAsync()
+    {
+        try
+        {
+            var prepared = PrepareUtf8Output([], flush: true);
+            if (prepared.CompleteBytes.Length > 0 &&
+                _webSocket.State == WebSocketState.Open)
+            {
+                await _webSocket.SendAsync(
+                    prepared.CompleteBytes,
+                    WebSocketMessageType.Text,
+                    endOfMessage: true,
+                    CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+        catch (WebSocketException)
+        {
+        }
+        finally
+        {
+            _pendingOutputUtf8Count = 0;
         }
     }
 
