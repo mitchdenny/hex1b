@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Hex1b.Tests;
@@ -16,6 +18,7 @@ public class KgpUnicodePlaceholderDiacriticsTests
         Assert.AreEqual(
             "a80368b3272c41d8b50f3f640cf4305b6423e5a1aae6b72a405129bc29425f2c",
             KgpUnicodePlaceholderDiacritics.SourceSha256);
+        var encodedValues = new byte[values.Length * sizeof(int)];
 
         for (var index = 0; index < values.Length; index++)
         {
@@ -26,7 +29,14 @@ public class KgpUnicodePlaceholderDiacriticsTests
                 new Rune(values[index]),
                 out var decoded));
             Assert.AreEqual(index, decoded);
+            BinaryPrimitives.WriteInt32BigEndian(
+                encodedValues.AsSpan(index * sizeof(int), sizeof(int)),
+                values[index]);
         }
+
+        Assert.AreEqual(
+            KgpUnicodePlaceholderDiacritics.CodePointSequenceSha256,
+            Convert.ToHexString(SHA256.HashData(encodedValues)).ToLowerInvariant());
     }
 
     [TestMethod]

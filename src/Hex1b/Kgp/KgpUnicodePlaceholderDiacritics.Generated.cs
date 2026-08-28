@@ -14,6 +14,9 @@ internal static class KgpUnicodePlaceholderDiacritics
     internal const string SourceSha256 =
         "a80368b3272c41d8b50f3f640cf4305b6423e5a1aae6b72a405129bc29425f2c";
 
+    internal const string CodePointSequenceSha256 =
+        "6a6e4c7f452bc000f6f649148bc3091c92782c481e5ad36eb847873ba0b3c187";
+
     private static readonly int[] s_codePoints =
     [
         0x0305, 0x030D, 0x030E, 0x0310, 0x0312, 0x033D, 0x033E, 0x033F,
