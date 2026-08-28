@@ -675,6 +675,47 @@ public class KgpAnimationFrameTests
     }
 
     [TestMethod]
+    public void AnimationFrame_PerImageFrameLimit_ReturnsEnospcWithoutMutation()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        var frames = new KgpAnimationFrame[
+            KgpAnimationState.MaximumFrameCount];
+        for (var index = 0; index < frames.Length; index++)
+        {
+            frames[index] = new KgpAnimationFrame(
+                [(byte)(index & 0xFF), 0, 0, 255],
+                gapMilliseconds: index == 0 ? 0 : 40);
+        }
+
+        var image = new KgpImageData(
+            1,
+            0,
+            frames[0].Data,
+            1,
+            1,
+            KgpFormat.Rgba32).WithAnimation(
+                KgpAnimationState.Create(
+                    frames,
+                    currentFrameIndex: 0));
+        terminal.KgpImageStore.StoreImage(image);
+        var totalSize = terminal.KgpImageStore.TotalSize;
+
+        SendKgp(
+            terminal,
+            FrameCommand(
+                "f=32,s=1,v=1,i=1,X=1",
+                [9, 9, 9, 255]));
+
+        Assert.AreEqual(
+            $"\x1b_Gi=1,r={KgpAnimationState.MaximumFrameCount + 1};" +
+            $"ENOSPC:Animation frame limit of {KgpAnimationState.MaximumFrameCount} reached\x1b\\",
+            workload.ReadResponse());
+        Assert.AreSame(image, terminal.KgpImageStore.GetImageById(1));
+        Assert.AreEqual(totalSize, terminal.KgpImageStore.TotalSize);
+    }
+
+    [TestMethod]
     public void DeleteAnimationFrame_Root_PromotesSecondFrameAndRepairsAccounting()
     {
         var workload = new RecordingWorkloadAdapter();
@@ -1044,7 +1085,9 @@ public class KgpAnimationFrameTests
             1,
             1,
             KgpFormat.Rgba32).WithAnimation(
-                new KgpAnimationState([root, current], currentFrameIndex: 1));
+                KgpAnimationState.Create(
+                    [root, current],
+                    currentFrameIndex: 1));
         terminal.KgpImageStore.StoreImage(image);
         SendKgp(
             terminal,

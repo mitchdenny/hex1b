@@ -57,6 +57,7 @@ public sealed class KgpImageStore
         BaseFrameNotFound,
         InsufficientData,
         TooMuchData,
+        FrameLimitReached,
         NoSpace,
         OutOfMemory,
     }
@@ -376,15 +377,16 @@ public sealed class KgpImageStore
             var image = _imagesById[info.ImageId];
             try
             {
-                var frames = CreateNormalizedFrames(image);
+                var animation = CreateNormalizedAnimation(image);
                 var frameIndex = checked((int)info.FrameNumber - 1);
-                var isNewFrame = frameIndex == frames.Length;
+                var isNewFrame = frameIndex == animation.FrameCount;
                 byte[] canvas;
                 int gapMilliseconds;
                 if (isNewFrame)
                 {
                     canvas = command.Frame.BaseFrameNumber > 0
-                        ? frames[checked((int)command.Frame.BaseFrameNumber - 1)]
+                        ? animation.GetFrame(
+                                checked((int)command.Frame.BaseFrameNumber - 1))
                             .Data
                             .ToArray()
                         : KgpAnimationFrameComposer.CreateRgbaCanvas(
@@ -400,7 +402,7 @@ public sealed class KgpImageStore
                 }
                 else
                 {
-                    var existing = frames[frameIndex];
+                    var existing = animation.GetFrame(frameIndex);
                     canvas = existing.Data.ToArray();
                     gapMilliseconds = command.Frame.Gap == 0
                         ? existing.GapMilliseconds
@@ -422,23 +424,10 @@ public sealed class KgpImageStore
                 var updatedFrame = new KgpAnimationFrame(
                     canvas,
                     gapMilliseconds);
-                KgpAnimationFrame[] updatedFrames;
-                if (isNewFrame)
-                {
-                    updatedFrames = new KgpAnimationFrame[frames.Length + 1];
-                    frames.CopyTo(updatedFrames, 0);
-                    updatedFrames[^1] = updatedFrame;
-                }
-                else
-                {
-                    updatedFrames = (KgpAnimationFrame[])frames.Clone();
-                    updatedFrames[frameIndex] = updatedFrame;
-                }
-
-                var animation = new KgpAnimationState(
-                    updatedFrames,
-                    image.CurrentFrameIndex);
-                var updatedImage = image.WithAnimation(animation);
+                var updatedAnimation = isNewFrame
+                    ? animation.AddFrame(updatedFrame)
+                    : animation.SetFrame(frameIndex, updatedFrame);
+                var updatedImage = image.WithAnimation(updatedAnimation);
                 var storageDelta = checked(
                     updatedImage.StorageSize - image.StorageSize);
                 if (storageDelta != info.RequiredStorageBytes)
@@ -503,30 +492,17 @@ public sealed class KgpImageStore
                     CurrentFrameChanged: true);
             }
 
-            var frames = image.AnimationFrames
+            var animation = image.AnimationState
                 ?? throw new InvalidOperationException(
                     "An image with multiple frames has no animation state.");
             var resolvedFrameNumber = frameNumber == 0
                 ? 1u
-                : Math.Min(frameNumber, checked((uint)frames.Count));
+                : Math.Min(frameNumber, checked((uint)animation.FrameCount));
             var removedIndex = checked((int)resolvedFrameNumber - 1);
             try
             {
-                var updatedFrames = new KgpAnimationFrame[frames.Count - 1];
-                for (var sourceIndex = 0;
-                     sourceIndex < frames.Count;
-                     sourceIndex++)
-                {
-                    if (sourceIndex == removedIndex)
-                        continue;
-                    var destinationIndex = sourceIndex < removedIndex
-                        ? sourceIndex
-                        : sourceIndex - 1;
-                    updatedFrames[destinationIndex] = frames[sourceIndex];
-                }
-
                 var currentFrameIndex = image.CurrentFrameIndex;
-                var lastFrameIndex = updatedFrames.Length - 1;
+                var lastFrameIndex = animation.FrameCount - 2;
                 var currentFrameChanged = false;
                 if (currentFrameIndex > lastFrameIndex)
                 {
@@ -542,10 +518,10 @@ public sealed class KgpImageStore
                     currentFrameIndex--;
                 }
 
-                var animation = new KgpAnimationState(
-                    updatedFrames,
+                var updatedAnimation = animation.RemoveFrame(
+                    removedIndex,
                     currentFrameIndex);
-                var updatedImage = image.WithAnimation(animation);
+                var updatedImage = image.WithAnimation(updatedAnimation);
                 _imagesById[image.ImageId] = updatedImage;
                 _totalSize = checked(
                     _totalSize - (image.StorageSize - updatedImage.StorageSize));
@@ -995,7 +971,7 @@ public sealed class KgpImageStore
                 transmission);
         }
 
-        if (image.Format == KgpFormat.Png && image.AnimationFrames is null)
+        if (image.Format == KgpFormat.Png && image.AnimationState is null)
         {
             return CreateAnimationFrameFailure(
                 AnimationFrameStatus.UnsupportedBaseFormat,
@@ -1003,7 +979,7 @@ public sealed class KgpImageStore
                 image);
         }
 
-        if (image.AnimationFrames is null && !image.IsDataSizeValid())
+        if (image.AnimationState is null && !image.IsDataSizeValid())
         {
             return CreateAnimationFrameFailure(
                 AnimationFrameStatus.InvalidBaseData,
@@ -1070,8 +1046,22 @@ public sealed class KgpImageStore
                 RequiredStorageBytes: 0);
         }
 
+        if (isNewFrame &&
+            image.FrameCount >= KgpAnimationState.MaximumFrameCount)
+        {
+            return new AnimationFrameInfo(
+                AnimationFrameStatus.FrameLimitReached,
+                image.ImageId,
+                image.ImageNumber,
+                resolvedFrameNumber,
+                sourceWidth,
+                sourceHeight,
+                checked((int)expectedLength),
+                RequiredStorageBytes: 0);
+        }
+
         var requiredStorageBytes = 0L;
-        if (image.AnimationFrames is null)
+        if (image.AnimationState is null)
             requiredStorageBytes += rgbaFrameLength - image.StorageSize;
         if (isNewFrame)
             requiredStorageBytes += rgbaFrameLength;
@@ -1101,11 +1091,11 @@ public sealed class KgpImageStore
             ExpectedDataLength: 0,
             RequiredStorageBytes: 0);
 
-    private static KgpAnimationFrame[] CreateNormalizedFrames(
+    private static KgpAnimationState CreateNormalizedAnimation(
         KgpImageData image)
     {
-        if (image.AnimationFrames is { } animationFrames)
-            return [.. animationFrames];
+        if (image.AnimationState is { } animation)
+            return animation;
 
         var rootData = image.Format == KgpFormat.Rgba32
             ? image.Data
@@ -1114,7 +1104,8 @@ public sealed class KgpImageStore
                 image.Width,
                 image.Height,
                 image.Format);
-        return [new KgpAnimationFrame(rootData, gapMilliseconds: 0)];
+        return KgpAnimationState.CreateRoot(
+            new KgpAnimationFrame(rootData, gapMilliseconds: 0));
     }
 
     private KgpImageData? ResolveAddressableImageUnsafe(

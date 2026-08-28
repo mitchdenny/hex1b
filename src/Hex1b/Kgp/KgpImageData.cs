@@ -122,6 +122,8 @@ public sealed class KgpImageData
     internal IReadOnlyList<KgpAnimationFrame>? AnimationFrames
         => _animation?.Frames;
 
+    internal KgpAnimationState? AnimationState => _animation;
+
     internal byte[] CurrentFrameData
         => _animation?.GetFrame(CurrentFrameIndex).Data ?? Data;
 

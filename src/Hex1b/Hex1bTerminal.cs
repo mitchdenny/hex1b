@@ -7474,6 +7474,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 => $"ENODATA:Insufficient frame data: {actualDataLength ?? 0} < {info.ExpectedDataLength}",
             KgpImageStore.AnimationFrameStatus.TooMuchData
                 => $"EFBIG:Too much frame data: {actualDataLength ?? 0} > {info.ExpectedDataLength}",
+            KgpImageStore.AnimationFrameStatus.FrameLimitReached
+                => $"ENOSPC:Animation frame limit of {KgpAnimationState.MaximumFrameCount} reached",
             KgpImageStore.AnimationFrameStatus.NoSpace
                 => "ENOSPC:Animation frame storage full",
             KgpImageStore.AnimationFrameStatus.OutOfMemory

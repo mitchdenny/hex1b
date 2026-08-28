@@ -3,6 +3,8 @@ namespace Hex1b.Tests;
 [TestClass]
 public class KgpAnimationFrameStoreTests
 {
+    public TestContext TestContext { get; set; } = null!;
+
     [TestMethod]
     public void StoreAnimationFrame_NewFrameExceedsQuota_ReturnsNoSpaceWithoutMutation()
     {
@@ -296,6 +298,113 @@ public class KgpAnimationFrameStoreTests
     }
 
     [TestMethod]
+    public void AnimationState_PersistentMutations_PreserveEarlierVersions()
+    {
+        var root = new KgpAnimationFrame([1, 0, 0, 255], 0);
+        var second = new KgpAnimationFrame([2, 0, 0, 255], 40);
+        var replacement = new KgpAnimationFrame([3, 0, 0, 255], 60);
+        var initial = KgpAnimationState.CreateRoot(root);
+
+        var appended = initial.AddFrame(second);
+        var edited = appended.SetFrame(1, replacement);
+        var removed = edited.RemoveFrame(
+            frameIndex: 0,
+            currentFrameIndex: 0);
+
+        Assert.AreEqual(1, initial.FrameCount);
+        Assert.AreSame(root, initial.GetFrame(0));
+        Assert.AreEqual(4L, initial.StorageSize);
+        Assert.AreEqual(2, appended.FrameCount);
+        Assert.AreSame(second, appended.GetFrame(1));
+        Assert.AreEqual(8L, appended.StorageSize);
+        Assert.AreEqual(2, edited.FrameCount);
+        Assert.AreSame(replacement, edited.GetFrame(1));
+        Assert.AreEqual(8L, edited.StorageSize);
+        Assert.AreEqual(1, removed.FrameCount);
+        Assert.AreSame(replacement, removed.GetFrame(0));
+        Assert.AreEqual(4L, removed.StorageSize);
+    }
+
+    [TestMethod]
+    public void StoreAnimationFrame_PerImageFrameLimit_RejectsAppendAtomically()
+    {
+        var store = new KgpImageStore();
+        store.StoreImage(
+            CreateImage(1, KgpFormat.Rgba32, [1, 2, 3, 255]));
+        var append = ParseFrame("a=f,f=32,s=1,v=1,i=1,X=1");
+        KgpImageStore.AnimationFrameResult result = default;
+        for (var frameNumber = 2;
+             frameNumber <= KgpAnimationState.MaximumFrameCount;
+             frameNumber++)
+        {
+            result = store.StoreAnimationFrame(
+                append,
+                [(byte)(frameNumber & 0xFF), 0, 0, 255]);
+        }
+
+        Assert.AreEqual(
+            KgpImageStore.AnimationFrameStatus.Success,
+            result.Info.Status);
+        var full = store.GetImageById(1);
+        Assert.IsNotNull(full);
+        Assert.AreEqual(
+            KgpAnimationState.MaximumFrameCount,
+            full.FrameCount);
+        Assert.AreEqual(
+            KgpAnimationState.MaximumFrameCount * 4L,
+            full.StorageSize);
+        var totalSize = store.TotalSize;
+
+        var rejected = store.StoreAnimationFrame(
+            append,
+            [9, 9, 9, 255]);
+
+        Assert.AreEqual(
+            KgpImageStore.AnimationFrameStatus.FrameLimitReached,
+            rejected.Info.Status);
+        Assert.AreEqual(
+            (uint)KgpAnimationState.MaximumFrameCount + 1,
+            rejected.Info.FrameNumber);
+        Assert.IsNull(rejected.Image);
+        Assert.AreSame(full, store.GetImageById(1));
+        Assert.AreEqual(totalSize, store.TotalSize);
+
+        var edit = store.StoreAnimationFrame(
+            ParseFrame(
+                $"a=f,f=32,s=1,v=1,i=1,r={KgpAnimationState.MaximumFrameCount},X=1"),
+            [8, 8, 8, 255]);
+        Assert.AreEqual(
+            KgpImageStore.AnimationFrameStatus.Success,
+            edit.Info.Status);
+        Assert.AreEqual(
+            KgpAnimationState.MaximumFrameCount,
+            edit.Image!.FrameCount);
+        Assert.AreEqual(totalSize, store.TotalSize);
+    }
+
+    [TestMethod]
+    [DoNotParallelize]
+    public void StoreAnimationFrame_ManyTinyFrames_AllocationGrowthIsSubquadratic()
+    {
+        _ = MeasureFrameAppendAllocations(32);
+        var small = MeasureFrameAppendAllocations(512);
+        var large = MeasureFrameAppendAllocations(1024);
+
+        TestContext.WriteLine(
+            $"512 appends allocated {small:N0} bytes; " +
+            $"1,024 appends allocated {large:N0} bytes.");
+        Assert.IsGreaterThan(0L, small);
+        Assert.IsLessThan(
+            checked(small * 3),
+            large,
+            "Doubling frame count should remain below quadratic allocation growth.");
+        Assert.IsLessThan(
+            2_000_000L,
+            large,
+            "One thousand tiny-frame appends should have a bounded allocation cost.");
+    }
+
+    [TestMethod]
     public void ConcurrentFrameStores_OnIndependentImages_AreDeterministic()
     {
         const int imageCount = 32;
@@ -358,7 +467,7 @@ public class KgpAnimationFrameStoreTests
             root.Data,
             imageNumber);
         return image.WithAnimation(
-            new KgpAnimationState(frames, currentFrameIndex));
+            KgpAnimationState.Create(frames, currentFrameIndex));
     }
 
     private static KgpImageData CreateAnimatedImageWithTwoFrames(uint imageId)
@@ -369,7 +478,7 @@ public class KgpAnimationFrameStoreTests
             KgpFormat.Rgba32,
             root.Data);
         return image.WithAnimation(
-            new KgpAnimationState(
+            KgpAnimationState.Create(
                 [root, new KgpAnimationFrame([2, 0, 0, 255], 40)],
                 currentFrameIndex: 0));
     }
@@ -385,6 +494,33 @@ public class KgpAnimationFrameStoreTests
             success,
             success ? null : failure.FormatReason(controlData.AsSpan()));
         return TestSeq.IsType<KgpParsedCommand.AnimationFrame>(command);
+    }
+
+    private static long MeasureFrameAppendAllocations(int appendCount)
+    {
+        var store = new KgpImageStore();
+        store.StoreImage(
+            CreateImage(1, KgpFormat.Rgba32, [1, 2, 3, 255]));
+        var command = ParseFrame("a=f,f=32,s=1,v=1,i=1,X=1");
+        var data = new byte[] { 4, 5, 6, 255 };
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        KgpImageStore.AnimationFrameResult result = default;
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < appendCount; index++)
+            result = store.StoreAnimationFrame(command, data);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.AreEqual(
+            KgpImageStore.AnimationFrameStatus.Success,
+            result.Info.Status);
+        Assert.AreEqual(appendCount + 1, result.Image!.FrameCount);
+        Assert.AreEqual((appendCount + 1) * 4L, store.TotalSize);
+        GC.KeepAlive(store);
+        return allocated;
     }
 
     private static void AssertFrame(
