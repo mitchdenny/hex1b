@@ -3,8 +3,8 @@
 Demonstrates HMP1 (Hex1b Muxer Protocol v1) including the multi-head
 primary / secondary protocol via two transports:
 
-- **WebSocket** — browser tabs render the session via xterm.js, a patched
-  `@xterm/addon-image` Kitty graphics handler, and a pure-JS HMP1 client
+- **WebSocket** — browser tabs render the session via a vendored xterm.js KGP
+  validation build and a pure-JS HMP1 client
   (`wwwroot/js/hmp1-client.js`).
 - **Unix domain socket** — `webmuxerdemo connect` is a TUI viewer that
   attaches to a session over UDS, demonstrating the same multi-head
@@ -43,14 +43,14 @@ multi-head additions across both consumer shapes.
 
 ## Kitty graphics path
 
-The browser uses `@xterm/xterm@6.1.0-beta.301` with a vendored build of
-`@xterm/addon-image` that adds placement identity, replacement, and targeted
-deletion support from
-[xterm.js PR #6098](https://github.com/xtermjs/xterm.js/pull/6098). The npm
-beta does not yet contain these fixes. The bundle is stored at
-`wwwroot/vendor/xterm-addon-image.js`; its exact source commit and hash are
-recorded in `wwwroot/vendor/README.md`, and its MIT license is preserved
-alongside it. Return to the upstream npm package after the PR is released.
+The browser uses a matched, vendored snapshot of `@xterm/xterm`,
+`@xterm/addon-fit`, and `@xterm/addon-image` from
+[xterm.js PR #6098](https://github.com/xtermjs/xterm.js/pull/6098). This lets
+the demo validate the PR's KGP placement lifecycle changes without mixing a
+locally patched addon with CDN builds of core xterm.js and addon-fit. The
+browser assets, exact source commit, package versions, and hashes are recorded
+in `wwwroot/vendor/README.md`; the upstream MIT license is preserved alongside
+them. Return to the upstream npm packages after the changes are released.
 
 The end-to-end path is:
 
