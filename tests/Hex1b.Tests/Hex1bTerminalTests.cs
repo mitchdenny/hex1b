@@ -894,6 +894,40 @@ public class Hex1bTerminalTests
                 TestContext.Current.CancellationToken);
         Assert.AreEqual(42u, TestSeq.Single(snapshot.KgpPlacements).ImageId);
 
+        await WriteAndAssertForwardedAsync(Encoding.UTF8.GetBytes(
+            KgpTestHelper.BuildCommand(
+                "a=t,f=24,s=1,v=1,i=43,q=2",
+                [0x44, 0x55, 0x66])));
+        var relativeCommand = Encoding.UTF8.GetBytes(
+            KgpTestHelper.BuildCommand(
+                "a=p,i=43,p=8,c=1,r=1,P=42,H=1,V=1,C=0,q=2"));
+        var relativeSplitIndex = split switch
+        {
+            "esc" => 1,
+            "apc-prefix" => 2,
+            "terminator" => relativeCommand.Length - 1,
+            _ => throw new InvalidOperationException(split),
+        };
+        await WriteAndAssertForwardedAsync(
+            relativeCommand.AsMemory(0, relativeSplitIndex));
+        await WriteAndAssertForwardedAsync(
+            relativeCommand.AsMemory(relativeSplitIndex));
+
+        using var relativeSnapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(
+                value => value.KgpPlacements.Any(
+                    placement => placement.ImageId == 43),
+                TimeSpan.FromSeconds(2),
+                "split relative KGP APC applied")
+            .Build()
+            .ApplyWithCaptureAsync(
+                terminal,
+                TestContext.Current.CancellationToken);
+        var relative = TestSeq.Single(relativeSnapshot.KgpPlacements.Where(
+            placement => placement.ImageId == 43));
+        Assert.AreEqual(1, relative.Row);
+        Assert.AreEqual(1, relative.Column);
+
         cts.Cancel();
         await Assert.ThrowsAsync<OperationCanceledException>(
             async () => await runTask);

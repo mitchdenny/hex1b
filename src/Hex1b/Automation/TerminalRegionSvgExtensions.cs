@@ -244,6 +244,9 @@ public static class TerminalRegionSvgExtensions
             var sortedPlacements = snapshot2.KgpPlacements
                 .OrderBy(placement => placement.ZIndex)
                 .ThenBy(placement => placement.ImageId)
+                .ThenBy(placement => placement.GraphId)
+                .ThenBy(placement => placement.Row)
+                .ThenBy(placement => placement.Column)
                 .ToList();
             var placeholderImageDefinitions =
                 new Dictionary<uint, (string ElementId, string DataUri)>();
