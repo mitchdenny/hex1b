@@ -24,10 +24,16 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     private const string OutputTraceFileEnvironmentVariable = "HEX1B_WEBSOCKET_OUTPUT_TRACE_FILE";
 
     private readonly WebSocket _webSocket;
-    private readonly CancellationTokenSource _disposeCts = new();
+    private readonly CancellationTokenSource _readCts = new();
     private readonly SemaphoreSlim _outputWriteLock = new(1, 1);
+    private readonly object _lifecycleLock = new();
     private readonly byte[] _pendingOutputUtf8 = new byte[3];
     private int _pendingOutputUtf8Count;
+    private int _activeWriters;
+    private int _activeReaders;
+    private TaskCompletionSource? _writersDrained;
+    private TaskCompletionSource? _readersDrained;
+    private TaskCompletionSource? _disposeCompletion;
     private bool _disposed;
     private int _width;
     private int _height;
@@ -190,19 +196,17 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     /// <inheritdoc />
     public async ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
-        if (_disposed ||
-            data.IsEmpty ||
-            _webSocket.State != WebSocketState.Open)
-        {
+        if (data.IsEmpty || !TryBeginWriter())
             return;
-        }
 
         var lockTaken = false;
         try
         {
+            if (_webSocket.State != WebSocketState.Open)
+                return;
+
             TryTraceOutput(data);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
-            await _outputWriteLock.WaitAsync(linkedCts.Token);
+            await _outputWriteLock.WaitAsync(ct);
             lockTaken = true;
             var prepared = PrepareUtf8Output(
                 data.Span,
@@ -213,11 +217,11 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
                     prepared.CompleteBytes,
                     WebSocketMessageType.Text,
                     endOfMessage: true,
-                    linkedCts.Token);
+                    ct);
             }
             else
             {
-                linkedCts.Token.ThrowIfCancellationRequested();
+                ct.ThrowIfCancellationRequested();
             }
 
             CommitPendingUtf8(prepared.PendingBytes);
@@ -234,7 +238,39 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         {
             if (lockTaken)
                 _outputWriteLock.Release();
+            CompleteWriter();
         }
+    }
+
+    private bool TryBeginWriter()
+    {
+        lock (_lifecycleLock)
+        {
+            if (_disposed)
+                return false;
+
+            if (_activeWriters++ == 0)
+            {
+                _writersDrained = new(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+            return true;
+        }
+    }
+
+    private void CompleteWriter()
+    {
+        TaskCompletionSource? writersDrained = null;
+        lock (_lifecycleLock)
+        {
+            _activeWriters--;
+            if (_activeWriters == 0)
+            {
+                writersDrained = _writersDrained;
+                _writersDrained = null;
+            }
+        }
+        writersDrained?.TrySetResult();
     }
 
     private PreparedUtf8Output PrepareUtf8Output(
@@ -297,14 +333,32 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     /// <inheritdoc />
     public async ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
     {
-        if (_disposed || _webSocket.State != WebSocketState.Open)
+        if (!TryBeginReader())
+            return ReadOnlyMemory<byte>.Empty;
+
+        try
+        {
+            return await ReadInputCoreAsync(ct);
+        }
+        finally
+        {
+            CompleteReader();
+        }
+    }
+
+    private async ValueTask<ReadOnlyMemory<byte>> ReadInputCoreAsync(
+        CancellationToken ct)
+    {
+        if (_webSocket.State != WebSocketState.Open)
             return ReadOnlyMemory<byte>.Empty;
 
         var buffer = new byte[4096];
         
         try
         {
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                ct,
+                _readCts.Token);
             var result = await _webSocket.ReceiveAsync(buffer.AsMemory(), linkedCts.Token);
             
             if (result.MessageType == WebSocketMessageType.Close)
@@ -324,7 +378,7 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
                     {
                         Resize(newWidth, newHeight, cellWidth, cellHeight, actualCellWidth);
                         // Return empty for resize messages - not actual input
-                        return await ReadInputAsync(ct);
+                        return await ReadInputCoreAsync(ct);
                     }
                 }
                 
@@ -338,9 +392,10 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
                     {
                         Resize(width, height);
                         // Return empty for resize messages - not actual input
-                        return await ReadInputAsync(ct);
+                        return await ReadInputCoreAsync(ct);
                     }
                 }
+
             }
             
             return buffer.AsMemory(0, result.Count);
@@ -353,6 +408,37 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         {
             return ReadOnlyMemory<byte>.Empty;
         }
+    }
+
+    private bool TryBeginReader()
+    {
+        lock (_lifecycleLock)
+        {
+            if (_disposed)
+                return false;
+
+            if (_activeReaders++ == 0)
+            {
+                _readersDrained = new(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+            return true;
+        }
+    }
+
+    private void CompleteReader()
+    {
+        TaskCompletionSource? readersDrained = null;
+        lock (_lifecycleLock)
+        {
+            _activeReaders--;
+            if (_activeReaders == 0)
+            {
+                readersDrained = _readersDrained;
+                _readersDrained = null;
+            }
+        }
+        readersDrained?.TrySetResult();
     }
 
     /// <inheritdoc />
@@ -382,33 +468,87 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_disposed) return;
-        _disposed = true;
+        Task? existingDisposal;
+        Task writersDrained = Task.CompletedTask;
+        TaskCompletionSource? disposeCompletion = null;
+        lock (_lifecycleLock)
+        {
+            if (_disposeCompletion is { } existing)
+            {
+                existingDisposal = existing.Task;
+            }
+            else
+            {
+                _disposed = true;
+                disposeCompletion = new(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                _disposeCompletion = disposeCompletion;
+                existingDisposal = null;
+                if (_activeWriters > 0)
+                    writersDrained = _writersDrained!.Task;
+            }
+        }
 
-        Disconnected?.Invoke();
+        if (existingDisposal is not null)
+        {
+            await existingDisposal;
+            return;
+        }
 
-        _disposeCts.Cancel();
-        await FlushPendingOutputAsync();
-        // A writer may have passed its initial disposed check but not yet read
-        // this token. Keep the canceled source available so that admitted
-        // writers observe cancellation instead of ObjectDisposedException.
-
-        if (_webSocket.State == WebSocketState.Open)
+        try
+        {
+            Disconnected?.Invoke();
+            await writersDrained;
+            await _outputWriteLock.WaitAsync(CancellationToken.None);
+            try
+            {
+                await FlushPendingOutputUnsafeAsync();
+                if (_webSocket.State is
+                    WebSocketState.Open or
+                    WebSocketState.CloseReceived)
+                {
+                    await _webSocket.CloseOutputAsync(
+                        WebSocketCloseStatus.NormalClosure,
+                        "Session ended",
+                        CancellationToken.None);
+                }
+            }
+            catch (WebSocketException)
+            {
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            finally
+            {
+                _outputWriteLock.Release();
+            }
+        }
+        finally
         {
             try
             {
-                await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Session ended", CancellationToken.None);
+                _readCts.Cancel();
+                Task readersDrained;
+                lock (_lifecycleLock)
+                {
+                    readersDrained = _activeReaders == 0
+                        ? Task.CompletedTask
+                        : _readersDrained!.Task;
+                }
+                await readersDrained;
             }
-            catch
+            finally
             {
-                // Ignore close errors
+                _readCts.Dispose();
+                _outputWriteLock.Dispose();
+                disposeCompletion!.TrySetResult();
             }
         }
     }
 
-    private async ValueTask FlushPendingOutputAsync()
+    private async ValueTask FlushPendingOutputUnsafeAsync()
     {
-        await _outputWriteLock.WaitAsync(CancellationToken.None);
         try
         {
             var prepared = PrepareUtf8Output([], flush: true);
@@ -428,7 +568,6 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         finally
         {
             _pendingOutputUtf8Count = 0;
-            _outputWriteLock.Release();
         }
     }
 

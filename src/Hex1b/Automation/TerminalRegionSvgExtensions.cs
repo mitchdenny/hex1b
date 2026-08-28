@@ -910,17 +910,6 @@ public static class TerminalRegionSvgExtensions
             fullWidth = image.Width;
             fullHeight = image.Height;
         }
-        else if (placement.SourceX == 0 &&
-                 placement.SourceY == 0 &&
-                 placement.SourceWidth > 0 &&
-                 placement.SourceHeight > 0)
-        {
-            // Some producers normalize a full PNG extent into x/y/w/h even
-            // though the transmission omits s/v. That is a full-image
-            // selection, so no pixel decoding is needed.
-            fullWidth = placement.SourceWidth;
-            fullHeight = placement.SourceHeight;
-        }
         else
         {
             return placement.SourceX == 0 &&

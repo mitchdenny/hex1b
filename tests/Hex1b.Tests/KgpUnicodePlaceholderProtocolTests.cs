@@ -576,8 +576,10 @@ public partial class KgpUnicodePlaceholderTests
         using var terminal = CreateTerminal(workload, width: 8, height: 5);
         var png = TestPng();
         Apply(terminal, KgpTestHelper.BuildCommand(
-            "a=t,f=100,i=42,q=2",
+            "a=t,f=100,s=1,v=1,i=42,q=2",
             png));
+        Assert.AreEqual(100u, terminal.KgpImageStore.GetImageById(42)!.Width);
+        Assert.AreEqual(80u, terminal.KgpImageStore.GetImageById(42)!.Height);
         Apply(terminal, KgpTestHelper.BuildCommand(
             "a=p,i=42,p=1,x=0,y=0,w=100,h=80,c=2,r=2,C=1,q=2"));
         Apply(terminal, "\x1b[2;2H");
@@ -609,7 +611,7 @@ public partial class KgpUnicodePlaceholderTests
         using var terminal = CreateTerminal(workload, width: 8, height: 5);
         var png = TestPng();
         Apply(terminal, KgpTestHelper.BuildCommand(
-            "a=t,f=100,s=100,v=80,i=42,q=2",
+            "a=t,f=100,s=1,v=1,i=42,q=2",
             png));
         Apply(terminal, "\x1b[2;2H");
         Apply(terminal, KgpTestHelper.BuildCommand(
@@ -626,6 +628,66 @@ public partial class KgpUnicodePlaceholderTests
             "<use href=\"#kgp-placeholder-image-0\" x=\"0\" y=\"0\" width=\"40\" height=\"80\"",
             svg);
         Assert.Contains("clip-path=\"url(#kgp-png-clip-", svg);
+    }
+
+    [TestMethod]
+    public void Svg_PngOutOfBoundsSourceExtent_DoesNotCreatePlacement()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, width: 8, height: 5);
+        Apply(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=100,s=1,v=1,i=42,q=2",
+            TestPng()));
+
+        Apply(terminal, KgpTestHelper.BuildCommand(
+            "a=p,i=42,p=1,x=100,y=0,w=1,h=1,c=1,r=1,C=1,q=2"));
+
+        using var snapshot = terminal.CreateSnapshot();
+        Assert.IsEmpty(snapshot.KgpPlacements);
+        Assert.DoesNotContain("data-image-id=\"42\"", snapshot.ToSvg());
+    }
+
+    [TestMethod]
+    public void Svg_PngVirtualPlacement_UsesIntrinsicDimensionsForAspectFit()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        var png = TestPng(20, 10);
+        Apply(terminal, KgpTestHelper.BuildCommand(
+            "a=T,U=1,f=100,s=1,v=1,i=42,c=2,r=2,q=2",
+            png));
+        Apply(terminal,
+            Foreground(42) +
+            Placeholder(row: 0, column: 0) +
+            "\x1b[0m");
+
+        using var snapshot = terminal.CreateSnapshot();
+        Assert.AreEqual(20u, snapshot.KgpImages[42].Width);
+        Assert.AreEqual(10u, snapshot.KgpImages[42].Height);
+        var geometry = TestSeq.Single(snapshot.KgpPlacements).RenderGeometry!.Value;
+        Assert.AreEqual(0.75, geometry.ClipOffsetYInCells, 0.0001);
+        Assert.Contains(
+            $"data:image/png;base64,{Convert.ToBase64String(png)}",
+            snapshot.ToSvg());
+    }
+
+    [TestMethod]
+    public void Svg_MalformedPngVirtualPlacement_RemainsUnresolved()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        Apply(terminal, KgpTestHelper.BuildCommand(
+            "a=T,U=1,f=100,s=20,v=10,i=42,c=2,r=2,q=2",
+            [0x89, (byte)'P', (byte)'N', (byte)'G']));
+        Apply(terminal,
+            Foreground(42) +
+            Placeholder(row: 0, column: 0) +
+            "\x1b[0m");
+
+        using var snapshot = terminal.CreateSnapshot();
+        Assert.AreEqual(0u, terminal.KgpImageStore.GetImageById(42)!.Width);
+        Assert.IsEmpty(snapshot.KgpPlacements);
+        Assert.IsEmpty(snapshot.KgpImages);
     }
 
     [TestMethod]
@@ -746,7 +808,51 @@ public partial class KgpUnicodePlaceholderTests
         }
     }
 
-    private static byte[] TestPng()
-        => Convert.FromBase64String(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+    private static byte[] TestPng(int width = 100, int height = 80)
+    {
+        using var compressed = new MemoryStream();
+        using (var zlib = new ZLibStream(
+            compressed,
+            CompressionLevel.Fastest,
+            leaveOpen: true))
+        {
+            var scanline = new byte[width * 4 + 1];
+            for (var row = 0; row < height; row++)
+                zlib.Write(scanline);
+        }
+
+        using var png = new MemoryStream();
+        png.Write(
+        [
+            0x89, (byte)'P', (byte)'N', (byte)'G',
+            0x0D, 0x0A, 0x1A, 0x0A,
+        ]);
+        Span<byte> header = stackalloc byte[13];
+        BinaryPrimitives.WriteUInt32BigEndian(header, checked((uint)width));
+        BinaryPrimitives.WriteUInt32BigEndian(header[4..], checked((uint)height));
+        header[8] = 8;
+        header[9] = 6;
+        WriteTestPngChunk(png, "IHDR"u8, header);
+        WriteTestPngChunk(png, "IDAT"u8, compressed.ToArray());
+        WriteTestPngChunk(png, "IEND"u8, []);
+        return png.ToArray();
+    }
+
+    private static void WriteTestPngChunk(
+        Stream destination,
+        ReadOnlySpan<byte> type,
+        ReadOnlySpan<byte> payload)
+    {
+        Span<byte> value = stackalloc byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(
+            value,
+            checked((uint)payload.Length));
+        destination.Write(value);
+        destination.Write(type);
+        destination.Write(payload);
+        BinaryPrimitives.WriteUInt32BigEndian(
+            value,
+            ComputePngCrc(type, payload));
+        destination.Write(value);
+    }
 }

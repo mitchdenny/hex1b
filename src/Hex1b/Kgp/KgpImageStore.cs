@@ -618,12 +618,26 @@ public sealed class KgpImageStore
         KgpParsedCommand.TransmissionData transmission,
         byte[] data)
     {
+        var width = transmission.Width;
+        var height = transmission.Height;
+        if (transmission.Format == KgpFormat.Png)
+        {
+            if (!KgpPngMetadata.TryReadDimensions(
+                    data,
+                    out width,
+                    out height))
+            {
+                width = 0;
+                height = 0;
+            }
+        }
+
         return new KgpImageData(
             imageId,
             transmission.ImageNumber,
             data,
-            transmission.Width,
-            transmission.Height,
+            width,
+            height,
             transmission.Format);
     }
 
