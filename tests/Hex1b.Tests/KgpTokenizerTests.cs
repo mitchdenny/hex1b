@@ -26,6 +26,21 @@ public class KgpTokenizerTests
     }
 
     [TestMethod]
+    public void Tokenize_AnimationFrame_RoundTripsRawControlsAndPayload()
+    {
+        const string sequence =
+            "\x1b_Ga=f,f=32,s=2,v=1,i=7,x=1,Y=287454020,z=-1;AQIDBA==\x1b\\";
+
+        var tokens = AnsiTokenizer.Tokenize(sequence);
+
+        Assert.AreEqual(sequence, AnsiTokenSerializer.Serialize(tokens));
+        Assert.AreEqual(
+            sequence,
+            System.Text.Encoding.UTF8.GetString(
+                AnsiTokenUtf8Serializer.Serialize(tokens).Span));
+    }
+
+    [TestMethod]
     public void Tokenize_KgpWithNoPayload_ProducesKgpTokenWithEmptyPayload()
     {
         var tokens = AnsiTokenizer.Tokenize("\x1b_Ga=d,d=a\x1b\\");

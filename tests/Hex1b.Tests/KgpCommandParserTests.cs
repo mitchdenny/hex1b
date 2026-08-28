@@ -652,10 +652,17 @@ public class KgpCommandParserTests
         const string validControlData =
             "a=T,f=24,t=d,s=100,v=200,S=300,O=400,i=42,p=7,m=0,q=1,N=1," +
             "x=10,y=20,w=30,h=40,X=3,Y=5,c=6,r=8,C=1,U=1,z=-9,P=11,Q=12,H=-13,V=14";
+        const string validAnimationFrameControlData =
+            "a=f,f=32,t=d,s=100,v=200,i=42,m=0,q=1," +
+            "x=10,y=20,X=1,Y=4278190335,c=6,r=8,z=-9";
         const string invalidDeleteControlData = "a=d,d=f,i=42,r=bad,q=1";
 
         var validBytes = MeasureParserAllocations(
             validControlData,
+            expectedSuccess: true,
+            iterations);
+        var validAnimationFrameBytes = MeasureParserAllocations(
+            validAnimationFrameControlData,
             expectedSuccess: true,
             iterations);
         var invalidDeleteBytes = MeasureParserAllocations(
@@ -666,10 +673,16 @@ public class KgpCommandParserTests
         TestContext.WriteLine(
             $"Valid parse: {validBytes} bytes total, {(double)validBytes / iterations:F2} bytes/op.");
         TestContext.WriteLine(
+            $"Valid animation frame parse: {validAnimationFrameBytes} bytes total, " +
+            $"{(double)validAnimationFrameBytes / iterations:F2} bytes/op.");
+        TestContext.WriteLine(
             $"Invalid delete parse: {invalidDeleteBytes} bytes total, " +
             $"{(double)invalidDeleteBytes / iterations:F2} bytes/op.");
 
         Assert.IsLessThanOrEqualTo(256L, validBytes / iterations);
+        Assert.IsLessThanOrEqualTo(
+            256L,
+            validAnimationFrameBytes / iterations);
         Assert.AreEqual(0L, invalidDeleteBytes);
     }
 

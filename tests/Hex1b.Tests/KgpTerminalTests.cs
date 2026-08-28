@@ -588,10 +588,10 @@ public class KgpTerminalTests
     }
 
     [TestMethod]
-    [DataRow("a=f,i=1,s=1,v=1")]
     [DataRow("a=a,i=1,s=3,v=1")]
     [DataRow("a=c,i=1,c=1,r=1")]
-    public void ValidUnimplementedAnimationAction_IsTypedNoOp(string controlData)
+    public void RemainingUnimplementedAnimationAction_IsTypedNoOp(
+        string controlData)
     {
         var workload = new RecordingWorkloadAdapter();
         using var terminal = CreateTerminal(workload);

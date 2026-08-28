@@ -6835,7 +6835,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             var failureQuiet = failure.Quiet == KgpParsedCommand.QuietMode.Normal
                 ? pending.Value.Quiet
                 : failure.Quiet;
-            SendKgpTransmissionResponse(
+            SendKgpUploadResponse(
+                pending.Value.Command,
                 pending.Value.Transmission,
                 storedImage: null,
                 $"EINVAL:{failure.FormatReason(token.ControlData.AsSpan())}",
@@ -6855,14 +6856,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         }
 
-        if (command is KgpParsedCommand.Transmit orphanContinuation &&
-            IsOrphanKgpContinuation(orphanContinuation))
+        if (IsOrphanKgpContinuation(command) &&
+            command.TryGetTransmission(out var orphanTransmission))
         {
-            SendKgpTransmissionResponse(
-                orphanContinuation.Transmission,
+            SendKgpUploadResponse(
+                command,
+                orphanTransmission,
                 storedImage: null,
                 "EILSEQ:No active chunked upload",
-                orphanContinuation.Quiet);
+                command.Quiet);
             return;
         }
 
@@ -6881,7 +6883,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             case KgpParsedCommand.Delete delete:
                 ProcessKgpDelete(delete.Selector);
                 break;
-            case KgpParsedCommand.AnimationFrame:
+            case KgpParsedCommand.AnimationFrame animationFrame:
+                ProcessKgpAnimationFrame(animationFrame, token.Payload);
+                break;
             case KgpParsedCommand.AnimationControl:
             case KgpParsedCommand.Compose:
                 break;
@@ -6889,9 +6893,21 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
 
     private static bool IsOrphanKgpContinuation(
-        KgpParsedCommand.Transmit command)
-        => command.ControlKeys.Contains('m') &&
-           command.ControlKeys.IsSubsetOf(KgpImageContinuationControls);
+        KgpParsedCommand command)
+    {
+        if (!command.ControlKeys.Contains('m'))
+            return false;
+
+        return command switch
+        {
+            KgpParsedCommand.Transmit transmit
+                => transmit.ControlKeys.IsSubsetOf(KgpImageContinuationControls),
+            KgpParsedCommand.AnimationFrame animationFrame
+                => animationFrame.ControlKeys.Contains('a') &&
+                   animationFrame.ControlKeys.IsSubsetOf(KgpFrameContinuationControls),
+            _ => false,
+        };
+    }
 
     private void ProcessKgpParseFailure(
         KgpCommandParser.Failure failure,
@@ -6951,10 +6967,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             case KgpImageStore.ChunkStatus.Incomplete:
                 return;
             case KgpImageStore.ChunkStatus.TooLarge:
-                SendKgpTransmissionResponse(
+                var dataKind =
+                    (result.InitialCommand ?? pending.Command) is
+                        KgpParsedCommand.AnimationFrame
+                            ? "frame"
+                            : "image";
+                SendKgpUploadResponse(
+                    result.InitialCommand ?? pending.Command,
                     result.Transmission,
                     storedImage: null,
-                    $"EFBIG:Too much image data: {result.AttemptedLength} > {result.MaximumLength}",
+                    $"EFBIG:Too much {dataKind} data: {result.AttemptedLength} > {result.MaximumLength}",
                     result.Quiet);
                 return;
             case KgpImageStore.ChunkStatus.Complete:
@@ -6964,7 +6986,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         "A terminal KGP upload completed without its initial command.");
                 }
 
-                CompleteKgpTransmission(
+                CompleteKgpUpload(
                     result.InitialCommand,
                     result.Quiet,
                     result.Data!);
@@ -7009,11 +7031,74 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         KgpParsedCommand.QuietMode quiet)
     {
         ActiveKgpImageStore.AbortChunkedTransfer();
-        SendKgpTransmissionResponse(
+        SendKgpUploadResponse(
+            pending.Command,
             pending.Transmission,
             storedImage: null,
             message,
             quiet);
+    }
+
+    private void ProcessKgpAnimationFrame(
+        KgpParsedCommand.AnimationFrame command,
+        string base64Payload)
+    {
+        var info = ActiveKgpImageStore.GetAnimationFrameInfo(command);
+        if (info.Status != KgpImageStore.AnimationFrameStatus.Success)
+        {
+            SendKgpFrameResponse(
+                command,
+                info,
+                storedImage: null,
+                FormatKgpAnimationFrameError(info, actualDataLength: null),
+                command.Quiet);
+            return;
+        }
+
+        var maximumEncodedLength = command.Transmission.MoreData
+            ? KgpMaximumEncodedChunkLength
+            : GetMaximumKgpEncodedPayloadLength();
+        if (!TryDecodeKgpPayload(
+                base64Payload,
+                command.Transmission.MoreData,
+                maximumEncodedLength,
+                out var decodedData,
+                out var payloadError))
+        {
+            SendKgpFrameResponse(
+                command,
+                info,
+                storedImage: null,
+                FormatKgpPayloadError(payloadError, maximumEncodedLength),
+                command.Quiet);
+            return;
+        }
+
+        if (command.Transmission.MoreData)
+        {
+            var result = ActiveKgpImageStore.ProcessChunk(
+                command,
+                decodedData,
+                info.ExpectedDataLength);
+            switch (result.Status)
+            {
+                case KgpImageStore.ChunkStatus.Incomplete:
+                    return;
+                case KgpImageStore.ChunkStatus.TooLarge:
+                    SendKgpFrameResponse(
+                        command,
+                        info,
+                        storedImage: null,
+                        $"EFBIG:Too much frame data: {result.AttemptedLength} > {result.MaximumLength}",
+                        result.Quiet);
+                    return;
+                default:
+                    throw new InvalidOperationException(
+                        $"Unexpected initial KGP frame chunk status: {result.Status}.");
+            }
+        }
+
+        CompleteKgpAnimationFrame(command, command.Quiet, decodedData);
     }
 
     private void ProcessKgpTransmission(
@@ -7091,6 +7176,42 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         CompleteKgpTransmission(command, command.Quiet, decodedData);
+    }
+
+    private void CompleteKgpUpload(
+        KgpParsedCommand command,
+        KgpParsedCommand.QuietMode quiet,
+        byte[] decodedData)
+    {
+        if (command is KgpParsedCommand.AnimationFrame animationFrame)
+        {
+            CompleteKgpAnimationFrame(animationFrame, quiet, decodedData);
+            return;
+        }
+
+        CompleteKgpTransmission(command, quiet, decodedData);
+    }
+
+    private void CompleteKgpAnimationFrame(
+        KgpParsedCommand.AnimationFrame command,
+        KgpParsedCommand.QuietMode quiet,
+        byte[] decodedData)
+    {
+        var result = ActiveKgpImageStore.StoreAnimationFrame(
+            command,
+            decodedData);
+        var message = result.Info.Status ==
+            KgpImageStore.AnimationFrameStatus.Success
+                ? "OK"
+                : FormatKgpAnimationFrameError(
+                    result.Info,
+                    decodedData.LongLength);
+        SendKgpFrameResponse(
+            command,
+            result.Info,
+            result.Image,
+            message,
+            quiet);
     }
 
     private bool TryGetKgpUploadLimit(
@@ -7267,6 +7388,102 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
+    private void SendKgpUploadResponse(
+        KgpParsedCommand command,
+        KgpParsedCommand.TransmissionData transmission,
+        KgpImageData? storedImage,
+        string message,
+        KgpParsedCommand.QuietMode quiet)
+    {
+        if (command is KgpParsedCommand.AnimationFrame animationFrame)
+        {
+            var info = ActiveKgpImageStore.GetAnimationFrameInfo(animationFrame);
+            SendKgpFrameResponse(
+                animationFrame,
+                info,
+                storedImage,
+                message,
+                quiet);
+            return;
+        }
+
+        SendKgpTransmissionResponse(
+            transmission,
+            storedImage,
+            message,
+            quiet);
+    }
+
+    private void SendKgpFrameResponse(
+        KgpParsedCommand.AnimationFrame command,
+        KgpImageStore.AnimationFrameInfo info,
+        KgpImageData? storedImage,
+        string message,
+        KgpParsedCommand.QuietMode quiet)
+    {
+        uint imageId;
+        uint imageNumber;
+        switch (command.Transmission.IdentityKind)
+        {
+            case KgpParsedCommand.ImageIdentityKind.ExplicitId:
+                imageId = info.ImageId > 0
+                    ? info.ImageId
+                    : command.Transmission.ImageId;
+                imageNumber = 0;
+                break;
+            case KgpParsedCommand.ImageIdentityKind.Number:
+                imageId = storedImage?.ImageId ?? info.ImageId;
+                imageNumber = command.Transmission.ImageNumber;
+                break;
+            default:
+                return;
+        }
+
+        SendKgpResponse(
+            imageId,
+            imageNumber,
+            message,
+            (int)quiet,
+            info.FrameNumber);
+    }
+
+    private static string FormatKgpAnimationFrameError(
+        KgpImageStore.AnimationFrameInfo info,
+        long? actualDataLength)
+        => info.Status switch
+        {
+            KgpImageStore.AnimationFrameStatus.InvalidIdentity
+                => "EINVAL:Image ID or number required",
+            KgpImageStore.AnimationFrameStatus.ImageNotFound
+                => "ENOENT:Image not found",
+            KgpImageStore.AnimationFrameStatus.UnsupportedMedium
+                => "EINVAL:Animation frame transmission requires direct data",
+            KgpImageStore.AnimationFrameStatus.UnsupportedCompression
+                => "EINVAL:Animation frame compression is not supported",
+            KgpImageStore.AnimationFrameStatus.UnsupportedFormat
+                => "EINVAL:Animation frames require RGB or RGBA data",
+            KgpImageStore.AnimationFrameStatus.UnsupportedBaseFormat
+                => "EINVAL:Animation requires a decoded RGB or RGBA base image",
+            KgpImageStore.AnimationFrameStatus.InvalidBaseData
+                => "EINVAL:Base image data does not match its dimensions",
+            KgpImageStore.AnimationFrameStatus.InvalidDimensions
+                => "EINVAL:Frame dimensions exceed image dimensions",
+            KgpImageStore.AnimationFrameStatus.BaseFrameNotFound
+                => "EINVAL:Base frame not found",
+            KgpImageStore.AnimationFrameStatus.InsufficientData
+                => $"ENODATA:Insufficient frame data: {actualDataLength ?? 0} < {info.ExpectedDataLength}",
+            KgpImageStore.AnimationFrameStatus.TooMuchData
+                => $"EFBIG:Too much frame data: {actualDataLength ?? 0} > {info.ExpectedDataLength}",
+            KgpImageStore.AnimationFrameStatus.NoSpace
+                => "ENOSPC:Animation frame storage full",
+            KgpImageStore.AnimationFrameStatus.OutOfMemory
+                => "ENOMEM:Out of memory",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(info),
+                info.Status,
+                "Expected a KGP animation frame error."),
+        };
+
     private void ProcessKgpQuery(
         KgpParsedCommand.TransmissionData command,
         KgpParsedCommand.QuietMode quiet,
@@ -7421,8 +7638,21 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 RemoveMaterialized(
                     placement => placement.IntersectsCell(_cursorY, _cursorX));
                 break;
-            case KgpParsedCommand.DeleteSelector.AnimationFrames:
+            case KgpParsedCommand.DeleteSelector.AnimationFrames frames:
+            {
+                var result = ActiveKgpImageStore.DeleteAnimationFrame(
+                    frames.ImageId,
+                    frames.ImageNumber,
+                    frames.FrameNumber,
+                    frames.FreeData);
+                if (result.Status ==
+                    KgpImageStore.AnimationFrameDeleteStatus.ImageRemoved)
+                {
+                    _kgpGraphicsState.RemoveActiveImageReferences(
+                        result.ImageId);
+                }
                 break;
+            }
             case KgpParsedCommand.DeleteSelector.AtCell atCell:
                 RemoveMaterialized(
                     placement => placement.IntersectsCell(
@@ -7561,7 +7791,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 "Expected a KGP placement error."),
         };
 
-    private void SendKgpResponse(uint imageId, uint imageNumber, string message, int quiet)
+    private void SendKgpResponse(
+        uint imageId,
+        uint imageNumber,
+        string message,
+        int quiet,
+        uint frameNumber = 0)
     {
         // q=1 suppresses OK, q=2 suppresses all responses
         if (quiet >= 2) return;
@@ -7583,6 +7818,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (imageId > 0)
                 response.Append(',');
             response.Append($"I={imageNumber}");
+        }
+        if (frameNumber > 0)
+        {
+            if (imageId > 0 || imageNumber > 0)
+                response.Append(',');
+            response.Append($"r={frameNumber}");
         }
 
         response.Append(';');

@@ -255,16 +255,16 @@ public static class TerminalRegionSvgExtensions
                 if (placeholderImageDefinitions.ContainsKey(placement.ImageId) ||
                     !snapshot2.KgpImages.TryGetValue(placement.ImageId, out var image) ||
                     (placement.RenderGeometry is null &&
-                     image.Format != KgpFormat.Png))
+                     image.CurrentFrameFormat != KgpFormat.Png))
                 {
                     continue;
                 }
 
                 var dataUri = EncodeKgpImageToDataUri(
-                    image.Data,
+                    image.CurrentFrameData,
                     image.Width,
                     image.Height,
-                    image.Format);
+                    image.CurrentFrameFormat);
                 if (dataUri is not null)
                 {
                     placeholderImageDefinitions.Add(
@@ -316,7 +316,7 @@ public static class TerminalRegionSvgExtensions
                         sb.AppendLine($"""    <clipPath id="{placeholderClipId}"><rect x="{FormatSvgNumber(clipX)}" y="{FormatSvgNumber(clipY)}" width="{FormatSvgNumber(clipWidth)}" height="{FormatSvgNumber(clipHeight)}"/></clipPath>""");
                         sb.AppendLine($"""    <g clip-path="url(#{placeholderClipId})"><use href="#{definition.ElementId}" x="{FormatSvgNumber(imageX)}" y="{FormatSvgNumber(imageY)}" width="{FormatSvgNumber(imageWidth)}" height="{FormatSvgNumber(imageHeight)}" data-image-id="{placement.ImageId}" style="image-rendering: pixelated;"/></g>""");
                     }
-                    else if (imageData.Format == KgpFormat.Png)
+                    else if (imageData.CurrentFrameFormat == KgpFormat.Png)
                     {
                         var destinationX = placement.Column * cellWidth;
                         var destinationY = placement.Row * cellHeight;
@@ -363,10 +363,10 @@ public static class TerminalRegionSvgExtensions
                         var imgWidth = (int)placement.DisplayColumns * cellWidth;
                         var imgHeight = (int)placement.DisplayRows * cellHeight;
                         var dataUri = EncodeKgpImageToDataUri(
-                            imageData.Data,
+                            imageData.CurrentFrameData,
                             imageData.Width,
                             imageData.Height,
-                            imageData.Format,
+                            imageData.CurrentFrameFormat,
                             placement.SourceX,
                             placement.SourceY,
                             placement.SourceWidth,
