@@ -27,6 +27,7 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     private readonly CancellationTokenSource _readCts = new();
     private readonly SemaphoreSlim _outputWriteLock = new(1, 1);
     private readonly object _lifecycleLock = new();
+    private readonly AsyncLocal<int> _operationDepth = new();
     private readonly byte[] _pendingOutputUtf8 = new byte[3];
     private int _pendingOutputUtf8Count;
     private int _activeWriters;
@@ -199,6 +200,8 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         if (data.IsEmpty || !TryBeginWriter())
             return;
 
+        var previousOperationDepth = _operationDepth.Value;
+        _operationDepth.Value = previousOperationDepth + 1;
         var lockTaken = false;
         try
         {
@@ -238,6 +241,7 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         {
             if (lockTaken)
                 _outputWriteLock.Release();
+            _operationDepth.Value = previousOperationDepth;
             CompleteWriter();
         }
     }
@@ -336,12 +340,15 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         if (!TryBeginReader())
             return ReadOnlyMemory<byte>.Empty;
 
+        var previousOperationDepth = _operationDepth.Value;
+        _operationDepth.Value = previousOperationDepth + 1;
         try
         {
             return await ReadInputCoreAsync(ct);
         }
         finally
         {
+            _operationDepth.Value = previousOperationDepth;
             CompleteReader();
         }
     }
@@ -466,38 +473,48 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     public (int Row, int Column) GetCursorPosition() => (0, 0);
 
     /// <inheritdoc />
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        Task? existingDisposal;
-        Task writersDrained = Task.CompletedTask;
-        TaskCompletionSource? disposeCompletion = null;
+        Task disposeTask;
+        TaskCompletionSource? startCompletion = null;
         lock (_lifecycleLock)
         {
             if (_disposeCompletion is { } existing)
             {
-                existingDisposal = existing.Task;
+                disposeTask = existing.Task;
             }
             else
             {
                 _disposed = true;
-                disposeCompletion = new(
+                startCompletion = new(
                     TaskCreationOptions.RunContinuationsAsynchronously);
-                _disposeCompletion = disposeCompletion;
-                existingDisposal = null;
-                if (_activeWriters > 0)
-                    writersDrained = _writersDrained!.Task;
+                _disposeCompletion = startCompletion;
+                disposeTask = startCompletion.Task;
             }
         }
 
-        if (existingDisposal is not null)
-        {
-            await existingDisposal;
-            return;
-        }
+        if (startCompletion is not null)
+            _ = DisposeCoreAsync(startCompletion);
 
+        return _operationDepth.Value > 0 && !disposeTask.IsCompleted
+            ? ValueTask.CompletedTask
+            : new ValueTask(disposeTask);
+    }
+
+    private async Task DisposeCoreAsync(
+        TaskCompletionSource disposeCompletion)
+    {
+        var previousOperationDepth = _operationDepth.Value;
+        _operationDepth.Value = previousOperationDepth + 1;
         try
         {
-            Disconnected?.Invoke();
+            Task writersDrained;
+            lock (_lifecycleLock)
+            {
+                writersDrained = _activeWriters == 0
+                    ? Task.CompletedTask
+                    : _writersDrained!.Task;
+            }
             await writersDrained;
             await _outputWriteLock.WaitAsync(CancellationToken.None);
             try
@@ -528,21 +545,37 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         {
             try
             {
-                _readCts.Cancel();
-                Task readersDrained;
-                lock (_lifecycleLock)
+                try
                 {
-                    readersDrained = _activeReaders == 0
-                        ? Task.CompletedTask
-                        : _readersDrained!.Task;
+                    _readCts.Cancel();
+                    Task readersDrained;
+                    lock (_lifecycleLock)
+                    {
+                        readersDrained = _activeReaders == 0
+                            ? Task.CompletedTask
+                            : _readersDrained!.Task;
+                    }
+                    await readersDrained;
                 }
-                await readersDrained;
+                finally
+                {
+                    _readCts.Dispose();
+                    _outputWriteLock.Dispose();
+                    disposeCompletion.TrySetResult();
+                    try
+                    {
+                        Disconnected?.Invoke();
+                    }
+                    catch
+                    {
+                        // Disposal is already complete; observers cannot affect
+                        // resource cleanup or other disposal callers.
+                    }
+                }
             }
             finally
             {
-                _readCts.Dispose();
-                _outputWriteLock.Dispose();
-                disposeCompletion!.TrySetResult();
+                _operationDepth.Value = previousOperationDepth;
             }
         }
     }

@@ -257,6 +257,102 @@ public class WebSocketPresentationAdapterTests
         Assert.IsEmpty(webSocket.SentFrames);
     }
 
+    [TestMethod]
+    public async Task DisposeAsync_DisconnectedHandlerReentersDisposal_DoesNotDeadlock()
+    {
+        using var webSocket = new StubWebSocket();
+        var adapter = new WebSocketPresentationAdapter(
+            webSocket,
+            80,
+            24);
+        adapter.Disconnected += () =>
+            adapter.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+        await Task.WhenAll(
+                adapter.DisposeAsync().AsTask(),
+                adapter.DisposeAsync().AsTask())
+            .WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.AreEqual(1, webSocket.CloseOutputCount);
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_ResizeReaderReentersWithOutstandingReceive_DoesNotDeadlock()
+    {
+        using var webSocket = new StubWebSocket
+        {
+            BlockReceivesUntilCancelled = true,
+            ResizeOnReceiveCall = 2,
+        };
+        var adapter = new WebSocketPresentationAdapter(
+            webSocket,
+            80,
+            24);
+        adapter.Resized += (_, _) =>
+            adapter.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        var outstandingReceive = adapter.ReadInputAsync().AsTask();
+        await webSocket.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var resizeReceive = adapter.ReadInputAsync().AsTask();
+        await Task.WhenAll(outstandingReceive, resizeReceive)
+            .WaitAsync(TimeSpan.FromSeconds(2));
+        await adapter.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.AreEqual(1, webSocket.CloseOutputCount);
+        Assert.AreEqual(WebSocketState.Aborted, webSocket.CurrentState);
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_SendCallbackReentersDisposal_DoesNotDeadlock()
+    {
+        using var webSocket = new StubWebSocket();
+        var adapter = new WebSocketPresentationAdapter(
+            webSocket,
+            80,
+            24);
+        webSocket.SendCallback = () =>
+            adapter.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+        await adapter.WriteOutputAsync("value"u8.ToArray())
+            .AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(2));
+        await adapter.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.AreEqual(
+            "value",
+            Encoding.UTF8.GetString(TestSeq.Single(webSocket.SentFrames).Data));
+        Assert.AreEqual(1, webSocket.CloseOutputCount);
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_CleanupCallbacksReenterDisposal_DoesNotDeadlock()
+    {
+        using var webSocket = new StubWebSocket
+        {
+            BlockReceivesUntilCancelled = true,
+        };
+        var adapter = new WebSocketPresentationAdapter(
+            webSocket,
+            80,
+            24);
+        var receive = adapter.ReadInputAsync().AsTask();
+        await webSocket.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await adapter.WriteOutputAsync(new byte[] { 0xF0 });
+        Action reenter = () =>
+            adapter.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        webSocket.SendCallback = reenter;
+        webSocket.CloseOutputCallback = reenter;
+        webSocket.ReceiveCancelledCallback = reenter;
+
+        await adapter.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+        await receive.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.AreEqual(
+            "\uFFFD",
+            Encoding.UTF8.GetString(TestSeq.Single(webSocket.SentFrames).Data));
+        Assert.AreEqual(1, webSocket.CloseOutputCount);
+    }
+
     private static void AssertValidUtf8(
         IEnumerable<StubWebSocket.SentFrame> frames)
     {
@@ -288,6 +384,10 @@ public class WebSocketPresentationAdapterTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal ConcurrentQueue<string> LifecycleEvents { get; } = new();
         internal bool BlockReceivesUntilCancelled { get; init; }
+        internal int ResizeOnReceiveCall { get; init; }
+        internal Action? SendCallback { get; set; }
+        internal Action? CloseOutputCallback { get; set; }
+        internal Action? ReceiveCancelledCallback { get; set; }
         internal int CloseOutputCount { get; private set; }
         internal WebSocketState CurrentState { get; set; } =
             WebSocketState.Open;
@@ -315,6 +415,9 @@ public class WebSocketPresentationAdapterTests
 
         public override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
         {
+            var callback = CloseOutputCallback;
+            CloseOutputCallback = null;
+            callback?.Invoke();
             CloseOutputCount++;
             LifecycleEvents.Enqueue("close-output");
             CurrentState = WebSocketState.CloseSent;
@@ -334,6 +437,17 @@ public class WebSocketPresentationAdapterTests
             Memory<byte> buffer,
             CancellationToken cancellationToken = default)
         {
+            var receiveCall = Interlocked.Increment(ref _receiveCallCount);
+            if (receiveCall == ResizeOnReceiveCall)
+            {
+                var resize = """{"type":"resize","cols":100,"rows":40}"""u8;
+                resize.CopyTo(buffer.Span);
+                return new ValueWebSocketReceiveResult(
+                    resize.Length,
+                    WebSocketMessageType.Text,
+                    endOfMessage: true);
+            }
+
             if (!BlockReceivesUntilCancelled)
                 throw new NotSupportedException();
 
@@ -346,6 +460,9 @@ public class WebSocketPresentationAdapterTests
             }
             catch (OperationCanceledException)
             {
+                var callback = ReceiveCancelledCallback;
+                ReceiveCancelledCallback = null;
+                callback?.Invoke();
                 LifecycleEvents.Enqueue("receive-cancelled");
                 CurrentState = WebSocketState.Aborted;
                 throw;
@@ -365,6 +482,10 @@ public class WebSocketPresentationAdapterTests
             bool endOfMessage,
             CancellationToken cancellationToken = default)
         {
+            var callback = SendCallback;
+            SendCallback = null;
+            callback?.Invoke();
+
             if (BlockSends)
             {
                 SendStarted.TrySetResult();
@@ -377,5 +498,7 @@ public class WebSocketPresentationAdapterTests
                 endOfMessage));
             LifecycleEvents.Enqueue("send");
         }
+
+        private int _receiveCallCount;
     }
 }

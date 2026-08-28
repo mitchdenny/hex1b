@@ -20,7 +20,9 @@ internal static class KgpPngMetadata
         if (data.Length < 33 ||
             !data[..8].SequenceEqual(Signature) ||
             BinaryPrimitives.ReadUInt32BigEndian(data[8..12]) != 13 ||
-            !data[12..16].SequenceEqual("IHDR"u8))
+            !data[12..16].SequenceEqual("IHDR"u8) ||
+            BinaryPrimitives.ReadUInt32BigEndian(data[29..33]) !=
+                ComputeCrc32(data[12..29]))
         {
             return false;
         }
@@ -38,5 +40,21 @@ internal static class KgpPngMetadata
         }
 
         return true;
+    }
+
+    private static uint ComputeCrc32(ReadOnlySpan<byte> data)
+    {
+        var crc = uint.MaxValue;
+        foreach (var value in data)
+        {
+            crc ^= value;
+            for (var bit = 0; bit < 8; bit++)
+            {
+                crc = (crc & 1) != 0
+                    ? (crc >> 1) ^ 0xEDB88320u
+                    : crc >> 1;
+            }
+        }
+        return ~crc;
     }
 }
