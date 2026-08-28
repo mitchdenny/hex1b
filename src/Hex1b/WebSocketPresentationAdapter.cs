@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -15,13 +16,18 @@ namespace Hex1b;
 /// </remarks>
 public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAdapter
 {
+    private readonly record struct PreparedUtf8Output(
+        byte[] CompleteBytes,
+        byte[] PendingBytes);
+
     private const string ResizeTraceFileEnvironmentVariable = "HEX1B_WEBSOCKET_RESIZE_TRACE_FILE";
     private const string OutputTraceFileEnvironmentVariable = "HEX1B_WEBSOCKET_OUTPUT_TRACE_FILE";
 
     private readonly WebSocket _webSocket;
     private readonly CancellationTokenSource _disposeCts = new();
     private readonly SemaphoreSlim _outputWriteLock = new(1, 1);
-    private int _pendingOutputUtf8ContinuationBytes;
+    private readonly byte[] _pendingOutputUtf8 = new byte[3];
+    private int _pendingOutputUtf8Count;
     private bool _disposed;
     private int _width;
     private int _height;
@@ -198,19 +204,23 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
             await _outputWriteLock.WaitAsync(linkedCts.Token);
             lockTaken = true;
-            var pendingContinuationBytes = GetPendingUtf8ContinuationBytes(
+            var prepared = PrepareUtf8Output(
                 data.Span,
-                _pendingOutputUtf8ContinuationBytes);
+                flush: false);
+            if (prepared.CompleteBytes.Length > 0)
+            {
+                await _webSocket.SendAsync(
+                    prepared.CompleteBytes,
+                    WebSocketMessageType.Text,
+                    endOfMessage: true,
+                    linkedCts.Token);
+            }
+            else
+            {
+                linkedCts.Token.ThrowIfCancellationRequested();
+            }
 
-            // A WebSocket text message must contain valid UTF-8 as a whole. Keep
-            // a message open across terminal writes that split a scalar while
-            // still sending every raw byte frame immediately.
-            await _webSocket.SendAsync(
-                data,
-                WebSocketMessageType.Text,
-                endOfMessage: pendingContinuationBytes == 0,
-                linkedCts.Token);
-            _pendingOutputUtf8ContinuationBytes = pendingContinuationBytes;
+            CommitPendingUtf8(prepared.PendingBytes);
         }
         catch (WebSocketException)
         {
@@ -227,30 +237,61 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         }
     }
 
-    private static int GetPendingUtf8ContinuationBytes(
+    private PreparedUtf8Output PrepareUtf8Output(
         ReadOnlySpan<byte> data,
-        int pendingContinuationBytes)
+        bool flush)
     {
-        foreach (var value in data)
-        {
-            if (pendingContinuationBytes > 0 &&
-                (value & 0xC0) == 0x80)
-            {
-                pendingContinuationBytes--;
-                continue;
-            }
+        var input = new byte[_pendingOutputUtf8Count + data.Length];
+        _pendingOutputUtf8
+            .AsSpan(0, _pendingOutputUtf8Count)
+            .CopyTo(input);
+        data.CopyTo(input.AsSpan(_pendingOutputUtf8Count));
 
-            pendingContinuationBytes = value switch
+        var complete = new List<byte>(input.Length);
+        byte[] pending = [];
+        for (var offset = 0; offset < input.Length;)
+        {
+            var status = Rune.DecodeFromUtf8(
+                input.AsSpan(offset),
+                out _,
+                out var consumed);
+            switch (status)
             {
-                <= 0x7F => 0,
-                >= 0xC2 and <= 0xDF => 1,
-                >= 0xE0 and <= 0xEF => 2,
-                >= 0xF0 and <= 0xF4 => 3,
-                _ => 0,
-            };
+                case OperationStatus.Done:
+                    complete.AddRange(
+                        input.AsSpan(offset, consumed));
+                    offset += consumed;
+                    break;
+                case OperationStatus.NeedMoreData when !flush:
+                    pending = input[offset..];
+                    offset = input.Length;
+                    break;
+                case OperationStatus.NeedMoreData:
+                case OperationStatus.InvalidData:
+                    complete.AddRange([0xEF, 0xBF, 0xBD]);
+                    offset += Math.Max(consumed, 1);
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        $"Unsupported UTF-8 decode status: {status}.");
+            }
         }
 
-        return pendingContinuationBytes;
+        return new PreparedUtf8Output(
+            complete.ToArray(),
+            pending);
+    }
+
+    private void CommitPendingUtf8(ReadOnlySpan<byte> pending)
+    {
+        if (pending.Length > _pendingOutputUtf8.Length)
+        {
+            throw new InvalidOperationException(
+                "A UTF-8 scalar cannot require more than three pending bytes.");
+        }
+
+        pending.CopyTo(_pendingOutputUtf8);
+        _pendingOutputUtf8Count = pending.Length;
     }
 
     /// <inheritdoc />
@@ -347,7 +388,10 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         Disconnected?.Invoke();
 
         _disposeCts.Cancel();
-        _disposeCts.Dispose();
+        await FlushPendingOutputAsync();
+        // A writer may have passed its initial disposed check but not yet read
+        // this token. Keep the canceled source available so that admitted
+        // writers observe cancellation instead of ObjectDisposedException.
 
         if (_webSocket.State == WebSocketState.Open)
         {
@@ -359,6 +403,32 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
             {
                 // Ignore close errors
             }
+        }
+    }
+
+    private async ValueTask FlushPendingOutputAsync()
+    {
+        await _outputWriteLock.WaitAsync(CancellationToken.None);
+        try
+        {
+            var prepared = PrepareUtf8Output([], flush: true);
+            if (prepared.CompleteBytes.Length > 0 &&
+                _webSocket.State == WebSocketState.Open)
+            {
+                await _webSocket.SendAsync(
+                    prepared.CompleteBytes,
+                    WebSocketMessageType.Text,
+                    endOfMessage: true,
+                    CancellationToken.None);
+            }
+        }
+        catch (WebSocketException)
+        {
+        }
+        finally
+        {
+            _pendingOutputUtf8Count = 0;
+            _outputWriteLock.Release();
         }
     }
 

@@ -246,12 +246,13 @@ public static class TerminalRegionSvgExtensions
                 .ThenBy(placement => placement.ImageId)
                 .ToList();
             var placeholderImageDefinitions =
-                new Dictionary<uint, (string ElementId, string DataUri, uint Width, uint Height)>();
+                new Dictionary<uint, (string ElementId, string DataUri)>();
             foreach (var placement in sortedPlacements)
             {
-                if (placement.RenderGeometry is null ||
-                    placeholderImageDefinitions.ContainsKey(placement.ImageId) ||
-                    !snapshot2.KgpImages.TryGetValue(placement.ImageId, out var image))
+                if (placeholderImageDefinitions.ContainsKey(placement.ImageId) ||
+                    !snapshot2.KgpImages.TryGetValue(placement.ImageId, out var image) ||
+                    (placement.RenderGeometry is null &&
+                     image.Format != KgpFormat.Png))
                 {
                     continue;
                 }
@@ -267,9 +268,7 @@ public static class TerminalRegionSvgExtensions
                         placement.ImageId,
                         (
                             $"kgp-placeholder-image-{placeholderImageDefinitions.Count}",
-                            dataUri,
-                            image.Width,
-                            image.Height));
+                            dataUri));
                 }
             }
 
@@ -278,7 +277,7 @@ public static class TerminalRegionSvgExtensions
                 sb.AppendLine("    <defs>");
                 foreach (var definition in placeholderImageDefinitions.Values)
                 {
-                    sb.AppendLine($"""      <symbol id="{definition.ElementId}" viewBox="0 0 {definition.Width} {definition.Height}" preserveAspectRatio="none"><image x="0" y="0" width="{definition.Width}" height="{definition.Height}" href="{definition.DataUri}" preserveAspectRatio="none"/></symbol>""");
+                    sb.AppendLine($"""      <symbol id="{definition.ElementId}" viewBox="0 0 1 1" preserveAspectRatio="none"><image x="0" y="0" width="1" height="1" href="{definition.DataUri}" preserveAspectRatio="none"/></symbol>""");
                 }
                 sb.AppendLine("    </defs>");
             }
@@ -313,6 +312,46 @@ public static class TerminalRegionSvgExtensions
                             $"kgp-placeholder-clip-{placeholderClipIndex++}";
                         sb.AppendLine($"""    <clipPath id="{placeholderClipId}"><rect x="{FormatSvgNumber(clipX)}" y="{FormatSvgNumber(clipY)}" width="{FormatSvgNumber(clipWidth)}" height="{FormatSvgNumber(clipHeight)}"/></clipPath>""");
                         sb.AppendLine($"""    <g clip-path="url(#{placeholderClipId})"><use href="#{definition.ElementId}" x="{FormatSvgNumber(imageX)}" y="{FormatSvgNumber(imageY)}" width="{FormatSvgNumber(imageWidth)}" height="{FormatSvgNumber(imageHeight)}" data-image-id="{placement.ImageId}" style="image-rendering: pixelated;"/></g>""");
+                    }
+                    else if (imageData.Format == KgpFormat.Png)
+                    {
+                        var destinationX = placement.Column * cellWidth;
+                        var destinationY = placement.Row * cellHeight;
+                        var destinationWidth =
+                            (double)placement.DisplayColumns * cellWidth;
+                        var destinationHeight =
+                            (double)placement.DisplayRows * cellHeight;
+                        if (!placeholderImageDefinitions.TryGetValue(
+                                placement.ImageId,
+                                out var definition) ||
+                            !TryGetPngRenderBounds(
+                                placement,
+                                imageData,
+                                destinationX,
+                                destinationY,
+                                destinationWidth,
+                                destinationHeight,
+                                out var imageX,
+                                out var imageY,
+                                out var imageWidth,
+                                out var imageHeight,
+                                out var requiresClip))
+                        {
+                            continue;
+                        }
+
+                        var imageUse = $"""<use href="#{definition.ElementId}" x="{FormatSvgNumber(imageX)}" y="{FormatSvgNumber(imageY)}" width="{FormatSvgNumber(imageWidth)}" height="{FormatSvgNumber(imageHeight)}" data-image-id="{placement.ImageId}" style="image-rendering: pixelated;"/>""";
+                        if (requiresClip)
+                        {
+                            var pngClipId =
+                                $"kgp-png-clip-{placeholderClipIndex++}";
+                            sb.AppendLine($"""    <clipPath id="{pngClipId}"><rect x="{FormatSvgNumber(destinationX)}" y="{FormatSvgNumber(destinationY)}" width="{FormatSvgNumber(destinationWidth)}" height="{FormatSvgNumber(destinationHeight)}"/></clipPath>""");
+                            sb.AppendLine($"""    <g clip-path="url(#{pngClipId})">{imageUse}</g>""");
+                        }
+                        else
+                        {
+                            sb.AppendLine($"    {imageUse}");
+                        }
                     }
                     else
                     {
@@ -631,14 +670,7 @@ public static class TerminalRegionSvgExtensions
             return null;
 
         if (format == KgpFormat.Png)
-        {
-            return sourceX == 0 &&
-                sourceY == 0 &&
-                sourceWidth == 0 &&
-                sourceHeight == 0
-                    ? "data:image/png;base64," + Convert.ToBase64String(data)
-                    : null;
-        }
+            return "data:image/png;base64," + Convert.ToBase64String(data);
 
         var bytesPerPixel = format == KgpFormat.Rgb24 ? 3 : 4;
         if (!TryGetRasterCrop(
@@ -850,6 +882,87 @@ public static class TerminalRegionSvgExtensions
             ? fullHeight - cropY
             : checked((int)Math.Min(sourceHeight, height - sourceY));
         return cropWidth > 0 && cropHeight > 0;
+    }
+
+    private static bool TryGetPngRenderBounds(
+        KgpPlacement placement,
+        KgpImageData image,
+        double destinationX,
+        double destinationY,
+        double destinationWidth,
+        double destinationHeight,
+        out double imageX,
+        out double imageY,
+        out double imageWidth,
+        out double imageHeight,
+        out bool requiresClip)
+    {
+        imageX = destinationX;
+        imageY = destinationY;
+        imageWidth = destinationWidth;
+        imageHeight = destinationHeight;
+        requiresClip = false;
+
+        double fullWidth;
+        double fullHeight;
+        if (image.Width > 0 && image.Height > 0)
+        {
+            fullWidth = image.Width;
+            fullHeight = image.Height;
+        }
+        else if (placement.SourceX == 0 &&
+                 placement.SourceY == 0 &&
+                 placement.SourceWidth > 0 &&
+                 placement.SourceHeight > 0)
+        {
+            // Some producers normalize a full PNG extent into x/y/w/h even
+            // though the transmission omits s/v. That is a full-image
+            // selection, so no pixel decoding is needed.
+            fullWidth = placement.SourceWidth;
+            fullHeight = placement.SourceHeight;
+        }
+        else
+        {
+            return placement.SourceX == 0 &&
+                placement.SourceY == 0 &&
+                placement.SourceWidth == 0 &&
+                placement.SourceHeight == 0;
+        }
+
+        if (placement.SourceX >= fullWidth ||
+            placement.SourceY >= fullHeight)
+        {
+            return false;
+        }
+
+        var sourceWidth = placement.SourceWidth > 0
+            ? Math.Min(placement.SourceWidth, fullWidth - placement.SourceX)
+            : fullWidth - placement.SourceX;
+        var sourceHeight = placement.SourceHeight > 0
+            ? Math.Min(placement.SourceHeight, fullHeight - placement.SourceY)
+            : fullHeight - placement.SourceY;
+        if (sourceWidth <= 0 || sourceHeight <= 0)
+            return false;
+
+        requiresClip = placement.SourceX > 0 ||
+            placement.SourceY > 0 ||
+            sourceWidth < fullWidth ||
+            sourceHeight < fullHeight;
+        if (!requiresClip)
+            return true;
+
+        var scaleX = destinationWidth / sourceWidth;
+        var scaleY = destinationHeight / sourceHeight;
+        imageX = destinationX - placement.SourceX * scaleX;
+        imageY = destinationY - placement.SourceY * scaleY;
+        imageWidth = fullWidth * scaleX;
+        imageHeight = fullHeight * scaleY;
+        return double.IsFinite(imageX) &&
+            double.IsFinite(imageY) &&
+            double.IsFinite(imageWidth) &&
+            double.IsFinite(imageHeight) &&
+            imageWidth > 0 &&
+            imageHeight > 0;
     }
 
     private static string FormatSvgNumber(double value)

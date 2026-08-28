@@ -570,6 +570,65 @@ public partial class KgpUnicodePlaceholderTests
     }
 
     [TestMethod]
+    public void Svg_PngNormalizedFullSourceExtent_RendersAndDeduplicates()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, width: 8, height: 5);
+        var png = TestPng();
+        Apply(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=100,i=42,q=2",
+            png));
+        Apply(terminal, KgpTestHelper.BuildCommand(
+            "a=p,i=42,p=1,x=0,y=0,w=100,h=80,c=2,r=2,C=1,q=2"));
+        Apply(terminal, "\x1b[2;2H");
+        Apply(terminal, KgpTestHelper.BuildCommand(
+            "a=p,i=42,p=2,x=0,y=0,w=100,h=80,c=2,r=2,C=1,q=2"));
+
+        var svg = terminal.CreateSnapshot().ToSvg();
+        Assert.AreEqual(
+            1,
+            svg.Split("data:image/png;base64,", StringSplitOptions.None).Length - 1);
+        Assert.AreEqual(
+            2,
+            svg.Split("<use href=\"#kgp-placeholder-image-0\"", StringSplitOptions.None).Length - 1);
+        Assert.Contains(
+            $"data:image/png;base64,{Convert.ToBase64String(png)}",
+            svg);
+        Assert.Contains(
+            "<use href=\"#kgp-placeholder-image-0\" x=\"0\" y=\"0\" width=\"20\" height=\"40\"",
+            svg);
+        Assert.Contains(
+            "<use href=\"#kgp-placeholder-image-0\" x=\"10\" y=\"20\" width=\"20\" height=\"40\"",
+            svg);
+    }
+
+    [TestMethod]
+    public void Svg_PngPartialSourceExtent_UsesPositionedClippedOriginalImage()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, width: 8, height: 5);
+        var png = TestPng();
+        Apply(terminal, KgpTestHelper.BuildCommand(
+            "a=t,f=100,s=100,v=80,i=42,q=2",
+            png));
+        Apply(terminal, "\x1b[2;2H");
+        Apply(terminal, KgpTestHelper.BuildCommand(
+            "a=p,i=42,p=1,x=25,y=20,w=50,h=40,c=2,r=2,C=1,q=2"));
+
+        var svg = terminal.CreateSnapshot().ToSvg();
+        Assert.Contains(
+            $"data:image/png;base64,{Convert.ToBase64String(png)}",
+            svg);
+        Assert.Contains(
+            "<rect x=\"10\" y=\"20\" width=\"20\" height=\"40\"",
+            svg);
+        Assert.Contains(
+            "<use href=\"#kgp-placeholder-image-0\" x=\"0\" y=\"0\" width=\"40\" height=\"80\"",
+            svg);
+        Assert.Contains("clip-path=\"url(#kgp-png-clip-", svg);
+    }
+
+    [TestMethod]
     public void Placeholder_PortraitAspectFitClipsHorizontalDeadZone()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -686,4 +745,8 @@ public partial class KgpUnicodePlaceholderTests
                 : crc >> 1;
         }
     }
+
+    private static byte[] TestPng()
+        => Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
 }
