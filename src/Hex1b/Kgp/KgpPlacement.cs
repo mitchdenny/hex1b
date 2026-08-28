@@ -56,6 +56,16 @@ public sealed class KgpPlacement
     /// </remarks>
     public KgpPlacementRenderGeometry? RenderGeometry { get; }
 
+    internal long GraphId { get; }
+
+    internal long? ParentGraphId { get; }
+
+    internal int ParentOffsetHorizontal { get; }
+
+    internal int ParentOffsetVertical { get; }
+
+    internal bool IsRelative => ParentGraphId.HasValue;
+
     /// <summary>
     /// Creates a new KGP placement anchored at the specified cell position.
     /// </summary>
@@ -100,7 +110,11 @@ public sealed class KgpPlacement
             zIndex,
             cellOffsetX,
             cellOffsetY,
-            renderGeometry: null)
+            renderGeometry: null,
+            graphId: 0,
+            parentGraphId: null,
+            parentOffsetHorizontal: 0,
+            parentOffsetVertical: 0)
     {
     }
 
@@ -118,7 +132,8 @@ public sealed class KgpPlacement
         int zIndex,
         uint cellOffsetX,
         uint cellOffsetY,
-        KgpPlacementRenderGeometry renderGeometry)
+        KgpPlacementRenderGeometry renderGeometry,
+        long graphId = 0)
         : this(
             imageId,
             placementId,
@@ -133,7 +148,11 @@ public sealed class KgpPlacement
             zIndex,
             cellOffsetX,
             cellOffsetY,
-            (KgpPlacementRenderGeometry?)renderGeometry)
+            (KgpPlacementRenderGeometry?)renderGeometry,
+            graphId,
+            parentGraphId: null,
+            parentOffsetHorizontal: 0,
+            parentOffsetVertical: 0)
     {
     }
 
@@ -151,7 +170,11 @@ public sealed class KgpPlacement
         int zIndex,
         uint cellOffsetX,
         uint cellOffsetY,
-        KgpPlacementRenderGeometry? renderGeometry)
+        KgpPlacementRenderGeometry? renderGeometry,
+        long graphId,
+        long? parentGraphId,
+        int parentOffsetHorizontal,
+        int parentOffsetVertical)
     {
         ImageId = imageId;
         PlacementId = placementId;
@@ -167,6 +190,10 @@ public sealed class KgpPlacement
         CellOffsetX = cellOffsetX;
         CellOffsetY = cellOffsetY;
         RenderGeometry = renderGeometry;
+        GraphId = graphId;
+        ParentGraphId = parentGraphId;
+        ParentOffsetHorizontal = parentOffsetHorizontal;
+        ParentOffsetVertical = parentOffsetVertical;
     }
 
     /// <summary>
@@ -174,19 +201,21 @@ public sealed class KgpPlacement
     /// </summary>
     public bool IntersectsCell(int row, int column)
     {
-        return row >= Row && row < Row + (int)DisplayRows &&
-               column >= Column && column < Column + (int)DisplayColumns;
+        return row >= Row && (long)row < (long)Row + DisplayRows &&
+               column >= Column && (long)column < (long)Column + DisplayColumns;
     }
 
     /// <summary>
     /// Whether this placement intersects the given row.
     /// </summary>
-    public bool IntersectsRow(int row) => row >= Row && row < Row + (int)DisplayRows;
+    public bool IntersectsRow(int row)
+        => row >= Row && (long)row < (long)Row + DisplayRows;
 
     /// <summary>
     /// Whether this placement intersects the given column.
     /// </summary>
-    public bool IntersectsColumn(int column) => column >= Column && column < Column + (int)DisplayColumns;
+    public bool IntersectsColumn(int column)
+        => column >= Column && (long)column < (long)Column + DisplayColumns;
 
     internal KgpPlacement WithImageId(uint imageId)
         => new(
@@ -203,7 +232,11 @@ public sealed class KgpPlacement
             ZIndex,
             CellOffsetX,
             CellOffsetY,
-            RenderGeometry);
+            RenderGeometry,
+            GraphId,
+            ParentGraphId,
+            ParentOffsetHorizontal,
+            ParentOffsetVertical);
 
     internal KgpPlacement WithPosition(int row, int column)
         => new(
@@ -220,7 +253,36 @@ public sealed class KgpPlacement
             ZIndex,
             CellOffsetX,
             CellOffsetY,
-            RenderGeometry);
+            RenderGeometry,
+            GraphId,
+            ParentGraphId,
+            ParentOffsetHorizontal,
+            ParentOffsetVertical);
+
+    internal KgpPlacement WithGraphIdentity(
+        long graphId,
+        long? parentGraphId,
+        int parentOffsetHorizontal,
+        int parentOffsetVertical)
+        => new(
+            ImageId,
+            PlacementId,
+            Row,
+            Column,
+            DisplayColumns,
+            DisplayRows,
+            SourceX,
+            SourceY,
+            SourceWidth,
+            SourceHeight,
+            ZIndex,
+            CellOffsetX,
+            CellOffsetY,
+            RenderGeometry,
+            graphId,
+            parentGraphId,
+            parentOffsetHorizontal,
+            parentOffsetVertical);
 
     internal KgpPlacement? ClipToCellRectangle(
         KgpImageData image,
@@ -288,7 +350,12 @@ public sealed class KgpPlacement
             clippedSourceHeight,
             ZIndex,
             firstColumn == 0 ? CellOffsetX : 0,
-            firstRow == 0 ? CellOffsetY : 0);
+            firstRow == 0 ? CellOffsetY : 0,
+            RenderGeometry,
+            GraphId,
+            ParentGraphId,
+            ParentOffsetHorizontal,
+            ParentOffsetVertical);
     }
 
     internal KgpPlacement? ClipRows(
@@ -339,7 +406,12 @@ public sealed class KgpPlacement
             clippedSourceHeight,
             ZIndex,
             CellOffsetX,
-            firstRow == 0 ? CellOffsetY : 0);
+            firstRow == 0 ? CellOffsetY : 0,
+            RenderGeometry,
+            GraphId,
+            ParentGraphId,
+            ParentOffsetHorizontal,
+            ParentOffsetVertical);
     }
 
     internal KgpPlacement Clone()

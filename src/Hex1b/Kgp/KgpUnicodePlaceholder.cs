@@ -101,6 +101,69 @@ internal static class KgpUnicodePlaceholder
             destination);
     }
 
+    internal static void CollectOrigins(
+        ReadOnlySpan<TerminalCell> cells,
+        int absoluteRow,
+        IReadOnlyList<KgpVirtualPlacement> prototypes,
+        IReadOnlyDictionary<uint, KgpImageData> images,
+        int cellPixelWidth,
+        int cellPixelHeight,
+        Dictionary<long, (int Row, int Column)> origins)
+    {
+        PlacementRun? current = null;
+        for (var column = 0; column < cells.Length; column++)
+        {
+            if (!TryDecode(cells[column], out var decoded))
+            {
+                FinalizeOrigin(
+                    current,
+                    absoluteRow,
+                    prototypes,
+                    images,
+                    cellPixelWidth,
+                    cellPixelHeight,
+                    origins);
+                current = null;
+                continue;
+            }
+
+            if (current is { } run && CanAppend(run, decoded))
+            {
+                run.Width++;
+                current = run;
+                continue;
+            }
+
+            FinalizeOrigin(
+                current,
+                absoluteRow,
+                prototypes,
+                images,
+                cellPixelWidth,
+                cellPixelHeight,
+                origins);
+            current = new PlacementRun
+            {
+                ImageIdLow = decoded.ImageIdLow,
+                PlacementId = decoded.PlacementId,
+                Row = decoded.Row ?? 0,
+                Column = decoded.Column ?? 0,
+                ImageIdHigh = decoded.ImageIdHigh ?? 0,
+                ScreenColumn = column,
+                Width = 1,
+            };
+        }
+
+        FinalizeOrigin(
+            current,
+            absoluteRow,
+            prototypes,
+            images,
+            cellPixelWidth,
+            cellPixelHeight,
+            origins);
+    }
+
     private static bool TryDecode(
         TerminalCell cell,
         out IncompletePlacement placement)
@@ -184,23 +247,83 @@ internal static class KgpUnicodePlaceholder
         if (run is not { } value)
             return;
 
-        var imageId = value.ImageIdLow | ((uint)value.ImageIdHigh << 24);
-        if (imageId == 0 ||
-            !images.TryGetValue(imageId, out var image) ||
-            FindPrototype(prototypes, imageId, value.PlacementId) is not { } prototype)
-        {
+        if (!TryResolveRun(
+                value,
+                prototypes,
+                images,
+                cellPixelWidth,
+                cellPixelHeight,
+                out var prototype,
+                out var image,
+                out var columns,
+                out var rows,
+                out var visibleRunWidth))
             return;
-        }
 
         var placement = CreateFragment(
             value,
             snapshotRow,
             prototype,
             image,
+            columns,
+            rows,
+            visibleRunWidth,
             cellPixelWidth,
             cellPixelHeight);
         if (placement is not null)
             destination.Add(placement);
+    }
+
+    private static void FinalizeOrigin(
+        PlacementRun? run,
+        int absoluteRow,
+        IReadOnlyList<KgpVirtualPlacement> prototypes,
+        IReadOnlyDictionary<uint, KgpImageData> images,
+        int cellPixelWidth,
+        int cellPixelHeight,
+        Dictionary<long, (int Row, int Column)> origins)
+    {
+        if (run is not { } value ||
+            !TryResolveRun(
+                value,
+                prototypes,
+                images,
+                cellPixelWidth,
+                cellPixelHeight,
+                out var prototype,
+                out var image,
+                out var columns,
+                out var rows,
+                out var visibleRunWidth) ||
+            CreateFragment(
+                value,
+                absoluteRow,
+                prototype,
+                image,
+                columns,
+                rows,
+                visibleRunWidth,
+                cellPixelWidth,
+                cellPixelHeight) is not { } fragment)
+        {
+            return;
+        }
+
+        var geometry = fragment.RenderGeometry!.Value;
+        var realizedRow = checked(
+            fragment.Row + (int)Math.Floor(geometry.ClipOffsetYInCells));
+        var realizedColumn = checked(
+            fragment.Column + (int)Math.Floor(geometry.ClipOffsetXInCells));
+        if (origins.TryGetValue(prototype.GraphId, out var origin))
+        {
+            origins[prototype.GraphId] = (
+                Math.Min(origin.Row, realizedRow),
+                Math.Min(origin.Column, realizedColumn));
+        }
+        else
+        {
+            origins.Add(prototype.GraphId, (realizedRow, realizedColumn));
+        }
     }
 
     private static KgpVirtualPlacement? FindPrototype(
@@ -232,38 +355,12 @@ internal static class KgpUnicodePlaceholder
         int snapshotRow,
         KgpVirtualPlacement prototype,
         KgpImageData image,
+        uint columns,
+        uint rows,
+        int visibleRunWidth,
         int cellPixelWidth,
         int cellPixelHeight)
     {
-        if (image.Width == 0 ||
-            image.Height == 0 ||
-            cellPixelWidth <= 0 ||
-            cellPixelHeight <= 0)
-        {
-            return null;
-        }
-
-        var columns = prototype.Columns > 0
-            ? prototype.Columns
-            : DivideCeiling(image.Width, checked((uint)cellPixelWidth));
-        var rows = prototype.Rows > 0
-            ? prototype.Rows
-            : DivideCeiling(image.Height, checked((uint)cellPixelHeight));
-        if (columns == 0 ||
-            rows == 0 ||
-            run.Row < 0 ||
-            run.Column < 0 ||
-            (uint)run.Row >= rows ||
-            (uint)run.Column >= columns)
-        {
-            return null;
-        }
-
-        var availableColumns = (ulong)columns - (uint)run.Column;
-        var visibleRunWidth = checked((int)Math.Min((ulong)run.Width, availableColumns));
-        if (visibleRunWidth <= 0)
-            return null;
-
         var boxWidth = (double)columns * cellPixelWidth;
         var boxHeight = (double)rows * cellPixelHeight;
         var scale = Math.Min(boxWidth / image.Width, boxHeight / image.Height);
@@ -326,7 +423,61 @@ internal static class KgpUnicodePlaceholder
             zIndex: -1,
             cellOffsetX: 0,
             cellOffsetY: 0,
-            geometry);
+            geometry,
+            graphId: prototype.GraphId);
+    }
+
+    private static bool TryResolveRun(
+        PlacementRun run,
+        IReadOnlyList<KgpVirtualPlacement> prototypes,
+        IReadOnlyDictionary<uint, KgpImageData> images,
+        int cellPixelWidth,
+        int cellPixelHeight,
+        out KgpVirtualPlacement prototype,
+        out KgpImageData image,
+        out uint columns,
+        out uint rows,
+        out int visibleRunWidth)
+    {
+        prototype = null!;
+        image = null!;
+        columns = 0;
+        rows = 0;
+        visibleRunWidth = 0;
+
+        var imageId = run.ImageIdLow | ((uint)run.ImageIdHigh << 24);
+        if (imageId == 0 ||
+            !images.TryGetValue(imageId, out var foundImage) ||
+            FindPrototype(prototypes, imageId, run.PlacementId) is not { } found ||
+            foundImage.Width == 0 ||
+            foundImage.Height == 0 ||
+            cellPixelWidth <= 0 ||
+            cellPixelHeight <= 0)
+        {
+            return false;
+        }
+
+        prototype = found;
+        image = foundImage;
+        columns = prototype.Columns > 0
+            ? prototype.Columns
+            : DivideCeiling(image.Width, checked((uint)cellPixelWidth));
+        rows = prototype.Rows > 0
+            ? prototype.Rows
+            : DivideCeiling(image.Height, checked((uint)cellPixelHeight));
+        if (columns == 0 ||
+            rows == 0 ||
+            run.Row < 0 ||
+            run.Column < 0 ||
+            (uint)run.Row >= rows ||
+            (uint)run.Column >= columns)
+        {
+            return false;
+        }
+
+        var availableColumns = (ulong)columns - (uint)run.Column;
+        visibleRunWidth = checked((int)Math.Min((ulong)run.Width, availableColumns));
+        return visibleRunWidth > 0;
     }
 
     private static uint ClampToUInt(double value, uint maximum)
