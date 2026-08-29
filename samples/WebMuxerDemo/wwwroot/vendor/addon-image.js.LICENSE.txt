@@ -1,0 +1,46 @@
+/**
+ * Copyright (c) 2019 Joerg Breitbart.
+ * @license MIT
+ */
+
+/**
+ * Copyright (c) 2020 The xterm.js authors. All rights reserved.
+ * @license MIT
+ */
+
+/**
+ * Copyright (c) 2020, 2023 The xterm.js authors. All rights reserved.
+ * @license MIT
+ */
+
+/**
+ * Copyright (c) 2021 Joerg Breitbart.
+ * @license MIT
+ */
+
+/**
+ * Copyright (c) 2022, 2026 Joerg Breitbart
+ * @license MIT
+ */
+
+/**
+ * Copyright (c) 2023 The xterm.js authors. All rights reserved.
+ * @license MIT
+ */
+
+/**
+ * Copyright (c) 2023, 2026 The xterm.js authors. All rights reserved.
+ * @license MIT
+ */
+
+/**
+ * Copyright (c) 2026 The xterm.js authors. All rights reserved.
+ * @license MIT
+ *
+ * Kitty graphics protocol types, constants, and parsing utilities.
+ */
+
+/**
+ * Copyright (c) 2026 The xterm.js authors. All rights reserved.
+ * @license MIT
+ */
