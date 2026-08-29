@@ -1,0 +1,8 @@
+samples/WebMuxerDemo/wwwroot/vendor/xterm.js -text
+samples/WebMuxerDemo/wwwroot/vendor/xterm.css -text
+samples/WebMuxerDemo/wwwroot/vendor/xterm-addon-fit.js -text
+samples/WebMuxerDemo/wwwroot/vendor/xterm-addon-image.js -text
+samples/WebMuxerDemo/wwwroot/vendor/xterm.LICENSE -text
+samples/WebMuxerDemo/wwwroot/vendor/LICENSE.addon-fit.txt -text
+samples/WebMuxerDemo/wwwroot/vendor/LICENSE.addon-image.txt -text
+samples/WebMuxerDemo/wwwroot/vendor/addon-image.js.LICENSE.txt -text
