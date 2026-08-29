@@ -20,7 +20,7 @@ public class WebMuxerVendoredXtermTests
             ["xterm-addon-fit.js"] =
                 "acc70dbdb41ff8e6cb8b37ad888dabd2285267e97f79f2e72ab864fd6337df1c",
             ["xterm-addon-image.js"] =
-                "e8d11aae3526cdfe48afd53b839008a5cf132854b7ac37cad6f17fbb3105fc6e",
+                "bfcbf94862d6909cbbb3bb0e0fd0ec821c88317a5c7acac9bc1c67209d2dafe3",
             ["xterm.LICENSE"] =
                 "b569f629d00f2626a8100df2a1798210535621e42164dfd426a6fe5aac7b0ccd",
             ["LICENSE.addon-fit.txt"] =
@@ -42,6 +42,10 @@ public class WebMuxerVendoredXtermTests
 
         var addon = File.ReadAllText(
             Path.Combine(vendor, "xterm-addon-image.js"));
+        Assert.Contains("_rebuildImageCellIndex", addon);
+        Assert.Contains(
+            "this._rebuildImageCellIndex(A);const s=this._clearImageCells(A)",
+            addon);
         Assert.Contains("reconcileImageCellIndexes", addon);
         Assert.Contains("hasClientId", addon);
         Assert.Contains("releaseUnreferencedImage", addon);
@@ -49,17 +53,17 @@ public class WebMuxerVendoredXtermTests
         var provenance = File.ReadAllText(
             Path.Combine(vendor, "README.md"));
         Assert.Contains(
-            "c34b04b5bba64609974110838c5a5f498ff16468",
+            "825f5605c9afc14cc1f7579959a9699c23df3f0f",
             provenance);
         foreach (var expectedHash in expectedHashes.Values)
             Assert.Contains(expectedHash, provenance);
 
         var index = File.ReadAllText(
             Path.Combine(demo, "wwwroot", "index.html"));
-        Assert.Contains("/vendor/xterm.js?v=c34b04b5", index);
-        Assert.Contains("/vendor/xterm.css?v=c34b04b5", index);
-        Assert.Contains("/vendor/xterm-addon-fit.js?v=c34b04b5", index);
-        Assert.Contains("/vendor/xterm-addon-image.js?v=c34b04b5", index);
+        Assert.Contains("/vendor/xterm.js?v=825f5605", index);
+        Assert.Contains("/vendor/xterm.css?v=825f5605", index);
+        Assert.Contains("/vendor/xterm-addon-fit.js?v=825f5605", index);
+        Assert.Contains("/vendor/xterm-addon-image.js?v=825f5605", index);
 
         var program = File.ReadAllText(Path.Combine(demo, "Program.cs"));
         Assert.Contains("app.UseStaticFiles();", program);
