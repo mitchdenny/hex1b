@@ -257,7 +257,7 @@ public class KgpTerminalTests
     // =============================================
 
     [TestMethod]
-    public void Delete_All_ClearsAllImages()
+    public void Delete_All_UnplacedImagesAreRetained()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = CreateTerminal(workload);
@@ -268,7 +268,8 @@ public class KgpTerminalTests
 
         SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('A'));
 
-        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(2, terminal.KgpImageStore.ImageCount);
+        terminal.ValidateKgpDeletionInvariants();
     }
 
     [TestMethod]

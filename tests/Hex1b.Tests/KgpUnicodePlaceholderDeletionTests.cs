@@ -215,10 +215,7 @@ public partial class KgpUnicodePlaceholderTests
     }
 
     [TestMethod]
-    [DataRow("a=d,d=A")]
-    [DataRow("a=d,d=I,i=42,p=1")]
-    public void Delete_FreeDataWithVirtualOwner_RemovesSelectedHistoryPlacement(
-        string controlData)
+    public void Delete_ByIdFreeDataWithVirtualOwner_RemovesSelectedHistoryPlacement()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = CreateTerminal(
@@ -239,13 +236,52 @@ public partial class KgpUnicodePlaceholderTests
             Placeholder(row: 0, column: 0) +
             "\x1b[0m");
 
-        Apply(terminal, KgpTestHelper.BuildCommand(controlData));
+        Apply(
+            terminal,
+            KgpTestHelper.BuildCommand("a=d,d=I,i=42,p=1"));
 
         using var snapshot = terminal.CreateSnapshot(scrollbackLines: 1);
         var placement = TestSeq.Single(snapshot.KgpPlacements);
         Assert.AreEqual(2u, placement.PlacementId);
         Assert.IsNotNull(terminal.KgpImageStore.GetImageById(42));
         Assert.AreEqual(0, terminal.KgpHistoryPlacementCount);
+        terminal.ValidateKgpDeletionInvariants();
+    }
+
+    [TestMethod]
+    public void Delete_AllFreeDataDoesNotSelectHistoryOrVirtualOwners()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            width: 4,
+            height: 2,
+            scrollbackCapacity: 2);
+        Apply(terminal, KgpTestHelper.BuildTransmitCommand(
+            42, 10, 20, KgpFormat.Rgb24, quiet: 2));
+        Apply(terminal, KgpTestHelper.BuildCommand(
+            "a=p,i=42,p=1,c=1,r=1,C=1,q=2"));
+        Apply(terminal, "\x1b[S");
+        Apply(terminal, KgpTestHelper.BuildCommand(
+            "a=p,U=1,i=42,p=2,c=1,r=1,q=2"));
+        Apply(terminal,
+            Foreground(42) +
+            UnderlineColor(2) +
+            Placeholder(row: 0, column: 0) +
+            "\x1b[0m");
+
+        Apply(terminal, KgpTestHelper.BuildCommand("a=d,d=A"));
+
+        using var snapshot = terminal.CreateSnapshot(scrollbackLines: 1);
+        Assert.AreEqual(2, snapshot.KgpPlacements.Count);
+        Assert.IsTrue(snapshot.KgpPlacements.Any(
+            placement => placement.PlacementId == 1));
+        Assert.IsTrue(snapshot.KgpPlacements.Any(
+            placement => placement.PlacementId == 2));
+        Assert.AreEqual(1, terminal.KgpHistoryPlacementCount);
+        Assert.AreEqual(1, terminal.KgpVirtualPlacementCount);
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(42));
+        terminal.ValidateKgpDeletionInvariants();
     }
 
     [TestMethod]

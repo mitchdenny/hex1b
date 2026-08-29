@@ -794,7 +794,7 @@ public class KgpScrollingTests
     }
 
     [TestMethod]
-    public void FreeImageData_AfterHistoryScroll_ReconcilesHistoryWithoutDanglingPlacement()
+    public void DeleteAllFreeData_HistoryOnlyPlacementRemainsOwned()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = CreateTerminal(
@@ -806,12 +806,13 @@ public class KgpScrollingTests
 
         Apply(terminal, KgpTestHelper.BuildDeleteCommand('A'));
 
-        Assert.AreEqual(0, terminal.KgpHistoryPlacementCount);
-        Assert.AreEqual(0, terminal.GetKgpHistoryReferenceCount(1));
-        Assert.IsNull(terminal.KgpImageStore.GetImageById(1));
+        Assert.AreEqual(1, terminal.KgpHistoryPlacementCount);
+        Assert.AreEqual(1, terminal.GetKgpHistoryReferenceCount(1));
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(1));
         using var snapshot = terminal.CreateSnapshot(scrollbackLines: 1);
-        Assert.IsEmpty(snapshot.KgpPlacements);
-        Assert.IsEmpty(snapshot.KgpImages);
+        Assert.AreEqual(1, snapshot.KgpPlacements.Count);
+        Assert.IsTrue(snapshot.KgpImages.ContainsKey(1));
+        terminal.ValidateKgpDeletionInvariants();
     }
 
     [TestMethod]

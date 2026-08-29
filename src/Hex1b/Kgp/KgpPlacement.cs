@@ -8,6 +8,8 @@ public sealed class KgpPlacement
     /// <summary>The image this placement refers to.</summary>
     public uint ImageId { get; }
 
+    internal bool IsImageAddressable { get; }
+
     /// <summary>The placement ID (0 if not specified).</summary>
     public uint PlacementId { get; }
 
@@ -114,7 +116,8 @@ public sealed class KgpPlacement
             graphId: 0,
             parentGraphId: null,
             parentOffsetHorizontal: 0,
-            parentOffsetVertical: 0)
+            parentOffsetVertical: 0,
+            isImageAddressable: true)
     {
     }
 
@@ -152,7 +155,8 @@ public sealed class KgpPlacement
             graphId,
             parentGraphId: null,
             parentOffsetHorizontal: 0,
-            parentOffsetVertical: 0)
+            parentOffsetVertical: 0,
+            isImageAddressable: true)
     {
     }
 
@@ -174,7 +178,8 @@ public sealed class KgpPlacement
         long graphId,
         long? parentGraphId,
         int parentOffsetHorizontal,
-        int parentOffsetVertical)
+        int parentOffsetVertical,
+        bool isImageAddressable)
     {
         ImageId = imageId;
         PlacementId = placementId;
@@ -194,6 +199,7 @@ public sealed class KgpPlacement
         ParentGraphId = parentGraphId;
         ParentOffsetHorizontal = parentOffsetHorizontal;
         ParentOffsetVertical = parentOffsetVertical;
+        IsImageAddressable = isImageAddressable;
     }
 
     /// <summary>
@@ -236,7 +242,30 @@ public sealed class KgpPlacement
             GraphId,
             ParentGraphId,
             ParentOffsetHorizontal,
-            ParentOffsetVertical);
+            ParentOffsetVertical,
+            IsImageAddressable);
+
+    internal KgpPlacement WithImageAddressability(bool isImageAddressable)
+        => new(
+            ImageId,
+            PlacementId,
+            Row,
+            Column,
+            DisplayColumns,
+            DisplayRows,
+            SourceX,
+            SourceY,
+            SourceWidth,
+            SourceHeight,
+            ZIndex,
+            CellOffsetX,
+            CellOffsetY,
+            RenderGeometry,
+            GraphId,
+            ParentGraphId,
+            ParentOffsetHorizontal,
+            ParentOffsetVertical,
+            isImageAddressable);
 
     internal KgpPlacement WithPosition(int row, int column)
         => new(
@@ -257,7 +286,8 @@ public sealed class KgpPlacement
             GraphId,
             ParentGraphId,
             ParentOffsetHorizontal,
-            ParentOffsetVertical);
+            ParentOffsetVertical,
+            IsImageAddressable);
 
     internal KgpPlacement WithGraphIdentity(
         long graphId,
@@ -282,7 +312,8 @@ public sealed class KgpPlacement
             graphId,
             parentGraphId,
             parentOffsetHorizontal,
-            parentOffsetVertical);
+            parentOffsetVertical,
+            IsImageAddressable);
 
     internal KgpPlacement? ClipToCellRectangle(
         KgpImageData image,
@@ -355,7 +386,8 @@ public sealed class KgpPlacement
             GraphId,
             ParentGraphId,
             ParentOffsetHorizontal,
-            ParentOffsetVertical);
+            ParentOffsetVertical,
+            IsImageAddressable);
     }
 
     internal KgpPlacement? ClipRows(
@@ -411,7 +443,8 @@ public sealed class KgpPlacement
             GraphId,
             ParentGraphId,
             ParentOffsetHorizontal,
-            ParentOffsetVertical);
+            ParentOffsetVertical,
+            IsImageAddressable);
     }
 
     internal KgpPlacement Clone()

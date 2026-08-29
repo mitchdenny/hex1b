@@ -703,6 +703,36 @@ public class Hex1bTerminalTests
             Assert.IsEmpty(clearedSnapshot.KgpImages);
         }
 
+        var deleteSelectorOutput = string.Concat(
+        [
+            KgpTestHelper.BuildCommand("a=d"),
+            KgpTestHelper.BuildCommand("a=d,d=a"),
+            KgpTestHelper.BuildCommand("a=d,d=A"),
+            KgpTestHelper.BuildCommand("a=d,d=i,i=99"),
+            KgpTestHelper.BuildCommand("a=d,d=I,i=99"),
+            KgpTestHelper.BuildCommand("a=d,d=n,I=99"),
+            KgpTestHelper.BuildCommand("a=d,d=N,I=99"),
+            KgpTestHelper.BuildCommand("a=d,d=c"),
+            KgpTestHelper.BuildCommand("a=d,d=C"),
+            KgpTestHelper.BuildCommand("a=d,d=f,i=99"),
+            KgpTestHelper.BuildCommand("a=d,d=F,i=99"),
+            KgpTestHelper.BuildCommand("a=d,d=p,x=1,y=1"),
+            KgpTestHelper.BuildCommand("a=d,d=P,x=1,y=1"),
+            KgpTestHelper.BuildCommand("a=d,d=q,x=1,y=1"),
+            KgpTestHelper.BuildCommand("a=d,d=Q,x=1,y=1"),
+            KgpTestHelper.BuildCommand("a=d,d=r,x=0,y=99"),
+            KgpTestHelper.BuildCommand("a=d,d=R,x=0,y=99"),
+            KgpTestHelper.BuildCommand("a=d,d=x,x=1"),
+            KgpTestHelper.BuildCommand("a=d,d=X,x=1"),
+            KgpTestHelper.BuildCommand("a=d,d=y,y=1"),
+            KgpTestHelper.BuildCommand("a=d,d=Y,y=1"),
+            KgpTestHelper.BuildCommand("a=d,d=z"),
+            KgpTestHelper.BuildCommand("a=d,d=Z"),
+        ]);
+        var deleteSplit = deleteSelectorOutput.Length / 2;
+        await WriteAndAssertForwardedAsync(deleteSelectorOutput[..deleteSplit]);
+        await WriteAndAssertForwardedAsync(deleteSelectorOutput[deleteSplit..]);
+
         cts.Cancel();
         await Assert.ThrowsAsync<OperationCanceledException>(
             async () => await runTask);

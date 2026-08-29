@@ -13,6 +13,11 @@ public sealed class KgpImageStore
         uint PreviousId,
         uint CurrentId);
 
+    internal readonly record struct DeletionImage(
+        uint ImageId,
+        KgpImageData Image,
+        bool IsAddressable);
+
     internal readonly record struct StoreResult(
         KgpImageData Image,
         bool Replaced,
@@ -212,7 +217,15 @@ public sealed class KgpImageStore
             var images = new Dictionary<uint, KgpImageData>();
             foreach (var sourcePlacement in sourcePlacements)
             {
-                if (!_imagesById.TryGetValue(sourcePlacement.ImageId, out var image))
+                if (!_imagesById.TryGetValue(
+                        sourcePlacement.ImageId,
+                        out var image))
+                {
+                    continue;
+                }
+                var isAddressable = !_unaddressableImageIds.Contains(
+                    sourcePlacement.ImageId);
+                if (sourcePlacement.IsImageAddressable != isAddressable)
                     continue;
 
                 var placement = sourcePlacement.Clone();
@@ -259,54 +272,71 @@ public sealed class KgpImageStore
         }
     }
 
-    internal bool SelectAddressableImage(uint imageId, bool removeData)
+    internal DeletionImage? GetDeletionImage(uint imageId)
     {
         lock (_lock)
         {
-            if (_unaddressableImageIds.Contains(imageId) ||
-                !_imagesById.ContainsKey(imageId))
-            {
-                return false;
-            }
-
-            if (removeData)
-                RemoveImageUnsafe(imageId);
-            return true;
+            return GetDeletionImageUnsafe(imageId);
         }
     }
 
-    internal HashSet<uint> SelectAddressableImagesInRange(
-        uint firstImageId,
-        uint lastImageId,
-        bool removeData)
+    internal DeletionImage? GetAddressableDeletionImage(uint imageId)
     {
         lock (_lock)
         {
-            var selected = new HashSet<uint>();
-            if (firstImageId == 0 ||
-                lastImageId == 0 ||
-                firstImageId > lastImageId)
-            {
-                return selected;
-            }
+            var image = GetDeletionImageUnsafe(imageId);
+            return image is { IsAddressable: true } ? image : null;
+        }
+    }
 
-            foreach (var imageId in _imagesById.Keys)
+    internal DeletionImage? GetNewestDeletionImage(uint imageNumber)
+    {
+        lock (_lock)
+        {
+            var image = GetImageByNumberUnsafe(imageNumber);
+            return image is null
+                ? null
+                : new DeletionImage(
+                    image.ImageId,
+                    image,
+                    IsAddressable: true);
+        }
+    }
+
+    internal IReadOnlyList<DeletionImage> GetAddressableDeletionImagesInRange(
+        uint firstImageId,
+        uint lastImageId)
+    {
+        lock (_lock)
+        {
+            List<DeletionImage>? selected = null;
+            foreach (var (imageId, image) in _imagesById)
             {
-                if (imageId >= firstImageId &&
-                    imageId <= lastImageId &&
-                    !_unaddressableImageIds.Contains(imageId))
+                if (imageId < firstImageId ||
+                    imageId > lastImageId ||
+                    _unaddressableImageIds.Contains(imageId))
                 {
-                    selected.Add(imageId);
+                    continue;
                 }
+
+                selected ??= [];
+                selected.Add(new DeletionImage(
+                    imageId,
+                    image,
+                    IsAddressable: true));
             }
 
-            if (removeData)
-            {
-                foreach (var imageId in selected)
-                    RemoveImageUnsafe(imageId);
-            }
+            return selected ?? [];
+        }
+    }
 
-            return selected;
+    internal void ExecuteDeletion(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        lock (_lock)
+        {
+            action();
         }
     }
 
@@ -605,6 +635,28 @@ public sealed class KgpImageStore
         }
     }
 
+    internal void DeleteIfUnreferenced(
+        IReadOnlyDictionary<uint, DeletionImage> candidateImages,
+        IReadOnlySet<uint> referencedImageIds)
+    {
+        ArgumentNullException.ThrowIfNull(candidateImages);
+        ArgumentNullException.ThrowIfNull(referencedImageIds);
+
+        lock (_lock)
+        {
+            foreach (var (imageId, candidate) in candidateImages)
+            {
+                if (!referencedImageIds.Contains(imageId) &&
+                    _imagesById.TryGetValue(imageId, out var current) &&
+                    ReferenceEquals(candidate.Image, current))
+                {
+                    // A replacement after target resolution is a new generation.
+                    RemoveImageUnsafe(imageId);
+                }
+            }
+        }
+    }
+
     /// <summary>
     /// Begins or continues a chunked transfer. Returns the completed image when the final chunk arrives.
     /// </summary>
@@ -861,6 +913,14 @@ public sealed class KgpImageStore
         RemoveFromNumberIndex(image);
         return true;
     }
+
+    private DeletionImage? GetDeletionImageUnsafe(uint imageId)
+        => _imagesById.TryGetValue(imageId, out var image)
+            ? new DeletionImage(
+                imageId,
+                image,
+                !_unaddressableImageIds.Contains(imageId))
+            : null;
 
     private ImageRelocation RelocateUnaddressableImageUnsafe(uint previousId)
     {

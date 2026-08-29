@@ -653,7 +653,7 @@ public class KgpImageNumberConformanceTests
     }
 
     [TestMethod]
-    public void ImageNumber_Delete_RemovesNewest()
+    public void ImageNumber_LowercaseDeleteRetainsNewestData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = CreateTerminal(workload);
@@ -665,16 +665,20 @@ public class KgpImageNumberConformanceTests
         SendKgp(terminal, KgpTestHelper.BuildCommand("a=t,f=32,s=3,v=3,I=8", data2));
 
         Assert.AreEqual(2, terminal.KgpImageStore.ImageCount);
+        var newest = terminal.KgpImageStore.GetImageByNumber(8);
+        Assert.IsNotNull(newest);
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=p,I=8,p=7,c=1,r=1,C=1,q=2"));
+        Assert.AreEqual(newest.ImageId, TestSeq.Single(terminal.KgpPlacements).ImageId);
 
-        // Delete by number removes the newest
-        SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('n'));
-        // The 'n' delete target requires image number via the command
-
-        // Use raw command for number-based delete
         SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=n,I=8"));
 
-        // Should have removed at least one image
-        Assert.IsTrue(terminal.KgpImageStore.ImageCount < 2);
+        Assert.IsEmpty(terminal.KgpPlacements);
+        Assert.AreEqual(2, terminal.KgpImageStore.ImageCount);
+        Assert.AreSame(newest, terminal.KgpImageStore.GetImageByNumber(8));
+        terminal.ValidateKgpDeletionInvariants();
     }
 
     [TestMethod]
@@ -1421,7 +1425,7 @@ public class KgpGhosttyDeleteConformanceTests
     }
 
     [TestMethod]
-    public void DeleteByRange_MissingXOrY_Invalid()
+    public void DeleteByRange_MissingUpperIsEmptyAndMissingLowerDefaultsToZero()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = CreateTerminal(workload, 40, 20);
@@ -1431,13 +1435,15 @@ public class KgpGhosttyDeleteConformanceTests
 
         Assert.AreEqual(2, terminal.KgpPlacements.Count);
 
-        // Missing y= — x defaults to 0, so range is invalid
+        // Missing y= leaves the upper bound at zero, selecting nothing.
         SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=r,x=3"));
         Assert.AreEqual(2, terminal.KgpPlacements.Count);
 
-        // Missing x= — same
+        // Missing x= defaults the inclusive lower bound to zero.
         SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=r,y=5"));
-        Assert.AreEqual(2, terminal.KgpPlacements.Count);
+        Assert.IsEmpty(terminal.KgpPlacements);
+        Assert.AreEqual(2, terminal.KgpImageStore.ImageCount);
+        terminal.ValidateKgpDeletionInvariants();
     }
 
     [TestMethod]
