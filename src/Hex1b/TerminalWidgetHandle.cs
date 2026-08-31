@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Tokens;
+using Hex1b.Automation;
 
 namespace Hex1b;
 
@@ -62,6 +63,12 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     private int _cursorY;
     private bool _cursorVisible = true;
     private bool _disposed;
+    private TerminalCapabilities _capabilities = new()
+    {
+        SupportsMouse = true,
+        Supports256Colors = true,
+        SupportsTrueColor = true,
+    };
     
     // Mouse tracking state - tracks whether the child process has enabled mouse
     // These are set when we receive PrivateModeToken from the child's output
@@ -510,13 +517,33 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
             _cursorY = cursorY;
             return (buffer, width, height);
         }
-        
+
         lock (_bufferLock)
         {
             var copy = new TerminalCell[_height, _width];
             Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
             return (copy, _width, _height);
         }
+    }
+
+    internal Hex1bTerminalSnapshot? CreateSnapshot(
+        int scrollbackLines,
+        ScrollbackWidth scrollbackWidth = ScrollbackWidth.CurrentTerminal)
+        => _terminal?.CreateSnapshot(scrollbackLines, scrollbackWidth);
+
+    internal void UpdateHostCapabilities(TerminalCapabilities hostCapabilities)
+    {
+        ArgumentNullException.ThrowIfNull(hostCapabilities);
+
+        var current = Volatile.Read(ref _capabilities);
+        var updated = current with
+        {
+            SupportsKgp = hostCapabilities.SupportsKgp,
+            CellPixelWidth = hostCapabilities.CellPixelWidth,
+            ActualCellPixelWidth = hostCapabilities.ActualCellPixelWidth,
+            CellPixelHeight = hostCapabilities.CellPixelHeight,
+        };
+        Volatile.Write(ref _capabilities, updated);
     }
     
     /// <summary>
@@ -566,12 +593,7 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     int IHex1bTerminalPresentationAdapter.Height => _height;
     
     /// <inheritdoc />
-    public TerminalCapabilities Capabilities { get; } = new()
-    {
-        SupportsMouse = true,
-        Supports256Colors = true,
-        SupportsTrueColor = true,
-    };
+    public TerminalCapabilities Capabilities => Volatile.Read(ref _capabilities);
     
     /// <inheritdoc />
     public event Action<int, int>? Resized;
@@ -636,10 +658,16 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     private void ApplyTokensToBuffer(IReadOnlyList<AppliedToken> appliedTokens)
     {
         int maxY = -1;
+        var hasKgpChanges = false;
         lock (_bufferLock)
         {
             foreach (var applied in appliedTokens)
             {
+                if (applied.Token is KgpToken)
+                {
+                    hasKgpChanges = true;
+                }
+
                 // Check for mode changes from the child process
                 if (applied.Token is PrivateModeToken pm)
                 {
@@ -674,8 +702,9 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
             }
         }
         
-        // Only notify bound nodes when there are actual cell changes
-        if (maxY >= 0)
+        // KGP state lives in the owning terminal rather than this cell buffer,
+        // but changes still require the bound TerminalNode to render a new frame.
+        if (maxY >= 0 || hasKgpChanges)
         {
             OutputReceived?.Invoke();
         }

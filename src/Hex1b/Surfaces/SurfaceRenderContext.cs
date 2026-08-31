@@ -459,6 +459,45 @@ public class SurfaceRenderContext : Hex1bRenderContext
         }
     }
 
+    internal override void RegisterKgp(KgpImageData image, KgpPlacement placement)
+    {
+        if (!Capabilities.SupportsKgp)
+            return;
+
+        var surfaceBounds = new Rect(_offsetX, _offsetY, _surface.Width, _surface.Height);
+        var visibleBounds = _kgpClipRect is { } clip
+            ? IntersectRects(surfaceBounds, clip)
+            : surfaceBounds;
+        if (visibleBounds is null)
+            return;
+
+        var clipped = placement.ClipToCellRectangle(
+            image,
+            visibleBounds.Value.Y,
+            visibleBounds.Value.Bottom,
+            visibleBounds.Value.X,
+            visibleBounds.Value.Right,
+            CellMetrics.PixelWidth,
+            CellMetrics.PixelHeight);
+        if (clipped is null)
+            return;
+
+        var kgpData = CreateKgpCellData(image, clipped);
+        _kgpRegistry?.RegisterImage(kgpData, clipped.Column, clipped.Row);
+
+        if (_kgpRegistry is not null)
+            return;
+
+        var writeX = clipped.Column - _offsetX;
+        var writeY = clipped.Row - _offsetY;
+        if (writeX < 0 || writeX >= _surface.Width || writeY < 0 || writeY >= _surface.Height)
+            return;
+
+        var tracked = _trackedObjects.GetOrCreateKgp(kgpData);
+        tracked.AddRef();
+        _surface[writeX, writeY] = _surface[writeX, writeY] with { Kgp = tracked };
+    }
+
     /// <summary>
     /// Writes text at the specified position, respecting the current layout provider's clipping.
     /// </summary>

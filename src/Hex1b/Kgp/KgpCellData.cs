@@ -79,6 +79,16 @@ public sealed class KgpCellData
     public int ZIndex { get; }
 
     /// <summary>
+    /// Gets the horizontal pixel offset within the destination cell.
+    /// </summary>
+    public uint CellOffsetX { get; }
+
+    /// <summary>
+    /// Gets the vertical pixel offset within the destination cell.
+    /// </summary>
+    public uint CellOffsetY { get; }
+
+    /// <summary>
     /// Creates a new KGP cell data instance with structured placement data.
     /// </summary>
     internal KgpCellData(
@@ -93,7 +103,9 @@ public sealed class KgpCellData
         int clipY = 0,
         int clipW = 0,
         int clipH = 0,
-        int zIndex = -1)
+        int zIndex = -1,
+        uint cellOffsetX = 0,
+        uint cellOffsetY = 0)
     {
         TransmitPayload = transmitPayload;
         ImageId = imageId;
@@ -107,6 +119,8 @@ public sealed class KgpCellData
         ClipW = clipW;
         ClipH = clipH;
         ZIndex = zIndex;
+        CellOffsetX = cellOffsetX;
+        CellOffsetY = cellOffsetY;
     }
 
     /// <summary>
@@ -122,6 +136,8 @@ public sealed class KgpCellData
         if (ClipY > 0) sb.Append($",y={ClipY}");
         if (ClipW > 0) sb.Append($",w={ClipW}");
         if (ClipH > 0) sb.Append($",h={ClipH}");
+        if (CellOffsetX > 0) sb.Append($",X={CellOffsetX}");
+        if (CellOffsetY > 0) sb.Append($",Y={CellOffsetY}");
         sb.Append($",q=2,z={ZIndex}");
         sb.Append("\x1b\\");
         return sb.ToString();
@@ -145,7 +161,9 @@ public sealed class KgpCellData
             clipY,
             clipW,
             clipH,
-            ZIndex);
+            ZIndex,
+            clipX == ClipX ? CellOffsetX : 0,
+            clipY == ClipY ? CellOffsetY : 0);
     }
 
     /// <summary>
