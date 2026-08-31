@@ -88,7 +88,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         SupportsTrueColor = true,
         Supports256Colors = true,
         SupportsAlternateScreen = true,
-        SupportsBracketedPaste = true
+        SupportsBracketedPaste = true,
+        SupportsKgp = true
     };
 
     /// <inheritdoc />
@@ -231,6 +232,10 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
         Hmp1ClientSession[] existingPeers;
         byte[] syncBytes;
+        IReadOnlyList<KgpPlacement> kgpPlacements;
+        IReadOnlyDictionary<uint, KgpImageData> kgpImages;
+        int cursorX;
+        int cursorY;
         string? primarySnapshot;
         int widthSnapshot;
         int heightSnapshot;
@@ -260,15 +265,35 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                 });
                 var suffix = BuildStateReplaySuffix(snap);
                 syncBytes = Encoding.UTF8.GetBytes(prefix + ansi + suffix);
+                kgpPlacements = snap.KgpPlacements;
+                kgpImages = snap.KgpImages;
+                cursorX = snap.CursorX;
+                cursorY = snap.CursorY;
             }
             else
             {
                 syncBytes = [];
+                kgpPlacements = [];
+                kgpImages = new Dictionary<uint, KgpImageData>();
+                cursorX = 0;
+                cursorY = 0;
             }
 
             primarySnapshot = _primaryPeerId;
             widthSnapshot = _width;
             heightSnapshot = _height;
+
+            if (kgpPlacements.Count > 0)
+            {
+                EnqueueControlFrameAsync(session, stream =>
+                    Hmp1KgpStateReplay.WriteAsync(
+                        stream,
+                        kgpPlacements,
+                        kgpImages,
+                        cursorX,
+                        cursorY,
+                        session.Cts.Token));
+            }
 
             _sessions.Add(session);
 
