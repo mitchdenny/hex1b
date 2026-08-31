@@ -117,6 +117,82 @@ public class Hmp1StateReplayCursorRegressionTests
         Assert.AreEqual((byte)'G', lastByte);
     }
 
+    [TestMethod]
+    public async Task StateSync_WithActiveKgpPlacement_ReplaysImageToLateJoiningPeer()
+    {
+        await using var server = new Hmp1PresentationAdapter(20, 10);
+        await using var producer = Hex1bTerminal.CreateBuilder()
+            .WithDimensions(20, 10)
+            .WithWorkload(new NullWorkloadAdapter())
+            .WithPresentation(server)
+            .Build();
+
+        var pixels = new byte[]
+        {
+            255, 0, 0, 255,
+            0, 255, 0, 255,
+            0, 0, 255, 255,
+            255, 255, 255, 255,
+        };
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b[3;5H" +
+            KgpTestHelper.BuildCommand(
+                "a=T,f=32,s=2,v=2,i=7,p=11,c=2,r=2,C=1,q=2",
+                pixels)));
+        using (var producerState = producer.CreateSnapshot())
+        {
+            Assert.HasCount(1, producerState.KgpPlacements);
+            Assert.HasCount(1, producerState.KgpImages);
+        }
+
+        var (serverStream, clientStream) = CreateFullDuplexPair();
+        using var cts = new CancellationTokenSource(TestTimeout);
+        var addClientTask = server.AddClient(serverStream, cts.Token);
+        await Hmp1Protocol.WriteClientHelloAsync(
+            clientStream,
+            displayName: "late-viewer",
+            defaultRole: null,
+            cts.Token);
+
+        var hello = await Hmp1Protocol.ReadFrameAsync(clientStream, cts.Token)
+            ?? throw new AssertFailedException("Server closed the stream before sending Hello.");
+        var stateSync = await Hmp1Protocol.ReadFrameAsync(clientStream, cts.Token)
+            ?? throw new AssertFailedException("Server closed the stream before sending StateSync.");
+        var kgpReplay = await Hmp1Protocol.ReadFrameAsync(clientStream, cts.Token)
+            ?? throw new AssertFailedException("Server closed the stream before sending KGP replay.");
+
+        Assert.AreEqual(Hmp1FrameType.Hello, hello.Type);
+        Assert.AreEqual(Hmp1FrameType.StateSync, stateSync.Type);
+        Assert.AreEqual(Hmp1FrameType.Output, kgpReplay.Type);
+
+        var handle = await addClientTask;
+        await using var handleDispose = handle;
+        await using var viewer = Hex1bTerminal.CreateBuilder()
+            .WithDimensions(20, 10)
+            .WithWorkload(new NullWorkloadAdapter())
+            .WithHeadless(new TerminalCapabilities { SupportsKgp = true })
+            .Build();
+
+        viewer.ApplyTokens(AnsiTokenizer.Tokenize(
+            Encoding.UTF8.GetString(stateSync.Payload.Span)));
+        viewer.ApplyTokens(AnsiTokenizer.Tokenize(
+            Encoding.UTF8.GetString(kgpReplay.Payload.Span)));
+
+        using var producerSnapshot = producer.CreateSnapshot();
+        using var snapshot = viewer.CreateSnapshot();
+        var placement = TestSeq.Single(snapshot.KgpPlacements);
+        Assert.AreEqual((uint)7, placement.ImageId);
+        Assert.AreEqual((uint)11, placement.PlacementId);
+        Assert.AreEqual(2, placement.Row);
+        Assert.AreEqual(4, placement.Column);
+        Assert.AreEqual((uint)2, placement.DisplayColumns);
+        Assert.AreEqual((uint)2, placement.DisplayRows);
+        Assert.IsTrue(snapshot.KgpImages.TryGetValue(7, out var image));
+        TestSeq.AreEqual(pixels, image.Data);
+        Assert.AreEqual(producerSnapshot.CursorX, snapshot.CursorX);
+        Assert.AreEqual(producerSnapshot.CursorY, snapshot.CursorY);
+    }
+
     private sealed class NullWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     {
         public event Action? Disconnected
