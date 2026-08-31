@@ -130,6 +130,67 @@ public class Hex1bRenderContext
         Write(sb.ToString());
     }
 
+    internal virtual void RegisterKgp(KgpImageData image, KgpPlacement placement)
+    {
+        if (!Capabilities.SupportsKgp)
+            return;
+
+        var data = CreateKgpCellData(image, placement);
+        SetCursorPosition(placement.Column, placement.Row);
+        foreach (var chunk in data.BuildTransmitChunks())
+        {
+            Write(chunk);
+        }
+        Write(data.BuildPlacementPayload());
+    }
+
+    protected KgpCellData CreateKgpCellData(KgpImageData image, KgpPlacement placement)
+    {
+        var frameData = image.CurrentFrameData;
+        var frameFormat = image.CurrentFrameFormat;
+        var contentHash = ComputeKgpContentHash(
+            frameData,
+            frameFormat,
+            image.Width,
+            image.Height);
+        var imageId = ComputeKgpImageId(contentHash);
+        var base64 = Convert.ToBase64String(frameData);
+        var transmitPayload =
+            $"\x1b_Ga=t,f={(int)frameFormat},s={image.Width},v={image.Height},i={imageId},t=d,q=2;{base64}\x1b\\";
+
+        return new KgpCellData(
+            transmitPayload,
+            imageId,
+            checked((int)placement.DisplayColumns),
+            checked((int)placement.DisplayRows),
+            image.Width,
+            image.Height,
+            contentHash,
+            clipX: checked((int)placement.SourceX),
+            clipY: checked((int)placement.SourceY),
+            clipW: checked((int)placement.SourceWidth),
+            clipH: checked((int)placement.SourceHeight),
+            zIndex: placement.ZIndex,
+            cellOffsetX: placement.CellOffsetX,
+            cellOffsetY: placement.CellOffsetY);
+    }
+
+    private static byte[] ComputeKgpContentHash(
+        byte[] imageData,
+        KgpFormat format,
+        uint pixelWidth,
+        uint pixelHeight)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Span<byte> metadata = stackalloc byte[9];
+        metadata[0] = checked((byte)format);
+        BinaryPrimitives.WriteUInt32BigEndian(metadata[1..5], pixelWidth);
+        BinaryPrimitives.WriteUInt32BigEndian(metadata[5..9], pixelHeight);
+        hash.AppendData(metadata);
+        hash.AppendData(imageData);
+        return hash.GetHashAndReset();
+    }
+
     /// <summary>
     /// Maps image content to a Kitty image ID, salted by <see cref="KgpImageEpoch"/>
     /// so the same bytes can be reintroduced under a fresh ID after a terminal resize.

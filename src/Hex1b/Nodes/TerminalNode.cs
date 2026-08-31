@@ -589,6 +589,8 @@ public sealed class TerminalNode : Hex1bNode
     public override void Render(Hex1bRenderContext context)
     {
         if (_handle == null) return;
+
+        _handle.UpdateHostCapabilities(context.Capabilities);
         
         // If terminal is not running and we have a fallback child, render the fallback instead
         if (_handle.State != TerminalState.Running && FallbackChild != null)
@@ -641,6 +643,44 @@ public sealed class TerminalNode : Hex1bNode
         else
         {
             RenderLive(context, buffer, handleWidth, handleHeight);
+        }
+
+        RenderKgp(context, handleWidth, handleHeight);
+    }
+
+    private void RenderKgp(Hex1bRenderContext context, int handleWidth, int handleHeight)
+    {
+        if (_handle is null || !context.Capabilities.SupportsKgp)
+            return;
+
+        var effectiveOffset = Math.Min(_scrollbackOffset, _handle.ScrollbackCount);
+        using var snapshot = _handle.CreateSnapshot(effectiveOffset);
+        if (snapshot is null)
+            return;
+
+        var visibleWidth = Math.Min(Bounds.Width, handleWidth);
+        var visibleHeight = Math.Min(Bounds.Height, handleHeight);
+        foreach (var placement in snapshot.KgpPlacements)
+        {
+            if (!snapshot.KgpImages.TryGetValue(placement.ImageId, out var image))
+                continue;
+
+            var clipped = placement.ClipToCellRectangle(
+                image,
+                top: 0,
+                bottomExclusive: visibleHeight,
+                left: 0,
+                rightExclusive: visibleWidth,
+                snapshot.CellPixelWidth,
+                snapshot.CellPixelHeight);
+            if (clipped is null)
+                continue;
+
+            context.RegisterKgp(
+                image,
+                clipped.WithPosition(
+                    Bounds.Y + clipped.Row,
+                    Bounds.X + clipped.Column));
         }
     }
     
