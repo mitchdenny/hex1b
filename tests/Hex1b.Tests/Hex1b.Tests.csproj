@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Hex1b\Hex1b.csproj" />
+    <ProjectReference Include="..\..\samples\KgpValidation\KgpValidation.csproj" />
   </ItemGroup>
 
   <Target Name="CopyNativeLibraryLinux" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Linux')) and Exists('../../src/Hex1b/Terminal/runtimes/linux-x64/native/libhex1binterop.so')">
