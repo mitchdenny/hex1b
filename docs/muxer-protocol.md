@@ -159,6 +159,11 @@ Sent by the server immediately after the Hello frame. Contains a full snapshot o
 
 The payload may be empty if no screen content is available yet.
 
+If the snapshot contains active Kitty Graphics Protocol images, the server queues
+KGP transmit and placement sequences as `Output` frames immediately after
+`StateSync` and before subsequent live output. Graphics are replayed separately
+because their encoded data may exceed the maximum size of one HMP frame.
+
 ### Output (0x03)
 
 Incremental terminal output from the server's workload (e.g., PTY process). Sent continuously as the workload produces output.
@@ -319,7 +324,8 @@ Client                              Server
 3. Server replies with **Hello** carrying the protocol version, current PTY
    dimensions, the assigned `peerId`, the current `primaryPeerId`, and the
    roster of other attached peers.
-4. Server sends **StateSync** with the full current screen content.
+4. Server sends **StateSync** with the full current text screen content, followed
+   by ordered **Output** frames that restore active KGP images and placements.
 5. Normal operation: **Output** flows server → client; **Input** flows client → server.
 6. To take control of the PTY size, a peer sends **RequestPrimary**. The
    server applies the resize, broadcasts **RoleChange** to all peers, and
