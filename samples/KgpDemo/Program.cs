@@ -16,6 +16,7 @@ using SkiaSharp;
 // 4. Generated images (gradient, checkerboard, circle)
 // 5. Real photos loaded from disk (Bonny, Bogie, Mitch, Firestarter)
 // 6. xterm.js-safe static previews with bounded payloads and a single placement
+// 7. Animated KGP images that begin playing when their window opens
 // ─────────────────────────────────────────────────────────────────────────────
 
 const int xtermSafeMaxPhotoWidth = 640;
@@ -37,9 +38,13 @@ AddXtermSafeImage(
 
 // Load real photos from disk
 var imageDir = Path.Combine(AppContext.BaseDirectory, "images");
+var catFightAnimation = LoadAnimationFile(Path.Combine(imageDir, "cat-fight.gif"));
 var photoImages = new Dictionary<string, (byte[] Data, int W, int H)>();
 foreach (var file in Directory.Exists(imageDir) ? Directory.GetFiles(imageDir) : [])
 {
+    if (Path.GetExtension(file).Equals(".gif", StringComparison.OrdinalIgnoreCase))
+        continue;
+
     var name = Path.GetFileNameWithoutExtension(file);
     var rgba = LoadImageFile(file);
     if (rgba != null)
@@ -99,6 +104,16 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             OpenImageWindow(e, "Checker", checkerImage, 64, 64)),
                         m.MenuItem("Circle").OnActivated(e =>
                             OpenImageWindow(e, "Circle", circleImage, 64, 64)),
+                    ]));
+                    items.Add(m.Menu("Animated", m =>
+                    [
+                        m.MenuItem("Cat Fight").OnActivated(e =>
+                            OpenAnimationWindow(
+                                e,
+                                "Cat Fight",
+                                catFightAnimation.Frames,
+                                catFightAnimation.W,
+                                catFightAnimation.H)),
                     ]));
                     if (photoImages.Count > 0)
                     {
@@ -166,6 +181,39 @@ void OpenXtermSafeImageWindow(
 
     e.Windows.Open(window);
     statusMessage = $"Opened xterm.js-safe {name} preview";
+}
+
+void OpenAnimationWindow(
+    MenuItemActivatedEventArgs e,
+    string name,
+    IReadOnlyList<KgpAnimationFrame> frames,
+    int pixelW,
+    int pixelH)
+{
+    windowCount++;
+    var num = windowCount;
+
+    var window = e.Windows.Window(w =>
+        w.KgpAnimation(
+                frames,
+                pixelW,
+                pixelH,
+                img => img.Text($" [KGP not supported - {name} fallback]"))
+            .Playing()
+            .Fit()
+            .AboveText()
+            .Width(SizeHint.Fill)
+            .Height(SizeHint.Fill))
+        .Title($"{name} #{num}")
+        .Size(46, 22)
+        .Resizable()
+        .Position(new WindowPositionSpec(
+            WindowPosition.Center,
+            OffsetX: num * 3,
+            OffsetY: num * 2));
+
+    e.Windows.Open(window);
+    statusMessage = $"Opened playing {name} animation #{num}";
 }
 
 void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData, int pixelW, int pixelH)
@@ -440,6 +488,16 @@ void OpenBareImageWindow(MenuItemActivatedEventArgs e, string name, byte[] image
 // ─────────────────────────────────────────────────────────────────────────────
 // Image loading
 // ─────────────────────────────────────────────────────────────────────────────
+
+static (IReadOnlyList<KgpAnimationFrame> Frames, int W, int H) LoadAnimationFile(string path)
+{
+    var encoded = File.ReadAllBytes(path);
+    var preview = GifDecoder.DecodeFirstFrame(encoded)
+        ?? throw new InvalidDataException($"Could not decode animated GIF: {path}");
+    var frames = GifDecoder.DecodeAnimation(encoded, preview.Width, preview.Height)
+        ?? throw new InvalidDataException($"Could not decode animated GIF frames: {path}");
+    return (frames, preview.Width, preview.Height);
+}
 
 static (byte[] Data, int W, int H)? LoadImageFile(
     string path,
