@@ -589,9 +589,8 @@ public class KgpTerminalTests
     }
 
     [TestMethod]
-    [DataRow("a=a,i=1,s=3,v=1")]
     [DataRow("a=c,i=1,c=1,r=1")]
-    public void RemainingUnimplementedAnimationAction_IsTypedNoOp(
+    public void ComposeAnimationAction_IsTypedNoOp(
         string controlData)
     {
         var workload = new RecordingWorkloadAdapter();

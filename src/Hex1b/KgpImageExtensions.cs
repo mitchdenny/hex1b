@@ -8,6 +8,49 @@ using Hex1b.Widgets;
 public static class KgpImageExtensions
 {
     /// <summary>
+    /// Creates a KGP image backed by full RGBA32 animation frames.
+    /// </summary>
+    /// <param name="context">The widget context.</param>
+    /// <param name="frames">The full animation frames in display order.</param>
+    /// <param name="pixelWidth">Width of every frame in pixels.</param>
+    /// <param name="pixelHeight">Height of every frame in pixels.</param>
+    /// <param name="builder">Builds the widget displayed when KGP is not supported.</param>
+    /// <returns>A KGP image configured for terminal-native animation playback.</returns>
+    public static KgpImageWidget KgpAnimation<TParent>(
+        this WidgetContext<TParent> context,
+        IReadOnlyList<KgpAnimationFrame> frames,
+        int pixelWidth,
+        int pixelHeight,
+        Func<WidgetContext<KgpImageWidget>, Hex1bWidget> builder)
+        where TParent : Hex1bWidget
+    {
+        ArgumentNullException.ThrowIfNull(frames);
+        if (frames.Count < 2)
+            throw new ArgumentException("A KGP animation requires at least two frames.", nameof(frames));
+        if (pixelWidth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(pixelWidth));
+        if (pixelHeight <= 0)
+            throw new ArgumentOutOfRangeException(nameof(pixelHeight));
+
+        var expectedLength = checked(pixelWidth * pixelHeight * 4);
+        foreach (var frame in frames)
+        {
+            if (frame.Data.Length != expectedLength)
+            {
+                throw new ArgumentException(
+                    $"Each animation frame must contain exactly {expectedLength} RGBA32 bytes.",
+                    nameof(frames));
+            }
+        }
+
+        var fallbackContext = new WidgetContext<KgpImageWidget>();
+        return new(frames[0].Data, pixelWidth, pixelHeight, builder(fallbackContext))
+        {
+            AnimationFrames = frames
+        };
+    }
+
+    /// <summary>
     /// Creates a <see cref="KgpImageWidget"/> with the specified RGBA32 pixel data and fallback builder.
     /// </summary>
     /// <param name="context">The widget context.</param>
@@ -89,4 +132,14 @@ public static class KgpImageExtensions
     /// </summary>
     public static KgpImageWidget NaturalSize(this KgpImageWidget widget)
         => widget with { Stretch = KgpImageStretch.None };
+
+    /// <summary>
+    /// Starts or stops terminal-native playback for a KGP animation.
+    /// Stopping playback resets the animation to its first frame.
+    /// </summary>
+    /// <param name="widget">The KGP image widget.</param>
+    /// <param name="playing">Whether the animation should play.</param>
+    /// <returns>The configured widget.</returns>
+    public static KgpImageWidget Playing(this KgpImageWidget widget, bool playing = true)
+        => widget with { IsAnimationPlaying = playing };
 }

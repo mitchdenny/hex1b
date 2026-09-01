@@ -43,7 +43,8 @@ public sealed class KgpImageData
     /// The pixel format of the stored root-frame data.
     /// </summary>
     /// <remarks>
-    /// Animated images are materialized as <see cref="KgpFormat.Rgba32"/>.
+    /// Transmitting an animation frame materializes the root frame as
+    /// <see cref="KgpFormat.Rgba32"/>.
     /// </remarks>
     public KgpFormat Format { get; }
 
@@ -128,9 +129,7 @@ public sealed class KgpImageData
         => _animation?.GetFrame(CurrentFrameIndex).Data ?? Data;
 
     internal KgpFormat CurrentFrameFormat
-        => _animation is null && CurrentFrameIndex == 0
-            ? Format
-            : KgpFormat.Rgba32;
+        => _animation?.GetFrame(CurrentFrameIndex).Format ?? Format;
 
     internal bool TryGetFrame(
         int frameNumber,
@@ -156,7 +155,7 @@ public sealed class KgpImageData
 
         var frame = _animation.GetFrame(frameNumber - 1);
         data = frame.Data;
-        format = KgpFormat.Rgba32;
+        format = frame.Format;
         gapMilliseconds = frame.GapMilliseconds;
         return true;
     }
@@ -166,7 +165,7 @@ public sealed class KgpImageData
         ArgumentNullException.ThrowIfNull(animation);
         var root = animation.GetFrame(0);
         var contentHash = ReferenceEquals(root.Data, Data) &&
-            Format == KgpFormat.Rgba32
+            Format == root.Format
                 ? ContentHash
                 : SHA256.HashData(root.Data);
         return new KgpImageData(
@@ -175,7 +174,7 @@ public sealed class KgpImageData
             root.Data,
             Width,
             Height,
-            KgpFormat.Rgba32,
+            root.Format,
             contentHash,
             animation);
     }

@@ -700,7 +700,15 @@ public static class SurfaceComparer
         {
             tokens.Add(new UnrecognizedSequenceToken(chunk));
         }
+        foreach (var chunk in data.BuildAnimationFrameChunks())
+        {
+            tokens.Add(new UnrecognizedSequenceToken(chunk));
+        }
         tokens.Add(new UnrecognizedSequenceToken(data.BuildPlacementPayload()));
+        if (data.AnimationControlPayload is not null)
+        {
+            tokens.Add(new UnrecognizedSequenceToken(data.AnimationControlPayload));
+        }
     }
 
     /// <summary>
