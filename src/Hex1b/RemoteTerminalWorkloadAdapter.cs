@@ -31,7 +31,7 @@ namespace Hex1b;
 public sealed class RemoteTerminalWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 {
     private readonly Uri _uri;
-    private readonly ClientWebSocket _ws = new();
+    private readonly ClientWebSocket _ws;
     private readonly Channel<ReadOnlyMemory<byte>> _outputChannel;
     private CancellationTokenSource? _receiveCts;
     private Task? _receiveTask;
@@ -42,8 +42,30 @@ public sealed class RemoteTerminalWorkloadAdapter : IHex1bTerminalWorkloadAdapte
     /// </summary>
     /// <param name="uri">WebSocket URI to connect to (e.g. <c>ws://localhost:8080/ws/attach</c>).</param>
     public RemoteTerminalWorkloadAdapter(Uri uri)
+        : this(uri, static _ => { })
+    {
+    }
+
+    /// <summary>
+    /// Creates a new remote terminal workload adapter with custom WebSocket options.
+    /// </summary>
+    /// <param name="uri">WebSocket URI to connect to (e.g. <c>ws://localhost:8080/ws/attach</c>).</param>
+    /// <param name="configureOptions">
+    /// An action that configures the WebSocket before the connection is established.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="uri"/> or <paramref name="configureOptions"/> is <see langword="null"/>.
+    /// </exception>
+    public RemoteTerminalWorkloadAdapter(
+        Uri uri,
+        Action<ClientWebSocketOptions> configureOptions)
     {
         _uri = uri ?? throw new ArgumentNullException(nameof(uri));
+        ArgumentNullException.ThrowIfNull(configureOptions);
+
+        _ws = new ClientWebSocket();
+        configureOptions(_ws.Options);
+
         _outputChannel = Channel.CreateBounded<ReadOnlyMemory<byte>>(
             new BoundedChannelOptions(1000)
             {

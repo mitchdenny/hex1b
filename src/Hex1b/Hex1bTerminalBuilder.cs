@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.WebSockets;
 using Hex1b.Automation;
 using Hex1b.Widgets;
 
@@ -720,27 +721,44 @@ public sealed class Hex1bTerminalBuilder
     /// </code>
     /// </example>
     public Hex1bTerminalBuilder WithRemoteTerminal(Uri uri)
+        => WithRemoteTerminal(uri, static _ => { });
+
+    /// <summary>
+    /// Configures the terminal to connect to a remote terminal host over WebSocket
+    /// with custom connection options.
+    /// </summary>
+    /// <param name="uri">
+    /// WebSocket URI of the remote host's attach endpoint.
+    /// </param>
+    /// <param name="configureOptions">
+    /// An action that configures the WebSocket before the connection is established.
+    /// </param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="uri"/> or <paramref name="configureOptions"/> is <see langword="null"/>.
+    /// </exception>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithRemoteTerminal(
+    ///         new Uri("wss://example.com/ws/attach"),
+    ///         options => options.SetRequestHeader("Authorization", "Bearer token"))
+    ///     .Build();
+    ///
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithRemoteTerminal(
+        Uri uri,
+        Action<ClientWebSocketOptions> configureOptions)
     {
         ArgumentNullException.ThrowIfNull(uri);
+        ArgumentNullException.ThrowIfNull(configureOptions);
 
         SetWorkloadFactory(_ =>
         {
-            var adapter = new RemoteTerminalWorkloadAdapter(uri);
-
-            Func<CancellationToken, Task<int>> runCallback = async ct =>
-            {
-                await adapter.ConnectAsync(ct);
-
-                // Wait for the remote terminal to disconnect
-                var tcs = new TaskCompletionSource<int>();
-                adapter.Disconnected += () => tcs.TrySetResult(0);
-
-                using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
-
-                return await tcs.Task;
-            };
-
-            return new Hex1bTerminalBuildContext(adapter, runCallback);
+            var adapter = new RemoteTerminalWorkloadAdapter(uri, configureOptions);
+            return CreateRemoteTerminalBuildContext(adapter);
         });
 
         return this;
@@ -758,6 +776,9 @@ public sealed class Hex1bTerminalBuilder
     /// remote state (dimensions, leadership) or sending shutdown commands.
     /// </param>
     /// <returns>This builder instance for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="uri"/> is <see langword="null"/>.
+    /// </exception>
     /// <example>
     /// <code>
     /// await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -769,30 +790,71 @@ public sealed class Hex1bTerminalBuilder
     /// </code>
     /// </example>
     public Hex1bTerminalBuilder WithRemoteTerminal(Uri uri, out RemoteTerminalWorkloadAdapter adapter)
+        => WithRemoteTerminal(uri, static _ => { }, out adapter);
+
+    /// <summary>
+    /// Configures the terminal to connect to a remote terminal host over WebSocket
+    /// with custom connection options, providing access to the adapter for advanced control.
+    /// </summary>
+    /// <param name="uri">
+    /// WebSocket URI of the remote host's attach endpoint.
+    /// </param>
+    /// <param name="configureOptions">
+    /// An action that configures the WebSocket before the connection is established.
+    /// </param>
+    /// <param name="adapter">
+    /// When this method returns, contains the adapter instance for querying
+    /// remote state (dimensions, leadership) or sending shutdown commands.
+    /// </param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="uri"/> or <paramref name="configureOptions"/> is <see langword="null"/>.
+    /// </exception>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithRemoteTerminal(
+    ///         new Uri("wss://example.com/ws/attach"),
+    ///         options => options.SetRequestHeader("Authorization", "Bearer token"),
+    ///         out var remote)
+    ///     .Build();
+    ///
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithRemoteTerminal(
+        Uri uri,
+        Action<ClientWebSocketOptions> configureOptions,
+        out RemoteTerminalWorkloadAdapter adapter)
     {
         ArgumentNullException.ThrowIfNull(uri);
+        ArgumentNullException.ThrowIfNull(configureOptions);
 
-        var remoteAdapter = new RemoteTerminalWorkloadAdapter(uri);
+        var remoteAdapter = new RemoteTerminalWorkloadAdapter(uri, configureOptions);
         adapter = remoteAdapter;
 
-        SetWorkloadFactory(_ =>
-        {
-            Func<CancellationToken, Task<int>> runCallback = async ct =>
-            {
-                await remoteAdapter.ConnectAsync(ct);
-
-                var tcs = new TaskCompletionSource<int>();
-                remoteAdapter.Disconnected += () => tcs.TrySetResult(0);
-
-                using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
-
-                return await tcs.Task;
-            };
-
-            return new Hex1bTerminalBuildContext(remoteAdapter, runCallback);
-        });
+        SetWorkloadFactory(_ => CreateRemoteTerminalBuildContext(remoteAdapter));
 
         return this;
+    }
+
+    private static Hex1bTerminalBuildContext CreateRemoteTerminalBuildContext(
+        RemoteTerminalWorkloadAdapter adapter)
+    {
+        Func<CancellationToken, Task<int>> runCallback = async ct =>
+        {
+            await adapter.ConnectAsync(ct);
+
+            // Wait for the remote terminal to disconnect
+            var tcs = new TaskCompletionSource<int>();
+            adapter.Disconnected += () => tcs.TrySetResult(0);
+
+            using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
+
+            return await tcs.Task;
+        };
+
+        return new Hex1bTerminalBuildContext(adapter, runCallback);
     }
 
     /// <summary>
