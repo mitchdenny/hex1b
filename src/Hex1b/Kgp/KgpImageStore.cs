@@ -98,6 +98,23 @@ public sealed class KgpImageStore
         KgpImageData? Image,
         bool CurrentFrameChanged);
 
+    internal enum AnimationControlStatus
+    {
+        Success,
+        InvalidIdentity,
+        ImageNotFound,
+        OutOfMemory,
+    }
+
+    internal readonly record struct AnimationControlResult(
+        AnimationControlStatus Status,
+        uint ImageId,
+        uint ImageNumber);
+
+    internal readonly record struct AnimationAdvanceResult(
+        bool CurrentFrameChanged,
+        TimeSpan? NextDelay);
+
     private readonly object _lock = new();
     private readonly Dictionary<uint, KgpImageData> _imagesById = new();
     private readonly Dictionary<uint, List<uint>> _imagesByNumber = new();
@@ -129,6 +146,32 @@ public sealed class KgpImageStore
     public int ImageCount
     {
         get { lock (_lock) return _imagesById.Count; }
+    }
+
+    internal bool HasAnimationsNeedingPlayback
+    {
+        get
+        {
+            lock (_lock)
+            {
+                foreach (var image in _imagesById.Values)
+                {
+                    if (image.AnimationState is { } animation &&
+                        animation.FrameCount > 1 &&
+                        animation.PlaybackState is
+                            KgpParsedCommand.AnimationPlaybackState.Loading or
+                            KgpParsedCommand.AnimationPlaybackState.Running &&
+                        animation.TotalDurationMilliseconds > 0 &&
+                        (animation.MaximumLoops <= 1 ||
+                         animation.CompletedLoops < animation.MaximumLoops - 1))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
     }
 
     /// <summary>
@@ -457,6 +500,12 @@ public sealed class KgpImageStore
                 var updatedAnimation = isNewFrame
                     ? animation.AddFrame(updatedFrame)
                     : animation.SetFrame(frameIndex, updatedFrame);
+                if (!isNewFrame &&
+                    frameIndex == animation.CurrentFrameIndex)
+                {
+                    updatedAnimation =
+                        updatedAnimation.ResetCurrentFrameTimer();
+                }
                 var updatedImage = image.WithAnimation(updatedAnimation);
                 var storageDelta = checked(
                     updatedImage.StorageSize - image.StorageSize);
@@ -573,6 +622,118 @@ public sealed class KgpImageStore
                     image,
                     CurrentFrameChanged: false);
             }
+        }
+    }
+
+    internal AnimationControlResult ControlAnimation(
+        KgpParsedCommand.AnimationControlData control)
+    {
+        lock (_lock)
+        {
+            if (control.ImageId == 0 && control.ImageNumber == 0)
+            {
+                return new AnimationControlResult(
+                    AnimationControlStatus.InvalidIdentity,
+                    control.ImageId,
+                    control.ImageNumber);
+            }
+
+            var image = ResolveAddressableImageUnsafe(
+                control.ImageId,
+                control.ImageNumber);
+            if (image is null)
+            {
+                return new AnimationControlResult(
+                    AnimationControlStatus.ImageNotFound,
+                    control.ImageId,
+                    control.ImageNumber);
+            }
+
+            try
+            {
+                var animation = image.AnimationState ??
+                    KgpAnimationState.CreateRoot(
+                        new KgpAnimationFrame(
+                            image.Data,
+                            gapMilliseconds: 0,
+                            image.Format));
+
+                if (control.AffectedFrameNumber >= 1 &&
+                    control.AffectedFrameNumber <= animation.FrameCount &&
+                    control.Gap != 0)
+                {
+                    animation = animation.SetFrameGap(
+                        checked((int)control.AffectedFrameNumber - 1),
+                        Math.Max(0, control.Gap));
+                }
+
+                if (control.CurrentFrameNumber >= 1 &&
+                    control.CurrentFrameNumber <= animation.FrameCount)
+                {
+                    animation = animation.SetCurrentFrame(
+                        checked((int)control.CurrentFrameNumber - 1));
+                }
+
+                if (control.State != KgpParsedCommand.AnimationPlaybackState.None)
+                    animation = animation.SetPlaybackState(control.State);
+
+                if (control.LoopCount > 0)
+                    animation = animation.SetMaximumLoops(control.LoopCount);
+
+                _imagesById[image.ImageId] = image.WithAnimation(animation);
+                return new AnimationControlResult(
+                    AnimationControlStatus.Success,
+                    image.ImageId,
+                    image.ImageNumber);
+            }
+            catch (OutOfMemoryException)
+            {
+                return new AnimationControlResult(
+                    AnimationControlStatus.OutOfMemory,
+                    image.ImageId,
+                    image.ImageNumber);
+            }
+        }
+    }
+
+    internal AnimationAdvanceResult AdvanceAnimations(
+        IReadOnlySet<uint> visibleImageIds,
+        DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(visibleImageIds);
+
+        lock (_lock)
+        {
+            var currentFrameChanged = false;
+            TimeSpan? nextDelay = null;
+            foreach (var imageId in visibleImageIds)
+            {
+                if (!_imagesById.TryGetValue(imageId, out var image) ||
+                    image.AnimationState is not { } animation ||
+                    animation.FrameCount <= 1 ||
+                    animation.PlaybackState is
+                        KgpParsedCommand.AnimationPlaybackState.None or
+                        KgpParsedCommand.AnimationPlaybackState.Stopped ||
+                    animation.TotalDurationMilliseconds == 0)
+                {
+                    continue;
+                }
+
+                var advance = AdvanceAnimation(animation, now);
+                if (!ReferenceEquals(advance.State, animation))
+                    _imagesById[imageId] = image.WithAnimation(advance.State);
+
+                currentFrameChanged |= advance.CurrentFrameChanged;
+                if (advance.NextDelay is { } delay &&
+                    (nextDelay is null || delay < nextDelay))
+                {
+                    nextDelay = delay;
+                }
+            }
+
+            return new AnimationAdvanceResult(
+                currentFrameChanged,
+                nextDelay);
         }
     }
 
@@ -1031,7 +1192,7 @@ public sealed class KgpImageStore
                 transmission);
         }
 
-        if (image.Format == KgpFormat.Png && image.AnimationState is null)
+        if (image.Format == KgpFormat.Png)
         {
             return CreateAnimationFrameFailure(
                 AnimationFrameStatus.UnsupportedBaseFormat,
@@ -1121,8 +1282,14 @@ public sealed class KgpImageStore
         }
 
         var requiredStorageBytes = 0L;
-        if (image.AnimationState is null)
-            requiredStorageBytes += rgbaFrameLength - image.StorageSize;
+        if (image.AnimationState is null ||
+            image.AnimationState.GetFrame(0).Format != KgpFormat.Rgba32)
+        {
+            requiredStorageBytes +=
+                rgbaFrameLength -
+                (image.AnimationState?.GetFrame(0).StorageSize ??
+                 image.StorageSize);
+        }
         if (isNewFrame)
             requiredStorageBytes += rgbaFrameLength;
 
@@ -1154,18 +1321,100 @@ public sealed class KgpImageStore
     private static KgpAnimationState CreateNormalizedAnimation(
         KgpImageData image)
     {
-        if (image.AnimationState is { } animation)
+        if (image.AnimationState is { } animation &&
+            animation.GetFrame(0).Format == KgpFormat.Rgba32)
+        {
             return animation;
+        }
 
-        var rootData = image.Format == KgpFormat.Rgba32
-            ? image.Data
+        var root = image.AnimationState?.GetFrame(0);
+        var rootData = root?.Format == KgpFormat.Rgba32
+            ? root.Data
             : KgpAnimationFrameComposer.ConvertToRgba(
-                image.Data,
+                root?.Data ?? image.Data,
                 image.Width,
                 image.Height,
-                image.Format);
-        return KgpAnimationState.CreateRoot(
-            new KgpAnimationFrame(rootData, gapMilliseconds: 0));
+                root?.Format ?? image.Format);
+        var normalizedRoot = new KgpAnimationFrame(
+            rootData,
+            root?.GapMilliseconds ?? 0);
+        return image.AnimationState is { } existing
+            ? existing.SetFrame(0, normalizedRoot)
+            : KgpAnimationState.CreateRoot(normalizedRoot);
+    }
+
+    private static (
+        KgpAnimationState State,
+        bool CurrentFrameChanged,
+        TimeSpan? NextDelay) AdvanceAnimation(
+            KgpAnimationState animation,
+            DateTimeOffset now)
+    {
+        var shownAt = animation.CurrentFrameShownAt;
+        if (shownAt is null || shownAt > now)
+        {
+            shownAt = now;
+            animation = animation.SetPlaybackPosition(
+                animation.CurrentFrameIndex,
+                animation.CompletedLoops,
+                shownAt);
+        }
+
+        var currentGap = animation
+            .GetFrame(animation.CurrentFrameIndex)
+            .GapMilliseconds;
+        if (currentGap > 0)
+        {
+            var remaining =
+                TimeSpan.FromMilliseconds(currentGap) -
+                (now - shownAt.Value);
+            if (remaining > TimeSpan.Zero)
+                return (animation, false, remaining);
+        }
+
+        var currentFrameIndex = animation.CurrentFrameIndex;
+        var completedLoops = animation.CompletedLoops;
+        for (var skipped = 0; skipped < animation.FrameCount; skipped++)
+        {
+            var nextFrameIndex = currentFrameIndex + 1;
+            if (nextFrameIndex == animation.FrameCount)
+            {
+                if (animation.PlaybackState ==
+                        KgpParsedCommand.AnimationPlaybackState.Loading ||
+                    animation.MaximumLoops > 1 &&
+                    completedLoops >= animation.MaximumLoops - 1)
+                {
+                    var parked = animation.SetPlaybackPosition(
+                        animation.CurrentFrameIndex,
+                        completedLoops,
+                        animation.CurrentFrameShownAt);
+                    return (
+                        parked,
+                        CurrentFrameChanged: false,
+                        null);
+                }
+
+                nextFrameIndex = 0;
+                if (animation.MaximumLoops > 1)
+                    completedLoops++;
+            }
+
+            currentFrameIndex = nextFrameIndex;
+            if (animation.GetFrame(currentFrameIndex).GapMilliseconds == 0)
+                continue;
+
+            var advanced = animation.SetPlaybackPosition(
+                currentFrameIndex,
+                completedLoops,
+                now);
+            return (
+                advanced,
+                currentFrameIndex != animation.CurrentFrameIndex,
+                TimeSpan.FromMilliseconds(
+                    animation.GetFrame(currentFrameIndex).GapMilliseconds));
+        }
+
+        return (animation, false, null);
     }
 
     private KgpImageData? ResolveAddressableImageUnsafe(

@@ -121,6 +121,38 @@ public class KgpImageNodeTests
         Assert.AreEqual(10, widget.Height);
     }
 
+    [TestMethod]
+    public void KgpAnimation_ConfiguresFramesAndPlayback()
+    {
+        var context = new RootContext();
+        KgpAnimationFrame[] frames =
+        [
+            new(CreateTestImage(2, 2), 40),
+            new(CreateTestImage(2, 2), 60),
+        ];
+
+        var widget = context.KgpAnimation(frames, 2, 2, image => image.Text("fallback"))
+            .Playing();
+
+        Assert.AreSame(frames, widget.AnimationFrames);
+        Assert.IsTrue(widget.IsAnimationPlaying);
+        Assert.AreSame(frames[0].Data, widget.ImageData);
+    }
+
+    [TestMethod]
+    public void KgpAnimation_WithIncorrectFrameSize_Throws()
+    {
+        var context = new RootContext();
+        KgpAnimationFrame[] frames =
+        [
+            new(CreateTestImage(2, 2), 40),
+            new(CreateTestImage(1, 1), 60),
+        ];
+
+        Assert.Throws<ArgumentException>(
+            () => context.KgpAnimation(frames, 2, 2, image => image.Text("fallback")));
+    }
+
     #endregion
 
     #region Node MeasureCore
@@ -214,6 +246,39 @@ public class KgpImageNodeTests
         // Verify the terminal processed the output without errors
         var snapshot = terminal.CreateSnapshot();
         Assert.IsNotNull(snapshot);
+    }
+
+    [TestMethod]
+    public void Render_WithPlayingAnimation_EmitsFramesPlacementAndControl()
+    {
+        var node = new KgpImageNode
+        {
+            ImageData = CreateTestImage(2, 2),
+            AnimationFrames =
+            [
+                new KgpAnimationFrame(CreateTestImage(2, 2), 40),
+                new KgpAnimationFrame(CreateTestImage(2, 2), 60),
+            ],
+            IsAnimationPlaying = true,
+            PixelWidth = 2,
+            PixelHeight = 2,
+            RequestedWidth = 4,
+            RequestedHeight = 2,
+        };
+        node.Measure(new Constraints(0, 80, 0, 24));
+        node.Arrange(new Rect(0, 0, 4, 2));
+
+        using var workload = CreateKgpEnabledWorkload();
+        var context = new CapturingRenderContext(workload);
+
+        node.Render(context);
+
+        var output = string.Concat(context.Writes);
+        StringAssert.Contains(output, "\x1b_Ga=t,f=32");
+        StringAssert.Contains(output, "\x1b_Ga=f,f=32");
+        StringAssert.Contains(output, ",z=60,X=1,q=2;");
+        StringAssert.Contains(output, "\x1b_Ga=p,");
+        StringAssert.Contains(output, ",r=1,z=40,c=1,s=3,v=1,q=2\x1b\\");
     }
 
     [TestMethod]
@@ -641,4 +706,12 @@ public class KgpImageNodeTests
     }
 
     #endregion
+
+    private sealed class CapturingRenderContext(IHex1bAppTerminalWorkloadAdapter adapter)
+        : Hex1bRenderContext(adapter)
+    {
+        internal List<string> Writes { get; } = [];
+
+        public override void Write(string text) => Writes.Add(text);
+    }
 }

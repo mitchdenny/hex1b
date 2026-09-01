@@ -1,0 +1,19 @@
+TGIF sample data
+================
+
+This directory contains a curated subset of the Tumblr GIF (TGIF) dataset:
+https://raingo.github.io/TGIF-Release/
+
+The original dataset was published with:
+
+Yuncheng Li, Yale Song, Liangliang Cao, Joel Tetreault, Larry Goldberg,
+Alejandro Jaimes, and Jiebo Luo. "TGIF: A New Dataset and Benchmark on
+Animated GIF Description." CVPR 2016.
+
+The TGIF dataset is provided for approved non-commercial research purposes.
+See the upstream repository for its complete terms:
+https://github.com/raingo/TGIF-Release
+
+Each source URL and description is retained in index.tsv. The GIFs in this
+sample were resized to fit within 160x120 pixels and palette-optimized to keep
+the repository footprint practical.

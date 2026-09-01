@@ -287,6 +287,57 @@ public class SurfaceRenderContext : Hex1bRenderContext
     public override void WriteKgp(byte[] imageData, int pixelWidth, int pixelHeight,
         int cellWidth, int cellHeight, KgpZOrder zOrder,
         int clipX = 0, int clipY = 0, int clipW = 0, int clipH = 0)
+        => WriteKgpCore(
+            imageData,
+            pixelWidth,
+            pixelHeight,
+            cellWidth,
+            cellHeight,
+            zOrder,
+            clipX,
+            clipY,
+            clipW,
+            clipH);
+
+    internal override void WriteKgpAnimation(
+        IReadOnlyList<KgpAnimationFrame> frames,
+        int pixelWidth,
+        int pixelHeight,
+        int cellWidth,
+        int cellHeight,
+        KgpZOrder zOrder,
+        bool playing,
+        int clipX = 0,
+        int clipY = 0,
+        int clipW = 0,
+        int clipH = 0)
+        => WriteKgpCore(
+            frames[0].Data,
+            pixelWidth,
+            pixelHeight,
+            cellWidth,
+            cellHeight,
+            zOrder,
+            clipX,
+            clipY,
+            clipW,
+            clipH,
+            frames,
+            playing);
+
+    private void WriteKgpCore(
+        byte[] imageData,
+        int pixelWidth,
+        int pixelHeight,
+        int cellWidth,
+        int cellHeight,
+        KgpZOrder zOrder,
+        int clipX,
+        int clipY,
+        int clipW,
+        int clipH,
+        IReadOnlyList<KgpAnimationFrame>? animationFrames = null,
+        bool playing = false)
     {
         var anchorX = _cursorX;
         var anchorY = _cursorY;
@@ -409,26 +460,31 @@ public class SurfaceRenderContext : Hex1bRenderContext
             return;
         }
 
-        var contentHash = System.Security.Cryptography.SHA256.HashData(imageData);
-        var imageId = ComputeKgpImageId(contentHash);
-        var zIndex = zOrder == KgpZOrder.AboveText ? 1 : -1;
-
-        var base64 = Convert.ToBase64String(imageData);
-        var transmitPayload = $"\x1b_Ga=t,f=32,s={pixelWidth},v={pixelHeight},i={imageId},t=d,q=2;{base64}\x1b\\";
-
-        var kgpData = new KgpCellData(
-            transmitPayload,
-            imageId,
-            cellWidth,
-            cellHeight,
-            (uint)pixelWidth,
-            (uint)pixelHeight,
-            contentHash,
-            clipX: clipX,
-            clipY: clipY,
-            clipW: clipW,
-            clipH: clipH,
-            zIndex: zIndex);
+        var kgpData = animationFrames is { Count: > 1 }
+            ? CreateKgpAnimationCellData(
+                animationFrames,
+                pixelWidth,
+                pixelHeight,
+                cellWidth,
+                cellHeight,
+                zOrder,
+                playing,
+                clipX,
+                clipY,
+                clipW,
+                clipH)
+            : CreateStaticKgpCellData(
+                imageData,
+                pixelWidth,
+                pixelHeight,
+                cellWidth,
+                cellHeight,
+                zOrder,
+                clipX,
+                clipY,
+                clipW,
+                clipH);
+        var imageId = kgpData.ImageId;
 
         var tracked = _trackedObjects.GetOrCreateKgp(kgpData);
 
@@ -457,6 +513,38 @@ public class SurfaceRenderContext : Hex1bRenderContext
                     _surface[cx, cy] = new SurfaceCell(" ", null, null);
             }
         }
+    }
+
+    private KgpCellData CreateStaticKgpCellData(
+        byte[] imageData,
+        int pixelWidth,
+        int pixelHeight,
+        int cellWidth,
+        int cellHeight,
+        KgpZOrder zOrder,
+        int clipX,
+        int clipY,
+        int clipW,
+        int clipH)
+    {
+        var contentHash = System.Security.Cryptography.SHA256.HashData(imageData);
+        var imageId = ComputeKgpImageId(contentHash);
+        var base64 = Convert.ToBase64String(imageData);
+        var transmitPayload =
+            $"\x1b_Ga=t,f=32,s={pixelWidth},v={pixelHeight},i={imageId},t=d,q=2;{base64}\x1b\\";
+        return new KgpCellData(
+            transmitPayload,
+            imageId,
+            cellWidth,
+            cellHeight,
+            (uint)pixelWidth,
+            (uint)pixelHeight,
+            contentHash,
+            clipX,
+            clipY,
+            clipW,
+            clipH,
+            zOrder == KgpZOrder.AboveText ? 1 : -1);
     }
 
     internal override void RegisterKgp(KgpImageData image, KgpPlacement placement)

@@ -1,5 +1,6 @@
 using System.Text;
 using Hex1b.Tokens;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Hex1b.Tests;
 
@@ -1106,6 +1107,405 @@ public class KgpAnimationFrameTests
     }
 
     [TestMethod]
+    public void AnimationControl_Properties_UpdatePersistentStateWithoutResponse()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        StoreBaseImage(
+            terminal,
+            imageId: 1,
+            width: 1,
+            height: 1,
+            KgpFormat.Rgba32,
+            [1, 0, 0, 255]);
+        SendKgp(
+            terminal,
+            FrameCommand(
+                "f=32,s=1,v=1,i=1,z=40,q=2",
+                [2, 0, 0, 255]));
+        var before = GetImage(terminal, 1);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=a,i=1,r=1,z=25,c=2,s=3,v=4"));
+
+        var after = GetImage(terminal, 1);
+        Assert.AreNotSame(before, after);
+        Assert.AreEqual(1, before.CurrentFrameNumber);
+        Assert.AreEqual(2, after.CurrentFrameNumber);
+        Assert.AreEqual(
+            KgpParsedCommand.AnimationPlaybackState.Running,
+            after.AnimationState!.PlaybackState);
+        Assert.AreEqual(4u, after.AnimationState.MaximumLoops);
+        AssertFrame(after, 1, [1, 0, 0, 255], 25);
+        workload.AssertNoResponse();
+    }
+
+    [TestMethod]
+    public void AnimationPlayback_GapsAndGaplessFrames_AdvanceWithPersistentSnapshots()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            timeProvider: timeProvider);
+        StoreBaseImage(
+            terminal,
+            imageId: 1,
+            width: 1,
+            height: 1,
+            KgpFormat.Rgba32,
+            [1, 0, 0, 255]);
+        SendKgp(
+            terminal,
+            FrameCommand(
+                "f=32,s=1,v=1,i=1,z=-1,q=2",
+                [2, 0, 0, 255]));
+        SendKgp(
+            terminal,
+            FrameCommand(
+                "f=32,s=1,v=1,i=1,z=30,q=2",
+                [3, 0, 0, 255]));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=p,i=1,p=1,c=1,r=1,C=1,q=2"));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=a,i=1,r=1,z=20,s=3,v=1"));
+        using var rootSnapshot = terminal.CreateSnapshot();
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(19));
+        Assert.AreEqual(1, GetImage(terminal, 1).CurrentFrameNumber);
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(1));
+        Assert.AreEqual(3, GetImage(terminal, 1).CurrentFrameNumber);
+        TestSeq.AreEqual(
+            new byte[] { 1, 0, 0, 255 },
+            rootSnapshot.KgpImages[1].CurrentFrameData);
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(30));
+        Assert.AreEqual(1, GetImage(terminal, 1).CurrentFrameNumber);
+    }
+
+    [TestMethod]
+    public void AnimationPlayback_FiniteLoops_ParksOnFinalFrame()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            timeProvider: timeProvider);
+        StoreBaseImage(
+            terminal,
+            imageId: 1,
+            width: 1,
+            height: 1,
+            KgpFormat.Rgba32,
+            [1, 0, 0, 255]);
+        SendKgp(
+            terminal,
+            FrameCommand(
+                "f=32,s=1,v=1,i=1,z=30,q=2",
+                [2, 0, 0, 255]));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=p,i=1,p=1,c=1,r=1,C=1,q=2"));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=a,i=1,r=1,z=20,s=3,v=2"));
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(20));
+        Assert.AreEqual(2, GetImage(terminal, 1).CurrentFrameNumber);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(30));
+        Assert.AreEqual(1, GetImage(terminal, 1).CurrentFrameNumber);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(20));
+        Assert.AreEqual(2, GetImage(terminal, 1).CurrentFrameNumber);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(300));
+
+        var parked = GetImage(terminal, 1);
+        Assert.AreEqual(2, parked.CurrentFrameNumber);
+        Assert.AreEqual(1u, parked.AnimationState!.CompletedLoops);
+    }
+
+    [TestMethod]
+    public void AnimationPlayback_LoadingMode_NewFrameResumesFromParkedTail()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            timeProvider: timeProvider);
+        StoreBaseImage(
+            terminal,
+            imageId: 1,
+            width: 1,
+            height: 1,
+            KgpFormat.Rgba32,
+            [1, 0, 0, 255]);
+        SendKgp(
+            terminal,
+            FrameCommand(
+                "f=32,s=1,v=1,i=1,z=40,q=2",
+                [2, 0, 0, 255]));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=p,i=1,p=1,c=1,r=1,C=1,q=2"));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand("a=a,i=1,c=2,s=2"));
+        Assert.AreEqual(2, GetImage(terminal, 1).CurrentFrameNumber);
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(140));
+        var parked = GetImage(terminal, 1);
+        Assert.AreEqual(2, parked.CurrentFrameNumber);
+        Assert.IsNotNull(parked.AnimationState!.CurrentFrameShownAt);
+
+        SendKgp(
+            terminal,
+            FrameCommand(
+                "f=32,s=1,v=1,i=1,z=50,q=2",
+                [3, 0, 0, 255]));
+
+        Assert.AreEqual(3, GetImage(terminal, 1).CurrentFrameNumber);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(500));
+        Assert.AreEqual(3, GetImage(terminal, 1).CurrentFrameNumber);
+    }
+
+    [TestMethod]
+    public void AnimationPlayback_GaplessTail_IsNeverDisplayedWhenLoadingParks()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            timeProvider: timeProvider);
+        StoreBaseImage(
+            terminal,
+            imageId: 1,
+            width: 1,
+            height: 1,
+            KgpFormat.Rgba32,
+            [1, 0, 0, 255]);
+        SendKgp(
+            terminal,
+            FrameCommand(
+                "f=32,s=1,v=1,i=1,z=-1,q=2",
+                [2, 0, 0, 255]));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=p,i=1,p=1,c=1,r=1,C=1,q=2"));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=a,i=1,r=1,z=20,s=2"));
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(20));
+
+        Assert.AreEqual(1, GetImage(terminal, 1).CurrentFrameNumber);
+    }
+
+    [TestMethod]
+    public void AnimationFrame_EditCurrentFrame_RestartsItsGap()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            timeProvider: timeProvider);
+        StoreBaseImage(
+            terminal,
+            imageId: 1,
+            width: 1,
+            height: 1,
+            KgpFormat.Rgba32,
+            [1, 0, 0, 255]);
+        SendKgp(
+            terminal,
+            FrameCommand(
+                "f=32,s=1,v=1,i=1,z=40,q=2",
+                [2, 0, 0, 255]));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=p,i=1,p=1,c=1,r=1,C=1,q=2"));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=a,i=1,r=1,z=20,s=3,v=1"));
+        timeProvider.Advance(TimeSpan.FromMilliseconds(20));
+        timeProvider.Advance(TimeSpan.FromMilliseconds(30));
+
+        SendKgp(
+            terminal,
+            FrameCommand(
+                "f=32,s=1,v=1,i=1,r=2,X=1,q=2",
+                [3, 0, 0, 255]));
+        timeProvider.Advance(TimeSpan.FromMilliseconds(10));
+        Assert.AreEqual(2, GetImage(terminal, 1).CurrentFrameNumber);
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(30));
+        Assert.AreEqual(1, GetImage(terminal, 1).CurrentFrameNumber);
+    }
+
+    [TestMethod]
+    public void AnimationPlayback_InvisibleImage_DoesNotAdvance()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            timeProvider: timeProvider);
+        StoreBaseImage(
+            terminal,
+            imageId: 1,
+            width: 1,
+            height: 1,
+            KgpFormat.Rgba32,
+            [1, 0, 0, 255]);
+        SendKgp(
+            terminal,
+            FrameCommand(
+                "f=32,s=1,v=1,i=1,z=40,q=2",
+                [2, 0, 0, 255]));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=a,i=1,r=1,z=20,s=3,v=1"));
+
+        timeProvider.Advance(TimeSpan.FromSeconds(1));
+        Assert.AreEqual(1, GetImage(terminal, 1).CurrentFrameNumber);
+
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=p,i=1,p=1,c=1,r=1,C=1,q=2"));
+        timeProvider.Advance(TimeSpan.FromMilliseconds(20));
+
+        Assert.AreEqual(2, GetImage(terminal, 1).CurrentFrameNumber);
+    }
+
+    [TestMethod]
+    public void AnimationControl_InvalidIdentityAndMissingImage_ReturnErrors()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand("a=a,s=3"));
+        Assert.AreEqual(
+            "\x1b_G;EINVAL:Image ID or number required\x1b\\",
+            workload.ReadResponse());
+
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand("a=a,i=7,s=3"));
+        Assert.AreEqual(
+            "\x1b_Gi=7;ENOENT:Image not found\x1b\\",
+            workload.ReadResponse());
+
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand("a=a,i=7,s=3,q=2"));
+        workload.AssertNoResponse();
+    }
+
+    [TestMethod]
+    public void AnimationPlayback_FrameChange_InvalidatesTerminalWidgetHandle()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var workload = new RecordingWorkloadAdapter();
+        var handle = new TerminalWidgetHandle(width: 5, height: 3);
+        handle.UpdateHostCapabilities(KgpCapabilities);
+        var invalidations = 0;
+        handle.OutputReceived += () => invalidations++;
+        using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            Width = 5,
+            Height = 3,
+            WorkloadAdapter = workload,
+            PresentationAdapter = handle,
+            TimeProvider = timeProvider,
+        });
+        StoreBaseImage(
+            terminal,
+            imageId: 1,
+            width: 1,
+            height: 1,
+            KgpFormat.Rgba32,
+            [1, 0, 0, 255]);
+        SendKgp(
+            terminal,
+            FrameCommand(
+                "f=32,s=1,v=1,i=1,z=40,q=2",
+                [2, 0, 0, 255]));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=p,i=1,p=1,c=1,r=1,C=1,q=2"));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=a,i=1,r=1,z=20,s=3,v=1"));
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(20));
+
+        Assert.AreEqual(1, invalidations);
+    }
+
+    [TestMethod]
+    public void AnimationPlayback_TerminalWidgetScrollback_AdvancesOnlyVisibleHistory()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var workload = new RecordingWorkloadAdapter();
+        var handle = new TerminalWidgetHandle(width: 5, height: 2);
+        handle.UpdateHostCapabilities(KgpCapabilities);
+        using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            Width = 5,
+            Height = 2,
+            WorkloadAdapter = workload,
+            PresentationAdapter = handle,
+            TimeProvider = timeProvider,
+            ScrollbackCapacity = 2,
+        });
+        StoreBaseImage(
+            terminal,
+            imageId: 1,
+            width: 1,
+            height: 1,
+            KgpFormat.Rgba32,
+            [1, 0, 0, 255]);
+        SendKgp(
+            terminal,
+            FrameCommand(
+                "f=32,s=1,v=1,i=1,z=40,q=2",
+                [2, 0, 0, 255]));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=p,i=1,p=1,c=1,r=1,C=1,q=2"));
+        SendKgp(
+            terminal,
+            KgpTestHelper.BuildCommand(
+                "a=a,i=1,r=1,z=20,s=3,v=1"));
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[S"));
+        timeProvider.Advance(TimeSpan.FromMilliseconds(100));
+        Assert.AreEqual(1, GetImage(terminal, 1).CurrentFrameNumber);
+
+        handle.CurrentScrollbackOffset = 1;
+        timeProvider.Advance(TimeSpan.FromMilliseconds(20));
+
+        Assert.AreEqual(2, GetImage(terminal, 1).CurrentFrameNumber);
+    }
+
+    [TestMethod]
     public void Dispose_WithAnimationFrames_ReleasesPerScreenStorage()
     {
         var workload = new RecordingWorkloadAdapter();
@@ -1133,12 +1533,15 @@ public class KgpAnimationFrameTests
         IHex1bTerminalWorkloadAdapter workload,
         int width = 80,
         int height = 24,
-        int? scrollbackCapacity = null)
+        int? scrollbackCapacity = null,
+        TimeProvider? timeProvider = null)
     {
         var builder = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload)
             .WithHeadless(KgpCapabilities)
             .WithDimensions(width, height);
+        if (timeProvider is not null)
+            builder.WithTimeProvider(timeProvider);
         if (scrollbackCapacity is { } capacity)
             builder.WithScrollback(capacity);
         return builder.Build();
