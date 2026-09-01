@@ -83,6 +83,49 @@ public class KgpPlacementTrackerTests
     }
 
     [TestMethod]
+    public void AnimationPlaybackChange_EmitsFramesOnceAndNewControl()
+    {
+        var tracker = new KgpPlacementTracker();
+        var stopped = CreateAnimationSurface(playing: false);
+
+        var (first, _) = tracker.GenerateCommands(stopped);
+
+        Assert.IsTrue(first.Any(IsAnimationFrame));
+        Assert.IsTrue(first.Any(token => IsAnimationControl(token, playbackState: 1)));
+
+        var (second, _) = tracker.GenerateCommands(CreateAnimationSurface(playing: true));
+
+        Assert.IsFalse(second.Any(IsAnimationFrame));
+        Assert.IsTrue(second.Any(token => IsAnimationControl(token, playbackState: 3)));
+    }
+
+    [TestMethod]
+    public void AnimationFrame_ChunkedPayload_RepeatsFrameAction()
+    {
+        const uint imageId = 42;
+        var frameData = Convert.ToBase64String(new byte[9000]);
+        var data = new KgpCellData(
+            transmitPayload: $"\x1b_Ga=t,f=32,s=1,v=1,i={imageId},q=2;AAAA\x1b\\",
+            imageId,
+            widthInCells: 4,
+            heightInCells: 2,
+            sourcePixelWidth: 1,
+            sourcePixelHeight: 1,
+            contentHash: SHA256.HashData(Encoding.UTF8.GetBytes("animation")),
+            animationFramePayloads:
+            [
+                $"\x1b_Ga=f,f=32,s=1,v=1,i={imageId},z=40,X=1,q=2;{frameData}\x1b\\",
+            ]);
+
+        var chunks = data.BuildAnimationFrameChunks();
+
+        Assert.HasCount(3, chunks);
+        Assert.StartsWith("\x1b_Ga=f,", chunks[0]);
+        Assert.StartsWith("\x1b_Ga=f,m=1;", chunks[1]);
+        Assert.StartsWith("\x1b_Ga=f,m=0;", chunks[2]);
+    }
+
+    [TestMethod]
     public void SecondFrame_Move_ReusesTransmissionAndReplacesPlacement()
     {
         var tracker = new KgpPlacementTracker();
@@ -218,6 +261,38 @@ public class KgpPlacementTrackerTests
         Assert.IsFalse(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t")));
         Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1")));
     }
+
+    private static Surface CreateAnimationSurface(bool playing)
+    {
+        const uint imageId = 42;
+        var state = playing ? "playing" : "stopped";
+        var data = new KgpCellData(
+            transmitPayload: $"\x1b_Ga=t,f=32,s=1,v=1,i={imageId},q=2;AAAA\x1b\\",
+            imageId,
+            widthInCells: 4,
+            heightInCells: 2,
+            sourcePixelWidth: 1,
+            sourcePixelHeight: 1,
+            contentHash: SHA256.HashData(Encoding.UTF8.GetBytes(state)),
+            animationFramePayloads:
+            [
+                $"\x1b_Ga=f,f=32,s=1,v=1,i={imageId},z=40,X=1,q=2;AAAA\x1b\\",
+            ],
+            animationControlPayload:
+                $"\x1b_Ga=a,i={imageId},c=1,s={(playing ? 3 : 1)},v=1,q=2\x1b\\");
+        var surface = new Surface(30, 15, DefaultMetrics);
+        surface[3, 2] = new SurfaceCell(" ", null, null, Kgp: Track(data));
+        return surface;
+    }
+
+    private static bool IsAnimationFrame(AnsiToken token)
+        => token is UnrecognizedSequenceToken sequence &&
+            sequence.Sequence.Contains("a=f");
+
+    private static bool IsAnimationControl(AnsiToken token, int playbackState)
+        => token is UnrecognizedSequenceToken sequence &&
+            sequence.Sequence.Contains("a=a") &&
+            sequence.Sequence.Contains($"s={playbackState}");
 
     [TestMethod]
     public void MultipleImages_TrackedIndependently()

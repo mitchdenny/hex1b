@@ -124,6 +124,10 @@ internal class KgpPlacementTracker
                 {
                     targetList.Add(new UnrecognizedSequenceToken(chunk));
                 }
+                foreach (var chunk in firstFragment.Data.BuildAnimationFrameChunks())
+                {
+                    targetList.Add(new UnrecognizedSequenceToken(chunk));
+                }
                 _transmittedImages.Add(imageId);
                 _hasEverTransmitted = true;
                 transmits++;
@@ -160,6 +164,18 @@ internal class KgpPlacementTracker
                         $"\x1b_Ga=d,d=i,i={imageId},p={placementId},q=2\x1b\\"));
                     deletes++;
                 }
+            }
+
+            var contentChanged = previousList is { Count: > 0 } &&
+                currentList.Count > 0 &&
+                !KgpCellData.HashEquals(
+                    previousList[0].Data.ContentHash,
+                    currentList[0].Data.ContentHash);
+            if ((needsTransmit || contentChanged) &&
+                currentList[0].Data.AnimationControlPayload is { } control)
+            {
+                var targetList = currentList[0].Data.ZIndex < 0 ? beforeText : afterText;
+                targetList.Add(new UnrecognizedSequenceToken(control));
             }
         }
 

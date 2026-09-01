@@ -62,6 +62,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly TrackedObjectStore _trackedObjects = new();
     private readonly TimeProvider _timeProvider;
     private readonly KgpTerminalGraphicsState _kgpGraphicsState = new();
+    private ITimer? _kgpAnimationTimer;
+    private int _selectedHistoryCount;
     
     // Lock to protect screen buffer state from concurrent access.
     // The resize event comes from the input thread while the output pump
@@ -312,7 +314,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             lifecycleAdapter.TerminalCreated(this);
         }
-        
+
         // Notify terminal-aware presentation filters
         foreach (var filter in _presentationFilters)
         {
@@ -2723,6 +2725,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     break;
                 }
             }
+
+            RefreshKgpAnimationTimerUnsafe();
         }
     }
 
@@ -2766,7 +2770,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     cursorXBefore, cursorYBefore,
                     _cursorX, _cursorY));
             }
-            
+
+            RefreshKgpAnimationTimerUnsafe();
             return result;
         }
     }
@@ -6387,6 +6392,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _workload.DisposeAsync().AsTask().GetAwaiter().GetResult();
 
         _escapeFlushTimer?.Dispose();
+        _kgpAnimationTimer?.Dispose();
 
         _disposeCts.Cancel();
         _disposeCts.Dispose();
@@ -6433,6 +6439,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         await _workload.DisposeAsync();
 
         _escapeFlushTimer?.Dispose();
+        _kgpAnimationTimer?.Dispose();
 
         _disposeCts.Cancel();
         _disposeCts.Dispose();
@@ -6892,7 +6899,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             case KgpParsedCommand.AnimationFrame animationFrame:
                 ProcessKgpAnimationFrame(animationFrame, token.Payload);
                 break;
-            case KgpParsedCommand.AnimationControl:
+            case KgpParsedCommand.AnimationControl animationControl:
+                ProcessKgpAnimationControl(animationControl);
+                break;
             case KgpParsedCommand.Compose:
                 break;
         }
@@ -7591,10 +7600,151 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 Capabilities.CellPixelHeight));
     }
 
+    private void ProcessKgpAnimationControl(
+        KgpParsedCommand.AnimationControl command)
+    {
+        var result = ActiveKgpImageStore.ControlAnimation(command.Control);
+        switch (result.Status)
+        {
+            case KgpImageStore.AnimationControlStatus.Success:
+                return;
+            case KgpImageStore.AnimationControlStatus.InvalidIdentity:
+                SendKgpResponse(
+                    command.Control.ImageId,
+                    command.Control.ImageNumber,
+                    "EINVAL:Image ID or number required",
+                    (int)command.Quiet);
+                return;
+            case KgpImageStore.AnimationControlStatus.ImageNotFound:
+                SendKgpResponse(
+                    command.Control.ImageId,
+                    command.Control.ImageNumber,
+                    "ENOENT:Image not found",
+                    (int)command.Quiet);
+                return;
+            case KgpImageStore.AnimationControlStatus.OutOfMemory:
+                SendKgpResponse(
+                    result.ImageId,
+                    result.ImageNumber,
+                    "ENOMEM:Out of memory",
+                    (int)command.Quiet);
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(result),
+                    result.Status,
+                    "Unknown KGP animation control result.");
+        }
+    }
+
+    private void RefreshKgpAnimationTimerUnsafe()
+    {
+        if (!ActiveKgpImageStore.HasAnimationsNeedingPlayback)
+        {
+            ScheduleKgpAnimationTimerUnsafe(delay: null);
+            return;
+        }
+
+        var visibleImageIds =
+            CaptureVisibleKgpImageIdsUnsafe(_selectedHistoryCount);
+        var result = ActiveKgpImageStore.AdvanceAnimations(
+            visibleImageIds,
+            _timeProvider.GetUtcNow());
+        ScheduleKgpAnimationTimerUnsafe(result.NextDelay);
+    }
+
+    private void ScheduleKgpAnimationTimerUnsafe(TimeSpan? delay)
+    {
+        if (delay is null || _disposed)
+        {
+            _kgpAnimationTimer?.Change(
+                Timeout.InfiniteTimeSpan,
+                Timeout.InfiniteTimeSpan);
+            return;
+        }
+
+        var dueTime = delay <= TimeSpan.Zero
+            ? TimeSpan.FromMilliseconds(1)
+            : delay.Value;
+        _kgpAnimationTimer ??= _timeProvider.CreateTimer(
+            OnKgpAnimationTimerFired,
+            state: null,
+            Timeout.InfiniteTimeSpan,
+            Timeout.InfiniteTimeSpan);
+        _kgpAnimationTimer.Change(dueTime, Timeout.InfiniteTimeSpan);
+    }
+
+    private void OnKgpAnimationTimerFired(object? state)
+    {
+        var currentFrameChanged = false;
+        lock (_bufferLock)
+        {
+            if (_disposed)
+                return;
+
+            var visibleImageIds =
+                CaptureVisibleKgpImageIdsUnsafe(_selectedHistoryCount);
+            var result = ActiveKgpImageStore.AdvanceAnimations(
+                visibleImageIds,
+                _timeProvider.GetUtcNow());
+            currentFrameChanged = result.CurrentFrameChanged;
+            ScheduleKgpAnimationTimerUnsafe(result.NextDelay);
+        }
+
+        if (currentFrameChanged)
+            _presentation.InvalidatePresentation();
+    }
+
+    internal void RefreshKgpAnimationPlayback(int selectedHistoryCount)
+    {
+        lock (_bufferLock)
+        {
+            if (_disposed)
+                return;
+
+            _selectedHistoryCount = Math.Max(0, selectedHistoryCount);
+            RefreshKgpAnimationTimerUnsafe();
+        }
+    }
+
     private IReadOnlyList<ScrollbackEntry> GetKgpDeletionHistoryRows()
         => _inAlternateScreen || _scrollbackBuffer is null
             ? []
             : _scrollbackBuffer.GetEntries(_scrollbackBuffer.Count);
+
+    private HashSet<uint> CaptureVisibleKgpImageIdsUnsafe(
+        int selectedHistoryCount)
+    {
+        var historyRows = _inAlternateScreen || _scrollbackBuffer is null
+            ? []
+            : _scrollbackBuffer.GetEntries(_scrollbackBuffer.Count);
+        var snapshot = _kgpGraphicsState.CaptureActiveSnapshot(
+            historyRows,
+            selectedHistoryCount,
+            _screenBuffer,
+            _width,
+            _height,
+            Capabilities.CellPixelWidth,
+            Capabilities.CellPixelHeight);
+        var imageIds = new HashSet<uint>();
+        foreach (var placement in snapshot.Placements)
+        {
+            if (snapshot.Images.TryGetValue(placement.ImageId, out var image) &&
+                placement.ClipToCellRectangle(
+                    image,
+                    top: 0,
+                    bottomExclusive: _height,
+                    left: 0,
+                    rightExclusive: _width,
+                    Capabilities.CellPixelWidth,
+                    Capabilities.CellPixelHeight) is not null)
+            {
+                imageIds.Add(placement.ImageId);
+            }
+        }
+
+        return imageIds;
+    }
 
     private IReadOnlyList<KgpPlacement> CaptureActiveKgpPlacementsForMutation()
     {

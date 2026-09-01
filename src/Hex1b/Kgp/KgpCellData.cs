@@ -88,6 +88,10 @@ public sealed class KgpCellData
     /// </summary>
     public uint CellOffsetY { get; }
 
+    internal IReadOnlyList<string> AnimationFramePayloads { get; }
+
+    internal string? AnimationControlPayload { get; }
+
     /// <summary>
     /// Creates a new KGP cell data instance with structured placement data.
     /// </summary>
@@ -105,7 +109,9 @@ public sealed class KgpCellData
         int clipH = 0,
         int zIndex = -1,
         uint cellOffsetX = 0,
-        uint cellOffsetY = 0)
+        uint cellOffsetY = 0,
+        IReadOnlyList<string>? animationFramePayloads = null,
+        string? animationControlPayload = null)
     {
         TransmitPayload = transmitPayload;
         ImageId = imageId;
@@ -121,6 +127,8 @@ public sealed class KgpCellData
         ZIndex = zIndex;
         CellOffsetX = cellOffsetX;
         CellOffsetY = cellOffsetY;
+        AnimationFramePayloads = animationFramePayloads ?? [];
+        AnimationControlPayload = animationControlPayload;
     }
 
     /// <summary>
@@ -163,7 +171,9 @@ public sealed class KgpCellData
             clipH,
             ZIndex,
             clipX == ClipX ? CellOffsetX : 0,
-            clipY == ClipY ? CellOffsetY : 0);
+            clipY == ClipY ? CellOffsetY : 0,
+            AnimationFramePayloads,
+            AnimationControlPayload);
     }
 
     /// <summary>
@@ -183,6 +193,9 @@ public sealed class KgpCellData
     /// Returns an empty list if TransmitPayload is null.
     /// </summary>
     internal List<string> BuildTransmitChunks()
+        => BuildTransmitChunks(continuationAction: null);
+
+    private List<string> BuildTransmitChunks(string? continuationAction)
     {
         var chunks = new List<string>();
         if (TransmitPayload == null)
@@ -228,9 +241,9 @@ public sealed class KgpCellData
                 if (isFirst)
                     chunks.Add($"\x1b_G{paramsStr},m=1;{chunk}\x1b\\");
                 else if (isLast)
-                    chunks.Add($"\x1b_Gm=0;{chunk}\x1b\\");
+                    chunks.Add($"\x1b_G{continuationAction}m=0;{chunk}\x1b\\");
                 else
-                    chunks.Add($"\x1b_Gm=1;{chunk}\x1b\\");
+                    chunks.Add($"\x1b_G{continuationAction}m=1;{chunk}\x1b\\");
 
                 offset += chunkLen;
                 isFirst = false;
@@ -238,6 +251,22 @@ public sealed class KgpCellData
         }
 
         return chunks;
+    }
+
+    internal List<string> BuildAnimationFrameChunks()
+    {
+        var chunks = new List<string>();
+        foreach (var payload in AnimationFramePayloads)
+        {
+            chunks.AddRange(BuildPayloadChunks(payload));
+        }
+        return chunks;
+    }
+
+    private static List<string> BuildPayloadChunks(string payload)
+    {
+        var data = new KgpCellData(payload, 1, 1, 1, 1, 1, []);
+        return data.BuildTransmitChunks("a=f,");
     }
 
     /// <summary>

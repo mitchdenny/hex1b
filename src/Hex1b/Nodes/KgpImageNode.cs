@@ -16,6 +16,8 @@ public sealed class KgpImageNode : Hex1bNode
     private int? _requestedHeight;
     private KgpZOrder _zOrder = KgpZOrder.BelowText;
     private KgpImageStretch _stretch = KgpImageStretch.Stretch;
+    private IReadOnlyList<KgpAnimationFrame>? _animationFrames;
+    private bool _isAnimationPlaying;
 
     // Approximate terminal cell dimensions for aspect ratio calculations.
     private const double CellPixelWidth = 10.0;
@@ -129,6 +131,32 @@ public sealed class KgpImageNode : Hex1bNode
             if (_stretch != value)
             {
                 _stretch = value;
+                MarkDirty();
+            }
+        }
+    }
+
+    internal IReadOnlyList<KgpAnimationFrame>? AnimationFrames
+    {
+        get => _animationFrames;
+        set
+        {
+            if (!ReferenceEquals(_animationFrames, value))
+            {
+                _animationFrames = value;
+                MarkDirty();
+            }
+        }
+    }
+
+    internal bool IsAnimationPlaying
+    {
+        get => _isAnimationPlaying;
+        set
+        {
+            if (_isAnimationPlaying != value)
+            {
+                _isAnimationPlaying = value;
                 MarkDirty();
             }
         }
@@ -286,7 +314,22 @@ public sealed class KgpImageNode : Hex1bNode
         if (cellWidth <= 0 || cellHeight <= 0)
             return;
 
-        if (clipW > 0 && clipH > 0)
+        if (AnimationFrames is { Count: > 1 } frames)
+        {
+            context.WriteKgpAnimation(
+                frames,
+                PixelWidth,
+                PixelHeight,
+                cellWidth,
+                cellHeight,
+                ZOrder,
+                IsAnimationPlaying,
+                clipX,
+                clipY,
+                clipW,
+                clipH);
+        }
+        else if (clipW > 0 && clipH > 0)
         {
             context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder,
                 clipX, clipY, clipW, clipH);

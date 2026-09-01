@@ -16,16 +16,31 @@ internal sealed class KgpAnimationState
     private KgpAnimationState(
         ImmutableList<KgpAnimationFrame> frames,
         int currentFrameIndex,
-        long storageSize)
+        long storageSize,
+        long totalDurationMilliseconds,
+        KgpParsedCommand.AnimationPlaybackState playbackState,
+        uint maximumLoops,
+        uint completedLoops,
+        DateTimeOffset? currentFrameShownAt)
     {
         _frames = frames;
         CurrentFrameIndex = currentFrameIndex;
         StorageSize = storageSize;
+        TotalDurationMilliseconds = totalDurationMilliseconds;
+        PlaybackState = playbackState;
+        MaximumLoops = maximumLoops;
+        CompletedLoops = completedLoops;
+        CurrentFrameShownAt = currentFrameShownAt;
     }
 
     internal static KgpAnimationState Create(
         IReadOnlyList<KgpAnimationFrame> frames,
-        int currentFrameIndex)
+        int currentFrameIndex,
+        KgpParsedCommand.AnimationPlaybackState playbackState =
+            KgpParsedCommand.AnimationPlaybackState.Stopped,
+        uint maximumLoops = 1,
+        uint completedLoops = 0,
+        DateTimeOffset? currentFrameShownAt = null)
     {
         ArgumentNullException.ThrowIfNull(frames);
         if (frames.Count == 0)
@@ -45,12 +60,22 @@ internal sealed class KgpAnimationState
         }
 
         long storageSize = 0;
+        long totalDurationMilliseconds = 0;
         foreach (var frame in frames)
+        {
             storageSize = checked(storageSize + frame.StorageSize);
+            totalDurationMilliseconds = checked(
+                totalDurationMilliseconds + frame.GapMilliseconds);
+        }
         return new KgpAnimationState(
             ImmutableList.CreateRange(frames),
             currentFrameIndex,
-            storageSize);
+            storageSize,
+            totalDurationMilliseconds,
+            playbackState,
+            maximumLoops,
+            completedLoops,
+            currentFrameShownAt);
     }
 
     internal static KgpAnimationState CreateRoot(KgpAnimationFrame root)
@@ -59,7 +84,12 @@ internal sealed class KgpAnimationState
         return new KgpAnimationState(
             ImmutableList.Create(root),
             currentFrameIndex: 0,
-            root.StorageSize);
+            root.StorageSize,
+            root.GapMilliseconds,
+            KgpParsedCommand.AnimationPlaybackState.Stopped,
+            maximumLoops: 1,
+            completedLoops: 0,
+            currentFrameShownAt: null);
     }
 
     internal IReadOnlyList<KgpAnimationFrame> Frames => _frames;
@@ -69,6 +99,16 @@ internal sealed class KgpAnimationState
     internal int CurrentFrameIndex { get; }
 
     internal long StorageSize { get; }
+
+    internal long TotalDurationMilliseconds { get; }
+
+    internal KgpParsedCommand.AnimationPlaybackState PlaybackState { get; }
+
+    internal uint MaximumLoops { get; }
+
+    internal uint CompletedLoops { get; }
+
+    internal DateTimeOffset? CurrentFrameShownAt { get; }
 
     internal KgpAnimationFrame GetFrame(int frameIndex)
         => _frames[frameIndex];
@@ -85,7 +125,12 @@ internal sealed class KgpAnimationState
         return new KgpAnimationState(
             _frames.Add(frame),
             CurrentFrameIndex,
-            checked(StorageSize + frame.StorageSize));
+            checked(StorageSize + frame.StorageSize),
+            checked(TotalDurationMilliseconds + frame.GapMilliseconds),
+            PlaybackState,
+            MaximumLoops,
+            CompletedLoops,
+            CurrentFrameShownAt);
     }
 
     internal KgpAnimationState SetFrame(
@@ -97,7 +142,15 @@ internal sealed class KgpAnimationState
         return new KgpAnimationState(
             _frames.SetItem(frameIndex, frame),
             CurrentFrameIndex,
-            checked(StorageSize - existing.StorageSize + frame.StorageSize));
+            checked(StorageSize - existing.StorageSize + frame.StorageSize),
+            checked(
+                TotalDurationMilliseconds -
+                existing.GapMilliseconds +
+                frame.GapMilliseconds),
+            PlaybackState,
+            MaximumLoops,
+            CompletedLoops,
+            CurrentFrameShownAt);
     }
 
     internal KgpAnimationState RemoveFrame(
@@ -114,6 +167,95 @@ internal sealed class KgpAnimationState
         return new KgpAnimationState(
             _frames.RemoveAt(frameIndex),
             currentFrameIndex,
-            checked(StorageSize - removed.StorageSize));
+            checked(StorageSize - removed.StorageSize),
+            checked(TotalDurationMilliseconds - removed.GapMilliseconds),
+            PlaybackState,
+            MaximumLoops,
+            CompletedLoops,
+            currentFrameShownAt: null);
     }
+
+    internal KgpAnimationState SetCurrentFrame(int frameIndex)
+    {
+        if (frameIndex < 0 || frameIndex >= FrameCount)
+            throw new ArgumentOutOfRangeException(nameof(frameIndex));
+        if (frameIndex == CurrentFrameIndex)
+            return this;
+
+        return new KgpAnimationState(
+            _frames,
+            frameIndex,
+            StorageSize,
+            TotalDurationMilliseconds,
+            PlaybackState,
+            MaximumLoops,
+            CompletedLoops,
+            currentFrameShownAt: null);
+    }
+
+    internal KgpAnimationState SetFrameGap(
+        int frameIndex,
+        int gapMilliseconds)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(gapMilliseconds);
+        return SetFrame(
+            frameIndex,
+            _frames[frameIndex].WithGap(gapMilliseconds));
+    }
+
+    internal KgpAnimationState SetPlaybackState(
+        KgpParsedCommand.AnimationPlaybackState playbackState)
+    {
+        if (playbackState == KgpParsedCommand.AnimationPlaybackState.None)
+            return this;
+
+        var resetShownAt =
+            PlaybackState == KgpParsedCommand.AnimationPlaybackState.Stopped ||
+            playbackState == KgpParsedCommand.AnimationPlaybackState.Stopped;
+        return new KgpAnimationState(
+            _frames,
+            CurrentFrameIndex,
+            StorageSize,
+            TotalDurationMilliseconds,
+            playbackState,
+            MaximumLoops,
+            completedLoops: 0,
+            resetShownAt ? null : CurrentFrameShownAt);
+    }
+
+    internal KgpAnimationState SetMaximumLoops(uint maximumLoops)
+        => new(
+            _frames,
+            CurrentFrameIndex,
+            StorageSize,
+            TotalDurationMilliseconds,
+            PlaybackState,
+            maximumLoops,
+            CompletedLoops,
+            CurrentFrameShownAt);
+
+    internal KgpAnimationState SetPlaybackPosition(
+        int currentFrameIndex,
+        uint completedLoops,
+        DateTimeOffset? currentFrameShownAt)
+    {
+        if (currentFrameIndex < 0 || currentFrameIndex >= FrameCount)
+            throw new ArgumentOutOfRangeException(nameof(currentFrameIndex));
+
+        return new KgpAnimationState(
+            _frames,
+            currentFrameIndex,
+            StorageSize,
+            TotalDurationMilliseconds,
+            PlaybackState,
+            MaximumLoops,
+            completedLoops,
+            currentFrameShownAt);
+    }
+
+    internal KgpAnimationState ResetCurrentFrameTimer()
+        => SetPlaybackPosition(
+            CurrentFrameIndex,
+            CompletedLoops,
+            currentFrameShownAt: null);
 }

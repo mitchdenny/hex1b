@@ -98,6 +98,10 @@ var asciiEarthDemo = builder.AddCSharpApp("ascii-earth-demo", "./samples/AsciiEa
     .ExcludeFromManifest()
     .WithTerminal();
 
+var kittySearch = builder.AddCSharpApp("kitty-search", "./samples/KittySearch")
+    .ExcludeFromManifest()
+    .WithTerminal();
+
 // Wire up pipeline dependencies: content build depends on doc generation
 content.WithPipelineConfiguration(context =>
 {
