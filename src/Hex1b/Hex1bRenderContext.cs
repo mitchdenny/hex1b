@@ -130,6 +130,99 @@ public class Hex1bRenderContext
         Write(sb.ToString());
     }
 
+    internal virtual void WriteKgpAnimation(
+        IReadOnlyList<KgpAnimationFrame> frames,
+        int pixelWidth,
+        int pixelHeight,
+        int cellWidth,
+        int cellHeight,
+        KgpZOrder zOrder,
+        bool playing,
+        int clipX = 0,
+        int clipY = 0,
+        int clipW = 0,
+        int clipH = 0)
+    {
+        var data = CreateKgpAnimationCellData(
+            frames,
+            pixelWidth,
+            pixelHeight,
+            cellWidth,
+            cellHeight,
+            zOrder,
+            playing,
+            clipX,
+            clipY,
+            clipW,
+            clipH);
+        foreach (var chunk in data.BuildTransmitChunks())
+            Write(chunk);
+        foreach (var chunk in data.BuildAnimationFrameChunks())
+            Write(chunk);
+        Write(data.BuildPlacementPayload());
+        Write(data.AnimationControlPayload!);
+    }
+
+    protected KgpCellData CreateKgpAnimationCellData(
+        IReadOnlyList<KgpAnimationFrame> frames,
+        int pixelWidth,
+        int pixelHeight,
+        int cellWidth,
+        int cellHeight,
+        KgpZOrder zOrder,
+        bool playing,
+        int clipX = 0,
+        int clipY = 0,
+        int clipW = 0,
+        int clipH = 0)
+    {
+        var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Span<byte> gap = stackalloc byte[sizeof(int)];
+        foreach (var frame in frames)
+        {
+            hash.AppendData(frame.Data);
+            BinaryPrimitives.WriteInt32BigEndian(gap, frame.GapMilliseconds);
+            hash.AppendData(gap);
+        }
+        hash.AppendData([playing ? (byte)1 : (byte)0]);
+        var contentHash = hash.GetHashAndReset();
+
+        var imageIdHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var frame in frames)
+        {
+            imageIdHash.AppendData(frame.Data);
+            BinaryPrimitives.WriteInt32BigEndian(gap, frame.GapMilliseconds);
+            imageIdHash.AppendData(gap);
+        }
+        var imageId = ComputeKgpImageId(imageIdHash.GetHashAndReset());
+        var rootBase64 = Convert.ToBase64String(frames[0].Data);
+        var transmitPayload =
+            $"\x1b_Ga=t,f=32,s={pixelWidth},v={pixelHeight},i={imageId},t=d,q=2;{rootBase64}\x1b\\";
+        var framePayloads = frames.Skip(1)
+            .Select(frame =>
+                $"\x1b_Ga=f,f=32,s={pixelWidth},v={pixelHeight},i={imageId},z={frame.GapMilliseconds},X=1,q=2;{Convert.ToBase64String(frame.Data)}\x1b\\")
+            .ToArray();
+        var playbackState = playing ? 3 : 1;
+        var controlPayload =
+            $"\x1b_Ga=a,i={imageId},r=1,z={frames[0].GapMilliseconds},c=1,s={playbackState},v=1,q=2\x1b\\";
+
+        return new KgpCellData(
+            transmitPayload,
+            imageId,
+            cellWidth,
+            cellHeight,
+            (uint)pixelWidth,
+            (uint)pixelHeight,
+            contentHash,
+            clipX,
+            clipY,
+            clipW,
+            clipH,
+            zOrder == KgpZOrder.AboveText ? 1 : -1,
+            animationFramePayloads: framePayloads,
+            animationControlPayload: controlPayload);
+    }
+
     internal virtual void RegisterKgp(KgpImageData image, KgpPlacement placement)
     {
         if (!Capabilities.SupportsKgp)

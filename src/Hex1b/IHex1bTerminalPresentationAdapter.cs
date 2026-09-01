@@ -74,6 +74,17 @@ public interface IHex1bTerminalPresentationAdapter : IAsyncDisposable
     /// Raised when the presentation layer disconnects (e.g., terminal closed, WebSocket dropped).
     /// </summary>
     event Action? Disconnected;
+
+    /// <summary>
+    /// Notifies the presentation that terminal state changed without producing output bytes.
+    /// </summary>
+    /// <remarks>
+    /// Stateful presentation adapters can override this to schedule a redraw. The default
+    /// implementation is a no-op for adapters that present the terminal's output directly.
+    /// </remarks>
+    void InvalidatePresentation()
+    {
+    }
     
     /// <summary>
     /// Flush any buffered output immediately.

@@ -256,6 +256,7 @@ public sealed class TerminalNode : Hex1bNode
         if (maxOffset > 0)
         {
             _scrollbackOffset = maxOffset;
+            _handle.CurrentScrollbackOffset = _scrollbackOffset;
             MarkDirty();
             _invalidateCallback?.Invoke();
         }
@@ -267,6 +268,8 @@ public sealed class TerminalNode : Hex1bNode
         if (_scrollbackOffset > 0)
         {
             _scrollbackOffset = 0;
+            if (_handle is not null)
+                _handle.CurrentScrollbackOffset = _scrollbackOffset;
             MarkDirty();
             _invalidateCallback?.Invoke();
         }
@@ -340,6 +343,7 @@ public sealed class TerminalNode : Hex1bNode
         if (IsInScrollbackMode && inputEvent is Hex1bKeyEvent)
         {
             _scrollbackOffset = 0;
+            _handle.CurrentScrollbackOffset = _scrollbackOffset;
             MarkDirty();
             _invalidateCallback?.Invoke();
         }

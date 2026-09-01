@@ -24,6 +24,10 @@ public sealed record KgpImageWidget(
     KgpZOrder ZOrder = KgpZOrder.BelowText,
     KgpImageStretch Stretch = KgpImageStretch.Stretch) : Hex1bWidget
 {
+    internal IReadOnlyList<KgpAnimationFrame>? AnimationFrames { get; init; }
+
+    internal bool IsAnimationPlaying { get; init; }
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as KgpImageNode ?? new KgpImageNode();
@@ -34,6 +38,8 @@ public sealed record KgpImageWidget(
         node.RequestedHeight = Height;
         node.ZOrder = ZOrder;
         node.Stretch = Stretch;
+        node.AnimationFrames = AnimationFrames;
+        node.IsAnimationPlaying = IsAnimationPlaying;
         node.Fallback = await context.ReconcileChildAsync(node.Fallback, Fallback, node);
         return node;
     }

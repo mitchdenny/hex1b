@@ -51,7 +51,10 @@ public enum TerminalState
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, ITerminalLifecycleAwarePresentationAdapter, IAsyncDisposable
+public sealed class TerminalWidgetHandle :
+    ICellImpactAwarePresentationAdapter,
+    ITerminalLifecycleAwarePresentationAdapter,
+    IAsyncDisposable
 {
     private readonly object _bufferLock = new();
     private readonly TaskCompletionSource _disconnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -223,7 +226,14 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     public int CurrentScrollbackOffset
     {
         get => _scrollbackOffset;
-        set => _scrollbackOffset = value;
+        set
+        {
+            if (_scrollbackOffset == value)
+                return;
+
+            _scrollbackOffset = value;
+            _terminal?.RefreshKgpAnimationPlayback(_scrollbackOffset);
+        }
     }
     
     /// <summary>
@@ -267,6 +277,12 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     void ITerminalLifecycleAwarePresentationAdapter.TerminalCreated(Hex1bTerminal terminal)
     {
         _terminal = terminal;
+    }
+
+    void IHex1bTerminalPresentationAdapter.InvalidatePresentation()
+    {
+        if (!_disposed)
+            OutputReceived?.Invoke();
     }
     
     /// <inheritdoc />
@@ -840,6 +856,8 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
             pendingQueue = _outputQueue;
             _outputQueue = null;
         }
+
+        _terminal?.RefreshKgpAnimationPlayback(_scrollbackOffset);
         
         // Flush queued output outside the lock
         if (pendingQueue != null)
@@ -1027,6 +1045,7 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     private void EnsureCopyModeCursorVisible()
     {
         if (_selection == null) return;
+        var previousOffset = _scrollbackOffset;
         int cursorRow = _selection.Cursor.Row;
         int scrollbackCount = ScrollbackCount;
         
@@ -1043,6 +1062,8 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
             _scrollbackOffset = scrollbackCount - (cursorRow - _height + 1);
         }
         _scrollbackOffset = Math.Max(0, _scrollbackOffset);
+        if (_scrollbackOffset != previousOffset)
+            _terminal?.RefreshKgpAnimationPlayback(_scrollbackOffset);
     }
     
     // Pending mouse selection anchor — set on Down, used on first Drag
