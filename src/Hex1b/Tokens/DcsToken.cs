@@ -27,7 +27,9 @@ public sealed record DcsToken(string Payload) : AnsiToken
     {
         Payload = original.Payload;
         if (s_rawPayloads.TryGetValue(original, out var holder))
+        {
             s_rawPayloads.Add(this, holder);
+        }
     }
 
     internal void AttachRawPayload(ReadOnlyMemory<byte> rawPayload) =>
@@ -43,7 +45,9 @@ public sealed record DcsToken(string Payload) : AnsiToken
 
         rawPayload = holder.Payload;
         if (rawPayload.Length != Payload.Length)
+        {
             return false;
+        }
 
         for (var index = 0; index < Payload.Length; index++)
         {

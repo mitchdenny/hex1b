@@ -21,9 +21,13 @@ public class DcsByteStreamParserTests
             var parser = new DcsByteStreamParser();
             var observation = new ParserObservation();
             if (split > 0)
+            {
                 observation.Add(parser.Process(bytes.AsSpan(0, split)));
+            }
             if (split < bytes.Length)
+            {
                 observation.Add(parser.Process(bytes.AsSpan(split)));
+            }
             observation.Add(parser.Complete());
 
             AssertObservationEqual(baseline, observation, $"split {split}");
@@ -40,9 +44,13 @@ public class DcsByteStreamParserTests
             var parser = new DcsByteStreamParser();
             var observation = new ParserObservation();
             if (split > 0)
+            {
                 observation.Add(parser.Process(bytes.AsSpan(0, split)));
+            }
             if (split < bytes.Length)
+            {
                 observation.Add(parser.Process(bytes.AsSpan(split)));
+            }
             observation.Add(parser.Complete());
 
             TestSeq.AreEqual(bytes, observation.Text, $"split {split}");

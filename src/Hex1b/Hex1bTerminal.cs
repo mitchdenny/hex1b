@@ -1545,7 +1545,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         bool flushAtBoundary = false)
     {
         if (data.IsEmpty && !flushAtBoundary)
+        {
             return;
+        }
 
         var charCount = _utf8Decoder.GetCharCount(data, flushAtBoundary);
         var chars = new char[charCount];
@@ -1566,9 +1568,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         if (!string.IsNullOrEmpty(extracted.completeText))
+        {
             tokens.AddRange(AnsiTokenizer.TokenizeWithoutDcs(extracted.completeText));
+        }
         if (flushAtBoundary && !string.IsNullOrEmpty(extracted.incompleteSequence))
+        {
             tokens.Add(new UnrecognizedSequenceToken(extracted.incompleteSequence));
+        }
     }
 
     private void RecordDcsFrame(DcsFrame frame)
@@ -1589,11 +1595,17 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             new KeyValuePair<string, object?>("kind", dispatchKind));
 
         if (frame.Status == DcsSequenceStatus.Cancelled)
+        {
             _metrics.TerminalDcsCancellations.Add(1);
+        }
         if (frame.Status == DcsSequenceStatus.Malformed)
+        {
             _metrics.TerminalDcsMalformedRecoveries.Add(1);
+        }
         if (frame.RetentionLimitExceeded)
+        {
             _metrics.TerminalDcsRetentionLimitEvents.Add(1);
+        }
     }
 
     private sealed record RawOutputTokenization(
@@ -5812,7 +5824,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             retentionLimitExceeded));
 
         if (introducer.IsSixel && !retentionLimitExceeded)
+        {
             ProcessSixelData(token.Payload, impacts);
+        }
     }
 
     /// <summary>
@@ -6732,7 +6746,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         for (int i = 0; i < text.Length; i++)
         {
             if (!IsEscapeSequenceIntroducer(text[i], recognizeC1Dcs))
+            {
                 continue;
+            }
 
             if (TryFindEscapeSequenceEnd(text, i, out var endExclusive))
             {

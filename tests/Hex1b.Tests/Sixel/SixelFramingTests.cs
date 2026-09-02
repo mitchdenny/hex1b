@@ -294,7 +294,9 @@ public class SixelFramingTests
         {
             using var snapshot = terminal.CreateSnapshot();
             if (snapshot.ContainsSixelData())
+            {
                 return;
+            }
             await Task.Delay(10, TestContext.Current.CancellationToken);
         }
 
@@ -384,7 +386,9 @@ public class SixelFramingTests
             foreach (var tag in tags)
             {
                 if (tag.Key == "kind")
+                {
                     kind = tag.Value?.ToString();
+                }
                 Assert.DoesNotContain("q@", tag.Value?.ToString() ?? "");
             }
             measurements.Add((instrument.Name, value, kind));
@@ -478,7 +482,9 @@ public class SixelFramingTests
             foreach (var tag in tags)
             {
                 if (tag.Key == "kind")
+                {
                     dispatches.Add(tag.Value?.ToString());
+                }
             }
         });
         listener.Start();

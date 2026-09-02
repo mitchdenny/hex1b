@@ -99,7 +99,9 @@ internal sealed class DcsByteStreamParser
     public DcsByteStreamBatch Process(ReadOnlySpan<byte> data)
     {
         if (data.IsEmpty)
+        {
             return DcsByteStreamBatch.Empty;
+        }
 
         var text = new ArrayBufferWriter<byte>(Math.Min(data.Length, 256));
         List<DcsFrameBoundary>? frames = null;
@@ -192,7 +194,9 @@ internal sealed class DcsByteStreamParser
                         {
                             AppendContent(value);
                             if (_state == ParserState.Introducer)
+                            {
                                 ProcessIntroducerByte(value);
+                            }
                         }
                         break;
                 }
@@ -207,7 +211,9 @@ internal sealed class DcsByteStreamParser
     public DcsByteStreamBatch Complete()
     {
         if (_state == ParserState.Ground)
+        {
             return DcsByteStreamBatch.Empty;
+        }
 
         if (_state == ParserState.GroundEscape)
         {
@@ -243,10 +249,14 @@ internal sealed class DcsByteStreamParser
         foreach (var value in content)
         {
             if (parser._state != ParserState.Introducer)
+            {
                 break;
+            }
 
             if (value <= 0x1f)
+            {
                 continue;
+            }
 
             parser.ProcessIntroducerByte(value);
         }
@@ -268,7 +278,9 @@ internal sealed class DcsByteStreamParser
         foreach (var value in content)
         {
             if (parser._state != ParserState.Introducer)
+            {
                 break;
+            }
 
             if (value > byte.MaxValue)
             {
@@ -303,7 +315,9 @@ internal sealed class DcsByteStreamParser
     private void ProcessIntroducerByte(byte value)
     {
         if (value <= 0x1f)
+        {
             return;
+        }
 
         if (value is >= (byte)'0' and <= (byte)'9')
         {
@@ -404,7 +418,9 @@ internal sealed class DcsByteStreamParser
     private void EnsureRetainedCapacity(int required)
     {
         if (_retained.Length >= required)
+        {
             return;
+        }
 
         var doubled = _retained.Length == 0 ? 64 : _retained.Length * 2;
         var capacity = Math.Min(_retentionLimit, Math.Max(required, doubled));

@@ -54,9 +54,13 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             DcsRetentionLimit = dcsRetentionLimit,
         };
         if (workloadFilter is not null)
+        {
             options.WorkloadFilters.Add(workloadFilter);
+        }
         if (presentationFilter is not null)
+        {
             options.PresentationFilters.Add(presentationFilter);
+        }
 
         Terminal = new Hex1bTerminal(options);
         _runTask = Terminal.RunAsync(_runCancellation.Token);
@@ -338,7 +342,9 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             while (await _output.Reader.WaitToReadAsync(ct))
             {
                 if (_output.Reader.TryRead(out var item))
+                {
                     return item;
+                }
             }
 
             Action? disconnected;

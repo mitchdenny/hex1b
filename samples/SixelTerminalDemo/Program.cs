@@ -93,7 +93,9 @@ static void AddChunks(List<byte[]> chunks, byte[] bytes, IReadOnlyList<int> size
     }
 
     if (offset != bytes.Length)
+    {
         throw new InvalidOperationException("Demo split sizes must consume the complete DCS.");
+    }
 }
 
 static int CountSixelOrigins(Hex1b.Automation.Hex1bTerminalSnapshot snapshot)
