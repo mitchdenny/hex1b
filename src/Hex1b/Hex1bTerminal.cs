@@ -6034,21 +6034,27 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var sequence = ++_writeSequence;
         var writtenAt = _timeProvider.GetUtcNow();
 
-        for (int dy = 0; dy < heightInCells; dy++)
-        {
-            var y = placement.OriginRow + dy;
-            if (y < placement.ClipTop || y > placement.ClipBottom || y >= _height)
-            {
-                continue;
-            }
+        // Only the visible intersection is walked. A placement may declare an
+        // enormous extent (a geometry-only frame can declare hundreds of millions of
+        // cells), so iterating the declared extent and skipping out-of-range cells
+        // would stall the terminal. Clipping is a bound on the loop, not a filter
+        // inside it; the placement still records its unclipped source geometry.
+        var firstRow = Math.Max(placement.OriginRow, Math.Max(placement.ClipTop, 0));
+        var lastRow = Math.Min(
+            placement.OriginRow + (long)heightInCells - 1,
+            Math.Min(placement.ClipBottom, _height - 1));
+        var firstColumn = Math.Max(placement.OriginColumn, Math.Max(placement.ClipLeft, 0));
+        var lastColumn = Math.Min(
+            placement.OriginColumn + (long)widthInCells - 1,
+            Math.Min(placement.ClipRight, _width - 1));
 
-            for (int dx = 0; dx < widthInCells; dx++)
+        for (var y = firstRow; y <= lastRow; y++)
+        {
+            var dy = y - placement.OriginRow;
+
+            for (var x = firstColumn; x <= lastColumn; x++)
             {
-                var x = placement.OriginColumn + dx;
-                if (x < placement.ClipLeft || x > placement.ClipRight || x >= _width)
-                {
-                    continue;
-                }
+                var dx = x - placement.OriginColumn;
 
                 // First cell (origin) holds the tracked object
                 // Other cells just have the Sixel flag set
@@ -6125,12 +6131,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var originRow = _cursorY;
 
         // The cursor lands one row below the graphic, so the rows the graphic needs
-        // and the row the cursor needs are scrolled in a single step.
+        // and the row the cursor needs are scrolled in a single step. The arithmetic
+        // is widened because a geometry-only frame can declare an extent that
+        // saturates the cell count.
         var regionHeight = clipBottom - clipTop + 1;
-        var overflow = originRow + heightInCells - clipBottom;
+        var overflow = originRow + (long)heightInCells - clipBottom;
         if (overflow > 0)
         {
-            var scrollCount = Math.Min(overflow, regionHeight);
+            var scrollCount = (int)Math.Min(overflow, regionHeight);
             for (int i = 0; i < scrollCount; i++)
             {
                 if (!ScrollUp(impacts))
@@ -6172,15 +6180,17 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _pendingWrap = false;
 
         // Mode 8452 reset (the default) returns the cursor to the column the
-        // sequence started in; set leaves it to the right of the graphic.
+        // sequence started in; set leaves it to the right of the graphic. The widened
+        // arithmetic keeps a saturating declared extent from wrapping to a negative
+        // column or row.
         _cursorX = _sixelCursorToRightMode
-            ? Math.Min(placement.OriginColumn + widthInCells, placement.ClipRight)
+            ? (int)Math.Min(placement.OriginColumn + (long)widthInCells, placement.ClipRight)
             : placement.OriginColumn;
 
         // The cursor lands on the row below the last row the graphic occupies and
         // never escapes the region the graphic was clipped to.
-        _cursorY = Math.Clamp(
-            placement.OriginRow + heightInCells,
+        _cursorY = (int)Math.Clamp(
+            placement.OriginRow + (long)heightInCells,
             placement.ClipTop,
             placement.ClipBottom);
     }

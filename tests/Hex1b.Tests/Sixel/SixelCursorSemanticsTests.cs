@@ -526,4 +526,37 @@ public class SixelCursorSemanticsTests
         Assert.IsFalse(policy.ResolveSixelScrolling(decsdmEnabled: true));
         Assert.IsTrue(policy.ResolveSixelScrolling(decsdmEnabled: false));
     }
+
+    [TestMethod]
+    [DataRow(999999999, 999999999)]
+    [DataRow(int.MaxValue, int.MaxValue)]
+    public async Task ProcessSixelData_DeclaredExtentFarBeyondViewport_PaintsOnlyTheVisibleIntersection(
+        int pixelWidth,
+        int pixelHeight)
+    {
+        // A geometry-only frame can declare hundreds of millions of cells. Painting
+        // must be bounded by the viewport rather than walking the declared extent,
+        // otherwise the terminal stalls before any output reaches the presentation.
+        await using var terminal = SixelTestTerminal.Create(
+            width: 40,
+            height: 20,
+            cellMetrics: Metrics(10, 20));
+
+        var observation = await RunAsync(
+            terminal,
+            Graphic(pixelWidth, pixelHeight),
+            TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+
+        // The placement still records its unclipped source geometry.
+        var placement = TestSeq.Single(observation.Placements);
+        Assert.AreEqual(0, placement.OriginColumn);
+        Assert.AreEqual(0, placement.OriginRow);
+
+        // The cursor is clamped into the region instead of overflowing.
+        Assert.IsGreaterThanOrEqualTo(0, observation.CursorY);
+        Assert.IsLessThan(20, observation.CursorY);
+        Assert.IsGreaterThanOrEqualTo(0, observation.CursorX);
+        Assert.IsLessThan(40, observation.CursorX);
+    }
 }
