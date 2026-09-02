@@ -8,7 +8,12 @@ var fixtures = sceneFilter is null
     : RawSixelFixtures.All
         .Where(fixture => fixture.Name.Contains(sceneFilter, StringComparison.OrdinalIgnoreCase))
         .ToArray();
-if (fixtures.Count == 0)
+var cursorScenes = sceneFilter is null
+    ? RawCursorScenes.All
+    : RawCursorScenes.All
+        .Where(scene => scene.Name.Contains(sceneFilter, StringComparison.OrdinalIgnoreCase))
+        .ToArray();
+if (fixtures.Count == 0 && cursorScenes.Count == 0)
 {
     throw new ArgumentException($"No Sixel demo scene contains '{sceneFilter}'.", nameof(args));
 }
@@ -27,9 +32,16 @@ for (var index = 0; index < fixtures.Count; index++)
     modelDescriptions[index] = await InspectModelAsync(fixtures[index]);
 }
 
+var cursorObservations = new string[cursorScenes.Count];
+for (var index = 0; index < cursorScenes.Count; index++)
+{
+    cursorObservations[index] = await InspectCursorSceneAsync(cursorScenes[index]);
+}
+
 var chunks = BuildDemoOutput(
     fixtures,
     modelDescriptions,
+    cursorScenes,
     includeTransportScenes: sceneFilter is null);
 var workload = new DemoWorkloadAdapter(chunks);
 IHex1bTerminalPresentationAdapter presentation = headless
@@ -65,12 +77,19 @@ if (headless)
     {
         Console.WriteLine($"  {fixtures[index].Name}: {modelDescriptions[index]}");
     }
+    Console.WriteLine();
+    Console.WriteLine("Cursor, DECSDM, and margin scenes:");
+    for (var index = 0; index < cursorScenes.Count; index++)
+    {
+        Console.WriteLine($"  {cursorScenes[index].Name}: {cursorObservations[index]}");
+    }
     Console.WriteLine("Run without --headless in a native Sixel terminal to inspect the presentation outcome.");
 }
 
 static IReadOnlyList<byte[]> BuildDemoOutput(
     IReadOnlyList<RawSixelFixture> fixtures,
     IReadOnlyList<string> modelDescriptions,
+    IReadOnlyList<RawCursorScene> cursorScenes,
     bool includeTransportScenes)
 {
     var chunks = new List<byte[]>
@@ -96,10 +115,12 @@ static IReadOnlyList<byte[]> BuildDemoOutput(
         chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
     }
 
+    AddCursorScenes(chunks, cursorScenes);
+
     if (!includeTransportScenes)
     {
         chunks.Add(Encoding.ASCII.GetBytes(
-            "Stage 4: the same parser feeds one deterministic bounded rasterizer for color, background, and aspect.\r\n"));
+            "Stage 5: the same parser and rasterizer drive cursor, DECSDM, margin, and metric semantics.\r\n"));
         return chunks;
     }
 
@@ -125,8 +146,74 @@ static IReadOnlyList<byte[]> BuildDemoOutput(
     chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
 
     chunks.Add(Encoding.ASCII.GetBytes(
-        "Stage 4: the same parser feeds one deterministic bounded rasterizer for color, background, and aspect.\r\n"));
+        "Stage 5: the same parser and rasterizer drive cursor, DECSDM, margin, and metric semantics.\r\n"));
     return chunks;
+}
+
+static void AddCursorScenes(List<byte[]> chunks, IReadOnlyList<RawCursorScene> scenes)
+{
+    foreach (var scene in scenes)
+    {
+        // Each scene owns a clean screen so margins and the scrolling region can
+        // be observed without the previous scene's output interfering.
+        chunks.Add(Encoding.ASCII.GetBytes(
+            $"{RawCursorScene.ResetSequence}\x1b[2J\x1b[H[{scene.Name}] Expected: {scene.Expected}\r\n"));
+        chunks.Add(scene.Bytes);
+        chunks.Add(Encoding.ASCII.GetBytes("\x1b[24;1H"));
+    }
+}
+
+static async Task<string> InspectCursorSceneAsync(RawCursorScene scene)
+{
+    var capabilities = new TerminalCapabilities
+    {
+        SupportsSixel = true,
+        SupportsTrueColor = true,
+        Supports256Colors = true,
+        CellPixelWidth = 10,
+        CellPixelHeight = 20,
+    };
+    // The reset sequence is omitted here: DECSTBM homes the cursor, which would
+    // hide the very position this scene exists to demonstrate.
+    var workload = new DemoWorkloadAdapter([scene.SceneBytes]);
+    await using var terminal = Hex1bTerminal.CreateBuilder()
+        .WithWorkload(workload)
+        .WithPresentation(new HeadlessPresentationAdapter(80, 24, capabilities))
+        .WithDimensions(80, 24)
+        .Build();
+    await terminal.RunAsync();
+
+    using var snapshot = terminal.CreateSnapshot();
+    var builder = new StringBuilder();
+    var origins = new List<string>();
+    var occupiedColumns = new SortedSet<int>();
+    var occupiedRows = new SortedSet<int>();
+    for (var y = 0; y < snapshot.Height; y++)
+    {
+        for (var x = 0; x < snapshot.Width; x++)
+        {
+            var cell = snapshot.GetCell(x, y);
+            if (!cell.IsSixel)
+                continue;
+
+            occupiedColumns.Add(x);
+            occupiedRows.Add(y);
+            if (cell.SixelData is { } sixel)
+            {
+                origins.Add($"({x},{y}) {sixel.WidthInCells}x{sixel.HeightInCells} cells");
+            }
+        }
+    }
+
+    builder.Append(origins.Count == 0 ? "no placement" : string.Join("; ", origins));
+    if (occupiedColumns.Count > 0)
+    {
+        builder.Append($", painted columns {occupiedColumns.Min}-{occupiedColumns.Max}");
+        builder.Append($", painted rows {occupiedRows.Min}-{occupiedRows.Max}");
+    }
+
+    builder.Append($", cursor ({snapshot.CursorX}, {snapshot.CursorY})");
+    return builder.ToString();
 }
 
 static string? GetOption(string[] arguments, string option)

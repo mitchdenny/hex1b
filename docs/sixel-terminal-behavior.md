@@ -172,12 +172,13 @@ identical payload rasterizes, tracked Sixel deduplication keys on the payload
 | `CSI ? 8452 l` | In scrolling mode, leave the cursor at its original column below the graphic | xterm extension reset/default behavior |
 | `CSI ? 8452 h` | Compatibility option to leave the cursor to the right | Confirmed only in xterm/RLogin; do not enable by default |
 
-DECSDM polarity is the most significant unresolved compatibility issue. Current
-xterm documentation and implementation interpret set/reset in the opposite
-direction from the VT340 manual and hardware tests. Foot changed its polarity
-after testing real VT340 hardware. Hex1b selects the DEC interpretation and
-must keep an xterm-compatible inversion, if later required, in centralized
-policy rather than terminal detection.
+DECSDM polarity is the most significant compatibility issue. Current xterm
+documentation and implementation interpret set/reset in the opposite direction
+from the VT340 manual and hardware tests. Foot changed its polarity after
+testing real VT340 hardware. Hex1b selects the DEC interpretation, and the
+xterm-compatible inversion lives in `SixelCompatibilityPolicy.DecsdmPolarity`
+rather than in terminal detection. Which reference profile a terminal should
+select stays a [#457](https://github.com/mitchdenny/hex1b/issues/457) target.
 
 ### Cursor, margins, and origin
 
@@ -192,7 +193,42 @@ the text cursor exactly. Windows Terminal explicitly uses the full page instead
 of text margins in this mode. Exact margin clipping across references remains a
 [#457](https://github.com/mitchdenny/hex1b/issues/457) test target.
 
-Implementation belongs to [#450](https://github.com/mitchdenny/hex1b/issues/450).
+Three cursor concepts stay distinct. The *Sixel graphics cursor* lives inside the
+raster and never escapes the parser. The *anchor* is the text cursor position the
+placement is pinned to when the DCS sequence starts. The *final text cursor* is
+where the terminal leaves the cursor once the sequence completes.
+
+| Situation | Implemented behavior |
+|---|---|
+| Ordinary completion, scrolling mode | Anchor at the active text position; final cursor is one row below the occupied rows, at the anchor column |
+| One-row image | Final cursor is on the row immediately below the anchor row |
+| Multi-row image | Final cursor is `anchor row + occupied rows` |
+| Partial final band | The partial band rounds up to a whole cell row before the cursor moves |
+| Declared extent, no painted pixels | The declared extent still occupies cells; occupancy never collapses below one cell |
+| Image exceeds the viewport | Occupancy keeps the full source geometry; only painted cells are clipped |
+| Completion at or below the bottom margin | The region scrolls just enough to fit the image and the cursor row; a taller-than-region image keeps its bottom edge on the last region row |
+| Followed by text, CR, LF, CUP, or another Sixel | Each applies from the final cursor, so a second Sixel stacks below the first |
+| Non-scrolling mode | Anchor is the graphics-page origin, the full page is used instead of text margins, nothing scrolls, and the text cursor is unchanged |
+
+A completed sequence also clears any deferred wrap, exactly like a line feed.
+Occupancy is `ceil(renderedPixelExtent / cellMetric)` per axis, computed from
+protocol cell metrics rather than from font metrics. Those metrics are captured
+once, when the placement is created, and are recorded on the placement together
+with their source and reliability, so a later metric change cannot retroactively
+rewrite an existing placement. Discovering real metrics from an upstream
+presentation is owned by
+[#455](https://github.com/mitchdenny/hex1b/issues/455); until then metrics are
+derived from terminal capabilities, reported as estimated, and injectable.
+
+`CSI ? 80` and `CSI ? 8452` are reset to their defaults by both RIS and DECSTR.
+Save/restore of these private modes (`CSI ? Pm s` and `CSI ? Pm r`) is not
+implemented, because Hex1b has no private-mode save/restore machinery to extend.
+
+This is the terminal-model direction of the data flow: how `Hex1bTerminal`
+interprets an incoming Sixel sequence. In the opposite direction, when Hex1b
+emits its own managed output, it never relies on where an upstream terminal
+leaves the cursor after a Sixel image; it always repositions explicitly with
+CUP before writing anything that follows.
 
 ## Ownership, overlap, and erasure
 
@@ -203,7 +239,7 @@ Implementation belongs to [#450](https://github.com/mitchdenny/hex1b/issues/450)
 | ED/EL | Erase graphics in the affected cell/pixel region along with text | Boundary behavior at partially covered cells needs #457 testing |
 | Scroll-region operations | Move, clip, or erase placements using the same region semantics as text rows | Owned by #452/#453 |
 | RIS | Clear all placements and reset Sixel modes and palette | Owned by #453 |
-| DECSTR | Reset modes; preserve palette and placements provisionally | Palette and placement behavior remains unresolved |
+| DECSTR | Reset modes, including DECSDM and mode 8452; preserve palette, placements, and cursor position | Placement behavior remains unresolved |
 
 Foot has the clearest reviewed prior art for compositing independent placements.
 Hex1b's existing KGP graphics state provides the closest internal model. Sixel
@@ -231,14 +267,15 @@ The following decisions must remain visible until
 [#457](https://github.com/mitchdenny/hex1b/issues/457) provides executable
 reference-terminal evidence:
 
-1. DECSDM compatibility polarity for an optional xterm profile.
-2. Whether mode 8452 should be implemented beyond its default reset behavior.
-3. Whether an optional palette-register-0 opaque background profile is needed
+1. Which DECSDM polarity profile a given reference terminal should select. The
+   inversion knob exists; the per-terminal selection does not.
+2. Whether an optional palette-register-0 opaque background profile is needed
    alongside the selected captured-background behavior.
-4. DECGRA's undocumented carriage-return behavior and aspect-scaled DECGNL.
-5. Exact Sixel-over-Sixel compositing and partial-cell text/erase damage.
-6. DECSTR effects on palettes and placements.
-7. Main/alternate-screen, history eviction, resize, and reflow edge behavior.
+3. DECGRA's undocumented carriage-return behavior and aspect-scaled DECGNL.
+4. Exact Sixel-over-Sixel compositing and partial-cell text/erase damage.
+5. DECSTR effects on placements.
+6. Main/alternate-screen, history eviction, resize, and reflow edge behavior.
+7. Private-mode save/restore (`CSI ? Pm s` and `CSI ? Pm r`) for Sixel modes.
 8. Exact default palette values for registers 16-255 and private-register
    behavior across modern terminals.
 
