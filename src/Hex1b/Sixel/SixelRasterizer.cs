@@ -94,6 +94,19 @@ internal sealed record SixelRasterEnvironment(
 }
 
 /// <summary>
+/// Captures the immutable inputs needed to rasterize a Sixel graphic lazily.
+/// </summary>
+/// <param name="Environment">
+/// A private register snapshot and the background captured when the graphic was created.
+/// </param>
+/// <param name="Identity">
+/// A deterministic identity for the captured background, palette, and policy.
+/// </param>
+internal sealed record SixelRasterPreparation(
+    SixelRasterEnvironment Environment,
+    byte[] Identity);
+
+/// <summary>
 /// The authoritative bounded rasterization of one Sixel sequence.
 /// </summary>
 internal sealed record SixelRasterResult(
@@ -124,6 +137,30 @@ internal sealed record SixelRasterResult(
 internal static class SixelRasterizer
 {
     private const int BandRows = 6;
+
+    /// <summary>
+    /// Captures the state required for lazy rasterization and applies palette
+    /// definitions immediately to the terminal-scoped register file.
+    /// </summary>
+    public static SixelRasterPreparation Prepare(
+        SixelParseResult parse,
+        SixelRasterEnvironment environment)
+    {
+        ArgumentNullException.ThrowIfNull(parse);
+        ArgumentNullException.ThrowIfNull(environment);
+
+        var capturedEnvironment = environment with
+        {
+            Registers = environment.Registers.Snapshot(),
+        };
+        if (environment.Policy.PaletteScope == SixelPaletteScope.TerminalPersistent)
+        {
+            ApplyPersistentPaletteMutations(parse, environment.Registers);
+        }
+        return new SixelRasterPreparation(
+            capturedEnvironment,
+            BuildPreparationIdentity(parse, capturedEnvironment));
+    }
 
     public static SixelRasterResult Rasterize(
         SixelParseResult parse,
@@ -380,6 +417,108 @@ internal static class SixelRasterizer
         }
 
         return palette.Register;
+    }
+
+    private static void ApplyPersistentPaletteMutations(
+        SixelParseResult parse,
+        SixelColorRegisters registers)
+    {
+        if (!parse.CommandsComplete)
+        {
+            foreach (var mutation in parse.PaletteMutations)
+            {
+                ApplyPersistentPaletteDefinition(mutation, registers);
+            }
+
+            return;
+        }
+
+        foreach (var command in parse.Commands)
+        {
+            if (command.Palette is { } mutation)
+            {
+                ApplyPersistentPaletteDefinition(mutation, registers);
+            }
+        }
+    }
+
+    private static void ApplyPersistentPaletteDefinition(
+        SixelPaletteCommand mutation,
+        SixelColorRegisters registers)
+    {
+        if (mutation.IsDefinition && registers.IsWithinPolicy(mutation.Register))
+        {
+            registers.Define(
+                mutation.Register,
+                SixelColorConverter.FromDefinition(mutation));
+        }
+    }
+
+    private static byte[] BuildPreparationIdentity(
+        SixelParseResult parse,
+        SixelRasterEnvironment environment)
+    {
+        var registers = environment.Registers.Snapshot();
+        var used = new HashSet<(int Register, uint Color)>();
+        var selected = 0;
+
+        foreach (var command in parse.Commands)
+        {
+            if (command.Kind == SixelCommandKind.Palette)
+            {
+                if (command.Palette is { } palette)
+                {
+                    if (registers.IsWithinPolicy(palette.Register))
+                    {
+                        selected = palette.Register;
+                        if (palette.IsDefinition)
+                        {
+                            registers.Define(
+                                palette.Register,
+                                SixelColorConverter.FromDefinition(palette));
+                        }
+                    }
+                }
+
+                continue;
+            }
+
+            if (command.Value == 0 ||
+                command.RepeatCount <= 0 ||
+                !registers.IsWithinPolicy(selected))
+            {
+                continue;
+            }
+
+            var color = registers.Get(selected);
+            used.Add((
+                selected,
+                ((uint)color.A << 24) |
+                ((uint)color.R << 16) |
+                ((uint)color.G << 8) |
+                color.B));
+        }
+
+        var buffer = new List<byte>(32 + (used.Count * 8))
+        {
+            environment.Background.R,
+            environment.Background.G,
+            environment.Background.B,
+            environment.Background.A,
+            (byte)parse.Header.BackgroundMode,
+        };
+        buffer.AddRange(BitConverter.GetBytes(environment.Policy.ColorRegisterCount));
+        buffer.AddRange(BitConverter.GetBytes(environment.Policy.MaximumRasterPixels));
+        buffer.AddRange(BitConverter.GetBytes(environment.Policy.MaximumRasterOperations));
+        buffer.AddRange(BitConverter.GetBytes(environment.Policy.MaximumRasterTiles));
+        buffer.AddRange(BitConverter.GetBytes(environment.Policy.RasterTileSize));
+        foreach (var (register, color) in used.OrderBy(item => item.Register).ThenBy(item => item.Color))
+        {
+            buffer.AddRange(BitConverter.GetBytes(register));
+            buffer.AddRange(BitConverter.GetBytes(color));
+        }
+
+        return SHA256.HashData([.. buffer])[..16];
     }
 
     private static Measurement Measure(

@@ -5864,10 +5864,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         SixelParseResult parseResult,
         List<CellImpact>? impacts)
     {
-        // Rasterize against the live terminal graphics state. This applies palette
-        // definitions to the persistent register file in command order and captures
-        // the background in effect when the graphic was created.
-        var raster = SixelRasterizer.Rasterize(
+        // Capture immutable raster inputs while applying only palette metadata to
+        // the terminal-scoped state. Pixel painting remains lazy, so the terminal
+        // buffer lock never covers raster work.
+        var rasterPreparation = SixelRasterizer.Prepare(
             parseResult,
             new SixelRasterEnvironment(
                 CaptureSixelBackground(),
@@ -5891,7 +5891,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             widthInCells,
             heightInCells,
             parseResult,
-            raster);
+            rasterPreparation);
 
         // Mark cells covered by this Sixel image
         // The first cell gets the tracked object, others just get the Sixel flag

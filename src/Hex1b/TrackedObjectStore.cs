@@ -93,9 +93,9 @@ internal sealed class TrackedObjectStore
         int widthInCells,
         int heightInCells,
         SixelParseResult parseResult,
-        SixelRasterResult? raster = null)
+        SixelRasterPreparation? rasterPreparation = null)
     {
-        var hash = SixelData.ComputeHash(payload, raster);
+        var hash = SixelData.ComputeHash(payload, rasterPreparation?.Identity);
 
         lock (_lock)
         {
@@ -115,7 +115,7 @@ internal sealed class TrackedObjectStore
                 parseResult.DeclaredExtent.Width,
                 parseResult.DeclaredExtent.Height,
                 parseResult,
-                raster);
+                rasterPreparation: rasterPreparation);
             
             // Create new tracked wrapper with removal callback
             var tracked = new TrackedObject<SixelData>(

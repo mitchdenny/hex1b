@@ -22,6 +22,7 @@ namespace Hex1b;
 public sealed class SixelData
 {
     private readonly object _decodeLock = new();
+    private readonly SixelRasterPreparation? _rasterPreparation;
     private SixelRasterResult? _raster;
     private SixelPixelBuffer? _decodedPixels;
     private bool _decodeAttempted;
@@ -62,10 +63,10 @@ public sealed class SixelData
     /// Gets the authoritative bounded rasterization of <see cref="ParseResult"/>.
     /// </summary>
     /// <remarks>
-    /// When the terminal supplied a raster at creation time, that result is used
-    /// verbatim so the captured background and persistent palette are honored.
-    /// Otherwise the payload is rasterized on first use against the deterministic
-    /// default environment.
+    /// Terminal-created data captures an immutable background and palette
+    /// preparation so rasterization can occur on first use without holding the
+    /// terminal buffer lock. Data created without terminal state uses the
+    /// deterministic default environment.
     /// </remarks>
     internal SixelRasterResult Raster
     {
@@ -75,7 +76,7 @@ public sealed class SixelData
             {
                 return _raster ??= SixelRasterizer.Rasterize(
                     ParseResult,
-                    SixelRasterEnvironment.CreateDefault());
+                    GetRasterEnvironment());
             }
         }
     }
@@ -104,7 +105,8 @@ public sealed class SixelData
         int pixelWidth,
         int pixelHeight,
         SixelParseResult? parseResult = null,
-        SixelRasterResult? raster = null)
+        SixelRasterResult? raster = null,
+        SixelRasterPreparation? rasterPreparation = null)
     {
         Payload = payload;
         WidthInCells = widthInCells;
@@ -114,6 +116,7 @@ public sealed class SixelData
         PixelHeight = pixelHeight;
         ParseResult = parseResult ?? SixelParser.ParsePayload(payload);
         _raster = raster;
+        _rasterPreparation = rasterPreparation;
     }
 
     /// <summary>
@@ -154,7 +157,7 @@ public sealed class SixelData
 
             _raster ??= SixelRasterizer.Rasterize(
                 ParseResult,
-                SixelRasterEnvironment.CreateDefault());
+                GetRasterEnvironment());
             _decodedPixels = _raster.Image?.Materialize();
             _decodeAttempted = true;
             return _decodedPixels;
@@ -175,17 +178,17 @@ public sealed class SixelData
     /// or the persistent palette differ, so the raster identity must participate
     /// in content-addressable reuse.
     /// </remarks>
-    internal static byte[] ComputeHash(string payload, SixelRasterResult? raster)
+    internal static byte[] ComputeHash(string payload, byte[]? rasterIdentity)
     {
         var payloadBytes = System.Text.Encoding.UTF8.GetBytes(payload);
-        if (raster is null)
+        if (rasterIdentity is null)
         {
             return SHA256.HashData(payloadBytes);
         }
 
-        var combined = new byte[payloadBytes.Length + raster.Identity.Length];
+        var combined = new byte[payloadBytes.Length + rasterIdentity.Length];
         payloadBytes.CopyTo(combined, 0);
-        raster.Identity.CopyTo(combined, payloadBytes.Length);
+        rasterIdentity.CopyTo(combined, payloadBytes.Length);
         return SHA256.HashData(combined);
     }
 
@@ -196,4 +199,7 @@ public sealed class SixelData
     {
         return a.AsSpan().SequenceEqual(b.AsSpan());
     }
+
+    private SixelRasterEnvironment GetRasterEnvironment() =>
+        _rasterPreparation?.Environment ?? SixelRasterEnvironment.CreateDefault();
 }

@@ -427,6 +427,50 @@ public class SixelRasterizerTests
     }
 
     [TestMethod]
+    public void Prepare_AppliesPersistentPaletteAndCapturesIndependentRasterState()
+    {
+        var environment = SixelRasterEnvironment.CreateDefault();
+        _ = SixelRasterizer.Prepare(
+            SixelParser.ParsePayload($"0;1q{Red}"),
+            environment);
+        var selectRed = SixelParser.ParsePayload("0;1q#1@");
+        var preparation = SixelRasterizer.Prepare(selectRed, environment);
+
+        Assert.AreEqual(new Rgba32(255, 0, 0, 255), environment.Registers.Get(1));
+
+        environment.Registers.Reset();
+        var raster = SixelRasterizer.Rasterize(selectRed, preparation.Environment);
+        Assert.AreEqual(new Rgba32(255, 0, 0, 255), RequireImage(raster)[0, 0]);
+    }
+
+    [TestMethod]
+    public void Prepare_AppliesDefinitionsBeyondPaletteMutationRetentionLimit()
+    {
+        var environment = SixelRasterEnvironment.CreateDefault();
+        var payload = $"0;1q{string.Concat(Enumerable.Repeat("#1", 4_096))}{Red}";
+        var parse = SixelParser.ParsePayload(payload);
+
+        _ = SixelRasterizer.Prepare(parse, environment);
+
+        Assert.AreEqual(SixelParseOutcome.LimitDowngraded, parse.Outcome);
+        Assert.AreEqual(new Rgba32(255, 0, 0, 255), environment.Registers.Get(1));
+    }
+
+    [TestMethod]
+    public void Prepare_AppliesRetainedPaletteDefinitionsAfterCommandRetentionLimit()
+    {
+        var environment = SixelRasterEnvironment.CreateDefault();
+        var commands = string.Concat(Enumerable.Repeat("@A", 32_768));
+        var parse = SixelParser.ParsePayload($"0;1q{commands}{Red}");
+
+        _ = SixelRasterizer.Prepare(parse, environment);
+
+        Assert.AreEqual(SixelParseOutcome.LimitDowngraded, parse.Outcome);
+        Assert.IsFalse(parse.CommandsComplete);
+        Assert.AreEqual(new Rgba32(255, 0, 0, 255), environment.Registers.Get(1));
+    }
+
+    [TestMethod]
     public void ColorRegisters_ResetRestoresTheDefaultPalette()
     {
         var environment = SixelRasterEnvironment.CreateDefault();
@@ -816,6 +860,35 @@ public class SixelRasterizerTests
     }
 
     [TestMethod]
+    public async Task SixelData_GetPixels_ConcurrentCallersShareOneMaterialization()
+    {
+        var payload = $"\x1bP0;0q\"1;1;70;70{Red}#1!70~\x1b\\";
+        var parse = SixelParser.ParsePayload(payload);
+        var store = new TrackedObjectStore();
+        var tracked = store.GetOrCreateSixel(
+            payload,
+            1,
+            1,
+            parse,
+            SixelRasterizer.Prepare(parse, SixelRasterEnvironment.CreateDefault()));
+        var calls = Enumerable.Range(0, 16)
+            .Select(_ => Task.Run(tracked.Data.GetPixels))
+            .ToArray();
+
+        var results = await Task.WhenAll(calls).WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+
+        Assert.IsNotNull(results[0]);
+        foreach (var result in results)
+        {
+            Assert.AreSame(results[0], result);
+        }
+
+        tracked.Release();
+    }
+
+    [TestMethod]
     public void SixelData_GetPixels_ReturnsNullForGeometryOnlyResults()
     {
         var store = new TrackedObjectStore();
@@ -842,13 +915,17 @@ public class SixelRasterizerTests
             1,
             1,
             parse,
-            SixelRasterizer.Rasterize(parse, EnvironmentWithBackground(new Rgba32(0, 0, 0, 255))));
+            SixelRasterizer.Prepare(
+                parse,
+                EnvironmentWithBackground(new Rgba32(0, 0, 0, 255))));
         var onBlue = store.GetOrCreateSixel(
             payload,
             1,
             1,
             parse,
-            SixelRasterizer.Rasterize(parse, EnvironmentWithBackground(new Rgba32(0, 0, 255, 255))));
+            SixelRasterizer.Prepare(
+                parse,
+                EnvironmentWithBackground(new Rgba32(0, 0, 255, 255))));
 
         Assert.AreNotSame(onBlack, onBlue);
         Assert.AreEqual(new Rgba32(0, 0, 0, 255), onBlack.Data.GetPixels()![0, 1]);
@@ -864,21 +941,53 @@ public class SixelRasterizerTests
         var payload = "\x1bP0;0q#1@\x1b\\";
         var parse = SixelParser.ParsePayload(payload);
         var store = new TrackedObjectStore();
+        var environment = EnvironmentWithBackground(new Rgba32(0, 0, 0, 255));
 
         var first = store.GetOrCreateSixel(
             payload,
             1,
             1,
             parse,
-            SixelRasterizer.Rasterize(parse, EnvironmentWithBackground(new Rgba32(0, 0, 0, 255))));
+            SixelRasterizer.Prepare(
+                parse,
+                environment));
         var second = store.GetOrCreateSixel(
             payload,
             1,
             1,
             parse,
-            SixelRasterizer.Rasterize(parse, EnvironmentWithBackground(new Rgba32(0, 0, 0, 255))));
+            SixelRasterizer.Prepare(
+                parse,
+                environment));
 
         Assert.AreSame(first, second);
+
+        first.Release();
+        second.Release();
+    }
+
+    [TestMethod]
+    public void TrackedSixel_PreDefinitionPaletteUseProducesDistinctIdentity()
+    {
+        var payload = $"\x1bP0;1q#1@{Red}@\x1b\\";
+        var parse = SixelParser.ParsePayload(payload);
+        var store = new TrackedObjectStore();
+        var environment = SixelRasterEnvironment.CreateDefault();
+
+        var first = store.GetOrCreateSixel(
+            payload,
+            1,
+            1,
+            parse,
+            SixelRasterizer.Prepare(parse, environment));
+        var second = store.GetOrCreateSixel(
+            payload,
+            1,
+            1,
+            parse,
+            SixelRasterizer.Prepare(parse, environment));
+
+        Assert.AreNotSame(first, second);
 
         first.Release();
         second.Release();
