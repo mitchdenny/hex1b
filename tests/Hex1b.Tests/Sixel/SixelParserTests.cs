@@ -1,12 +1,14 @@
+using System.Text;
+
 namespace Hex1b.Tests.Sixel;
 
 [TestClass]
 public class SixelParserTests
 {
     [TestMethod]
-    [DataRow("single-band", 1, 6, "A\n.\n.\n.\n.\n.")]
-    [DataRow("multi-band", 1, 12, "A\n.\n.\n.\n.\n.\nA\nA\n.\n.\n.\n.")]
-    [DataRow("two-color-overprint", 1, 6, "A\nB\n.\n.\n.\n.")]
+    [DataRow("single-band", 1, 6, "A\nB\nB\nB\nB\nB")]
+    [DataRow("multi-band", 1, 12, "A\nB\nB\nB\nB\nB\nA\nA\nB\nB\nB\nB")]
+    [DataRow("two-color-overprint", 1, 6, "A\nB\nC\nC\nC\nC")]
     [DataRow("transparent", 2, 6, "A.\n..\n..\n..\n..\n..")]
     public async Task IndependentFixture_GrammarAndPixels_AreInspectable(
         string fixtureName,
@@ -120,7 +122,7 @@ public class SixelParserTests
         TestSvgHelper.AttachFile("sixel-two-color-evidence.svg", svg);
     }
 
-    [TestMethod, Ignore("Owned by #449: HLS conversion currently uses the conventional hue wheel instead of DEC's blue-at-zero hue wheel.")]
+    [TestMethod]
     public async Task HlsDefinition_HueZeroProducesBlue()
     {
         var fixture = new SixelFixture(
@@ -174,15 +176,19 @@ public class SixelParserTests
         Assert.AreEqual(squarePlacement.HeightInCells * 2, defaultPlacement.HeightInCells);
     }
 
-    [TestMethod, Ignore("Owned by #449: P2 background policy is not represented by the current decoder.")]
-    public async Task OpaqueBackground_UnpaintedPixelsUsePaletteRegisterZero()
+    [TestMethod]
+    public async Task OpaqueBackground_UnpaintedPixelsUseCapturedTerminalBackground()
     {
         var fixture = new SixelFixture(
             "opaque-background",
-            "P2=0 paints register zero into unset pixels.",
-            "0;0q#0;2;0;0;100#1;2;100;0;0#1@"u8.ToArray());
+            "P2=0 fills unset pixels with the background captured at creation time.",
+            "0;0q#1;2;100;0;0#1@"u8.ToArray());
         await using var terminal = SixelTestTerminal.Create();
 
+        // Select a blue SGR background before the graphic is created.
+        await terminal.FeedAsync(
+            "\x1b[48;2;0;0;255m"u8.ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
         await terminal.FeedAsync(
             fixture.StandardBytes,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -255,20 +261,22 @@ public class SixelParserTests
         Assert.AreEqual(12, placement.PixelHeight);
     }
 
-    [TestMethod, Ignore("Owned by #449: palette registers are currently reset for each decoded sequence.")]
+    [TestMethod]
     public async Task PaletteDefinition_SubsequentSequence_PersistsRegisterValue()
     {
         var defineRed = new SixelFixture("define-red", "Defines register 5 as red.", "q#5;2;100;0;0@"u8.ToArray());
         var selectRed = new SixelFixture("select-red", "Selects persistent register 5.", "q#5@"u8.ToArray());
         await using var terminal = SixelTestTerminal.Create();
 
+        // Stage 4 does not move the text cursor, so place the second graphic on
+        // its own row explicitly and keep both placements observable.
         var bytes = defineRed.StandardBytes
+            .Concat(Encoding.ASCII.GetBytes("\x1b[2;1H"))
             .Concat(selectRed.StandardBytes)
-            .Concat("X"u8.ToArray())
             .ToArray();
         await terminal.FeedAsync(bytes, cancellationToken: TestContext.Current.CancellationToken);
         await terminal.WaitForAsync(
-            snapshot => snapshot.ContainsText("X"),
+            snapshot => snapshot.GetCell(0, 1).SixelData is not null,
             "persistent palette register",
             TestContext.Current.CancellationToken);
 

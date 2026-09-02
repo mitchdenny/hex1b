@@ -110,8 +110,10 @@ of the terminal contract.
 | `Pan`/`Pad` override | DECGRA aspect overrides the `P1` macro | Last valid DECGRA aspect controls the sequence | Active incremental parser tests |
 | `Ph`/`Pv` orientation | `Ph` is width and `Pv` is height | Horizontal then vertical, without transposition | Active incremental parser and terminal tests |
 | Declared extent | Allocation hint, not a clipping rectangle | Final extent is the maximum of declared and data/painted extents | Active incremental parser tests |
-| Partial final band | Raster height may end within a six-row band | Preserve the declared pixel extent separately from band-rounded data geometry | Parser model active; final raster semantics remain in [#449](https://github.com/mitchdenny/hex1b/issues/449) |
-| Pathological ratios/extents | Modern terminals impose implementation bounds | Enforce centralized limits before allocation and report resource rejection | Exact limits remain an implementation decision |
+| Partial final band | Raster height may end within a six-row band | Painted bounds record the exact final row while the data extent stays band-rounded; the logical canvas is never resampled by the aspect ratio | Active rasterizer tests |
+| Aspect application | `Pan`/`Pad` scale the displayed image, not its stored rows | Store six logical rows per band unscaled and expose the aspect-scaled result as a separate rendered extent; no eager resampling | Active rasterizer tests |
+| Pathological ratios/extents | Modern terminals impose implementation bounds | Enforce centralized limits before allocation and report resource rejection as an explicit geometry-only result that preserves geometry and diagnostics | Limits centralized in `SixelCompatibilityPolicy`; exact values remain an implementation decision |
+| Large declared canvases | Terminals must survive very large `Ph`/`Pv` hints | Store pixels in lazily allocated tiles so a large declared canvas allocates in proportion to painted area, not declared area; materialize densely only on consumer request and within policy | Active rasterizer tests |
 | Fractional cell metrics | Modern terminals can report non-integral pixel metrics | Retain the best available metric and apply deterministic outward rounding for occupied cells | Harness records fractional width now |
 
 Windows Terminal reports an undocumented VT330 behavior in which DECGRA also
@@ -123,24 +125,40 @@ whether it belongs in an optional profile.
 
 | Behavior | DEC and reference terminals | Hex1b default | Status or unresolved work |
 |---|---|---|---|
-| RGB | Three 0-100% components | Clamp valid components to the DEC domain and convert deterministically to 8-bit RGB | Basic decoding active; parser work in #449 |
-| HLS | Hue 0 is blue, 120 is red, and 240 is green; lightness and saturation are percentages | Use the DEC hue wheel, not the CSS hue wheel | Current automation defect captured for #449 |
-| Register persistence | DEC has a shared palette; xterm, WezTerm, foot, Windows Terminal, and xterm.js persist by default | Share palette state between sequences on the same screen session | [#449](https://github.com/mitchdenny/hex1b/issues/449) |
-| Private registers | xterm mode 1070 and some terminal options provide per-image palettes | Shared by default; any private mode must be an explicit compatibility option | Support and reset details unresolved |
-| RIS | WezTerm resets its shared color map; other reviewed behavior is incomplete | Reset Sixel palette and placements to terminal defaults | [#453](https://github.com/mitchdenny/hex1b/issues/453) |
+| RGB | Three 0-100% components | Clamp valid components to the DEC domain and convert deterministically to 8-bit RGB with nearest rounding (`(percent * 255 + 50) / 100`) | Active rasterizer tests |
+| HLS | Hue 0 is blue, 120 is red, and 240 is green; lightness and saturation are percentages | Use the DEC hue wheel, not the CSS hue wheel; hue wraps modulo 360 and lightness/saturation clamp to 0-100 | Active rasterizer tests |
+| Default palette | DEC VT340 ships 16 hardware colors; modern terminals extend selection beyond them | Registers 0-15 are the VT340 defaults expressed in the DEC 0-100 domain; registers 16-255 extend them with the conventional 6x6x6 cube and grayscale ramp so selection without definition is defined for every register inside policy | Centralized in `SixelDefaultPalette`; exact values remain a [#457](https://github.com/mitchdenny/hex1b/issues/457) target |
+| Register count | DEC VT340 exposes 16; modern terminals commonly expose 256 | 256 terminal-scoped registers; selection or definition outside the policy is rejected explicitly with a diagnostic and never silently wrapped | Centralized in `SixelCompatibilityPolicy` |
+| Register persistence | DEC has a shared palette; xterm, WezTerm, foot, Windows Terminal, and xterm.js persist by default | Share palette state between sequences on the same terminal; definitions apply in command order even when rasterization degrades to geometry only | Active rasterizer and terminal tests |
+| Private registers | xterm mode 1070 and some terminal options provide per-image palettes | Shared by default; any private mode must be an explicit compatibility option expressed through `SixelCompatibilityPolicy.PaletteScope` | Support and reset details unresolved |
+| RIS | WezTerm resets its shared color map; other reviewed behavior is incomplete | Reset the Sixel palette to terminal defaults; placement reset remains later-stage work | Palette reset active; placements in [#453](https://github.com/mitchdenny/hex1b/issues/453) |
+| Alternate screen | Reviewed terminals keep one shared color map across screen buffers | Preserve palette registers across alternate-screen transitions | Active terminal tests |
 | DECSTR | Reference behavior is not sufficiently established | Preserve palette unless differential testing demonstrates a stable DEC-compatible reset rule | Explicitly unresolved for #457 |
 
 ### Background
 
 For `P2=1`, unpainted pixels preserve the underlying graphics or text result.
-For other values, Hex1b fills unpainted pixels with Sixel palette register 0.
-This matches xterm and WezTerm.
 
-Foot and xterm.js instead use the live terminal background. DEC describes the
-"current background color" without resolving this distinction. The selected
-register-0 behavior remains an explicit
+For `P2` 0 or 2, Hex1b fills unpainted pixels across the final logical extent
+with **the terminal background color captured when the graphic was created**.
+The captured value is fixed at creation time, so a later SGR background change
+never retroactively repaints an existing graphic. When the terminal background
+is unset, the fill is a deterministic black (`#000000FF`) so identical byte
+streams always produce identical rasters.
+
+This replaces the earlier provisional choice of Sixel palette register 0, which
+matched xterm and WezTerm. The selected behavior instead matches foot and
+xterm.js, and it keeps the opaque fill independent of a payload that redefines
+register 0 for its own drawing. DEC describes the "current background color"
+without resolving the distinction, so the alternative remains expressible
+through `SixelCompatibilityPolicy.BackgroundSource` rather than as a hidden
+branch, and stays a
 [#457](https://github.com/mitchdenny/hex1b/issues/457) differential-testing
 target.
+
+Because the captured background and the persistent palette both change how an
+identical payload rasterizes, tracked Sixel deduplication keys on the payload
+*and* a raster-state identity rather than on payload content alone.
 
 ## Placement, cursor, and modes
 
@@ -215,12 +233,14 @@ reference-terminal evidence:
 
 1. DECSDM compatibility polarity for an optional xterm profile.
 2. Whether mode 8452 should be implemented beyond its default reset behavior.
-3. Palette register 0 versus live terminal background for opaque `P2`.
+3. Whether an optional palette-register-0 opaque background profile is needed
+   alongside the selected captured-background behavior.
 4. DECGRA's undocumented carriage-return behavior and aspect-scaled DECGNL.
 5. Exact Sixel-over-Sixel compositing and partial-cell text/erase damage.
 6. DECSTR effects on palettes and placements.
 7. Main/alternate-screen, history eviction, resize, and reflow edge behavior.
-8. Default palette values and private-register behavior across modern terminals.
+8. Exact default palette values for registers 16-255 and private-register
+   behavior across modern terminals.
 
 ## Evidence and running the contract
 

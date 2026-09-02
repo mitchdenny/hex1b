@@ -6,21 +6,30 @@ namespace Hex1b.Automation;
 /// Decodes Sixel graphics data to raw pixel arrays for SVG rendering.
 /// </summary>
 /// <remarks>
-/// This compatibility decoder consumes the authoritative incremental Sixel
-/// parser result. It does not independently scan raw payload text.
+/// <para>
+/// This compatibility shim owns no grammar, color, or raster logic. It consumes
+/// the authoritative incremental Sixel parser and delegates every pixel decision
+/// to the bounded <c>SixelRasterizer</c>.
+/// </para>
+/// <para>
+/// It returns <see langword="null"/> only for the documented failure and
+/// degradation cases: an empty payload, a parse outcome that is not a complete
+/// graphic, or an explicit geometry-only raster produced when resource policy
+/// refuses pixel allocation.
+/// </para>
 /// </remarks>
 public static class SixelDecoder
 {
-    private const int MaximumDecodedPixels = 16 * 1024 * 1024;
-    private const long MaximumRasterOperations = MaximumDecodedPixels * 4L;
-
     /// <summary>
     /// Decodes a Sixel DCS payload to raw RGBA pixel data.
     /// </summary>
     /// <param name="payload">The Sixel payload (including or excluding DCS wrapper).</param>
-    /// <param name="cellWidth">The width of a terminal cell in pixels.</param>
-    /// <param name="cellHeight">The height of a terminal cell in pixels.</param>
-    /// <returns>Decoded image with RGBA pixel data, or null if decoding cannot be retained safely.</returns>
+    /// <param name="cellWidth">The width of a terminal cell in pixels. Unused; retained for source compatibility.</param>
+    /// <param name="cellHeight">The height of a terminal cell in pixels. Unused; retained for source compatibility.</param>
+    /// <returns>
+    /// Decoded image with RGBA pixel data, or <see langword="null"/> when the
+    /// payload is empty or the rasterizer explicitly returned geometry only.
+    /// </returns>
     public static SixelImage? Decode(string payload, int cellWidth = 9, int cellHeight = 18)
     {
         if (string.IsNullOrEmpty(payload))
@@ -33,193 +42,35 @@ public static class SixelDecoder
         return Decode(SixelParser.ParsePayload(payload));
     }
 
-    internal static SixelImage? Decode(SixelParseResult result)
+    internal static SixelImage? Decode(SixelParseResult result) =>
+        Decode(SixelRasterizer.Rasterize(result, SixelRasterEnvironment.CreateDefault()));
+
+    internal static SixelImage? Decode(SixelData data) => Decode(data.Raster);
+
+    internal static SixelImage? Decode(SixelRasterResult raster)
     {
-        if (!result.CommandsComplete ||
-            result.Outcome is SixelParseOutcome.Cancelled or
-                SixelParseOutcome.Malformed or
-                SixelParseOutcome.Rejected)
+        if (raster.Status != SixelRasterStatus.Rasterized || raster.Image is null)
         {
             return null;
         }
 
-        var width = result.DeclaredExtent.Width;
-        var height = result.DeclaredExtent.Height;
-        var hasData = false;
-        long rasterOperations = 0;
-        foreach (var command in result.Commands)
+        var image = raster.Image;
+        var pixels = new byte[checked((int)image.PixelCount * 4)];
+        var index = 0;
+        for (var y = 0; y < image.Height; y++)
         {
-            if (command.Kind != SixelCommandKind.Data)
+            for (var x = 0; x < image.Width; x++)
             {
-                continue;
-            }
-
-            hasData = true;
-            width = Math.Max(width, SaturatingAdd(command.X, command.RepeatCount));
-            height = Math.Max(height, SaturatingMultiply(SaturatingAdd(command.Band, 1), 6));
-            rasterOperations += (long)command.RepeatCount *
-                System.Numerics.BitOperations.PopCount((uint)command.Value);
-            if (rasterOperations > MaximumRasterOperations)
-            {
-                return null;
+                var pixel = image[x, y];
+                pixels[index++] = pixel.R;
+                pixels[index++] = pixel.G;
+                pixels[index++] = pixel.B;
+                pixels[index++] = pixel.A;
             }
         }
 
-        if (!hasData || width <= 0 || height <= 0)
-        {
-            return null;
-        }
-
-        var pixelCount = (long)width * height;
-        if (pixelCount > MaximumDecodedPixels)
-        {
-            return null;
-        }
-
-        var pixels = new byte[checked((int)pixelCount * 4)];
-        var palette = new Dictionary<int, (byte R, byte G, byte B)>();
-        InitializeDefaultPalette(palette);
-        var selectedColor = 0;
-
-        foreach (var command in result.Commands)
-        {
-            if (command.Kind == SixelCommandKind.Palette &&
-                command.Palette is { } paletteCommand)
-            {
-                selectedColor = paletteCommand.Register;
-                if (paletteCommand.IsDefinition)
-                {
-                    palette[paletteCommand.Register] = ConvertColor(paletteCommand);
-                }
-                continue;
-            }
-
-            if (command.Kind != SixelCommandKind.Data ||
-                command.Value == 0 ||
-                !palette.TryGetValue(selectedColor, out var color))
-            {
-                continue;
-            }
-
-            var endX = Math.Min(width, SaturatingAdd(command.X, command.RepeatCount));
-            for (var x = command.X; x < endX; x++)
-            {
-                for (var bit = 0; bit < 6; bit++)
-                {
-                    if ((command.Value & (1 << bit)) == 0)
-                    {
-                        continue;
-                    }
-
-                    var y = SaturatingAdd(SaturatingMultiply(command.Band, 6), bit);
-                    if (y >= height)
-                    {
-                        continue;
-                    }
-
-                    var pixelIndex = checked(((y * width) + x) * 4);
-                    pixels[pixelIndex] = color.R;
-                    pixels[pixelIndex + 1] = color.G;
-                    pixels[pixelIndex + 2] = color.B;
-                    pixels[pixelIndex + 3] = 255;
-                }
-            }
-        }
-
-        return new SixelImage(width, height, pixels);
+        return new SixelImage(image.Width, image.Height, pixels);
     }
-
-    private static (byte R, byte G, byte B) ConvertColor(SixelPaletteCommand command)
-    {
-        var x = command.X ?? 0;
-        var y = command.Y ?? 0;
-        var z = command.Z ?? 0;
-        return command.ColorSpace switch
-        {
-            SixelColorSpace.Rgb => (
-                PercentageToByte(x),
-                PercentageToByte(y),
-                PercentageToByte(z)),
-            SixelColorSpace.Hls => HlsToRgb(x, y, z),
-            _ => (0, 0, 0),
-        };
-    }
-
-    private static byte PercentageToByte(int value) =>
-        (byte)(Math.Clamp(value, 0, 100) * 255 / 100);
-
-    private static void InitializeDefaultPalette(Dictionary<int, (byte R, byte G, byte B)> palette)
-    {
-        palette[0] = (0, 0, 0);
-        palette[1] = (51, 51, 255);
-        palette[2] = (255, 51, 51);
-        palette[3] = (51, 255, 51);
-        palette[4] = (255, 51, 255);
-        palette[5] = (51, 255, 255);
-        palette[6] = (255, 255, 51);
-        palette[7] = (250, 250, 250);
-        palette[8] = (128, 128, 128);
-        palette[9] = (102, 102, 255);
-        palette[10] = (255, 102, 102);
-        palette[11] = (102, 255, 102);
-        palette[12] = (255, 102, 255);
-        palette[13] = (102, 255, 255);
-        palette[14] = (255, 255, 102);
-        palette[15] = (255, 255, 255);
-    }
-
-    private static (byte R, byte G, byte B) HlsToRgb(int h, int l, int s)
-    {
-        var hue = Math.Clamp(h, 0, 360) / 360.0;
-        var lightness = Math.Clamp(l, 0, 100) / 100.0;
-        var saturation = Math.Clamp(s, 0, 100) / 100.0;
-
-        if (saturation == 0)
-        {
-            var component = (byte)(lightness * 255);
-            return (component, component, component);
-        }
-
-        var q = lightness < 0.5
-            ? lightness * (1 + saturation)
-            : lightness + saturation - lightness * saturation;
-        var p = 2 * lightness - q;
-        return (
-            (byte)(HueToRgb(p, q, hue + (1.0 / 3)) * 255),
-            (byte)(HueToRgb(p, q, hue) * 255),
-            (byte)(HueToRgb(p, q, hue - (1.0 / 3)) * 255));
-    }
-
-    private static double HueToRgb(double p, double q, double t)
-    {
-        if (t < 0)
-        {
-            t += 1;
-        }
-        if (t > 1)
-        {
-            t -= 1;
-        }
-        if (t < 1.0 / 6)
-        {
-            return p + (q - p) * 6 * t;
-        }
-        if (t < 1.0 / 2)
-        {
-            return q;
-        }
-        if (t < 2.0 / 3)
-        {
-            return p + (q - p) * (2.0 / 3 - t) * 6;
-        }
-        return p;
-    }
-
-    private static int SaturatingAdd(int left, int right) =>
-        right <= int.MaxValue - left ? left + right : int.MaxValue;
-
-    private static int SaturatingMultiply(int left, int right) =>
-        left <= int.MaxValue / right ? left * right : int.MaxValue;
 }
 
 /// <summary>
