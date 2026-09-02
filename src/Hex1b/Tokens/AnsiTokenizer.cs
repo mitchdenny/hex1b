@@ -488,6 +488,20 @@ public static class AnsiTokenizer
                 tokens.Add(new DeleteLinesToken(ParseMoveCount(parameters)));
                 break;
                 
+            case 'p':
+                // CSI ! p = DECSTR (Soft Terminal Reset). Other 'p' finals (DECSCL,
+                // DECRQM, xterm pointer modes) stay unrecognized so raw passthrough
+                // keeps forwarding them unchanged.
+                if (!isPrivateMode && parameters == "!")
+                {
+                    tokens.Add(SoftResetToken.Instance);
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+
             case 'P':
                 // CSI 1;m P = F1 with modifiers (xterm); otherwise CSI Ps P = Delete Character (DCH)
                 if (TryParseFunctionKeyWithModifier(parameters, out var pMod))
