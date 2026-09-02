@@ -1,0 +1,565 @@
+using System.Globalization;
+using System.Text;
+using System.Threading.Channels;
+using Hex1b.Automation;
+using Hex1b.Reflow;
+using Hex1b.Surfaces;
+
+namespace Hex1b.Tests.Sixel;
+
+internal sealed class SixelTestTerminal : IAsyncDisposable
+{
+    private readonly QueuedByteWorkloadAdapter _workload = new();
+    private readonly ExactBytePresentationAdapter _presentation;
+    private readonly CancellationTokenSource _runCancellation = new();
+    private readonly Task<int> _runTask;
+
+    private SixelTestTerminal(
+        int width,
+        int height,
+        int cellPixelWidth,
+        int cellPixelHeight,
+        double actualCellPixelWidth,
+        int scrollbackCapacity,
+        ITerminalReflowProvider? reflow)
+    {
+        var capabilities = new TerminalCapabilities
+        {
+            SupportsSixel = true,
+            SupportsTrueColor = true,
+            Supports256Colors = true,
+            CellPixelWidth = cellPixelWidth,
+            CellPixelHeight = cellPixelHeight,
+            ActualCellPixelWidth = actualCellPixelWidth,
+        };
+
+        _presentation = new ExactBytePresentationAdapter(width, height, capabilities, reflow);
+        var builder = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(_workload)
+            .WithPresentation(_presentation)
+            .WithDimensions(width, height);
+        if (scrollbackCapacity > 0)
+            builder.WithScrollback(scrollbackCapacity);
+
+        Terminal = builder.Build();
+        _runTask = Terminal.RunAsync(_runCancellation.Token);
+    }
+
+    public Hex1bTerminal Terminal { get; }
+
+    public byte[] PresentationBytes => _presentation.CapturedBytes;
+
+    public static SixelTestTerminal Create(
+        int width = 20,
+        int height = 10,
+        int cellPixelWidth = 1,
+        int cellPixelHeight = 6,
+        double actualCellPixelWidth = 0,
+        int scrollbackCapacity = 0,
+        ITerminalReflowProvider? reflow = null)
+        => new(
+            width,
+            height,
+            cellPixelWidth,
+            cellPixelHeight,
+            actualCellPixelWidth,
+            scrollbackCapacity,
+            reflow);
+
+    public async Task FeedAsync(
+        ReadOnlyMemory<byte> bytes,
+        IReadOnlyList<int>? chunkSizes = null,
+        CancellationToken cancellationToken = default)
+    {
+        var expectedPresentationLength = _presentation.CapturedLength + bytes.Length;
+        var chunks = Split(bytes, chunkSizes);
+        foreach (var chunk in chunks)
+            await _workload.EnqueueAsync(chunk, cancellationToken);
+
+        await _presentation.WaitForLengthAsync(expectedPresentationLength, cancellationToken);
+    }
+
+    public async Task WaitForAsync(
+        Func<Hex1bTerminalSnapshot, bool> condition,
+        string expectation,
+        CancellationToken cancellationToken = default)
+    {
+        var timeout = TimeSpan.FromSeconds(2);
+        var started = TimeProvider.System.GetTimestamp();
+        while (TimeProvider.System.GetElapsedTime(started) < timeout)
+        {
+            using var snapshot = Terminal.CreateSnapshot(scrollbackLines: Terminal.ScrollbackCount);
+            if (condition(snapshot))
+                return;
+
+            await Task.Delay(10, cancellationToken);
+        }
+
+        throw new TimeoutException($"Timed out waiting for Sixel test terminal state: {expectation}.");
+    }
+
+    public SixelTerminalObservation Observe(bool includeScrollback = true)
+    {
+        using var snapshot = Terminal.CreateSnapshot(
+            scrollbackLines: includeScrollback ? Terminal.ScrollbackCount : 0);
+        var placements = new List<SixelPlacementObservation>();
+        var occupiedRows = new HashSet<SixelOccupiedRow>();
+        var occupiedCells = new HashSet<SixelOccupiedCell>();
+        for (var y = 0; y < snapshot.Height; y++)
+        {
+            for (var x = 0; x < snapshot.Width; x++)
+            {
+                var cell = snapshot.GetCell(x, y);
+                if (cell.IsSixel)
+                {
+                    occupiedRows.Add(new SixelOccupiedRow(y, y < snapshot.ScrollbackLineCount));
+                    occupiedCells.Add(new SixelOccupiedCell(
+                        x,
+                        y,
+                        y < snapshot.ScrollbackLineCount));
+                }
+
+                var sixel = cell.SixelData;
+                if (sixel is null)
+                    continue;
+
+                var pixels = sixel.GetPixels();
+                placements.Add(new SixelPlacementObservation(
+                    x,
+                    y,
+                    sixel.WidthInCells,
+                    sixel.HeightInCells,
+                    sixel.Payload,
+                    pixels?.Width ?? 0,
+                    pixels?.Height ?? 0,
+                    pixels is null ? "" : SixelPixelGrid.Format(pixels),
+                    pixels));
+            }
+        }
+
+        return new SixelTerminalObservation(
+            snapshot.Width,
+            snapshot.Height,
+            snapshot.CursorX,
+            snapshot.CursorY,
+            snapshot.InAlternateScreen,
+            snapshot.ScrollbackLineCount,
+            snapshot.CellPixelWidth,
+            snapshot.CellPixelHeight,
+            Terminal.Capabilities.EffectiveCellPixelWidth,
+            [.. placements],
+            [.. occupiedRows.OrderBy(row => row.Row)],
+            [.. occupiedCells.OrderBy(cell => cell.Row).ThenBy(cell => cell.Column)],
+            Enumerable.Range(0, snapshot.Height).Select(snapshot.GetLine).ToArray());
+    }
+
+    public string CreateSvgEvidence()
+    {
+        using var snapshot = Terminal.CreateSnapshot(scrollbackLines: Terminal.ScrollbackCount);
+        for (var y = 0; y < snapshot.Height; y++)
+        {
+            for (var x = 0; x < snapshot.Width; x++)
+            {
+                var pixels = snapshot.GetCell(x, y).SixelData?.GetPixels();
+                if (pixels is not null)
+                    return SixelPixelGrid.ToSvg(pixels);
+            }
+        }
+
+        throw new InvalidOperationException("No decoded Sixel raster is available for SVG evidence.");
+    }
+
+    public static async Task<IReadOnlyList<SixelSplitRun>> ObserveEverySplitAsync(
+        SixelFixture fixture,
+        CancellationToken cancellationToken = default,
+        bool useC1Framing = false)
+    {
+        var bytes = useC1Framing ? fixture.C1Bytes : fixture.StandardBytes;
+        var runs = new List<SixelSplitRun>(bytes.Length);
+        for (var split = 0; split < bytes.Length; split++)
+        {
+            await using var terminal = Create();
+            var chunkSizes = split == 0
+                ? new[] { bytes.Length }
+                : new[] { split, bytes.Length - split };
+            await terminal.FeedAsync(bytes, chunkSizes, cancellationToken);
+            await terminal.WaitForAsync(
+                snapshot => snapshot.ContainsSixelData(),
+                $"fixture '{fixture.Name}' at split {split}",
+                cancellationToken);
+            runs.Add(new SixelSplitRun(split, terminal.PresentationBytes, terminal.Observe()));
+        }
+
+        return runs;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _workload.Complete();
+        try
+        {
+            await _runTask.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (TimeoutException)
+        {
+            _runCancellation.Cancel();
+            try
+            {
+                await _runTask;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        await Terminal.DisposeAsync();
+        _runCancellation.Dispose();
+    }
+
+    private static IReadOnlyList<ReadOnlyMemory<byte>> Split(
+        ReadOnlyMemory<byte> bytes,
+        IReadOnlyList<int>? chunkSizes)
+    {
+        if (chunkSizes is null || chunkSizes.Count == 0)
+            return [bytes];
+
+        var result = new List<ReadOnlyMemory<byte>>(chunkSizes.Count);
+        var offset = 0;
+        foreach (var size in chunkSizes)
+        {
+            if (size <= 0 || offset + size > bytes.Length)
+                throw new ArgumentOutOfRangeException(nameof(chunkSizes));
+            result.Add(bytes.Slice(offset, size));
+            offset += size;
+        }
+
+        if (offset != bytes.Length)
+            throw new ArgumentException("Chunk sizes must consume the complete byte sequence.", nameof(chunkSizes));
+        return result;
+    }
+
+    private sealed class QueuedByteWorkloadAdapter : IHex1bTerminalWorkloadAdapter
+    {
+        private readonly Channel<ReadOnlyMemory<byte>> _output =
+            Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
+        private readonly object _eventLock = new();
+        private Action? _disconnected;
+        private bool _completed;
+
+        public event Action? Disconnected
+        {
+            add
+            {
+                var invokeNow = false;
+                lock (_eventLock)
+                {
+                    _disconnected += value;
+                    invokeNow = _completed;
+                }
+                if (invokeNow)
+                    value?.Invoke();
+            }
+            remove
+            {
+                lock (_eventLock)
+                    _disconnected -= value;
+            }
+        }
+
+        public ValueTask EnqueueAsync(ReadOnlyMemory<byte> bytes, CancellationToken cancellationToken)
+            => _output.Writer.WriteAsync(bytes.ToArray(), cancellationToken);
+
+        public void Complete() => _output.Writer.TryComplete();
+
+        public async ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+        {
+            while (await _output.Reader.WaitToReadAsync(ct))
+            {
+                if (_output.Reader.TryRead(out var bytes))
+                    return bytes;
+            }
+
+            Action? disconnected;
+            lock (_eventLock)
+            {
+                _completed = true;
+                disconnected = _disconnected;
+            }
+            disconnected?.Invoke();
+            return ReadOnlyMemory<byte>.Empty;
+        }
+
+        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask DisposeAsync()
+        {
+            Complete();
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class ExactBytePresentationAdapter(
+        int width,
+        int height,
+        TerminalCapabilities capabilities,
+        ITerminalReflowProvider? reflow) :
+        IHex1bTerminalPresentationAdapter,
+        ITerminalReflowProvider
+    {
+        private readonly List<byte> _bytes = [];
+        private TaskCompletionSource _changed =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int Width { get; } = width;
+        public int Height { get; } = height;
+        public TerminalCapabilities Capabilities { get; } = capabilities;
+        public bool ReflowEnabled => reflow is not null;
+        public bool ShouldClearSoftWrapOnAbsolutePosition =>
+            reflow?.ShouldClearSoftWrapOnAbsolutePosition ?? false;
+
+        public byte[] CapturedBytes
+        {
+            get
+            {
+                lock (_bytes)
+                    return [.. _bytes];
+            }
+        }
+
+        public int CapturedLength
+        {
+            get
+            {
+                lock (_bytes)
+                    return _bytes.Count;
+            }
+        }
+
+        public event Action<int, int>? Resized
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+        {
+            TaskCompletionSource changed;
+            lock (_bytes)
+            {
+                _bytes.AddRange(data.Span);
+                changed = _changed;
+                _changed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+            changed.TrySetResult();
+            return ValueTask.CompletedTask;
+        }
+
+        public async Task WaitForLengthAsync(int minimumLength, CancellationToken cancellationToken)
+        {
+            while (true)
+            {
+                Task changed;
+                lock (_bytes)
+                {
+                    if (_bytes.Count >= minimumLength)
+                        return;
+                    changed = _changed.Task;
+                }
+                await changed.WaitAsync(cancellationToken);
+            }
+        }
+
+        public async ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
+        {
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            return ReadOnlyMemory<byte>.Empty;
+        }
+
+        public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public (int Row, int Column) GetCursorPosition() => (0, 0);
+        public ReflowResult Reflow(ReflowContext context) =>
+            (reflow ?? throw new InvalidOperationException("Reflow is not enabled.")).Reflow(context);
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+}
+
+internal sealed record SixelSplitRun(
+    int SplitBoundary,
+    byte[] PresentationBytes,
+    SixelTerminalObservation Observation);
+
+internal sealed record SixelTerminalObservation(
+    int Width,
+    int Height,
+    int CursorX,
+    int CursorY,
+    bool InAlternateScreen,
+    int ScrollbackLines,
+    int CellPixelWidth,
+    int CellPixelHeight,
+    double EffectiveCellPixelWidth,
+    IReadOnlyList<SixelPlacementObservation> Placements,
+    IReadOnlyList<SixelOccupiedRow> OccupiedRows,
+    IReadOnlyList<SixelOccupiedCell> OccupiedCells,
+    IReadOnlyList<string> Lines)
+{
+    public string ModelFingerprint()
+    {
+        var builder = new StringBuilder();
+        builder.Append($"{Width}x{Height}|cursor={CursorX},{CursorY}|alt={InAlternateScreen}");
+        builder.Append($"|history={ScrollbackLines}|cell={CellPixelWidth}x{CellPixelHeight}");
+        foreach (var placement in Placements)
+        {
+            builder.Append(
+                $"|sixel={placement.OriginColumn},{placement.OriginRow}," +
+                $"{placement.WidthInCells}x{placement.HeightInCells}," +
+                $"{placement.PixelWidth}x{placement.PixelHeight}," +
+                $"{placement.Payload},{placement.PixelGrid}");
+        }
+        foreach (var row in OccupiedRows)
+            builder.Append($"|occupied-row={row.Row},history={row.InScrollback}");
+        foreach (var cell in OccupiedCells)
+            builder.Append(
+                $"|occupied-cell={cell.Column},{cell.Row},history={cell.InScrollback}");
+        foreach (var line in Lines)
+            builder.Append('|').Append(line);
+        return builder.ToString();
+    }
+
+    public string CompositePixelGrid()
+    {
+        if (Placements.Count == 0)
+            return "";
+
+        var width = Placements.Max(
+            placement => placement.OriginColumn * CellPixelWidth + placement.PixelWidth);
+        var height = Placements.Max(
+            placement => placement.OriginRow * CellPixelHeight + placement.PixelHeight);
+        var composite = new SixelPixelBuffer(width, height);
+
+        foreach (var placement in Placements)
+        {
+            if (placement.Pixels is null)
+                continue;
+
+            var originX = placement.OriginColumn * CellPixelWidth;
+            var originY = placement.OriginRow * CellPixelHeight;
+            for (var y = 0; y < placement.Pixels.Height; y++)
+            {
+                for (var x = 0; x < placement.Pixels.Width; x++)
+                {
+                    var pixel = placement.Pixels[x, y];
+                    if (!pixel.IsTransparent)
+                        composite[originX + x, originY + y] = pixel;
+                }
+            }
+        }
+
+        return SixelPixelGrid.Format(composite);
+    }
+}
+
+internal sealed record SixelPlacementObservation(
+    int OriginColumn,
+    int OriginRow,
+    int WidthInCells,
+    int HeightInCells,
+    string Payload,
+    int PixelWidth,
+    int PixelHeight,
+    string PixelGrid,
+    SixelPixelBuffer? Pixels);
+
+internal sealed record SixelOccupiedRow(int Row, bool InScrollback);
+
+internal sealed record SixelOccupiedCell(int Column, int Row, bool InScrollback);
+
+internal static class SixelPixelGrid
+{
+    public static string Format(SixelPixelBuffer pixels)
+    {
+        var symbols = new Dictionary<Rgba32, char>();
+        var nextSymbol = 'A';
+        var rows = new string[pixels.Height];
+        for (var y = 0; y < pixels.Height; y++)
+        {
+            var row = new char[pixels.Width];
+            for (var x = 0; x < pixels.Width; x++)
+            {
+                var pixel = pixels[x, y];
+                if (pixel.IsTransparent)
+                {
+                    row[x] = '.';
+                    continue;
+                }
+
+                if (!symbols.TryGetValue(pixel, out var symbol))
+                {
+                    symbol = nextSymbol++;
+                    symbols.Add(pixel, symbol);
+                }
+                row[x] = symbol;
+            }
+            rows[y] = new string(row);
+        }
+
+        var legend = string.Join(
+            ", ",
+            symbols.Select(pair =>
+                $"{pair.Value}=#{pair.Key.R:X2}{pair.Key.G:X2}{pair.Key.B:X2}{pair.Key.A:X2}"));
+        return $"{string.Join('\n', rows)}\n[{legend}]";
+    }
+
+    public static string ToSvg(SixelPixelBuffer pixels)
+    {
+        const int scale = 12;
+        var builder = new StringBuilder();
+        builder.AppendLine(
+            $"""<svg xmlns="http://www.w3.org/2000/svg" width="{pixels.Width * scale}" height="{pixels.Height * scale}" viewBox="0 0 {pixels.Width} {pixels.Height}" shape-rendering="crispEdges">""");
+        builder.AppendLine("""  <rect width="100%" height="100%" fill="#181818"/>""");
+        builder.AppendLine("""  <g id="sixel-pixels">""");
+        for (var y = 0; y < pixels.Height; y++)
+        {
+            for (var x = 0; x < pixels.Width; x++)
+            {
+                var pixel = pixels[x, y];
+                if (pixel.IsTransparent)
+                    continue;
+
+                var opacity = (pixel.A / 255.0).ToString("F3", CultureInfo.InvariantCulture);
+                builder.AppendLine(
+                    $"""    <rect x="{x}" y="{y}" width="1" height="1" fill="#{pixel.R:X2}{pixel.G:X2}{pixel.B:X2}" fill-opacity="{opacity}"/>""");
+            }
+        }
+        builder.AppendLine("  </g>");
+        builder.AppendLine("""  <g id="pixel-grid" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="0.04">""");
+        for (var x = 0; x <= pixels.Width; x++)
+            builder.AppendLine($"""    <line x1="{x}" y1="0" x2="{x}" y2="{pixels.Height}"/>""");
+        for (var y = 0; y <= pixels.Height; y++)
+            builder.AppendLine($"""    <line x1="0" y1="{y}" x2="{pixels.Width}" y2="{y}"/>""");
+        builder.AppendLine("  </g>");
+        builder.AppendLine("</svg>");
+        return builder.ToString();
+    }
+}
