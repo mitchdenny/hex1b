@@ -293,11 +293,22 @@ dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
 The terminal-first demo sends independently authored raw Sixel bytes through
 `Hex1bTerminal`. It does not use `SixelWidget` or `SixelEncoder`.
 
+The demo presents one subject per screen. Each screen clears the display, resets
+margins, origin mode, and DECSDM so it cannot inherit state from the screen
+before it, then draws its subject and waits. Enter or Space advances, `p` goes
+back, and `q` quits. Screens are numbered so a specific one can be named in
+review and reopened directly.
+
 ```bash
 dotnet run --project samples/SixelTerminalDemo
+dotnet run --project samples/SixelTerminalDemo -- --screen 17
 dotnet run --project samples/SixelTerminalDemo -- --scene "Declared extent"
 dotnet run --project samples/SixelTerminalDemo -- --headless
 ```
+
+`--headless` prints the numbered screen list together with the parsed model and
+the observed cursor, mode, and margin results, so the same screen numbers can be
+checked without a Sixel-capable terminal.
 
 ## Primary references
 

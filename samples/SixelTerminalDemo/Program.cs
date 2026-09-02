@@ -3,6 +3,10 @@ using Hex1b;
 
 var headless = args.Contains("--headless", StringComparer.OrdinalIgnoreCase);
 var sceneFilter = GetOption(args, "--scene");
+var screenOption = GetOption(args, "--screen");
+const int Width = 80;
+const int Height = 24;
+
 var fixtures = sceneFilter is null
     ? RawSixelFixtures.All
     : RawSixelFixtures.All
@@ -38,129 +42,102 @@ for (var index = 0; index < cursorScenes.Count; index++)
     cursorObservations[index] = await InspectCursorSceneAsync(cursorScenes[index]);
 }
 
-var chunks = BuildDemoOutput(
+var allScreens = DemoScreens.Build(
     fixtures,
     modelDescriptions,
     cursorScenes,
     includeTransportScenes: sceneFilter is null);
-var workload = new DemoWorkloadAdapter(chunks);
-IHex1bTerminalPresentationAdapter presentation = headless
-    ? new HeadlessPresentationAdapter(80, 24, capabilities)
-    : new ConsolePresentationAdapter(enableMouse: false);
 
-await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithWorkload(workload)
-    .WithPresentation(presentation)
-    .WithDimensions(80, 24)
-    .Build();
-
-if (!headless)
+// --screen selects one numbered screen. The number keeps its original value so a
+// screen referenced in review still identifies the same subject when run alone.
+var screens = allScreens;
+if (screenOption is not null)
 {
-    Console.Error.WriteLine(
-        "SixelTerminalDemo sends standard ESC-framed, independently authored fixtures through Hex1bTerminal.");
-    Console.Error.WriteLine("The labels describe the DEC VT340 model outcome expected from a native Sixel terminal.");
-    Console.Error.WriteLine("Use --scene <name> to run one enlarged fixture, for example --scene \"Declared extent\".");
-}
+    if (!int.TryParse(screenOption, out var requested))
+    {
+        throw new ArgumentException($"--screen expects a number, not '{screenOption}'.", nameof(args));
+    }
 
-await terminal.RunAsync();
+    screens = allScreens.Where(screen => screen.Number == requested).ToArray();
+    if (screens.Count == 0)
+    {
+        throw new ArgumentException(
+            $"No screen numbered {requested}; the demo has {allScreens.Count}.",
+            nameof(args));
+    }
+}
 
 if (headless)
 {
-    using var snapshot = terminal.CreateSnapshot();
-    Console.WriteLine("Hex1b authoritative Sixel model inspection:");
-    Console.WriteLine($"  tracked Sixel origins: {CountSixelOrigins(snapshot)}");
-    Console.WriteLine($"  cursor: ({snapshot.CursorX}, {snapshot.CursorY})");
-    Console.WriteLine($"  cell metrics: {snapshot.CellPixelWidth}x{snapshot.CellPixelHeight}px");
+    WriteHeadlessTranscript(
+        allScreens,
+        screens,
+        fixtures,
+        modelDescriptions,
+        cursorScenes,
+        cursorObservations);
+    return;
+}
+
+var workload = new PagedScreenWorkloadAdapter(screens, promptRow: Height);
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithWorkload(workload)
+    .WithPresentation(new ConsolePresentationAdapter(enableMouse: false))
+    .WithDimensions(Width, Height)
+    .Build();
+
+Console.Error.WriteLine(
+    "SixelTerminalDemo pages through numbered screens of independently authored, ESC-framed fixtures.");
+Console.Error.WriteLine("Enter or Space advances, p goes back, and q quits.");
+Console.Error.WriteLine($"Use --screen <number> to open one screen directly (1-{allScreens.Count}).");
+
+await terminal.RunAsync();
+
+static void WriteHeadlessTranscript(
+    IReadOnlyList<DemoScreen> allScreens,
+    IReadOnlyList<DemoScreen> selected,
+    IReadOnlyList<RawSixelFixture> fixtures,
+    IReadOnlyList<string> modelDescriptions,
+    IReadOnlyList<RawCursorScene> cursorScenes,
+    IReadOnlyList<string> cursorObservations)
+{
+    Console.WriteLine($"Hex1b Sixel demo: {allScreens.Count} numbered screens.");
+    Console.WriteLine("Run without --headless to page through them; --screen <number> opens one.");
     Console.WriteLine();
-    Console.WriteLine("Deterministic grammar and geometry scenes:");
+
+    Console.WriteLine("Screens:");
+    foreach (var screen in selected)
+    {
+        Console.WriteLine($"  {screen.Number,3}. {screen.Title}");
+        Console.WriteLine($"       expected: {screen.Expected}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("Deterministic grammar and geometry model:");
     for (var index = 0; index < fixtures.Count; index++)
     {
         Console.WriteLine($"  {fixtures[index].Name}: {modelDescriptions[index]}");
     }
+
     Console.WriteLine();
-    Console.WriteLine("Cursor, DECSDM, and margin scenes:");
+    Console.WriteLine("Cursor, DECSDM, and margin observations:");
     for (var index = 0; index < cursorScenes.Count; index++)
     {
         Console.WriteLine($"  {cursorScenes[index].Name}: {cursorObservations[index]}");
     }
-    Console.WriteLine("Run without --headless in a native Sixel terminal to inspect the presentation outcome.");
 }
 
-static IReadOnlyList<byte[]> BuildDemoOutput(
-    IReadOnlyList<RawSixelFixture> fixtures,
-    IReadOnlyList<string> modelDescriptions,
-    IReadOnlyList<RawCursorScene> cursorScenes,
-    bool includeTransportScenes)
+static string? GetOption(string[] arguments, string option)
 {
-    var chunks = new List<byte[]>
+    for (var index = 0; index < arguments.Length - 1; index++)
     {
-        Encoding.ASCII.GetBytes("\x1b[2J\x1b[HHex1b terminal-first Sixel behavior demo\r\n"),
-        Encoding.ASCII.GetBytes("Fixtures use standard ESC P ... ESC \\\\ framing; no SixelWidget or encoder.\r\n\r\n"),
-    };
-
-    for (var index = 0; index < fixtures.Count; index++)
-    {
-        var fixture = fixtures[index];
-        chunks.Add(Encoding.ASCII.GetBytes($"[{fixture.Name}] Expected: {fixture.Expected}\r\n"));
-        chunks.Add(Encoding.ASCII.GetBytes($"Model: {modelDescriptions[index]}\r\n"));
-        if (fixture.SetupDcsBytes is { } setup)
+        if (string.Equals(arguments[index], option, StringComparison.OrdinalIgnoreCase))
         {
-            chunks.Add(Encoding.ASCII.GetBytes(
-                $"Setup: {fixture.SetupPayload}\r\n"));
-            chunks.Add(setup);
-            chunks.Add(Encoding.ASCII.GetBytes("\r\n"));
+            return arguments[index + 1];
         }
-
-        chunks.Add(fixture.StandardDcsBytes);
-        chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
     }
 
-    AddCursorScenes(chunks, cursorScenes);
-
-    if (!includeTransportScenes)
-    {
-        chunks.Add(Encoding.ASCII.GetBytes(
-            "Stage 5: the same parser and rasterizer drive cursor, DECSDM, margin, and metric semantics.\r\n"));
-        return chunks;
-    }
-
-    var framingFixture = fixtures[0].StandardDcsBytes;
-    chunks.Add(Encoding.ASCII.GetBytes(
-        "[Framing] Two consecutive DCS images with no transport boundary between them.\r\n"));
-    chunks.Add(
-    [
-        .. fixtures[0].StandardDcsBytes,
-        .. fixtures[1].StandardDcsBytes,
-    ]);
-    chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
-
-    chunks.Add(Encoding.ASCII.GetBytes(
-        "[Split write] The introducer, payload, and ESC-backslash terminator arrive in separate reads.\r\n"));
-    AddChunks(chunks, framingFixture, [1, 1, 5, framingFixture.Length - 9, 1, 1]);
-    chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
-
-    chunks.Add(Encoding.ASCII.GetBytes(
-        "[Native passthrough] One-byte workload reads still form the original image upstream.\r\n"));
-    foreach (var value in fixtures[3].StandardDcsBytes)
-        chunks.Add([value]);
-    chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
-
-    chunks.Add(Encoding.ASCII.GetBytes(
-        "Stage 5: the same parser and rasterizer drive cursor, DECSDM, margin, and metric semantics.\r\n"));
-    return chunks;
-}
-
-static void AddCursorScenes(List<byte[]> chunks, IReadOnlyList<RawCursorScene> scenes)
-{
-    foreach (var scene in scenes)
-    {
-        // Each scene owns a clean screen so margins and the scrolling region can
-        // be observed without the previous scene's output interfering.
-        chunks.Add(Encoding.ASCII.GetBytes(
-            $"{RawCursorScene.ResetSequence}\x1b[2J\x1b[H[{scene.Name}] Expected: {scene.Expected}\r\n"));
-        chunks.Add(scene.Bytes);
-        chunks.Add(Encoding.ASCII.GetBytes("\x1b[24;1H"));
-    }
+    return null;
 }
 
 static async Task<string> InspectCursorSceneAsync(RawCursorScene scene)
@@ -214,19 +191,6 @@ static async Task<string> InspectCursorSceneAsync(RawCursorScene scene)
 
     builder.Append($", cursor ({snapshot.CursorX}, {snapshot.CursorY})");
     return builder.ToString();
-}
-
-static string? GetOption(string[] arguments, string option)
-{
-    for (var index = 0; index < arguments.Length - 1; index++)
-    {
-        if (string.Equals(arguments[index], option, StringComparison.OrdinalIgnoreCase))
-        {
-            return arguments[index + 1];
-        }
-    }
-
-    return null;
 }
 
 static async Task<string> InspectModelAsync(RawSixelFixture fixture)
@@ -322,84 +286,4 @@ static string DescribeModel(SixelData sixel)
 
         return seen.Count;
     }
-}
-
-static void AddChunks(List<byte[]> chunks, byte[] bytes, IReadOnlyList<int> sizes)
-{
-    var offset = 0;
-    foreach (var size in sizes)
-    {
-        chunks.Add(bytes.AsSpan(offset, size).ToArray());
-        offset += size;
-    }
-
-    if (offset != bytes.Length)
-    {
-        throw new InvalidOperationException("Demo split sizes must consume the complete DCS.");
-    }
-}
-
-static int CountSixelOrigins(Hex1b.Automation.Hex1bTerminalSnapshot snapshot)
-{
-    var count = 0;
-    for (var y = 0; y < snapshot.Height; y++)
-    {
-        for (var x = 0; x < snapshot.Width; x++)
-        {
-            if (snapshot.GetCell(x, y).SixelData is not null)
-                count++;
-        }
-    }
-    return count;
-}
-
-internal sealed class DemoWorkloadAdapter(IReadOnlyList<byte[]> chunks) : IHex1bTerminalWorkloadAdapter
-{
-    private readonly object _eventLock = new();
-    private Action? _disconnected;
-    private int _nextChunk;
-    private bool _completed;
-
-    public event Action? Disconnected
-    {
-        add
-        {
-            var invokeNow = false;
-            lock (_eventLock)
-            {
-                _disconnected += value;
-                invokeNow = _completed;
-            }
-            if (invokeNow)
-                value?.Invoke();
-        }
-        remove
-        {
-            lock (_eventLock)
-                _disconnected -= value;
-        }
-    }
-
-    public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
-    {
-        if (_nextChunk < chunks.Count)
-            return ValueTask.FromResult<ReadOnlyMemory<byte>>(chunks[_nextChunk++]);
-
-        Action? disconnected;
-        lock (_eventLock)
-        {
-            _completed = true;
-            disconnected = _disconnected;
-        }
-        disconnected?.Invoke();
-        return ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
-    }
-
-    public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
-        => ValueTask.CompletedTask;
-
-    public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
-        => ValueTask.CompletedTask;
-
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
