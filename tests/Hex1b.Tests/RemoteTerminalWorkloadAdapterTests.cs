@@ -16,6 +16,10 @@ public class RemoteTerminalWorkloadAdapterTests
     private int _port;
     private readonly List<WebSocket> _connectedClients = new();
     private readonly SemaphoreSlim _clientConnected = new(0);
+    private readonly TaskCompletionSource<string?> _authorizationHeader =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<string> _requestPathAndQuery =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
     // Signal so the server handler stays alive until test cleanup
     private readonly TaskCompletionSource _serverDone = new();
 
@@ -57,6 +61,119 @@ public class RemoteTerminalWorkloadAdapterTests
     public void Constructor_WithNullUri_ThrowsArgumentNull()
     {
         Assert.ThrowsExactly<ArgumentNullException>(() => new RemoteTerminalWorkloadAdapter(null!));
+    }
+
+    [TestMethod]
+    public void Constructor_WithNullConfigureOptions_ThrowsArgumentNull()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            new RemoteTerminalWorkloadAdapter(WsUri, null!));
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_WithConfiguredRequestHeader_SendsHeader()
+    {
+        await using var adapter = new RemoteTerminalWorkloadAdapter(
+            WsUri,
+            options => options.ConfigureWebSocket(webSocketOptions =>
+                webSocketOptions.SetRequestHeader(
+                    "Authorization", "Bearer test-token")));
+
+        await adapter.ConnectAsync(CancellationToken.None);
+
+        var authorization = await _authorizationHeader.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.AreEqual("Bearer test-token", authorization);
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_WithMultipleRequestCallbacks_AppliesAllMutations()
+    {
+        await using var adapter = new RemoteTerminalWorkloadAdapter(
+            WsUri,
+            options =>
+            {
+                options.ConfigureRequest(request =>
+                    request.Headers.TryAddWithoutValidation(
+                        "Authorization", "Bearer request-callback"));
+                options.ConfigureRequest(request =>
+                {
+                    request.RequestUri = new UriBuilder(request.RequestUri!)
+                    {
+                        Query = "source=hex1b"
+                    }.Uri;
+                });
+            });
+
+        await adapter.ConnectAsync(CancellationToken.None);
+
+        var pathAndQuery = await _requestPathAndQuery.Task.WaitAsync(
+            TimeSpan.FromSeconds(5));
+        var authorization = await _authorizationHeader.Task.WaitAsync(
+            TimeSpan.FromSeconds(5));
+        Assert.AreEqual("/ws/attach?source=hex1b", pathAndQuery);
+        Assert.AreEqual("Bearer request-callback", authorization);
+    }
+
+    [TestMethod]
+    public async Task Constructor_WithConfiguredHttpHandler_InvokesCallback()
+    {
+        var callbackInvoked = false;
+
+        await using var adapter = new RemoteTerminalWorkloadAdapter(
+            WsUri,
+            options => options.ConfigureHttpHandler(_ => callbackInvoked = true));
+
+        Assert.IsTrue(callbackInvoked);
+    }
+
+    [TestMethod]
+    public async Task WithRemoteTerminal_WithConfigureOptions_InvokesConfigurationWhenBuilt()
+    {
+        var configureInvoked = false;
+
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithRemoteTerminal(WsUri, _ => configureInvoked = true)
+            .WithHeadless()
+            .Build();
+
+        Assert.IsTrue(configureInvoked);
+    }
+
+    [TestMethod]
+    public async Task WithRemoteTerminal_WithConfigureOptionsAndAdapter_SendsHeader()
+    {
+        Hex1bTerminal.CreateBuilder()
+            .WithRemoteTerminal(
+                WsUri,
+                options => options.SetRequestHeader("Authorization", "Bearer builder-token"),
+                out var adapter);
+
+        await using (adapter)
+        {
+            await adapter.ConnectAsync(CancellationToken.None);
+
+            var authorization = await _authorizationHeader.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.AreEqual("Bearer builder-token", authorization);
+        }
+    }
+
+    [TestMethod]
+    public void WithRemoteTerminal_WithNullConfigureOptions_ThrowsArgumentNull()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder().WithRemoteTerminal(
+                WsUri,
+                (Action<RemoteTerminalOptions>)null!));
+    }
+
+    [TestMethod]
+    public void WithRemoteTerminal_WithNullConfigureOptionsAndAdapter_ThrowsArgumentNull()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            Hex1bTerminal.CreateBuilder().WithRemoteTerminal(
+                WsUri,
+                (Action<RemoteTerminalOptions>)null!,
+                out _));
     }
 
     [TestMethod]
@@ -234,6 +351,10 @@ public class RemoteTerminalWorkloadAdapterTests
                 context.Response.StatusCode = 400;
                 return;
             }
+
+            _authorizationHeader.TrySetResult(context.Request.Headers.Authorization);
+            _requestPathAndQuery.TrySetResult(
+                $"{context.Request.Path}{context.Request.QueryString}");
 
             // Do NOT use 'using' — we hold the WebSocket open for the test.
             // Disposal happens in DisposeAsync.
