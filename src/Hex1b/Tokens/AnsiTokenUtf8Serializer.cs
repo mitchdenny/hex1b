@@ -304,9 +304,13 @@ public static class AnsiTokenUtf8Serializer
                 WriteByte(writer, 0x1b);
                 WriteByte(writer, (byte)'P');
                 if (dcs.TryGetMatchingRawPayload(out var rawPayload))
+                {
                     writer.Write(rawPayload.Span);
+                }
                 else
+                {
                     WriteUtf8(writer, dcs.Payload);
+                }
                 WriteByte(writer, 0x1b);
                 WriteByte(writer, (byte)'\\');
                 return;
