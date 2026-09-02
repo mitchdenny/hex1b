@@ -32,6 +32,7 @@ public sealed class RemoteTerminalWorkloadAdapter : IHex1bTerminalWorkloadAdapte
 {
     private readonly Uri _uri;
     private readonly ClientWebSocket _ws;
+    private readonly HttpMessageInvoker? _httpMessageInvoker;
     private readonly Channel<ReadOnlyMemory<byte>> _outputChannel;
     private CancellationTokenSource? _receiveCts;
     private Task? _receiveTask;
@@ -47,24 +48,44 @@ public sealed class RemoteTerminalWorkloadAdapter : IHex1bTerminalWorkloadAdapte
     }
 
     /// <summary>
-    /// Creates a new remote terminal workload adapter with custom WebSocket options.
+    /// Creates a new remote terminal workload adapter with custom connection options.
     /// </summary>
     /// <param name="uri">WebSocket URI to connect to (e.g. <c>ws://localhost:8080/ws/attach</c>).</param>
     /// <param name="configureOptions">
-    /// An action that configures the WebSocket before the connection is established.
+    /// An action that configures the WebSocket and its opening HTTP request.
     /// </param>
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="uri"/> or <paramref name="configureOptions"/> is <see langword="null"/>.
     /// </exception>
     public RemoteTerminalWorkloadAdapter(
         Uri uri,
-        Action<ClientWebSocketOptions> configureOptions)
+        Action<RemoteTerminalOptions> configureOptions)
     {
         _uri = uri ?? throw new ArgumentNullException(nameof(uri));
         ArgumentNullException.ThrowIfNull(configureOptions);
 
+        var options = new RemoteTerminalOptions();
+        configureOptions(options);
+
         _ws = new ClientWebSocket();
-        configureOptions(_ws.Options);
+        options.ApplyClientWebSocketOptions(_ws.Options);
+
+        if (options.RequiresHttpMessageInvoker)
+        {
+            var httpHandler = new SocketsHttpHandler
+            {
+                PooledConnectionLifetime = TimeSpan.Zero,
+                UseCookies = false
+            };
+            options.ApplyHttpHandlerOptions(httpHandler);
+
+            var requestHandler = new RemoteTerminalRequestHandler(
+                options.ApplyRequestOptions)
+            {
+                InnerHandler = httpHandler
+            };
+            _httpMessageInvoker = new HttpMessageInvoker(requestHandler);
+        }
 
         _outputChannel = Channel.CreateBounded<ReadOnlyMemory<byte>>(
             new BoundedChannelOptions(1000)
@@ -99,7 +120,10 @@ public sealed class RemoteTerminalWorkloadAdapter : IHex1bTerminalWorkloadAdapte
     /// </summary>
     internal async Task ConnectAsync(CancellationToken ct)
     {
-        await _ws.ConnectAsync(_uri, ct);
+        if (_httpMessageInvoker is null)
+            await _ws.ConnectAsync(_uri, ct);
+        else
+            await _ws.ConnectAsync(_uri, _httpMessageInvoker, ct);
 
         // Read the initial handshake frame
         var handshake = await ReceiveFullMessageAsync(ct);
@@ -340,6 +364,7 @@ public sealed class RemoteTerminalWorkloadAdapter : IHex1bTerminalWorkloadAdapte
         }
 
         _ws.Dispose();
+        _httpMessageInvoker?.Dispose();
         _outputChannel.Writer.TryComplete();
     }
 }

@@ -725,13 +725,13 @@ public sealed class Hex1bTerminalBuilder
 
     /// <summary>
     /// Configures the terminal to connect to a remote terminal host over WebSocket
-    /// with custom connection options.
+    /// with custom WebSocket and HTTP request options.
     /// </summary>
     /// <param name="uri">
     /// WebSocket URI of the remote host's attach endpoint.
     /// </param>
     /// <param name="configureOptions">
-    /// An action that configures the WebSocket before the connection is established.
+    /// An action that configures the WebSocket and its opening HTTP request.
     /// </param>
     /// <returns>This builder instance for fluent chaining.</returns>
     /// <exception cref="ArgumentNullException">
@@ -742,7 +742,10 @@ public sealed class Hex1bTerminalBuilder
     /// await using var terminal = Hex1bTerminal.CreateBuilder()
     ///     .WithRemoteTerminal(
     ///         new Uri("wss://example.com/ws/attach"),
-    ///         options => options.SetRequestHeader("Authorization", "Bearer token"))
+    ///         options => options.ConfigureRequest(request =>
+    ///             request.Headers.Authorization =
+    ///                 new System.Net.Http.Headers.AuthenticationHeaderValue(
+    ///                     "Bearer", "token")))
     ///     .Build();
     ///
     /// await terminal.RunAsync();
@@ -750,7 +753,7 @@ public sealed class Hex1bTerminalBuilder
     /// </example>
     public Hex1bTerminalBuilder WithRemoteTerminal(
         Uri uri,
-        Action<ClientWebSocketOptions> configureOptions)
+        Action<RemoteTerminalOptions> configureOptions)
     {
         ArgumentNullException.ThrowIfNull(uri);
         ArgumentNullException.ThrowIfNull(configureOptions);
@@ -794,13 +797,14 @@ public sealed class Hex1bTerminalBuilder
 
     /// <summary>
     /// Configures the terminal to connect to a remote terminal host over WebSocket
-    /// with custom connection options, providing access to the adapter for advanced control.
+    /// with custom WebSocket and HTTP request options, providing access to the adapter
+    /// for advanced control.
     /// </summary>
     /// <param name="uri">
     /// WebSocket URI of the remote host's attach endpoint.
     /// </param>
     /// <param name="configureOptions">
-    /// An action that configures the WebSocket before the connection is established.
+    /// An action that configures the WebSocket and its opening HTTP request.
     /// </param>
     /// <param name="adapter">
     /// When this method returns, contains the adapter instance for querying
@@ -815,7 +819,10 @@ public sealed class Hex1bTerminalBuilder
     /// await using var terminal = Hex1bTerminal.CreateBuilder()
     ///     .WithRemoteTerminal(
     ///         new Uri("wss://example.com/ws/attach"),
-    ///         options => options.SetRequestHeader("Authorization", "Bearer token"),
+    ///         options => options.ConfigureRequest(request =>
+    ///             request.Headers.Authorization =
+    ///                 new System.Net.Http.Headers.AuthenticationHeaderValue(
+    ///                     "Bearer", "token")),
     ///         out var remote)
     ///     .Build();
     ///
@@ -824,7 +831,7 @@ public sealed class Hex1bTerminalBuilder
     /// </example>
     public Hex1bTerminalBuilder WithRemoteTerminal(
         Uri uri,
-        Action<ClientWebSocketOptions> configureOptions,
+        Action<RemoteTerminalOptions> configureOptions,
         out RemoteTerminalWorkloadAdapter adapter)
     {
         ArgumentNullException.ThrowIfNull(uri);

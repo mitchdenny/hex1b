@@ -16,9 +16,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
     .WithRemoteTerminal(
         endpoint,
-        options => options.SetRequestHeader(
-            "Authorization",
-            $"Bearer {bearerToken}"))
+        options => options.ConfigureRequest(request =>
+            request.Headers.TryAddWithoutValidation(
+                "Authorization",
+                $"Bearer {bearerToken}")))
     .Build();
 
 try

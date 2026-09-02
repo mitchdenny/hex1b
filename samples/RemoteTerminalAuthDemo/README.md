@@ -1,6 +1,6 @@
 # Authenticated Remote Terminal Demo
 
-This sample has separate server and client applications. The server hosts a Hex1b application at a WebSocket attach endpoint and rejects requests that do not include a non-empty bearer token. The client supplies the token through the `ClientWebSocketOptions` callback on `WithRemoteTerminal`.
+This sample has separate server and client applications. The server hosts a Hex1b application at a WebSocket attach endpoint and rejects requests that do not include a non-empty bearer token. The client supplies the token through the `RemoteTerminalOptions` callback on `WithRemoteTerminal`.
 
 The token check intentionally validates only the presence and shape of the `Authorization` header. Replace it with normal JWT bearer authentication before using this pattern outside a local demonstration.
 
@@ -39,9 +39,10 @@ The important client configuration is:
 ```csharp
 .WithRemoteTerminal(
     endpoint,
-    options => options.SetRequestHeader(
-        "Authorization",
-        $"Bearer {bearerToken}"))
+    options => options.ConfigureRequest(request =>
+        request.Headers.TryAddWithoutValidation(
+            "Authorization",
+            $"Bearer {bearerToken}")))
 ```
 
-The server parses the `Authorization` header and returns HTTP 401 unless its scheme is `Bearer` and its token is non-empty. After accepting the WebSocket, it bridges the public `AttachSession` protocol to the hosted Hex1b application.
+`ConfigureRequest` receives the outgoing `HttpRequestMessage`, so callers can also change its URI, version, options, and other request properties. The server parses the `Authorization` header and returns HTTP 401 unless its scheme is `Bearer` and its token is non-empty. After accepting the WebSocket, it bridges the public `AttachSession` protocol to the hosted Hex1b application.
