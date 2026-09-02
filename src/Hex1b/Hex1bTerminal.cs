@@ -97,6 +97,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private bool _savedCursorProtected; // Saved protection state for DECSC/DECRC
     private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across workload output reads
     private readonly Decoder _inputUtf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across presentation input reads
+    private readonly DcsByteStreamParser _dcsByteStreamParser;
 
     // On browser-wasm (specifically with the Mono interpreter that
     // `dotnet run` uses, and possibly with [JSImport]-returned byte
@@ -348,6 +349,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
+        _dcsByteStreamParser = new DcsByteStreamParser(options.DcsRetentionLimit);
         _escapeTimeout = options.EscapeSequenceTimeout ?? TimeSpan.FromMilliseconds(50);
 
         // Subscribe to presentation events
@@ -1401,48 +1403,34 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
                 try
                 {
-                var rawPassthrough =
-                    _workloadFilters.Count == 0 &&
+                var rawPresentationPassthrough =
                     _presentationFilters.Count == 0 &&
                     _presentation is not ICellImpactAwarePresentationAdapter;
-                if (rawPassthrough && !_disposed && _presentation is not null)
+                var rawProcessingFastPath =
+                    _workloadFilters.Count == 0 &&
+                    rawPresentationPassthrough;
+                if (rawPresentationPassthrough && !_disposed && _presentation is not null)
                 {
-                    // Forward each workload read before internal UTF-8/APC
-                    // reconstruction so incomplete reads are never dropped.
+                    // Native/raw presentations own the original workload bytes. Forward each
+                    // read before framing, decoding, filters, raster work, or snapshots.
                     await _presentation.WriteOutputAsync(data, ct);
                     _metrics.TerminalOutputBytes.Record(data.Length);
                 }
 
-                string? completeText = null;
                 IReadOnlyList<AnsiToken> tokens;
+                IReadOnlyDictionary<DcsToken, DcsFrame>? framedDcs = null;
 
-                if (preTokenizedTokens != null)
+                if (preTokenizedTokens != null &&
+                    !_dcsByteStreamParser.HasPendingInput &&
+                    string.IsNullOrEmpty(_incompleteSequenceBuffer))
                 {
                     tokens = NormalizePreTokenizedTokens(preTokenizedTokens);
                 }
                 else
                 {
-                    // Decode UTF-8 using the stateful decoder which handles incomplete sequences
-                    // across read boundaries (e.g., braille characters split across reads)
-                    var charCount = _utf8Decoder.GetCharCount(data.Span, flush: false);
-                    var chars = new char[charCount];
-                    _utf8Decoder.GetChars(data.Span, chars, flush: false);
-                    var decodedText = new string(chars);
-                    
-                    // Prepend any buffered incomplete escape sequence from previous read
-                    var text = _incompleteSequenceBuffer + decodedText;
-                    _incompleteSequenceBuffer = "";
-                    
-                    // Check if text ends with an incomplete escape sequence and buffer it
-                    var extracted = ExtractIncompleteEscapeSequence(text);
-                    completeText = extracted.completeText;
-                    _incompleteSequenceBuffer = extracted.incompleteSequence;
-                    
-                    if (string.IsNullOrEmpty(completeText))
-                        continue; // All content is incomplete, wait for more data
-                    
-                    // Tokenize once, use for all processing
-                    tokens = AnsiTokenizer.Tokenize(completeText);
+                    var tokenization = TokenizeRawWorkloadOutput(data.Span);
+                    tokens = tokenization.Tokens;
+                    framedDcs = tokenization.FramedDcs;
                 }
                 
                 _metrics.TerminalOutputTokens.Record(tokens.Count);
@@ -1450,10 +1438,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // FAST PATH: If no filters are active AND presentation doesn't need cell impacts,
                 // apply tokens to buffer and forward bytes directly.
                 // This is crucial for programs like tmux that are sensitive to output timing
-                if (rawPassthrough)
+                if (rawProcessingFastPath)
                 {
                     // Still apply tokens to internal buffer so CreateSnapshot() works
-                    ApplyTokens(tokens);
+                    ApplyTokens(tokens, framedDcs);
                     continue;
                 }
                 
@@ -1461,7 +1449,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 await NotifyWorkloadFiltersOutputAsync(tokens);
                 
                 // Apply tokens to our internal buffer and collect cell impacts
-                var appliedTokens = ApplyTokensWithImpacts(tokens);
+                var appliedTokens = ApplyTokensWithImpacts(tokens, framedDcs);
                 if (_disposed)
                     continue;
                 
@@ -1481,23 +1469,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         // Send applied tokens with impacts directly to the adapter
                         await impactAware.WriteOutputWithImpactsAsync(appliedTokens, ct);
                     }
-                    // If there are no presentation filters, pass through original bytes directly
-                    // to preserve exact escape sequence syntax
-                    else if (_presentationFilters.Count == 0)
-                    {
-                        if (completeText != null)
-                        {
-                            var originalBytes = Encoding.UTF8.GetBytes(completeText);
-                            await _presentation.WriteOutputAsync(originalBytes, ct);
-                            _metrics.TerminalOutputBytes.Record(originalBytes.Length);
-                        }
-                        else
-                        {
-                            await _presentation.WriteOutputAsync(data, ct);
-                            _metrics.TerminalOutputBytes.Record(data.Length);
-                        }
-                    }
-                    else
+                    else if (!rawPresentationPassthrough)
                     {
                         // Pass through presentation filters, serialize and send
                         var filteredTokens = await NotifyPresentationFiltersOutputAsync(appliedTokens);
@@ -1526,7 +1498,107 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             ReportPumpFault("workload output pump", ex);
         }
+        finally
+        {
+            foreach (var boundary in _dcsByteStreamParser.Complete().Frames)
+                RecordDcsFrame(boundary.Frame);
+        }
     }
+
+    private RawOutputTokenization TokenizeRawWorkloadOutput(ReadOnlySpan<byte> data)
+    {
+        var batch = _dcsByteStreamParser.Process(data);
+        var tokens = new List<AnsiToken>();
+        Dictionary<DcsToken, DcsFrame>? framedDcs = null;
+        var textOffset = 0;
+
+        foreach (var boundary in batch.Frames)
+        {
+            AppendDecodedTokens(
+                batch.TextBytes.Span[textOffset..boundary.TextByteOffset],
+                tokens,
+                flushAtBoundary: true);
+            textOffset = boundary.TextByteOffset;
+
+            var frame = boundary.Frame;
+            RecordDcsFrame(frame);
+            if (frame.Status is DcsSequenceStatus.Cancelled or DcsSequenceStatus.Unterminated ||
+                frame.RetentionLimitExceeded)
+            {
+                continue;
+            }
+
+            var token = new DcsToken(Encoding.Latin1.GetString(frame.RetainedContent.Span));
+            token.AttachRawPayload(frame.RetainedContent);
+            tokens.Add(token);
+            framedDcs ??= new Dictionary<DcsToken, DcsFrame>(ReferenceEqualityComparer.Instance);
+            framedDcs.Add(token, frame);
+        }
+
+        AppendDecodedTokens(batch.TextBytes.Span[textOffset..], tokens);
+        return new RawOutputTokenization(tokens, framedDcs);
+    }
+
+    private void AppendDecodedTokens(
+        ReadOnlySpan<byte> data,
+        List<AnsiToken> tokens,
+        bool flushAtBoundary = false)
+    {
+        if (data.IsEmpty && !flushAtBoundary)
+            return;
+
+        var charCount = _utf8Decoder.GetCharCount(data, flushAtBoundary);
+        var chars = new char[charCount];
+        _utf8Decoder.GetChars(data, chars, flushAtBoundary);
+        var decodedText = new string(chars);
+
+        var text = _incompleteSequenceBuffer + decodedText;
+        _incompleteSequenceBuffer = "";
+
+        var extracted = ExtractIncompleteEscapeSequence(text, recognizeC1Dcs: false);
+        if (flushAtBoundary)
+        {
+            _utf8Decoder.Reset();
+        }
+        else
+        {
+            _incompleteSequenceBuffer = extracted.incompleteSequence;
+        }
+
+        if (!string.IsNullOrEmpty(extracted.completeText))
+            tokens.AddRange(AnsiTokenizer.TokenizeWithoutDcs(extracted.completeText));
+        if (flushAtBoundary && !string.IsNullOrEmpty(extracted.incompleteSequence))
+            tokens.Add(new UnrecognizedSequenceToken(extracted.incompleteSequence));
+    }
+
+    private void RecordDcsFrame(DcsFrame frame)
+    {
+        _metrics.TerminalDcsBytes.Record(frame.ByteCount);
+
+        var dispatchKind = frame.Status switch
+        {
+            DcsSequenceStatus.Cancelled => "cancelled",
+            DcsSequenceStatus.Malformed => "malformed",
+            DcsSequenceStatus.Unterminated => "unterminated",
+            _ when frame.RetentionLimitExceeded => "retention_limit",
+            _ when frame.Introducer.IsSixel => "sixel",
+            _ => "unsupported",
+        };
+        _metrics.TerminalDcsDispatches.Add(
+            1,
+            new KeyValuePair<string, object?>("kind", dispatchKind));
+
+        if (frame.Status == DcsSequenceStatus.Cancelled)
+            _metrics.TerminalDcsCancellations.Add(1);
+        if (frame.Status == DcsSequenceStatus.Malformed)
+            _metrics.TerminalDcsMalformedRecoveries.Add(1);
+        if (frame.RetentionLimitExceeded)
+            _metrics.TerminalDcsRetentionLimitEvents.Add(1);
+    }
+
+    private sealed record RawOutputTokenization(
+        IReadOnlyList<AnsiToken> Tokens,
+        IReadOnlyDictionary<DcsToken, DcsFrame>? FramedDcs);
 
     private void ReportPumpFault(string pumpName, Exception error)
     {
@@ -2705,7 +2777,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// have been processed through workload filters.
     /// </remarks>
     /// <param name="tokens">The tokens to apply.</param>
-    internal void ApplyTokens(IReadOnlyList<AnsiToken> tokens)
+    /// <param name="framedDcs">Structured DCS frames already parsed from raw bytes.</param>
+    internal void ApplyTokens(
+        IReadOnlyList<AnsiToken> tokens,
+        IReadOnlyDictionary<DcsToken, DcsFrame>? framedDcs = null)
     {
         lock (_bufferLock)
         {
@@ -2719,7 +2794,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 int cursorXBefore = _cursorX;
                 int cursorYBefore = _cursorY;
-                if (!ApplyToken(token, null))
+                if (!ApplyToken(token, null, framedDcs))
                 {
                     RestoreValidCursorAfterAbortedScroll(cursorXBefore, cursorYBefore);
                     break;
@@ -2739,8 +2814,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// and other presentation filters.
     /// </remarks>
     /// <param name="tokens">The tokens to apply.</param>
+    /// <param name="framedDcs">Structured DCS frames already parsed from raw bytes.</param>
     /// <returns>A list of applied tokens with their cell impacts and cursor state changes.</returns>
-    internal IReadOnlyList<AppliedToken> ApplyTokensWithImpacts(IReadOnlyList<AnsiToken> tokens)
+    internal IReadOnlyList<AppliedToken> ApplyTokensWithImpacts(
+        IReadOnlyList<AnsiToken> tokens,
+        IReadOnlyDictionary<DcsToken, DcsFrame>? framedDcs = null)
     {
         lock (_bufferLock)
         {
@@ -2758,7 +2836,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 int cursorYBefore = _cursorY;
                 
                 var impacts = new List<CellImpact>();
-                if (!ApplyToken(token, impacts))
+                if (!ApplyToken(token, impacts, framedDcs))
                 {
                     RestoreValidCursorAfterAbortedScroll(cursorXBefore, cursorYBefore);
                     break;
@@ -2781,7 +2859,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     /// <param name="token">The token to apply.</param>
     /// <param name="impacts">Optional list to record cell impacts for delta tracking.</param>
-    private bool ApplyToken(AnsiToken token, List<CellImpact>? impacts)
+    /// <param name="framedDcs">Structured DCS frames already parsed from raw bytes.</param>
+    private bool ApplyToken(
+        AnsiToken token,
+        List<CellImpact>? impacts,
+        IReadOnlyDictionary<DcsToken, DcsFrame>? framedDcs)
     {
         switch (token)
         {
@@ -3000,7 +3082,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
                 
             case DcsToken dcsToken:
-                ProcessSixelData(dcsToken.Payload, impacts);
+                ProcessDcsToken(dcsToken, impacts, framedDcs);
                 break;
                 
             case ScrollRegionToken scrollRegionToken:
@@ -5697,6 +5779,42 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         return true;
     }
 
+    private void ProcessDcsToken(
+        DcsToken token,
+        List<CellImpact>? impacts,
+        IReadOnlyDictionary<DcsToken, DcsFrame>? framedDcs)
+    {
+        if (framedDcs is not null && framedDcs.TryGetValue(token, out var framed))
+        {
+            if (framed.Status == DcsSequenceStatus.Complete &&
+                !framed.RetentionLimitExceeded &&
+                framed.Introducer.IsSixel)
+            {
+                ProcessSixelData(token.Payload, impacts);
+            }
+
+            return;
+        }
+
+        // Pre-tokenized output owns its token stream and deliberately bypasses raw-byte
+        // framing. Parse only its bounded introducer here for equivalent dispatch semantics.
+        var byteCount = Encoding.UTF8.GetByteCount(token.Payload);
+        var retentionLimitExceeded = byteCount > _dcsByteStreamParser.RetentionLimit;
+        var introducer = DcsByteStreamParser.ParseIntroducer(token.Payload.AsSpan());
+        var status = introducer.IsValid
+            ? DcsSequenceStatus.Complete
+            : DcsSequenceStatus.Malformed;
+        RecordDcsFrame(new DcsFrame(
+            status,
+            introducer,
+            ReadOnlyMemory<byte>.Empty,
+            byteCount,
+            retentionLimitExceeded));
+
+        if (introducer.IsSixel && !retentionLimitExceeded)
+            ProcessSixelData(token.Payload, impacts);
+    }
+
     /// <summary>
     /// Processes Sixel data by creating a tracked object and marking cells.
     /// </summary>
@@ -6594,22 +6712,26 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Returns (completeText, incompleteSequence) where incompleteSequence
     /// should be prepended to the next chunk of data.
     /// </summary>
-    private static (string completeText, string incompleteSequence) ExtractIncompleteEscapeSequence(string text)
+    private static (string completeText, string incompleteSequence) ExtractIncompleteEscapeSequence(
+        string text,
+        bool recognizeC1Dcs = true)
     {
         if (string.IsNullOrEmpty(text))
             return (text, "");
 
-        var incompleteStart = FindTrailingIncompleteEscapeSequenceStart(text);
+        var incompleteStart = FindTrailingIncompleteEscapeSequenceStart(text, recognizeC1Dcs);
         return incompleteStart < 0
             ? (text, "")
             : (text[..incompleteStart], text[incompleteStart..]);
     }
 
-    private static int FindTrailingIncompleteEscapeSequenceStart(string text)
+    private static int FindTrailingIncompleteEscapeSequenceStart(
+        string text,
+        bool recognizeC1Dcs)
     {
         for (int i = 0; i < text.Length; i++)
         {
-            if (!IsEscapeSequenceIntroducer(text[i]))
+            if (!IsEscapeSequenceIntroducer(text[i], recognizeC1Dcs))
                 continue;
 
             if (TryFindEscapeSequenceEnd(text, i, out var endExclusive))
@@ -6624,8 +6746,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         return -1;
     }
 
-    private static bool IsEscapeSequenceIntroducer(char c)
-        => c is '\x1b' or '\x90' or '\x9d' or '\x9f';
+    private static bool IsEscapeSequenceIntroducer(char c, bool recognizeC1Dcs)
+        => c is '\x1b' or '\x9d' or '\x9f' || recognizeC1Dcs && c == '\x90';
 
     private static bool TryFindEscapeSequenceEnd(string text, int start, out int endExclusive)
     {

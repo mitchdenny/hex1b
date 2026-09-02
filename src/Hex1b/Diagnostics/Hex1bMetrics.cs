@@ -72,6 +72,21 @@ public sealed class Hex1bMetrics : IDisposable
     /// <summary>ANSI tokens parsed from workload output per pump cycle.</summary>
     public Histogram<int> TerminalOutputTokens { get; }
 
+    /// <summary>Bytes observed inside each DCS sequence, excluding its introducer and terminator.</summary>
+    public Histogram<long> TerminalDcsBytes { get; }
+
+    /// <summary>Completed DCS framing outcomes (tagged by <c>kind</c>).</summary>
+    public Counter<long> TerminalDcsDispatches { get; }
+
+    /// <summary>DCS sequences cancelled by CAN or SUB.</summary>
+    public Counter<long> TerminalDcsCancellations { get; }
+
+    /// <summary>Malformed DCS introducers recovered at a control-string boundary.</summary>
+    public Counter<long> TerminalDcsMalformedRecoveries { get; }
+
+    /// <summary>DCS sequences whose retained-content limit was exceeded.</summary>
+    public Counter<long> TerminalDcsRetentionLimitEvents { get; }
+
     // --- Terminal input pump ---
 
     /// <summary>Raw bytes read from presentation adapter per read.</summary>
@@ -158,6 +173,11 @@ public sealed class Hex1bMetrics : IDisposable
         // Terminal output pump
         TerminalOutputBytes = Meter.CreateHistogram<int>("hex1b.terminal.output.bytes", "By", "Bytes written to presentation per write");
         TerminalOutputTokens = Meter.CreateHistogram<int>("hex1b.terminal.output.tokens", "{token}", "ANSI tokens from workload output per pump cycle");
+        TerminalDcsBytes = Meter.CreateHistogram<long>("hex1b.terminal.dcs.bytes", "By", "Bytes in each DCS sequence");
+        TerminalDcsDispatches = Meter.CreateCounter<long>("hex1b.terminal.dcs.dispatches", "{sequence}", "DCS framing outcomes");
+        TerminalDcsCancellations = Meter.CreateCounter<long>("hex1b.terminal.dcs.cancellations", "{sequence}", "DCS sequences cancelled by CAN or SUB");
+        TerminalDcsMalformedRecoveries = Meter.CreateCounter<long>("hex1b.terminal.dcs.malformed_recoveries", "{sequence}", "Malformed DCS introducers recovered");
+        TerminalDcsRetentionLimitEvents = Meter.CreateCounter<long>("hex1b.terminal.dcs.retention_limit", "{sequence}", "DCS retained-content limit events");
 
         // Terminal input pump
         TerminalInputBytes = Meter.CreateHistogram<int>("hex1b.terminal.input.bytes", "By", "Raw bytes from presentation per read");
