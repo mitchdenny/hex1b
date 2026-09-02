@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+using Hex1b.Sixel;
 
 namespace Hex1b.Automation;
 
@@ -6,222 +6,122 @@ namespace Hex1b.Automation;
 /// Decodes Sixel graphics data to raw pixel arrays for SVG rendering.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Sixel is a graphics format where each "sixel" represents a column of 6 vertical pixels.
-/// The data includes a color palette definition followed by sixel character data.
-/// </para>
-/// <para>
-/// This decoder is used to convert sixel data embedded in terminal snapshots
-/// into images that can be embedded in SVG output for visual testing.
-/// </para>
+/// This compatibility decoder consumes the authoritative incremental Sixel
+/// parser result. It does not independently scan raw payload text.
 /// </remarks>
 public static class SixelDecoder
 {
+    private const int MaximumDecodedPixels = 16 * 1024 * 1024;
+    private const long MaximumRasterOperations = MaximumDecodedPixels * 4L;
+
     /// <summary>
     /// Decodes a Sixel DCS payload to raw RGBA pixel data.
     /// </summary>
     /// <param name="payload">The Sixel payload (including or excluding DCS wrapper).</param>
     /// <param name="cellWidth">The width of a terminal cell in pixels.</param>
     /// <param name="cellHeight">The height of a terminal cell in pixels.</param>
-    /// <returns>Decoded image with RGBA pixel data, or null if decoding fails.</returns>
+    /// <returns>Decoded image with RGBA pixel data, or null if decoding cannot be retained safely.</returns>
     public static SixelImage? Decode(string payload, int cellWidth = 9, int cellHeight = 18)
     {
         if (string.IsNullOrEmpty(payload))
-            return null;
-
-        try
         {
-            // Strip DCS wrapper if present: ESC P ... q <data> ESC \
-            var sixelData = StripDcsWrapper(payload);
-            if (string.IsNullOrEmpty(sixelData))
+            return null;
+        }
+
+        _ = cellWidth;
+        _ = cellHeight;
+        return Decode(SixelParser.ParsePayload(payload));
+    }
+
+    internal static SixelImage? Decode(SixelParseResult result)
+    {
+        if (!result.CommandsComplete ||
+            result.Outcome is SixelParseOutcome.Cancelled or
+                SixelParseOutcome.Malformed or
+                SixelParseOutcome.Rejected)
+        {
+            return null;
+        }
+
+        var width = result.DeclaredExtent.Width;
+        var height = result.DeclaredExtent.Height;
+        var hasData = false;
+        long rasterOperations = 0;
+        foreach (var command in result.Commands)
+        {
+            if (command.Kind != SixelCommandKind.Data)
+            {
+                continue;
+            }
+
+            hasData = true;
+            width = Math.Max(width, SaturatingAdd(command.X, command.RepeatCount));
+            height = Math.Max(height, SaturatingMultiply(SaturatingAdd(command.Band, 1), 6));
+            rasterOperations += (long)command.RepeatCount *
+                System.Numerics.BitOperations.PopCount((uint)command.Value);
+            if (rasterOperations > MaximumRasterOperations)
+            {
                 return null;
-
-            // Parse the sixel data
-            return ParseSixelData(sixelData, cellWidth, cellHeight);
+            }
         }
-        catch
+
+        if (!hasData || width <= 0 || height <= 0)
         {
-            // If parsing fails, return null (graceful degradation)
             return null;
         }
-    }
 
-    private static string StripDcsWrapper(string payload)
-    {
-        // DCS starts with ESC P or 0x90, ends with ESC \ or 0x9C
-        var start = payload.IndexOf('q');
-        if (start < 0)
+        var pixelCount = (long)width * height;
+        if (pixelCount > MaximumDecodedPixels)
         {
-            // No 'q' found - might be raw sixel data without header
-            return payload;
+            return null;
         }
 
-        // Find the end - ESC \ (0x1B 0x5C) or ST (0x9C)
-        var end = payload.IndexOf("\x1b\\", start, StringComparison.Ordinal);
-        if (end < 0)
-        {
-            end = payload.IndexOf('\x9C', start);
-        }
-        if (end < 0)
-        {
-            end = payload.Length;
-        }
-
-        return payload.Substring(start + 1, end - start - 1);
-    }
-
-    private static SixelImage? ParseSixelData(string data, int cellWidth, int cellHeight)
-    {
-        // Parse color palette and sixel data
+        var pixels = new byte[checked((int)pixelCount * 4)];
         var palette = new Dictionary<int, (byte R, byte G, byte B)>();
-        
-        // Default palette (standard 16 colors)
         InitializeDefaultPalette(palette);
+        var selectedColor = 0;
 
-        // Temporary storage for sixel rows
-        // Each sixel represents 6 vertical pixels
-        var rows = new List<List<int>>(); // List of rows, each row is list of color indices
-        var currentRow = new List<int>();
-        var currentX = 0;
-        var maxWidth = 0;
-        var currentColorIndex = 0;
-
-        var i = 0;
-        while (i < data.Length)
+        foreach (var command in result.Commands)
         {
-            var ch = data[i];
-
-            if (ch == '#')
+            if (command.Kind == SixelCommandKind.Palette &&
+                command.Palette is { } paletteCommand)
             {
-                // Color definition or selection: #<colorIndex>[;<type>;<p1>;<p2>;<p3>]
-                i++;
-                var colorData = ParseColorCommand(data, ref i);
-                if (colorData.HasValue)
+                selectedColor = paletteCommand.Register;
+                if (paletteCommand.IsDefinition)
                 {
-                    var (colorIndex, r, g, b, isDefinition) = colorData.Value;
-                    if (isDefinition)
+                    palette[paletteCommand.Register] = ConvertColor(paletteCommand);
+                }
+                continue;
+            }
+
+            if (command.Kind != SixelCommandKind.Data ||
+                command.Value == 0 ||
+                !palette.TryGetValue(selectedColor, out var color))
+            {
+                continue;
+            }
+
+            var endX = Math.Min(width, SaturatingAdd(command.X, command.RepeatCount));
+            for (var x = command.X; x < endX; x++)
+            {
+                for (var bit = 0; bit < 6; bit++)
+                {
+                    if ((command.Value & (1 << bit)) == 0)
                     {
-                        palette[colorIndex] = (r, g, b);
+                        continue;
                     }
-                    currentColorIndex = colorIndex;
-                }
-            }
-            else if (ch == '!')
-            {
-                // Repeat: !<count><sixel>
-                i++;
-                var (count, sixelChar) = ParseRepeat(data, ref i);
-                for (int j = 0; j < count; j++)
-                {
-                    while (rows.Count < 6)
-                        rows.Add([]);
-                    
-                    var sixelValue = sixelChar - '?';
-                    for (int bit = 0; bit < 6; bit++)
+
+                    var y = SaturatingAdd(SaturatingMultiply(command.Band, 6), bit);
+                    if (y >= height)
                     {
-                        // Use same logic as single char: current band (last 6 rows)
-                        var rowIndex = rows.Count - 6 + bit;
-                        if (rowIndex < 0) continue;
-                        
-                        var row = rows[rowIndex];
-                        while (row.Count <= currentX)
-                            row.Add(-1); // Transparent
-                        
-                        if ((sixelValue & (1 << bit)) != 0)
-                        {
-                            row[currentX] = currentColorIndex;
-                        }
+                        continue;
                     }
-                    currentX++;
-                    maxWidth = Math.Max(maxWidth, currentX);
-                }
-            }
-            else if (ch == '$')
-            {
-                // Carriage return - go back to start of current band
-                currentX = 0;
-                i++;
-            }
-            else if (ch == '-')
-            {
-                // Graphics new line - move to next band of 6 rows
-                currentX = 0;
-                // Pad existing rows and start new band
-                for (int j = 0; j < 6; j++)
-                {
-                    rows.Add([]);
-                }
-                i++;
-            }
-            else if (ch == '"')
-            {
-                // Raster attributes: "Pan;Pad;Ph;Pv - skip for now
-                i++;
-                while (i < data.Length && (char.IsDigit(data[i]) || data[i] == ';'))
-                    i++;
-            }
-            else if (ch >= '?' && ch <= '~')
-            {
-                // Sixel character (value = ch - 63)
-                while (rows.Count < 6)
-                    rows.Add([]);
-                
-                var sixelValue = ch - '?';
-                for (int bit = 0; bit < 6; bit++)
-                {
-                    var rowIndex = rows.Count - 6 + bit;
-                    if (rowIndex < 0) continue;
-                    
-                    var row = rows[rowIndex];
-                    while (row.Count <= currentX)
-                        row.Add(-1); // Transparent
-                    
-                    if ((sixelValue & (1 << bit)) != 0)
-                    {
-                        row[currentX] = currentColorIndex;
-                    }
-                }
-                currentX++;
-                maxWidth = Math.Max(maxWidth, currentX);
-                i++;
-            }
-            else
-            {
-                // Unknown character, skip
-                i++;
-            }
-        }
 
-        if (maxWidth == 0 || rows.Count == 0)
-            return null;
-
-        // Convert to RGBA pixels
-        var height = rows.Count;
-        var width = maxWidth;
-        var pixels = new byte[width * height * 4];
-
-        for (int y = 0; y < height; y++)
-        {
-            var row = y < rows.Count ? rows[y] : null;
-            for (int x = 0; x < width; x++)
-            {
-                var pixelIndex = (y * width + x) * 4;
-                var colorIndex = (row != null && x < row.Count) ? row[x] : -1;
-
-                if (colorIndex >= 0 && palette.TryGetValue(colorIndex, out var color))
-                {
+                    var pixelIndex = checked(((y * width) + x) * 4);
                     pixels[pixelIndex] = color.R;
                     pixels[pixelIndex + 1] = color.G;
                     pixels[pixelIndex + 2] = color.B;
-                    pixels[pixelIndex + 3] = 255; // Fully opaque
-                }
-                else
-                {
-                    // Transparent
-                    pixels[pixelIndex] = 0;
-                    pixels[pixelIndex + 1] = 0;
-                    pixels[pixelIndex + 2] = 0;
-                    pixels[pixelIndex + 3] = 0;
+                    pixels[pixelIndex + 3] = 255;
                 }
             }
         }
@@ -229,154 +129,97 @@ public static class SixelDecoder
         return new SixelImage(width, height, pixels);
     }
 
-    private static (int colorIndex, byte r, byte g, byte b, bool isDefinition)? ParseColorCommand(string data, ref int i)
+    private static (byte R, byte G, byte B) ConvertColor(SixelPaletteCommand command)
     {
-        // Parse color index
-        var colorIndexStr = "";
-        while (i < data.Length && char.IsDigit(data[i]))
+        var x = command.X ?? 0;
+        var y = command.Y ?? 0;
+        var z = command.Z ?? 0;
+        return command.ColorSpace switch
         {
-            colorIndexStr += data[i++];
-        }
-
-        if (!int.TryParse(colorIndexStr, out var colorIndex))
-            return null;
-
-        // Check if this is a definition (has semicolons)
-        if (i < data.Length && data[i] == ';')
-        {
-            i++; // Skip first semicolon
-            
-            // Parse color type (1 = HLS, 2 = RGB)
-            var typeStr = "";
-            while (i < data.Length && char.IsDigit(data[i]))
-            {
-                typeStr += data[i++];
-            }
-            
-            if (!int.TryParse(typeStr, out var colorType))
-                return (colorIndex, 0, 0, 0, false); // Just selection
-            
-            if (i < data.Length && data[i] == ';') i++;
-            
-            // Parse color values
-            var values = new List<int>();
-            for (int v = 0; v < 3; v++)
-            {
-                var valStr = "";
-                while (i < data.Length && char.IsDigit(data[i]))
-                {
-                    valStr += data[i++];
-                }
-                if (int.TryParse(valStr, out var val))
-                    values.Add(val);
-                else
-                    values.Add(0);
-                
-                if (i < data.Length && data[i] == ';') i++;
-            }
-
-            if (colorType == 2 && values.Count >= 3)
-            {
-                // RGB: values are 0-100 percentages
-                var r = (byte)(values[0] * 255 / 100);
-                var g = (byte)(values[1] * 255 / 100);
-                var b = (byte)(values[2] * 255 / 100);
-                return (colorIndex, r, g, b, true);
-            }
-            else if (colorType == 1 && values.Count >= 3)
-            {
-                // HLS: convert to RGB
-                var (r, g, b) = HlsToRgb(values[0], values[1], values[2]);
-                return (colorIndex, r, g, b, true);
-            }
-            
-            return (colorIndex, 0, 0, 0, false);
-        }
-
-        return (colorIndex, 0, 0, 0, false); // Just selection, no definition
+            SixelColorSpace.Rgb => (
+                PercentageToByte(x),
+                PercentageToByte(y),
+                PercentageToByte(z)),
+            SixelColorSpace.Hls => HlsToRgb(x, y, z),
+            _ => (0, 0, 0),
+        };
     }
 
-    private static (int count, char sixelChar) ParseRepeat(string data, ref int i)
-    {
-        var countStr = "";
-        while (i < data.Length && char.IsDigit(data[i]))
-        {
-            countStr += data[i++];
-        }
-
-        var count = 1;
-        if (!string.IsNullOrEmpty(countStr))
-        {
-            int.TryParse(countStr, out count);
-        }
-
-        char sixelChar = '?'; // Default to empty sixel
-        if (i < data.Length && data[i] >= '?' && data[i] <= '~')
-        {
-            sixelChar = data[i++];
-        }
-
-        return (count, sixelChar);
-    }
+    private static byte PercentageToByte(int value) =>
+        (byte)(Math.Clamp(value, 0, 100) * 255 / 100);
 
     private static void InitializeDefaultPalette(Dictionary<int, (byte R, byte G, byte B)> palette)
     {
-        // VT340 default 16-color palette (approximate)
-        palette[0] = (0, 0, 0);       // Black
-        palette[1] = (51, 51, 255);   // Blue
-        palette[2] = (255, 51, 51);   // Red
-        palette[3] = (51, 255, 51);   // Green
-        palette[4] = (255, 51, 255);  // Magenta
-        palette[5] = (51, 255, 255);  // Cyan
-        palette[6] = (255, 255, 51);  // Yellow
-        palette[7] = (250, 250, 250); // White
-        palette[8] = (128, 128, 128); // Gray
-        palette[9] = (102, 102, 255); // Light blue
-        palette[10] = (255, 102, 102); // Light red
-        palette[11] = (102, 255, 102); // Light green
-        palette[12] = (255, 102, 255); // Light magenta
-        palette[13] = (102, 255, 255); // Light cyan
-        palette[14] = (255, 255, 102); // Light yellow
-        palette[15] = (255, 255, 255); // Bright white
+        palette[0] = (0, 0, 0);
+        palette[1] = (51, 51, 255);
+        palette[2] = (255, 51, 51);
+        palette[3] = (51, 255, 51);
+        palette[4] = (255, 51, 255);
+        palette[5] = (51, 255, 255);
+        palette[6] = (255, 255, 51);
+        palette[7] = (250, 250, 250);
+        palette[8] = (128, 128, 128);
+        palette[9] = (102, 102, 255);
+        palette[10] = (255, 102, 102);
+        palette[11] = (102, 255, 102);
+        palette[12] = (255, 102, 255);
+        palette[13] = (102, 255, 255);
+        palette[14] = (255, 255, 102);
+        palette[15] = (255, 255, 255);
     }
 
     private static (byte R, byte G, byte B) HlsToRgb(int h, int l, int s)
     {
-        // HLS values are 0-360 for H, 0-100 for L and S
-        var hue = h / 360.0;
-        var lightness = l / 100.0;
-        var saturation = s / 100.0;
-
-        double r, g, b;
+        var hue = Math.Clamp(h, 0, 360) / 360.0;
+        var lightness = Math.Clamp(l, 0, 100) / 100.0;
+        var saturation = Math.Clamp(s, 0, 100) / 100.0;
 
         if (saturation == 0)
         {
-            r = g = b = lightness;
-        }
-        else
-        {
-            var q = lightness < 0.5
-                ? lightness * (1 + saturation)
-                : lightness + saturation - lightness * saturation;
-            var p = 2 * lightness - q;
-
-            r = HueToRgb(p, q, hue + 1.0 / 3);
-            g = HueToRgb(p, q, hue);
-            b = HueToRgb(p, q, hue - 1.0 / 3);
+            var component = (byte)(lightness * 255);
+            return (component, component, component);
         }
 
-        return ((byte)(r * 255), (byte)(g * 255), (byte)(b * 255));
+        var q = lightness < 0.5
+            ? lightness * (1 + saturation)
+            : lightness + saturation - lightness * saturation;
+        var p = 2 * lightness - q;
+        return (
+            (byte)(HueToRgb(p, q, hue + (1.0 / 3)) * 255),
+            (byte)(HueToRgb(p, q, hue) * 255),
+            (byte)(HueToRgb(p, q, hue - (1.0 / 3)) * 255));
     }
 
     private static double HueToRgb(double p, double q, double t)
     {
-        if (t < 0) t += 1;
-        if (t > 1) t -= 1;
-        if (t < 1.0 / 6) return p + (q - p) * 6 * t;
-        if (t < 1.0 / 2) return q;
-        if (t < 2.0 / 3) return p + (q - p) * (2.0 / 3 - t) * 6;
+        if (t < 0)
+        {
+            t += 1;
+        }
+        if (t > 1)
+        {
+            t -= 1;
+        }
+        if (t < 1.0 / 6)
+        {
+            return p + (q - p) * 6 * t;
+        }
+        if (t < 1.0 / 2)
+        {
+            return q;
+        }
+        if (t < 2.0 / 3)
+        {
+            return p + (q - p) * (2.0 / 3 - t) * 6;
+        }
         return p;
     }
+
+    private static int SaturatingAdd(int left, int right) =>
+        right <= int.MaxValue - left ? left + right : int.MaxValue;
+
+    private static int SaturatingMultiply(int left, int right) =>
+        left <= int.MaxValue / right ? left * right : int.MaxValue;
 }
 
 /// <summary>

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Hex1b.Sixel;
 using Hex1b.Surfaces;
 
 namespace Hex1b;
@@ -20,6 +21,8 @@ namespace Hex1b;
 public sealed class SixelData
 {
     private SixelPixelBuffer? _decodedPixels;
+    private bool _decodeAttempted;
+    private readonly object _decodeLock = new();
 
     /// <summary>
     /// Gets the raw Sixel DCS sequence (ESC P ... ESC \).
@@ -51,12 +54,21 @@ public sealed class SixelData
     /// </summary>
     internal byte[] ContentHash { get; }
 
+    internal SixelParseResult ParseResult { get; }
+
     internal SixelData(
         string payload,
         int widthInCells,
         int heightInCells,
         byte[] contentHash)
-        : this(payload, widthInCells, heightInCells, contentHash, 0, 0)
+        : this(
+            payload,
+            widthInCells,
+            heightInCells,
+            contentHash,
+            0,
+            0,
+            SixelParser.ParsePayload(payload))
     {
     }
 
@@ -66,7 +78,8 @@ public sealed class SixelData
         int heightInCells,
         byte[] contentHash,
         int pixelWidth,
-        int pixelHeight)
+        int pixelHeight,
+        SixelParseResult? parseResult = null)
     {
         Payload = payload;
         WidthInCells = widthInCells;
@@ -74,6 +87,7 @@ public sealed class SixelData
         ContentHash = contentHash;
         PixelWidth = pixelWidth;
         PixelHeight = pixelHeight;
+        ParseResult = parseResult ?? SixelParser.ParsePayload(payload);
     }
 
     /// <summary>
@@ -83,6 +97,10 @@ public sealed class SixelData
     /// <returns>The width and height in cells.</returns>
     public (int Width, int Height) GetCellSpan(CellMetrics metrics)
     {
+        if (ParseResult.LogicalCanvasExtent is { Width: > 0, Height: > 0 } logical)
+        {
+            return metrics.PixelToCellSpan(logical.Width, logical.Height);
+        }
         if (PixelWidth > 0 && PixelHeight > 0)
         {
             return metrics.PixelToCellSpan(PixelWidth, PixelHeight);
@@ -98,30 +116,34 @@ public sealed class SixelData
     /// <returns>The decoded pixel buffer, or null if decoding fails.</returns>
     public SixelPixelBuffer? GetPixels()
     {
-        if (_decodedPixels is not null)
-            return _decodedPixels;
-
-        var decoded = Automation.SixelDecoder.Decode(Payload);
-        if (decoded is null)
-            return null;
-
-        // Convert SixelImage to SixelPixelBuffer
-        var buffer = new SixelPixelBuffer(decoded.Width, decoded.Height);
-        for (var y = 0; y < decoded.Height; y++)
+        lock (_decodeLock)
         {
-            for (var x = 0; x < decoded.Width; x++)
-            {
-                var idx = (y * decoded.Width + x) * 4;
-                buffer[x, y] = new Rgba32(
-                    decoded.Pixels[idx],
-                    decoded.Pixels[idx + 1],
-                    decoded.Pixels[idx + 2],
-                    decoded.Pixels[idx + 3]);
-            }
-        }
+            if (_decodeAttempted)
+                return _decodedPixels;
 
-        _decodedPixels = buffer;
-        return buffer;
+            var decoded = Automation.SixelDecoder.Decode(ParseResult);
+            if (decoded is not null)
+            {
+                var buffer = new SixelPixelBuffer(decoded.Width, decoded.Height);
+                for (var y = 0; y < decoded.Height; y++)
+                {
+                    for (var x = 0; x < decoded.Width; x++)
+                    {
+                        var idx = (y * decoded.Width + x) * 4;
+                        buffer[x, y] = new Rgba32(
+                            decoded.Pixels[idx],
+                            decoded.Pixels[idx + 1],
+                            decoded.Pixels[idx + 2],
+                            decoded.Pixels[idx + 3]);
+                    }
+                }
+
+                _decodedPixels = buffer;
+            }
+
+            _decodeAttempted = true;
+            return _decodedPixels;
+        }
     }
 
     /// <summary>

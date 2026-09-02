@@ -6,6 +6,7 @@ using System.Threading.Channels;
 using Hex1b.Automation;
 using Hex1b.Input;
 using Hex1b.Reflow;
+using Hex1b.Sixel;
 using Hex1b.Theming;
 using Hex1b.Tokens;
 
@@ -5798,11 +5799,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         if (framedDcs is not null && framedDcs.TryGetValue(token, out var framed))
         {
-            if (framed.Status == DcsSequenceStatus.Complete &&
-                !framed.RetentionLimitExceeded &&
-                framed.Introducer.IsSixel)
+            if (!framed.RetentionLimitExceeded &&
+                framed.SixelResult.Outcome is
+                    SixelParseOutcome.Complete or
+                    SixelParseOutcome.LimitDowngraded)
             {
-                ProcessSixelData(token.Payload, impacts);
+                ProcessSixelData(token.Payload, framed.SixelResult, impacts);
             }
 
             return;
@@ -5810,36 +5812,48 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         // Pre-tokenized output owns its token stream and deliberately bypasses raw-byte
         // framing. Parse only its bounded introducer here for equivalent dispatch semantics.
-        var byteCount = Encoding.UTF8.GetByteCount(token.Payload);
-        var retentionLimitExceeded = byteCount > _dcsByteStreamParser.RetentionLimit;
-        var introducer = DcsByteStreamParser.ParseIntroducer(token.Payload.AsSpan());
-        var status = introducer.IsValid
-            ? DcsSequenceStatus.Complete
-            : DcsSequenceStatus.Malformed;
-        RecordDcsFrame(new DcsFrame(
-            status,
-            introducer,
-            ReadOnlyMemory<byte>.Empty,
-            byteCount,
-            retentionLimitExceeded));
+        var payloadBytes = token.TryGetMatchingRawPayload(out var rawPayload)
+            ? rawPayload.ToArray()
+            : SixelParser.EncodePayload(token.Payload);
+        var frame = DcsByteStreamParser.ParseCompleteContent(
+            payloadBytes,
+            _dcsByteStreamParser.RetentionLimit);
+        RecordDcsFrame(frame);
 
-        if (introducer.IsSixel && !retentionLimitExceeded)
+        if (!frame.RetentionLimitExceeded &&
+            frame.SixelResult.Outcome is
+                SixelParseOutcome.Complete or
+                SixelParseOutcome.LimitDowngraded)
         {
-            ProcessSixelData(token.Payload, impacts);
+            ProcessSixelData(token.Payload, frame.SixelResult, impacts);
         }
     }
 
     /// <summary>
     /// Processes Sixel data by creating a tracked object and marking cells.
     /// </summary>
-    private void ProcessSixelData(string sixelPayload, List<CellImpact>? impacts)
+    private void ProcessSixelData(
+        string sixelPayload,
+        SixelParseResult parseResult,
+        List<CellImpact>? impacts)
     {
-        // Estimate the size in cells based on Sixel data
-        // This is approximate - Sixel images can specify dimensions in the data
-        var (widthInCells, heightInCells) = EstimateSixelDimensions(sixelPayload);
+        var pixelWidth = Math.Max(1, parseResult.LogicalCanvasExtent.Width);
+        var pixelHeight = Math.Max(1, parseResult.LogicalCanvasExtent.Height);
+        var cellWidth = Math.Max(1d, Capabilities.EffectiveCellPixelWidth);
+        var cellHeight = Math.Max(1, Capabilities.CellPixelHeight);
+        var widthInCells = Math.Max(
+            1,
+            (int)Math.Min(int.MaxValue, Math.Ceiling(pixelWidth / cellWidth)));
+        var heightInCells = Math.Max(
+            1,
+            (int)Math.Min(int.MaxValue, ((long)pixelHeight + cellHeight - 1) / cellHeight));
 
         // Create or reuse a tracked Sixel object
-        var sixelData = _trackedObjects.GetOrCreateSixel(sixelPayload, widthInCells, heightInCells);
+        var sixelData = _trackedObjects.GetOrCreateSixel(
+            sixelPayload,
+            widthInCells,
+            heightInCells,
+            parseResult);
 
         // Mark cells covered by this Sixel image
         // The first cell gets the tracked object, others just get the Sixel flag
@@ -5873,59 +5887,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
         }
-    }
-
-    /// <summary>
-    /// Estimates Sixel image dimensions in terminal cells.
-    /// </summary>
-    private (int Width, int Height) EstimateSixelDimensions(string sixelPayload)
-    {
-        // Default dimensions if we can't parse
-        int width = 1;
-        int height = 1;
-        
-        // Get cell pixel dimensions from capabilities
-        var cellWidth = Capabilities.CellPixelWidth;
-        var cellHeight = Capabilities.CellPixelHeight;
-
-        // Try to find "width;height in the sixel raster attributes
-        // Format: "Pan;Pad;Ph;Pv where Ph = pixel height, Pv = pixel width
-        // This appears after the 'q' and before the first color definition '#'
-        var qIndex = sixelPayload.IndexOf('q');
-        var hashIndex = sixelPayload.IndexOf('#');
-
-        if (qIndex >= 0)
-        {
-            var rasterEnd = hashIndex > qIndex ? hashIndex : sixelPayload.Length;
-            var rasterSection = sixelPayload.Substring(qIndex + 1, Math.Min(50, rasterEnd - qIndex - 1));
-
-            // Look for raster attributes: "Pan;Pad;Ph;Pv
-            var quoteIndex = rasterSection.IndexOf('"');
-            if (quoteIndex >= 0 && quoteIndex + 1 < rasterSection.Length)
-            {
-                var attrStr = rasterSection.Substring(quoteIndex + 1);
-                // Find end of raster attributes - terminated by sixel control chars (not semicolon)
-                var endIndex = attrStr.IndexOfAny(['#', '!', '-', '$', '~', '?']);
-                if (endIndex < 0) endIndex = attrStr.Length;
-                attrStr = attrStr.Substring(0, Math.Min(30, endIndex));
-
-                var parts = attrStr.Split(';');
-                if (parts.Length >= 4)
-                {
-                    // Ph = pixel height, Pv = pixel width
-                    if (int.TryParse(parts[2], out var ph) && int.TryParse(parts[3], out var pv))
-                    {
-                        // Convert pixels to cells using actual cell dimensions
-                        // Round up to ensure the image doesn't get cut off
-                        width = Math.Max(1, (pv + cellWidth - 1) / cellWidth);
-                        height = Math.Max(1, (ph + cellHeight - 1) / cellHeight);
-                    }
-                }
-            }
-        }
-
-        // Clamp to reasonable bounds
-        return (Math.Clamp(width, 1, 200), Math.Clamp(height, 1, 100));
     }
 
     /// <summary>

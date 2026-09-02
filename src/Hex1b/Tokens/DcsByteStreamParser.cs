@@ -1,4 +1,5 @@
 using System.Buffers;
+using Hex1b.Sixel;
 
 namespace Hex1b.Tokens;
 
@@ -29,7 +30,8 @@ internal sealed record DcsFrame(
     DcsIntroducer Introducer,
     ReadOnlyMemory<byte> RetainedContent,
     long ByteCount,
-    bool RetentionLimitExceeded);
+    bool RetentionLimitExceeded,
+    SixelParseResult SixelResult);
 
 internal readonly record struct DcsFrameBoundary(int TextByteOffset, DcsFrame Frame);
 
@@ -68,6 +70,7 @@ internal sealed class DcsByteStreamParser
     private byte[] _intermediates = new byte[MaximumIntermediateCount];
     private int _intermediateCount;
     private byte? _finalByte;
+    private SixelParser? _sixelParser;
 
     public DcsByteStreamParser(
         int retentionLimit = DefaultRetentionLimit,
@@ -163,6 +166,7 @@ internal sealed class DcsByteStreamParser
                         else
                         {
                             AppendContent(0x1b);
+                            ProcessSixelPayloadByte(0x1b);
                             _state = _stateBeforeDcsEscape;
                             reprocess = true;
                         }
@@ -196,6 +200,10 @@ internal sealed class DcsByteStreamParser
                             if (_state == ParserState.Introducer)
                             {
                                 ProcessIntroducerByte(value);
+                            }
+                            else if (_state == ParserState.Payload)
+                            {
+                                ProcessSixelPayloadByte(value);
                             }
                         }
                         break;
@@ -264,6 +272,33 @@ internal sealed class DcsByteStreamParser
         return parser.CreateIntroducer();
     }
 
+    internal static DcsFrame ParseCompleteContent(
+        ReadOnlySpan<byte> content,
+        int retentionLimit = DefaultRetentionLimit,
+        int maximumParameterCount = DefaultMaximumParameterCount,
+        int maximumParameterValue = DefaultMaximumParameterValue)
+    {
+        var parser = new DcsByteStreamParser(
+            retentionLimit,
+            maximumParameterCount,
+            maximumParameterValue);
+        _ = parser.Process("\x1bP"u8);
+        _ = parser.Process(content);
+        var completed = parser.Process("\x1b\\"u8);
+        if (completed.Frames.Count > 0)
+        {
+            return completed.Frames[0].Frame;
+        }
+
+        var final = parser.Complete();
+        if (final.Frames.Count > 0)
+        {
+            return final.Frames[0].Frame;
+        }
+
+        throw new InvalidOperationException("The synthetic DCS frame did not produce a result.");
+    }
+
     internal static DcsIntroducer ParseIntroducer(
         ReadOnlySpan<char> content,
         int maximumParameterCount = DefaultMaximumParameterCount,
@@ -310,6 +345,7 @@ internal sealed class DcsByteStreamParser
         _inIntermediates = false;
         _intermediateCount = 0;
         _finalByte = null;
+        _sixelParser = null;
     }
 
     private void ProcessIntroducerByte(byte value)
@@ -390,6 +426,11 @@ internal sealed class DcsByteStreamParser
             _state = _introducerValid
                 ? ParserState.Payload
                 : ParserState.MalformedIntroducer;
+            var introducer = CreateIntroducer();
+            if (introducer.IsSixel)
+            {
+                _sixelParser = new SixelParser(introducer);
+            }
             return;
         }
 
@@ -436,17 +477,26 @@ internal sealed class DcsByteStreamParser
             status = DcsSequenceStatus.Malformed;
         }
 
+        var introducer = CreateIntroducer();
+        var sixelResult = _sixelParser?.Complete(status, _retentionLimitExceeded)
+            ?? SixelParseResult.Rejected(introducer, status, _retentionLimitExceeded);
         var frame = new DcsFrame(
             status,
-            CreateIntroducer(),
+            introducer,
             _retained.AsMemory(0, _retainedCount),
             _byteCount,
-            _retentionLimitExceeded);
+            _retentionLimitExceeded,
+            sixelResult);
 
         _retained = [];
         _retainedCount = 0;
         _state = ParserState.Ground;
         return frame;
+    }
+
+    private void ProcessSixelPayloadByte(byte value)
+    {
+        _sixelParser?.ProcessByte(value, !_retentionLimitExceeded);
     }
 
     private DcsIntroducer CreateIntroducer()

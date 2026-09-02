@@ -1,3 +1,5 @@
+using Hex1b.Sixel;
+
 namespace Hex1b;
 
 /// <summary>
@@ -11,7 +13,7 @@ namespace Hex1b;
 /// </para>
 /// <para>
 /// This is internal infrastructure - not exposed to API consumers.
-/// Type-specific APIs (e.g., <see cref="GetOrCreateSixel"/>) handle deduplication
+/// Type-specific APIs (e.g., <see cref="GetOrCreateSixel(string, int, int)"/>) handle deduplication
 /// by content hash.
 /// </para>
 /// </remarks>
@@ -80,6 +82,17 @@ internal sealed class TrackedObjectStore
     /// <param name="heightInCells">Height of the image in terminal cells.</param>
     /// <returns>A tracked Sixel object (new or existing with added ref).</returns>
     public TrackedObject<SixelData> GetOrCreateSixel(string payload, int widthInCells, int heightInCells)
+        => GetOrCreateSixel(
+            payload,
+            widthInCells,
+            heightInCells,
+            SixelParser.ParsePayload(payload));
+
+    internal TrackedObject<SixelData> GetOrCreateSixel(
+        string payload,
+        int widthInCells,
+        int heightInCells,
+        SixelParseResult parseResult)
     {
         var hash = SixelData.ComputeHash(payload);
 
@@ -92,11 +105,15 @@ internal sealed class TrackedObjectStore
                 return existing;
             }
 
-            // Parse pixel dimensions from the payload raster attributes
-            var (pixelWidth, pixelHeight) = ParseSixelDimensions(payload);
-
             // Create the data
-            var sixelData = new SixelData(payload, widthInCells, heightInCells, hash, pixelWidth, pixelHeight);
+            var sixelData = new SixelData(
+                payload,
+                widthInCells,
+                heightInCells,
+                hash,
+                parseResult.DeclaredExtent.Width,
+                parseResult.DeclaredExtent.Height,
+                parseResult);
             
             // Create new tracked wrapper with removal callback
             var tracked = new TrackedObject<SixelData>(
@@ -106,36 +123,6 @@ internal sealed class TrackedObjectStore
             _sixelByHash[hash] = tracked;
             return tracked;
         }
-    }
-
-    /// <summary>
-    /// Parses pixel dimensions from sixel raster attributes.
-    /// </summary>
-    /// <returns>Tuple of (width, height) in pixels, or (0, 0) if not found.</returns>
-    private static (int Width, int Height) ParseSixelDimensions(string payload)
-    {
-        // Look for raster attributes: "Pan;Pad;Ph;Pv
-        // Pan;Pad = pixel aspect ratio numerator/denominator
-        // Ph = horizontal extent (width), Pv = vertical extent (height)
-        var quoteIdx = payload.IndexOf('"');
-        if (quoteIdx < 0)
-            return (0, 0);
-
-        var endIdx = payload.IndexOfAny(['#', '!', '$', '-', '~'], quoteIdx + 1);
-        if (endIdx < 0)
-            endIdx = Math.Min(quoteIdx + 50, payload.Length);
-
-        var rasterStr = payload.Substring(quoteIdx + 1, endIdx - quoteIdx - 1);
-        var parts = rasterStr.Split(';');
-        
-        if (parts.Length >= 4 && 
-            int.TryParse(parts[2], out var width) && 
-            int.TryParse(parts[3], out var height))
-        {
-            return (width, height);
-        }
-
-        return (0, 0);
     }
 
     /// <summary>
