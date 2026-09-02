@@ -31,5 +31,21 @@ internal static class RawSixelFixtures
             "Transparent background",
             "red top pixels with untouched background below",
             "0;1q\"1;1;24;6#1;2;100;0;0#1!24@"),
+        new(
+            "DEC default aspect macro",
+            "omitted P1 selects 2:1 pixels; four complete columns have 4x12 logical geometry",
+            "q#1;2;100;0;0#1!4~"),
+        new(
+            "Declared extent is a hint",
+            "a 2x3 declaration grows to the 4x12 data and painted extent",
+            "7q\"1;1;2;3#2;2;0;100;0#2!4~-!4~"),
+        new(
+            "Transparent geometry",
+            "four transparent columns advance data geometry without painted bounds",
+            "7;1q????"),
+        new(
+            "Metadata-only raster",
+            "DECGRA and DECGCI retain a 10x7 logical canvas without raster data",
+            "7;1;42q\"1;1;10;7#9;2;25;50;75"),
     ];
 }

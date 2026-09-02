@@ -140,7 +140,7 @@ public class SixelParserTests
         Assert.Contains("#0000FFFF", TestSeq.Single(terminal.Observe().Placements).PixelGrid);
     }
 
-    [TestMethod, Ignore("Owned by #447: DCS P1 aspect macros are not represented in terminal Sixel geometry.")]
+    [TestMethod]
     public async Task AspectMacro_Omitted_UsesDecTwoToOneDefault()
     {
         var defaultAspect = new SixelFixture(
@@ -197,7 +197,7 @@ public class SixelParserTests
         Assert.Contains("B=#0000FFFF", grid);
     }
 
-    [TestMethod, Ignore("Owned by #447: DECGRA currently reverses Ph (width) and Pv (height).")]
+    [TestMethod]
     public async Task Decgra_PhAndPv_DefineHorizontalAndVerticalExtents()
     {
         var fixture = SixelFixture.Load("raster-extent", "DECGRA declares a 4x7 raster.");
@@ -216,7 +216,7 @@ public class SixelParserTests
         Assert.AreEqual(7, placement.HeightInCells);
     }
 
-    [TestMethod, Ignore("Owned by #447/#449: declared height and painted height are not yet reconciled by the terminal model.")]
+    [TestMethod]
     public async Task DeclaredHeight_PartialFinalBand_PreservesSevenPixelExtent()
     {
         var fixture = SixelFixture.Load("raster-extent", "DECGRA declares seven rows but paints one band.");
@@ -233,7 +233,7 @@ public class SixelParserTests
         Assert.AreEqual(7, TestSeq.Single(terminal.Observe().Placements).PixelHeight);
     }
 
-    [TestMethod, Ignore("Owned by #447: Ph/Pv are declarations, not clipping bounds.")]
+    [TestMethod]
     public async Task PaintedRaster_BeyondDeclaredExtent_ExpandsToPaintedExtent()
     {
         var payload = new SixelFixture(

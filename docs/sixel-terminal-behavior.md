@@ -63,11 +63,10 @@ native terminal.
 | Headless | Internal terminal model | Incremental byte framer | No native display dependency; framing and dispatch still occur before text decoding |
 
 The framer bounds retained DCS content to 1 MiB by default. It continues
-counting and scanning for cancellation or ST after that limit, but reports a
-retention-limit outcome and does not claim Sixel dispatch success. This stage
-only validates the bounded DCS introducer (private marker, parameters,
-intermediates, and final byte). Complete Sixel grammar and geometry remain
-owned by [#447](https://github.com/mitchdenny/hex1b/issues/447).
+counting and scanning for cancellation or ST after that limit. Its incremental
+Sixel observer also continues bounded grammar and geometry parsing, but reports
+a limit-downgraded outcome and stops retaining raster command events. The
+original bytes still flow to native presentations before either parser runs.
 
 ## Grammar and raster model
 
@@ -108,10 +107,10 @@ of the terminal contract.
 
 | Behavior | DEC and reference terminals | Hex1b default | Status or unresolved work |
 |---|---|---|---|
-| `Pan`/`Pad` override | DECGRA aspect overrides the `P1` macro | Last valid DECGRA aspect controls the sequence | [#447](https://github.com/mitchdenny/hex1b/issues/447) |
-| `Ph`/`Pv` orientation | `Ph` is width and `Pv` is height | Horizontal then vertical, without transposition | Current defect captured for #447 |
-| Declared extent | Allocation hint, not a clipping rectangle | Final extent is the maximum of declared and painted extents | [#447](https://github.com/mitchdenny/hex1b/issues/447) |
-| Partial final band | Raster height may end within a six-row band | Preserve the declared or painted pixel extent; round only when converting to cells | [#447](https://github.com/mitchdenny/hex1b/issues/447) and [#449](https://github.com/mitchdenny/hex1b/issues/449) |
+| `Pan`/`Pad` override | DECGRA aspect overrides the `P1` macro | Last valid DECGRA aspect controls the sequence | Active incremental parser tests |
+| `Ph`/`Pv` orientation | `Ph` is width and `Pv` is height | Horizontal then vertical, without transposition | Active incremental parser and terminal tests |
+| Declared extent | Allocation hint, not a clipping rectangle | Final extent is the maximum of declared and data/painted extents | Active incremental parser tests |
+| Partial final band | Raster height may end within a six-row band | Preserve the declared pixel extent separately from band-rounded data geometry | Parser model active; final raster semantics remain in [#449](https://github.com/mitchdenny/hex1b/issues/449) |
 | Pathological ratios/extents | Modern terminals impose implementation bounds | Enforce centralized limits before allocation and report resource rejection | Exact limits remain an implementation decision |
 | Fractional cell metrics | Modern terminals can report non-integral pixel metrics | Retain the best available metric and apply deterministic outward rounding for occupied cells | Harness records fractional width now |
 

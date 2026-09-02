@@ -35,10 +35,17 @@ await terminal.RunAsync();
 if (headless)
 {
     using var snapshot = terminal.CreateSnapshot();
-    Console.WriteLine("Hex1b model inspection (current implementation):");
+    Console.WriteLine("Hex1b authoritative Sixel model inspection:");
     Console.WriteLine($"  tracked Sixel origins: {CountSixelOrigins(snapshot)}");
     Console.WriteLine($"  cursor: ({snapshot.CursorX}, {snapshot.CursorY})");
     Console.WriteLine($"  cell metrics: {snapshot.CellPixelWidth}x{snapshot.CellPixelHeight}px");
+    Console.WriteLine();
+    Console.WriteLine("Deterministic grammar and geometry scenes:");
+    foreach (var fixture in RawSixelFixtures.All)
+    {
+        var model = await InspectModelAsync(fixture);
+        Console.WriteLine($"  {fixture.Name}: {model}");
+    }
     Console.WriteLine("Run without --headless in a native Sixel terminal to inspect the presentation outcome.");
 }
 
@@ -79,8 +86,52 @@ static IReadOnlyList<byte[]> BuildDemoOutput()
     chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
 
     chunks.Add(Encoding.ASCII.GetBytes(
-        "Stage 2 note: framing is byte-oriented and bounded; Sixel grammar remains owned by #447.\r\n"));
+        "Stage 3: one incremental parser owns Sixel grammar, geometry, palette metadata, and outcomes.\r\n"));
     return chunks;
+}
+
+static async Task<string> InspectModelAsync(RawSixelFixture fixture)
+{
+    var capabilities = new TerminalCapabilities
+    {
+        SupportsSixel = true,
+        SupportsTrueColor = true,
+        Supports256Colors = true,
+        CellPixelWidth = 1,
+        CellPixelHeight = 1,
+    };
+    var workload = new DemoWorkloadAdapter([fixture.StandardDcsBytes]);
+    await using var terminal = Hex1bTerminal.CreateBuilder()
+        .WithWorkload(workload)
+        .WithPresentation(new HeadlessPresentationAdapter(80, 24, capabilities))
+        .WithDimensions(80, 24)
+        .Build();
+    await terminal.RunAsync();
+
+    using var snapshot = terminal.CreateSnapshot();
+    for (var y = 0; y < snapshot.Height; y++)
+    {
+        for (var x = 0; x < snapshot.Width; x++)
+        {
+            var sixel = snapshot.GetCell(x, y).SixelData;
+            if (sixel is null)
+            {
+                continue;
+            }
+
+            var raster = sixel.GetPixels();
+            var rasterDescription = raster is null
+                ? "metadata-only"
+                : $"retained raster {raster.Width}x{raster.Height}";
+            var declaredDescription = sixel.PixelWidth > 0 && sixel.PixelHeight > 0
+                ? $"declared {sixel.PixelWidth}x{sixel.PixelHeight}px"
+                : "no declared extent";
+            return $"{declaredDescription}, logical geometry " +
+                $"{sixel.WidthInCells}x{sixel.HeightInCells}px, {rasterDescription}";
+        }
+    }
+
+    return "no placement";
 }
 
 static void AddChunks(List<byte[]> chunks, byte[] bytes, IReadOnlyList<int> sizes)

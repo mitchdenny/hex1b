@@ -400,7 +400,7 @@ public static class TerminalRegionSvgExtensions
                     continue;
                 
                 // Decode sixel to image
-                var image = SixelDecoder.Decode(sixelData.Payload, cellWidth, cellHeight);
+                var image = SixelDecoder.Decode(sixelData.ParseResult);
                 if (image == null || image.Width == 0 || image.Height == 0)
                     continue;
                 
