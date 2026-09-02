@@ -58,6 +58,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="TestData\ReflowFixtures.json" />
+    <EmbeddedResource Include="TestData\Sixel\*.sixel" />
   </ItemGroup>
 
 </Project>
