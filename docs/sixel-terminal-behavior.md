@@ -238,6 +238,7 @@ The terminal-first demo sends independently authored raw Sixel bytes through
 
 ```bash
 dotnet run --project samples/SixelTerminalDemo
+dotnet run --project samples/SixelTerminalDemo -- --scene "Declared extent"
 dotnet run --project samples/SixelTerminalDemo -- --headless
 ```
 

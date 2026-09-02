@@ -17,35 +17,39 @@ internal static class RawSixelFixtures
     [
         new(
             "Solid RGB block",
-            "a 24x12 red rectangle",
-            "0;0q\"1;1;24;12#1;2;100;0;0#1!24~-!24~"),
+            "a 240x60 red rectangle (about 24x3 cells with 10x20 metrics)",
+            "0;0q\"1;1;240;60#1;2;100;0;0#1" +
+                RepeatBands("!240~", 10)),
         new(
             "Two-color carriage return",
-            "green top rows and red bottom rows overprinted in the same sixel band",
-            "0;1q\"1;1;24;6#1;2;100;0;0#1!24w$#2;2;0;100;0#2!24B"),
+            "a 240x36 block with obvious green/red stripes overprinted using DECGCR",
+            "0;1q\"1;1;240;36#1;2;100;0;0#2;2;0;100;0" +
+                RepeatBands("#1!240w$#2!240B", 6)),
         new(
             "HLS color",
-            "a 24x6 blue block defined with HLS coordinates",
-            "0;0q\"1;1;24;6#3;1;0;50;100#3!24~"),
+            "a 240x24 block defined with HLS coordinates",
+            "0;0q\"1;1;240;24#3;1;0;50;100#3" +
+                RepeatBands("!240~", 4)),
         new(
             "Transparent background",
-            "red top pixels with untouched background below",
-            "0;1q\"1;1;24;6#1;2;100;0;0#1!24@"),
+            "a 240x24 field with thick red rules and transparent gaps",
+            "0;1q\"1;1;240;24#1;2;100;0;0#1" +
+                RepeatBands("!240N", 4)),
         new(
             "DEC default aspect macro",
-            "omitted P1 selects 2:1 pixels; four complete columns have 4x12 logical geometry",
-            "q#1;2;100;0;0#1!4~"),
+            "omitted P1 selects 2:1 pixels; 120 complete columns have 120x12 logical geometry",
+            "q#1;2;100;0;0#1!120~"),
         new(
             "Declared extent is a hint",
-            "a 2x3 declaration grows to the 4x12 data and painted extent",
-            "7q\"1;1;2;3#2;2;0;100;0#2!4~-!4~"),
+            "a 4x4 declaration grows to the 160x48 data and painted extent",
+            "7q\"1;1;4;4#2;2;0;100;0#2" +
+                RepeatBands("!160~", 8)),
         new(
             "Transparent geometry",
-            "four transparent columns advance data geometry without painted bounds",
-            "7;1q????"),
-        new(
-            "Metadata-only raster",
-            "DECGRA and DECGCI retain a 10x7 logical canvas without raster data",
-            "7;1;42q\"1;1;10;7#9;2;25;50;75"),
+            "240 transparent columns set geometry; DECGCR then paints only the leftmost 80",
+            "7;1q!240?$#1;2;100;0;100#1!80~"),
     ];
+
+    private static string RepeatBands(string band, int count) =>
+        string.Join('-', Enumerable.Repeat(band, count));
 }

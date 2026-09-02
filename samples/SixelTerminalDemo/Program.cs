@@ -2,6 +2,16 @@ using System.Text;
 using Hex1b;
 
 var headless = args.Contains("--headless", StringComparer.OrdinalIgnoreCase);
+var sceneFilter = GetOption(args, "--scene");
+var fixtures = sceneFilter is null
+    ? RawSixelFixtures.All
+    : RawSixelFixtures.All
+        .Where(fixture => fixture.Name.Contains(sceneFilter, StringComparison.OrdinalIgnoreCase))
+        .ToArray();
+if (fixtures.Count == 0)
+{
+    throw new ArgumentException($"No Sixel demo scene contains '{sceneFilter}'.", nameof(args));
+}
 var capabilities = new TerminalCapabilities
 {
     SupportsSixel = true,
@@ -11,7 +21,7 @@ var capabilities = new TerminalCapabilities
     CellPixelHeight = 20,
 };
 
-var chunks = BuildDemoOutput();
+var chunks = BuildDemoOutput(fixtures, includeTransportScenes: sceneFilter is null);
 var workload = new DemoWorkloadAdapter(chunks);
 IHex1bTerminalPresentationAdapter presentation = headless
     ? new HeadlessPresentationAdapter(80, 24, capabilities)
@@ -28,6 +38,7 @@ if (!headless)
     Console.Error.WriteLine(
         "SixelTerminalDemo sends standard ESC-framed, independently authored fixtures through Hex1bTerminal.");
     Console.Error.WriteLine("The labels describe the DEC VT340 model outcome expected from a native Sixel terminal.");
+    Console.Error.WriteLine("Use --scene <name> to run one enlarged fixture, for example --scene \"Declared extent\".");
 }
 
 await terminal.RunAsync();
@@ -41,7 +52,7 @@ if (headless)
     Console.WriteLine($"  cell metrics: {snapshot.CellPixelWidth}x{snapshot.CellPixelHeight}px");
     Console.WriteLine();
     Console.WriteLine("Deterministic grammar and geometry scenes:");
-    foreach (var fixture in RawSixelFixtures.All)
+    foreach (var fixture in fixtures)
     {
         var model = await InspectModelAsync(fixture);
         Console.WriteLine($"  {fixture.Name}: {model}");
@@ -49,7 +60,9 @@ if (headless)
     Console.WriteLine("Run without --headless in a native Sixel terminal to inspect the presentation outcome.");
 }
 
-static IReadOnlyList<byte[]> BuildDemoOutput()
+static IReadOnlyList<byte[]> BuildDemoOutput(
+    IReadOnlyList<RawSixelFixture> fixtures,
+    bool includeTransportScenes)
 {
     var chunks = new List<byte[]>
     {
@@ -57,20 +70,27 @@ static IReadOnlyList<byte[]> BuildDemoOutput()
         Encoding.ASCII.GetBytes("Fixtures use standard ESC P ... ESC \\\\ framing; no SixelWidget or encoder.\r\n\r\n"),
     };
 
-    foreach (var fixture in RawSixelFixtures.All)
+    foreach (var fixture in fixtures)
     {
         chunks.Add(Encoding.ASCII.GetBytes($"[{fixture.Name}] Expected: {fixture.Expected}\r\n"));
         chunks.Add(fixture.StandardDcsBytes);
         chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
     }
 
-    var framingFixture = RawSixelFixtures.All[0].StandardDcsBytes;
+    if (!includeTransportScenes)
+    {
+        chunks.Add(Encoding.ASCII.GetBytes(
+            "Stage 3: one incremental parser owns Sixel grammar, geometry, palette metadata, and outcomes.\r\n"));
+        return chunks;
+    }
+
+    var framingFixture = fixtures[0].StandardDcsBytes;
     chunks.Add(Encoding.ASCII.GetBytes(
         "[Framing] Two consecutive DCS images with no transport boundary between them.\r\n"));
     chunks.Add(
     [
-        .. RawSixelFixtures.All[0].StandardDcsBytes,
-        .. RawSixelFixtures.All[1].StandardDcsBytes,
+        .. fixtures[0].StandardDcsBytes,
+        .. fixtures[1].StandardDcsBytes,
     ]);
     chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
 
@@ -81,13 +101,26 @@ static IReadOnlyList<byte[]> BuildDemoOutput()
 
     chunks.Add(Encoding.ASCII.GetBytes(
         "[Native passthrough] One-byte workload reads still form the original image upstream.\r\n"));
-    foreach (var value in RawSixelFixtures.All[3].StandardDcsBytes)
+    foreach (var value in fixtures[3].StandardDcsBytes)
         chunks.Add([value]);
     chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
 
     chunks.Add(Encoding.ASCII.GetBytes(
         "Stage 3: one incremental parser owns Sixel grammar, geometry, palette metadata, and outcomes.\r\n"));
     return chunks;
+}
+
+static string? GetOption(string[] arguments, string option)
+{
+    for (var index = 0; index < arguments.Length - 1; index++)
+    {
+        if (string.Equals(arguments[index], option, StringComparison.OrdinalIgnoreCase))
+        {
+            return arguments[index + 1];
+        }
+    }
+
+    return null;
 }
 
 static async Task<string> InspectModelAsync(RawSixelFixture fixture)
