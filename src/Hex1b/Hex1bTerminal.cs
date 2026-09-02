@@ -349,7 +349,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
-        _dcsByteStreamParser = new DcsByteStreamParser(options.DcsRetentionLimit);
+        _dcsByteStreamParser = new DcsByteStreamParser();
         _escapeTimeout = options.EscapeSequenceTimeout ?? TimeSpan.FromMilliseconds(50);
 
         // Subscribe to presentation events

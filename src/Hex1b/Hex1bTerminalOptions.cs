@@ -104,9 +104,6 @@ public sealed class Hex1bTerminalOptions
     /// </summary>
     public Diagnostics.Hex1bMetrics? Metrics { get; set; }
 
-    internal int DcsRetentionLimit { get; set; } =
-        Tokens.DcsByteStreamParser.DefaultRetentionLimit;
-
     /// <summary>
     /// How long to wait for additional bytes after a bare ESC (0x1B) before treating
     /// it as a standalone Escape key press. Traditional terminals use ESC as both the
@@ -148,9 +145,5 @@ public sealed class Hex1bTerminalOptions
             throw new InvalidOperationException("Height must be greater than zero.");
         }
 
-        if (DcsRetentionLimit < 0)
-        {
-            throw new InvalidOperationException("DCS retention limit must not be negative.");
-        }
     }
 }

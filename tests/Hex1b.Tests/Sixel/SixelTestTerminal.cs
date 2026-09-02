@@ -27,8 +27,7 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         Hex1bMetrics? metrics,
         IHex1bTerminalWorkloadFilter? workloadFilter,
         IHex1bTerminalPresentationFilter? presentationFilter,
-        bool impactAware,
-        int dcsRetentionLimit)
+        bool impactAware)
     {
         var capabilities = new TerminalCapabilities
         {
@@ -51,7 +50,6 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             Height = height,
             ScrollbackCapacity = scrollbackCapacity > 0 ? scrollbackCapacity : null,
             Metrics = metrics,
-            DcsRetentionLimit = dcsRetentionLimit,
         };
         if (workloadFilter is not null)
         {
@@ -81,8 +79,7 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         Hex1bMetrics? metrics = null,
         IHex1bTerminalWorkloadFilter? workloadFilter = null,
         IHex1bTerminalPresentationFilter? presentationFilter = null,
-        bool impactAware = false,
-        int dcsRetentionLimit = DcsByteStreamParser.DefaultRetentionLimit)
+        bool impactAware = false)
         => new(
             width,
             height,
@@ -94,8 +91,7 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             metrics,
             workloadFilter,
             presentationFilter,
-            impactAware,
-            dcsRetentionLimit);
+            impactAware);
 
     public async Task FeedAsync(
         ReadOnlyMemory<byte> bytes,

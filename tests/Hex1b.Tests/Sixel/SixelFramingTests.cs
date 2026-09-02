@@ -353,8 +353,8 @@ public class SixelFramingTests
     [TestMethod]
     public async Task PreTokenizedOutput_OverRetentionLimit_DoesNotMutateSixelState()
     {
-        await using var terminal = SixelTestTerminal.Create(dcsRetentionLimit: 8);
-        var payload = $"q{new string('~', 20)}";
+        await using var terminal = SixelTestTerminal.Create();
+        var payload = $"q{new string('~', DcsByteStreamParser.DefaultRetentionLimit)}";
         var bytes = Encoding.ASCII.GetBytes($"\x1bP{payload}\x1b\\");
 
         await terminal.FeedPreTokenizedAsync(
@@ -395,15 +395,14 @@ public class SixelFramingTests
         });
         listener.Start();
 
-        await using var terminal = SixelTestTerminal.Create(
-            metrics: metrics,
-            dcsRetentionLimit: 8);
+        await using var terminal = SixelTestTerminal.Create(metrics: metrics);
+        var oversizedPayload = new string('~', DcsByteStreamParser.DefaultRetentionLimit);
         var bytes = Encoding.ASCII.GetBytes(
             "\x1bPq@\x1b\\" +
             "\x1bP1+r544e\x1b\\" +
             "\x1bP1;\x1b\\" +
             "\x1bPqABC\x18" +
-            "\x1bPq~~~~~~~~~~~~~~~~~~~~\x1b\\Z");
+            $"\x1bPq{oversizedPayload}\x1b\\Z");
 
         await terminal.FeedAsync(bytes, cancellationToken: TestContext.Current.CancellationToken);
         await terminal.WaitForAsync(
