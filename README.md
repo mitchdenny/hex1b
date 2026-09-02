@@ -130,6 +130,7 @@ Hex1b follows a widget/node separation pattern:
 The `samples/` directory contains example applications demonstrating various features:
 
 - **Cancellation** - Master-detail contact editor with save/cancel functionality
+- **[AzureSandboxDemo](./samples/AzureSandboxDemo/README.md)** - Creates an ephemeral Azure Container Apps Sandbox and embeds its Entra-protected remote shell
 
 ### Running Samples with Aspire
 
@@ -218,4 +219,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Spectre.Console](https://spectreconsole.net/) - Beautiful console output
 - [Terminal.Gui](https://github.com/gui-cs/Terminal.Gui) - Cross-platform terminal UI toolkit
 - [Aspire](https://aspire.dev/) - Cloud-ready stack for .NET
-
