@@ -41,9 +41,9 @@ internal static class RawSixelFixtures
             "q#1;2;100;0;0#1!120~"),
         new(
             "Declared extent is a hint",
-            "a 4x4 declaration grows to the 160x48 data and painted extent",
-            "7q\"1;1;4;4#2;2;0;100;0#2" +
-                RepeatBands("!160~", 8)),
+            "an 80x24 green declared region is followed by red overflow; the model grows to 240x60",
+            "7q\"1;1;80;24#1;2;100;0;0#2;2;0;100;0" +
+                RepeatBands("#2!80~#1!160~", 10)),
         new(
             "Transparent geometry",
             "240 transparent columns set geometry; DECGCR then paints only the leftmost 80",

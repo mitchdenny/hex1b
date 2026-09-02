@@ -21,7 +21,16 @@ var capabilities = new TerminalCapabilities
     CellPixelHeight = 20,
 };
 
-var chunks = BuildDemoOutput(fixtures, includeTransportScenes: sceneFilter is null);
+var modelDescriptions = new string[fixtures.Count];
+for (var index = 0; index < fixtures.Count; index++)
+{
+    modelDescriptions[index] = await InspectModelAsync(fixtures[index]);
+}
+
+var chunks = BuildDemoOutput(
+    fixtures,
+    modelDescriptions,
+    includeTransportScenes: sceneFilter is null);
 var workload = new DemoWorkloadAdapter(chunks);
 IHex1bTerminalPresentationAdapter presentation = headless
     ? new HeadlessPresentationAdapter(80, 24, capabilities)
@@ -52,16 +61,16 @@ if (headless)
     Console.WriteLine($"  cell metrics: {snapshot.CellPixelWidth}x{snapshot.CellPixelHeight}px");
     Console.WriteLine();
     Console.WriteLine("Deterministic grammar and geometry scenes:");
-    foreach (var fixture in fixtures)
+    for (var index = 0; index < fixtures.Count; index++)
     {
-        var model = await InspectModelAsync(fixture);
-        Console.WriteLine($"  {fixture.Name}: {model}");
+        Console.WriteLine($"  {fixtures[index].Name}: {modelDescriptions[index]}");
     }
     Console.WriteLine("Run without --headless in a native Sixel terminal to inspect the presentation outcome.");
 }
 
 static IReadOnlyList<byte[]> BuildDemoOutput(
     IReadOnlyList<RawSixelFixture> fixtures,
+    IReadOnlyList<string> modelDescriptions,
     bool includeTransportScenes)
 {
     var chunks = new List<byte[]>
@@ -70,9 +79,11 @@ static IReadOnlyList<byte[]> BuildDemoOutput(
         Encoding.ASCII.GetBytes("Fixtures use standard ESC P ... ESC \\\\ framing; no SixelWidget or encoder.\r\n\r\n"),
     };
 
-    foreach (var fixture in fixtures)
+    for (var index = 0; index < fixtures.Count; index++)
     {
+        var fixture = fixtures[index];
         chunks.Add(Encoding.ASCII.GetBytes($"[{fixture.Name}] Expected: {fixture.Expected}\r\n"));
+        chunks.Add(Encoding.ASCII.GetBytes($"Model: {modelDescriptions[index]}\r\n"));
         chunks.Add(fixture.StandardDcsBytes);
         chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
     }
