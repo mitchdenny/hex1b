@@ -66,6 +66,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     // Sixel sequences and across alternate-screen transitions; only RIS restores
     // the default palette.
     private readonly Sixel.SixelColorRegisters _sixelColorRegisters = new();
+
+    // DECSDM (private mode 80). Sixel scrolling is the default; see
+    // docs/sixel-terminal-behavior.md for the polarity decision.
+    private bool _sixelScrollingMode;
+
+    // xterm private mode 8452. Reset (the default) returns the cursor to the
+    // column the sequence started in; set leaves it right of the graphic.
+    private bool _sixelCursorToRightMode;
+
+    // Protocol cell metrics used to size Sixel placements. Real negotiation with an
+    // upstream presentation is owned by #455; until then this is derived from
+    // capabilities and can be overridden by adapters and tests.
+    private Sixel.SixelCellMetrics? _sixelCellMetricsOverride;
     private readonly TimeProvider _timeProvider;
     private readonly KgpTerminalGraphicsState _kgpGraphicsState = new();
     private ITimer? _kgpAnimationTimer;
@@ -357,6 +370,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
         _dcsByteStreamParser = new DcsByteStreamParser();
         _escapeTimeout = options.EscapeSequenceTimeout ?? TimeSpan.FromMilliseconds(50);
+        ResetSixelModes();
 
         // Subscribe to presentation events
         _presentation.Resized += OnPresentationResized;
@@ -2982,6 +2996,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // but wraps across hard line boundaries and wraps from top to bottom
                     _reverseWrapExtendedMode = privateModeToken.Enable;
                 }
+                else if (privateModeToken.Mode == 80)
+                {
+                    // DECSDM - Sixel Display Mode. Hex1b follows the DEC polarity
+                    // (set enables Sixel scrolling); the xterm inversion lives in
+                    // the compatibility policy rather than in a terminal-name check.
+                    _sixelScrollingMode = _sixelColorRegisters.Policy.ResolveSixelScrolling(privateModeToken.Enable);
+                }
+                else if (privateModeToken.Mode == 8452)
+                {
+                    // xterm private mode 8452 - place the cursor to the right of a
+                    // Sixel graphic instead of returning it to the original column.
+                    _sixelCursorToRightMode = privateModeToken.Enable;
+                }
                 else if (privateModeToken.Mode == 2027)
                 {
                     // Grapheme cluster mode — when enabled, multi-codepoint graphemes
@@ -3199,6 +3226,43 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 DeleteLines(deleteLinesToken.Count, impacts);
                 break;
                 
+            case SoftResetToken:
+                // DECSTR (CSI ! p): mode-only reset. The screen, the scrollback, the
+                // Sixel color registers and the cursor position all survive; palette
+                // and placement lifetime on reset is owned by #453.
+                _scrollTop = 0;
+                _scrollBottom = _height - 1;
+                _marginLeft = 0;
+                _marginRight = _width - 1;
+                _declrmm = false;
+                _originMode = false;
+                _insertMode = false;
+                _newlineMode = false;
+                _pendingWrap = false;
+                _wraparoundMode = true;
+                _reverseWrapMode = false;
+                _reverseWrapExtendedMode = false;
+                _cursorVisible = true;
+                _protectedMode = ProtectedMode.Off;
+                _cursorProtected = false;
+                _currentForeground = null;
+                _currentBackground = null;
+                _currentAttributes = CellAttributes.None;
+                _currentUnderlineColor = null;
+                _currentUnderlineStyle = UnderlineStyle.None;
+                _savedCursorX = 0;
+                _savedCursorY = 0;
+                _savedPendingWrap = false;
+                _savedCursorProtected = false;
+                _cursorSaved = false;
+                _charsetG0 = 'B';
+                _charsetG1 = 'B';
+                _charsetG2 = 'B';
+                _charsetG3 = 'B';
+                _activeCharsetSlot = 0;
+                ResetSixelModes();
+                break;
+
             case RisToken:
                 // RIS (ESC c): Full terminal reset — clear screen, reset all state
                 ReleaseSavedMainScreenBuffer();
@@ -3246,6 +3310,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _charsetG3 = 'B';
                 _activeCharsetSlot = 0;
                 _sixelColorRegisters.Reset();
+                ResetSixelModes();
                 InitializeTabStops();
                 // Clear screen
                 for (int row = 0; row < _height; row++)
@@ -5843,8 +5908,55 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// The background is captured at graphic creation time. When no background is
     /// selected, the deterministic policy default is used.
     /// </remarks>
-    private Surfaces.Rgba32 CaptureSixelBackground()
+    /// <summary>
+    /// Gets the protocol cell metrics Sixel placements are measured against.
+    /// </summary>
+    /// <remarks>
+    /// Sixel cell metrics are protocol metrics rather than physical font metrics, so
+    /// they are modelled separately from <see cref="TerminalCapabilities"/>. Until
+    /// real presentation probing lands, the value is derived from capabilities and
+    /// reported as estimated. Adapters and tests can inject a value through
+    /// <see cref="SetSixelCellMetrics"/>.
+    /// </remarks>
+    internal Sixel.SixelCellMetrics SixelCellMetrics =>
+        _sixelCellMetricsOverride ?? Sixel.SixelCellMetrics.FromCapabilities(Capabilities);
+
+    /// <summary>
+    /// Overrides the protocol cell metrics used for new Sixel placements.
+    /// </summary>
+    /// <param name="metrics">The metrics to use, or <see langword="null"/> to derive them from capabilities.</param>
+    /// <remarks>
+    /// Metrics are captured when a placement is created, so this never changes the
+    /// occupancy already recorded for existing placements.
+    /// </remarks>
+    internal void SetSixelCellMetrics(Sixel.SixelCellMetrics? metrics) =>
+        _sixelCellMetricsOverride = metrics;
+
+    /// <summary>
+    /// Gets a value indicating whether Sixel scrolling (DECSDM) is enabled.
+    /// </summary>
+    internal bool SixelScrollingModeEnabled => _sixelScrollingMode;
+
+    /// <summary>
+    /// Gets a value indicating whether xterm private mode 8452 is enabled.
+    /// </summary>
+    internal bool SixelCursorToRightModeEnabled => _sixelCursorToRightMode;
+
+    /// <summary>
+    /// Restores the Sixel presentation modes to their documented defaults.
+    /// </summary>
+    /// <remarks>
+    /// This resets mode state only. Palette and placement lifetime on reset is
+    /// owned by <see href="https://github.com/mitchdenny/hex1b/issues/453">#453</see>.
+    /// </remarks>
+    private void ResetSixelModes()
     {
+        var policy = _sixelColorRegisters.Policy;
+        _sixelScrollingMode = policy.DefaultSixelScrolling;
+        _sixelCursorToRightMode = policy.DefaultSixelCursorToRight;
+    }
+
+    private Surfaces.Rgba32 CaptureSixelBackground()    {
         var policy = _sixelColorRegisters.Policy;
         if (policy.BackgroundSource != SixelBackgroundSource.CapturedTerminalBackground)
         {
@@ -5857,8 +5969,24 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Processes Sixel data by creating a tracked object and marking cells.
+    /// Processes Sixel data by creating a tracked object, marking the cells it
+    /// occupies, and applying DECSDM cursor, scrolling, and margin semantics.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the terminal-model direction of the data flow: Hex1b is interpreting
+    /// an incoming Sixel sequence produced by a hosted program. It is deliberately
+    /// separate from the emitter direction, where Hex1b writes Sixel output to an
+    /// upstream terminal and always repositions the cursor explicitly afterwards
+    /// instead of relying on the upstream terminal's own post-Sixel quirks.
+    /// </para>
+    /// <para>
+    /// Three cursor concepts stay distinct here. The Sixel graphics cursor lives in
+    /// <see cref="SixelParseResult"/> and never escapes the raster. The anchor is
+    /// the text cursor position the placement is pinned to. The final text cursor
+    /// is what this method leaves behind for the next token.
+    /// </para>
+    /// </remarks>
     private void ProcessSixelData(
         string sixelPayload,
         SixelParseResult parseResult,
@@ -5874,36 +6002,53 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _sixelColorRegisters,
                 _sixelColorRegisters.Policy));
 
-        var pixelWidth = Math.Max(1, parseResult.LogicalCanvasExtent.Width);
-        var pixelHeight = Math.Max(1, parseResult.LogicalCanvasExtent.Height);
-        var cellWidth = Math.Max(1d, Capabilities.EffectiveCellPixelWidth);
-        var cellHeight = Math.Max(1, Capabilities.CellPixelHeight);
-        var widthInCells = Math.Max(
-            1,
-            (int)Math.Min(int.MaxValue, Math.Ceiling(pixelWidth / cellWidth)));
-        var heightInCells = Math.Max(
-            1,
-            (int)Math.Min(int.MaxValue, ((long)pixelHeight + cellHeight - 1) / cellHeight));
+        // The parser's canvas extent is already aspect-scaled, so it is the rendered
+        // pixel extent the placement occupies on screen.
+        var renderedPixelWidth = Math.Max(1, parseResult.LogicalCanvasExtent.Width);
+        var renderedPixelHeight = Math.Max(1, parseResult.LogicalCanvasExtent.Height);
 
-        // Create or reuse a tracked Sixel object
+        // Metrics are captured once, at placement creation time, so later metric
+        // changes cannot retroactively alter this placement's recorded occupancy.
+        var cellMetrics = SixelCellMetrics;
+
+        // A graphic that declares an extent but paints nothing still occupies the
+        // cell it was anchored to, so occupancy never collapses to zero.
+        var widthInCells = Math.Max(1, cellMetrics.ColumnsFor(renderedPixelWidth));
+        var heightInCells = Math.Max(1, cellMetrics.RowsFor(renderedPixelHeight));
+
+        // Create or reuse a tracked Sixel object. Occupancy recorded on the
+        // placement is the unclipped source geometry; clipping only affects which
+        // cells are painted, never the raster itself.
         var sixelData = _trackedObjects.GetOrCreateSixel(
             sixelPayload,
             widthInCells,
             heightInCells,
             parseResult,
-            rasterPreparation);
+            rasterPreparation,
+            cellMetrics);
+
+        var placement = ResolveSixelPlacement(widthInCells, heightInCells, impacts);
 
         // Mark cells covered by this Sixel image
         // The first cell gets the tracked object, others just get the Sixel flag
         var sequence = ++_writeSequence;
         var writtenAt = _timeProvider.GetUtcNow();
 
-        for (int dy = 0; dy < heightInCells && _cursorY + dy < _height; dy++)
+        for (int dy = 0; dy < heightInCells; dy++)
         {
-            for (int dx = 0; dx < widthInCells && _cursorX + dx < _width; dx++)
+            var y = placement.OriginRow + dy;
+            if (y < placement.ClipTop || y > placement.ClipBottom || y >= _height)
             {
-                var y = _cursorY + dy;
-                var x = _cursorX + dx;
+                continue;
+            }
+
+            for (int dx = 0; dx < widthInCells; dx++)
+            {
+                var x = placement.OriginColumn + dx;
+                if (x < placement.ClipLeft || x > placement.ClipRight || x >= _width)
+                {
+                    continue;
+                }
 
                 // First cell (origin) holds the tracked object
                 // Other cells just have the Sixel flag set
@@ -5925,6 +6070,119 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
         }
+
+        ApplyPostSixelCursor(placement, widthInCells, heightInCells);
+    }
+
+    /// <summary>
+    /// Describes where a Sixel placement is anchored and which cells it may paint.
+    /// </summary>
+    private readonly record struct SixelPlacementGeometry(
+        int OriginColumn,
+        int OriginRow,
+        int ClipLeft,
+        int ClipRight,
+        int ClipTop,
+        int ClipBottom,
+        bool Scrolling);
+
+    /// <summary>
+    /// Chooses the placement anchor and clipping rectangle, scrolling the active
+    /// region first when the graphic would overflow it in Sixel scrolling mode.
+    /// </summary>
+    private SixelPlacementGeometry ResolveSixelPlacement(
+        int widthInCells,
+        int heightInCells,
+        List<CellImpact>? impacts)
+    {
+        if (!_sixelScrollingMode)
+        {
+            // Non-scrolling mode uses the graphics page origin and the full page
+            // instead of the text margins, matching DEC display mode. Nothing
+            // scrolls and the text cursor is left untouched.
+            return new SixelPlacementGeometry(
+                OriginColumn: 0,
+                OriginRow: 0,
+                ClipLeft: 0,
+                ClipRight: _width - 1,
+                ClipTop: 0,
+                ClipBottom: _height - 1,
+                Scrolling: false);
+        }
+
+        // Scrolling mode starts at the active text position. Margins clip the
+        // graphic; they never rewrite the raster.
+        var clipLeft = _declrmm ? _marginLeft : 0;
+        var clipRight = _declrmm ? _marginRight : _width - 1;
+
+        // A cursor parked outside the scrolling region (only reachable with origin
+        // mode off) uses the full page, mirroring how LF treats the same case.
+        var insideRegion = _cursorY >= _scrollTop && _cursorY <= _scrollBottom;
+        var clipTop = insideRegion ? _scrollTop : 0;
+        var clipBottom = insideRegion ? _scrollBottom : _height - 1;
+
+        var originColumn = _cursorX;
+        var originRow = _cursorY;
+
+        // The cursor lands one row below the graphic, so the rows the graphic needs
+        // and the row the cursor needs are scrolled in a single step.
+        var regionHeight = clipBottom - clipTop + 1;
+        var overflow = originRow + heightInCells - clipBottom;
+        if (overflow > 0)
+        {
+            var scrollCount = Math.Min(overflow, regionHeight);
+            for (int i = 0; i < scrollCount; i++)
+            {
+                if (!ScrollUp(impacts))
+                {
+                    break;
+                }
+            }
+
+            // A graphic taller than the region keeps its bottom edge on the last
+            // region row; the top is clipped rather than corrupted.
+            originRow = Math.Max(clipTop, originRow - scrollCount);
+        }
+
+        return new SixelPlacementGeometry(
+            originColumn,
+            originRow,
+            clipLeft,
+            clipRight,
+            clipTop,
+            clipBottom,
+            Scrolling: true);
+    }
+
+    /// <summary>
+    /// Applies the final text cursor position after a Sixel sequence completes.
+    /// </summary>
+    private void ApplyPostSixelCursor(
+        SixelPlacementGeometry placement,
+        int widthInCells,
+        int heightInCells)
+    {
+        if (!placement.Scrolling)
+        {
+            // DECSDM display mode leaves the text cursor exactly where it was.
+            return;
+        }
+
+        // Any pending wrap is consumed by the graphic, exactly like a line feed.
+        _pendingWrap = false;
+
+        // Mode 8452 reset (the default) returns the cursor to the column the
+        // sequence started in; set leaves it to the right of the graphic.
+        _cursorX = _sixelCursorToRightMode
+            ? Math.Min(placement.OriginColumn + widthInCells, placement.ClipRight)
+            : placement.OriginColumn;
+
+        // The cursor lands on the row below the last row the graphic occupies and
+        // never escapes the region the graphic was clipped to.
+        _cursorY = Math.Clamp(
+            placement.OriginRow + heightInCells,
+            placement.ClipTop,
+            placement.ClipBottom);
     }
 
     /// <summary>

@@ -615,7 +615,10 @@ public static class SurfaceComparer
                     // Emit the sixel DCS sequence as raw - the payload already contains ESC P ... ESC \
                     tokens.Add(new UnrecognizedSequenceToken(change.Cell.Sixel.Data.Payload));
                     
-                    // Sixel rendering moves cursor, mark position as unknown
+                    // Hex1b-as-emitter never relies on where the upstream terminal
+                    // leaves the cursor after a Sixel sequence: DECSDM, mode 8452
+                    // and margin state all vary between terminals. Invalidating the
+                    // tracked position forces an explicit CUP before the next cell.
                     cursorX = -1;
                     cursorY = -1;
                 }
