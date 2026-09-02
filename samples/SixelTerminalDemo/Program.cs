@@ -57,9 +57,45 @@ static IReadOnlyList<byte[]> BuildDemoOutput()
         chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
     }
 
+    var framingFixture = RawSixelFixtures.All[0].StandardDcsBytes;
     chunks.Add(Encoding.ASCII.GetBytes(
-        "Model note: terminal cursor, palette persistence, scrolling, and resize semantics evolve under #445.\r\n"));
+        "[Framing] Two consecutive DCS images with no transport boundary between them.\r\n"));
+    chunks.Add(
+    [
+        .. RawSixelFixtures.All[0].StandardDcsBytes,
+        .. RawSixelFixtures.All[1].StandardDcsBytes,
+    ]);
+    chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
+
+    chunks.Add(Encoding.ASCII.GetBytes(
+        "[Split write] The introducer, payload, and ESC-backslash terminator arrive in separate reads.\r\n"));
+    AddChunks(chunks, framingFixture, [1, 1, 5, framingFixture.Length - 9, 1, 1]);
+    chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
+
+    chunks.Add(Encoding.ASCII.GetBytes(
+        "[Native passthrough] One-byte workload reads still form the original image upstream.\r\n"));
+    foreach (var value in RawSixelFixtures.All[3].StandardDcsBytes)
+        chunks.Add([value]);
+    chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
+
+    chunks.Add(Encoding.ASCII.GetBytes(
+        "Stage 2 note: framing is byte-oriented and bounded; Sixel grammar remains owned by #447.\r\n"));
     return chunks;
+}
+
+static void AddChunks(List<byte[]> chunks, byte[] bytes, IReadOnlyList<int> sizes)
+{
+    var offset = 0;
+    foreach (var size in sizes)
+    {
+        chunks.Add(bytes.AsSpan(offset, size).ToArray());
+        offset += size;
+    }
+
+    if (offset != bytes.Length)
+    {
+        throw new InvalidOperationException("Demo split sizes must consume the complete DCS.");
+    }
 }
 
 static int CountSixelOrigins(Hex1b.Automation.Hex1bTerminalSnapshot snapshot)

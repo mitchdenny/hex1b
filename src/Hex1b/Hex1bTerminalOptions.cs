@@ -144,5 +144,6 @@ public sealed class Hex1bTerminalOptions
         {
             throw new InvalidOperationException("Height must be greater than zero.");
         }
+
     }
 }

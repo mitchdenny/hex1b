@@ -47,6 +47,28 @@ presentation adapter can consume Sixel directly, Hex1b forwards the original
 bytes without waiting for a complete frame, decoding UTF-8, or reconstructing
 the sequence.
 
+### Output ownership matrix
+
+Raw workload output has exactly one DCS framing owner. Presentation delivery is
+selected independently so observing a control string never adds latency to a
+native terminal.
+
+| Path | Byte owner | Framing owner | Presentation behavior |
+|---|---|---|---|
+| Raw workload, raw presentation | Workload read | Incremental byte framer | Each original read is forwarded before framing or UTF-8 decoding |
+| Raw workload with workload filters | Workload read | Incremental byte framer | Raw presentation still receives each read first; observers receive the resulting token stream |
+| Presentation filters | Filtered token stream | Incremental byte framer | Filters own serialization, so C1 input may be normalized to standard `ESC` framing |
+| Impact-aware presentation | Applied token stream | Incremental byte framer | Receives one structured DCS token and its terminal impacts |
+| Pre-tokenized `Hex1bApp` output | App-provided tokens and matching bytes | App token stream at a framing boundary; an existing raw frame retains ownership across item boundaries | Raw presentation receives the supplied bytes; structured dispatch validates each DCS once |
+| Headless | Internal terminal model | Incremental byte framer | No native display dependency; framing and dispatch still occur before text decoding |
+
+The framer bounds retained DCS content to 1 MiB by default. It continues
+counting and scanning for cancellation or ST after that limit, but reports a
+retention-limit outcome and does not claim Sixel dispatch success. This stage
+only validates the bounded DCS introducer (private marker, parameters,
+intermediates, and final byte). Complete Sixel grammar and geometry remain
+owned by [#447](https://github.com/mitchdenny/hex1b/issues/447).
+
 ## Grammar and raster model
 
 ### DCS parameters

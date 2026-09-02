@@ -2,8 +2,10 @@ using System.Globalization;
 using System.Text;
 using System.Threading.Channels;
 using Hex1b.Automation;
+using Hex1b.Diagnostics;
 using Hex1b.Reflow;
 using Hex1b.Surfaces;
+using Hex1b.Tokens;
 
 namespace Hex1b.Tests.Sixel;
 
@@ -21,7 +23,11 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         int cellPixelHeight,
         double actualCellPixelWidth,
         int scrollbackCapacity,
-        ITerminalReflowProvider? reflow)
+        ITerminalReflowProvider? reflow,
+        Hex1bMetrics? metrics,
+        IHex1bTerminalWorkloadFilter? workloadFilter,
+        IHex1bTerminalPresentationFilter? presentationFilter,
+        bool impactAware)
     {
         var capabilities = new TerminalCapabilities
         {
@@ -33,15 +39,28 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             ActualCellPixelWidth = actualCellPixelWidth,
         };
 
-        _presentation = new ExactBytePresentationAdapter(width, height, capabilities, reflow);
-        var builder = Hex1bTerminal.CreateBuilder()
-            .WithWorkload(_workload)
-            .WithPresentation(_presentation)
-            .WithDimensions(width, height);
-        if (scrollbackCapacity > 0)
-            builder.WithScrollback(scrollbackCapacity);
+        _presentation = impactAware
+            ? new ImpactAwarePresentationAdapter(width, height, capabilities, reflow)
+            : new ExactBytePresentationAdapter(width, height, capabilities, reflow);
+        var options = new Hex1bTerminalOptions
+        {
+            WorkloadAdapter = _workload,
+            PresentationAdapter = _presentation,
+            Width = width,
+            Height = height,
+            ScrollbackCapacity = scrollbackCapacity > 0 ? scrollbackCapacity : null,
+            Metrics = metrics,
+        };
+        if (workloadFilter is not null)
+        {
+            options.WorkloadFilters.Add(workloadFilter);
+        }
+        if (presentationFilter is not null)
+        {
+            options.PresentationFilters.Add(presentationFilter);
+        }
 
-        Terminal = builder.Build();
+        Terminal = new Hex1bTerminal(options);
         _runTask = Terminal.RunAsync(_runCancellation.Token);
     }
 
@@ -56,7 +75,11 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         int cellPixelHeight = 6,
         double actualCellPixelWidth = 0,
         int scrollbackCapacity = 0,
-        ITerminalReflowProvider? reflow = null)
+        ITerminalReflowProvider? reflow = null,
+        Hex1bMetrics? metrics = null,
+        IHex1bTerminalWorkloadFilter? workloadFilter = null,
+        IHex1bTerminalPresentationFilter? presentationFilter = null,
+        bool impactAware = false)
         => new(
             width,
             height,
@@ -64,7 +87,11 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             cellPixelHeight,
             actualCellPixelWidth,
             scrollbackCapacity,
-            reflow);
+            reflow,
+            metrics,
+            workloadFilter,
+            presentationFilter,
+            impactAware);
 
     public async Task FeedAsync(
         ReadOnlyMemory<byte> bytes,
@@ -74,9 +101,38 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         var expectedPresentationLength = _presentation.CapturedLength + bytes.Length;
         var chunks = Split(bytes, chunkSizes);
         foreach (var chunk in chunks)
-            await _workload.EnqueueAsync(chunk, cancellationToken);
+            await _workload.EnqueueAsync(new WorkloadOutputItem(chunk.ToArray(), Tokens: null), cancellationToken);
 
         await _presentation.WaitForLengthAsync(expectedPresentationLength, cancellationToken);
+    }
+
+    public async Task FeedChunkAsync(
+        ReadOnlyMemory<byte> bytes,
+        CancellationToken cancellationToken = default)
+    {
+        var expectedPresentationLength = _presentation.CapturedLength + bytes.Length;
+        await _workload.EnqueueAsync(
+            new WorkloadOutputItem(bytes.ToArray(), Tokens: null),
+            cancellationToken);
+        await _presentation.WaitForLengthAsync(expectedPresentationLength, cancellationToken);
+    }
+
+    public async Task FeedPreTokenizedAsync(
+        ReadOnlyMemory<byte> bytes,
+        IReadOnlyList<AnsiToken> tokens,
+        CancellationToken cancellationToken = default)
+    {
+        var expectedPresentationLength = _presentation.CapturedLength + bytes.Length;
+        await _workload.EnqueueAsync(
+            new WorkloadOutputItem(bytes.ToArray(), tokens),
+            cancellationToken);
+        await _presentation.WaitForLengthAsync(expectedPresentationLength, cancellationToken);
+    }
+
+    public async Task CompleteWorkloadAsync(CancellationToken cancellationToken = default)
+    {
+        _workload.Complete();
+        await _runTask.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
     }
 
     public async Task WaitForAsync(
@@ -241,10 +297,10 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         return result;
     }
 
-    private sealed class QueuedByteWorkloadAdapter : IHex1bTerminalWorkloadAdapter
+    private sealed class QueuedByteWorkloadAdapter : IHex1bTerminalTokenWorkloadAdapter
     {
-        private readonly Channel<ReadOnlyMemory<byte>> _output =
-            Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
+        private readonly Channel<WorkloadOutputItem> _output =
+            Channel.CreateUnbounded<WorkloadOutputItem>();
         private readonly object _eventLock = new();
         private Action? _disconnected;
         private bool _completed;
@@ -269,17 +325,22 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             }
         }
 
-        public ValueTask EnqueueAsync(ReadOnlyMemory<byte> bytes, CancellationToken cancellationToken)
-            => _output.Writer.WriteAsync(bytes.ToArray(), cancellationToken);
+        public ValueTask EnqueueAsync(WorkloadOutputItem item, CancellationToken cancellationToken)
+            => _output.Writer.WriteAsync(item, cancellationToken);
 
         public void Complete() => _output.Writer.TryComplete();
 
         public async ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+            => (await ReadOutputItemAsync(ct)).Bytes;
+
+        public async ValueTask<WorkloadOutputItem> ReadOutputItemAsync(CancellationToken ct = default)
         {
             while (await _output.Reader.WaitToReadAsync(ct))
             {
-                if (_output.Reader.TryRead(out var bytes))
-                    return bytes;
+                if (_output.Reader.TryRead(out var item))
+                {
+                    return item;
+                }
             }
 
             Action? disconnected;
@@ -289,7 +350,7 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
                 disconnected = _disconnected;
             }
             disconnected?.Invoke();
-            return ReadOnlyMemory<byte>.Empty;
+            return default;
         }
 
         public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
@@ -305,7 +366,7 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         }
     }
 
-    private sealed class ExactBytePresentationAdapter(
+    private class ExactBytePresentationAdapter(
         int width,
         int height,
         TerminalCapabilities capabilities,
@@ -401,6 +462,24 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         public ReflowResult Reflow(ReflowContext context) =>
             (reflow ?? throw new InvalidOperationException("Reflow is not enabled.")).Reflow(context);
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class ImpactAwarePresentationAdapter(
+        int width,
+        int height,
+        TerminalCapabilities capabilities,
+        ITerminalReflowProvider? reflow) :
+        ExactBytePresentationAdapter(width, height, capabilities, reflow),
+        ICellImpactAwarePresentationAdapter
+    {
+        public ValueTask WriteOutputWithImpactsAsync(
+            IReadOnlyList<AppliedToken> appliedTokens,
+            CancellationToken ct = default)
+        {
+            var bytes = AnsiTokenUtf8Serializer.Serialize(
+                appliedTokens.Select(applied => applied.Token));
+            return WriteOutputAsync(bytes, ct);
+        }
     }
 }
 

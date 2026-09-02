@@ -303,7 +303,14 @@ public static class AnsiTokenUtf8Serializer
             case DcsToken dcs:
                 WriteByte(writer, 0x1b);
                 WriteByte(writer, (byte)'P');
-                WriteUtf8(writer, dcs.Payload);
+                if (dcs.TryGetMatchingRawPayload(out var rawPayload))
+                {
+                    writer.Write(rawPayload.Span);
+                }
+                else
+                {
+                    WriteUtf8(writer, dcs.Payload);
+                }
                 WriteByte(writer, 0x1b);
                 WriteByte(writer, (byte)'\\');
                 return;
