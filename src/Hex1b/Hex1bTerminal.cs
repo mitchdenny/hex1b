@@ -61,6 +61,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly CancellationTokenSource _disposeCts = new();
     private readonly DateTimeOffset _sessionStart;
     private readonly TrackedObjectStore _trackedObjects = new();
+
+    // Terminal-scoped Sixel color registers. Palette definitions persist between
+    // Sixel sequences and across alternate-screen transitions; only RIS restores
+    // the default palette.
+    private readonly Sixel.SixelColorRegisters _sixelColorRegisters = new();
     private readonly TimeProvider _timeProvider;
     private readonly KgpTerminalGraphicsState _kgpGraphicsState = new();
     private ITimer? _kgpAnimationTimer;
@@ -3240,6 +3245,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _charsetG2 = 'B';
                 _charsetG3 = 'B';
                 _activeCharsetSlot = 0;
+                _sixelColorRegisters.Reset();
                 InitializeTabStops();
                 // Clear screen
                 for (int row = 0; row < _height; row++)
@@ -5830,6 +5836,27 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    /// Captures the background color used to fill unpainted pixels of an opaque
+    /// (<c>P2</c> 0 or 2) Sixel graphic.
+    /// </summary>
+    /// <remarks>
+    /// The background is captured at graphic creation time. When no background is
+    /// selected, the deterministic policy default is used.
+    /// </remarks>
+    private Surfaces.Rgba32 CaptureSixelBackground()
+    {
+        var policy = _sixelColorRegisters.Policy;
+        if (policy.BackgroundSource != SixelBackgroundSource.CapturedTerminalBackground)
+        {
+            return policy.DefaultBackground;
+        }
+
+        return _currentBackground is { IsDefault: false } background
+            ? new Surfaces.Rgba32(background.R, background.G, background.B, 255)
+            : policy.DefaultBackground;
+    }
+
+    /// <summary>
     /// Processes Sixel data by creating a tracked object and marking cells.
     /// </summary>
     private void ProcessSixelData(
@@ -5837,6 +5864,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         SixelParseResult parseResult,
         List<CellImpact>? impacts)
     {
+        // Capture immutable raster inputs while applying only palette metadata to
+        // the terminal-scoped state. Pixel painting remains lazy, so the terminal
+        // buffer lock never covers raster work.
+        var rasterPreparation = SixelRasterizer.Prepare(
+            parseResult,
+            new SixelRasterEnvironment(
+                CaptureSixelBackground(),
+                _sixelColorRegisters,
+                _sixelColorRegisters.Policy));
+
         var pixelWidth = Math.Max(1, parseResult.LogicalCanvasExtent.Width);
         var pixelHeight = Math.Max(1, parseResult.LogicalCanvasExtent.Height);
         var cellWidth = Math.Max(1d, Capabilities.EffectiveCellPixelWidth);
@@ -5853,7 +5890,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             sixelPayload,
             widthInCells,
             heightInCells,
-            parseResult);
+            parseResult,
+            rasterPreparation);
 
         // Mark cells covered by this Sixel image
         // The first cell gets the tracked object, others just get the Sixel flag

@@ -9,20 +9,23 @@ namespace Hex1b;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Sixel data is content-addressable: identical payloads share the same
-/// <see cref="SixelData"/> instance. This deduplicates memory when the same
-/// image appears in multiple cells or is re-rendered.
+/// Sixel data is content-addressable. Identical payloads share the same
+/// <see cref="SixelData"/> instance only when their captured background and
+/// persistent palette inputs also produce the same raster. This deduplicates
+/// equivalent images without conflating terminal graphics state.
 /// </para>
 /// <para>
 /// The raw DCS sequence is stored so it can be re-emitted during rendering.
-/// Pixel dimensions are parsed from the raster attributes in the payload.
+/// Declared pixel dimensions are parsed from the raster attributes in the payload.
 /// </para>
 /// </remarks>
 public sealed class SixelData
 {
+    private readonly object _decodeLock = new();
+    private readonly SixelRasterPreparation? _rasterPreparation;
+    private SixelRasterResult? _raster;
     private SixelPixelBuffer? _decodedPixels;
     private bool _decodeAttempted;
-    private readonly object _decodeLock = new();
 
     /// <summary>
     /// Gets the raw Sixel DCS sequence (ESC P ... ESC \).
@@ -30,12 +33,12 @@ public sealed class SixelData
     public string Payload { get; }
 
     /// <summary>
-    /// Gets the width of the Sixel image in pixels.
+    /// Gets the horizontal extent declared by DECGRA, or zero when none was declared.
     /// </summary>
     public int PixelWidth { get; }
 
     /// <summary>
-    /// Gets the height of the Sixel image in pixels.
+    /// Gets the vertical extent declared by DECGRA, or zero when none was declared.
     /// </summary>
     public int PixelHeight { get; }
 
@@ -55,6 +58,28 @@ public sealed class SixelData
     internal byte[] ContentHash { get; }
 
     internal SixelParseResult ParseResult { get; }
+
+    /// <summary>
+    /// Gets the authoritative bounded rasterization of <see cref="ParseResult"/>.
+    /// </summary>
+    /// <remarks>
+    /// Terminal-created data captures an immutable background and palette
+    /// preparation so rasterization can occur on first use without holding the
+    /// terminal buffer lock. Data created without terminal state uses the
+    /// deterministic default environment.
+    /// </remarks>
+    internal SixelRasterResult Raster
+    {
+        get
+        {
+            lock (_decodeLock)
+            {
+                return _raster ??= SixelRasterizer.Rasterize(
+                    ParseResult,
+                    GetRasterEnvironment());
+            }
+        }
+    }
 
     internal SixelData(
         string payload,
@@ -79,7 +104,9 @@ public sealed class SixelData
         byte[] contentHash,
         int pixelWidth,
         int pixelHeight,
-        SixelParseResult? parseResult = null)
+        SixelParseResult? parseResult = null,
+        SixelRasterResult? raster = null,
+        SixelRasterPreparation? rasterPreparation = null)
     {
         Payload = payload;
         WidthInCells = widthInCells;
@@ -88,6 +115,8 @@ public sealed class SixelData
         PixelWidth = pixelWidth;
         PixelHeight = pixelHeight;
         ParseResult = parseResult ?? SixelParser.ParsePayload(payload);
+        _raster = raster;
+        _rasterPreparation = rasterPreparation;
     }
 
     /// <summary>
@@ -110,37 +139,26 @@ public sealed class SixelData
     }
 
     /// <summary>
-    /// Decodes the sixel payload to a pixel buffer.
-    /// The result is cached for subsequent calls.
+    /// Materializes the sixel payload as a dense pixel buffer.
+    /// The result is cached, and repeated calls produce equal content.
     /// </summary>
-    /// <returns>The decoded pixel buffer, or null if decoding fails.</returns>
+    /// <returns>
+    /// The materialized pixel buffer, or <see langword="null"/> when the
+    /// authoritative rasterizer produced a geometry-only result.
+    /// </returns>
     public SixelPixelBuffer? GetPixels()
     {
         lock (_decodeLock)
         {
             if (_decodeAttempted)
-                return _decodedPixels;
-
-            var decoded = Automation.SixelDecoder.Decode(ParseResult);
-            if (decoded is not null)
             {
-                var buffer = new SixelPixelBuffer(decoded.Width, decoded.Height);
-                for (var y = 0; y < decoded.Height; y++)
-                {
-                    for (var x = 0; x < decoded.Width; x++)
-                    {
-                        var idx = (y * decoded.Width + x) * 4;
-                        buffer[x, y] = new Rgba32(
-                            decoded.Pixels[idx],
-                            decoded.Pixels[idx + 1],
-                            decoded.Pixels[idx + 2],
-                            decoded.Pixels[idx + 3]);
-                    }
-                }
-
-                _decodedPixels = buffer;
+                return _decodedPixels;
             }
 
+            _raster ??= SixelRasterizer.Rasterize(
+                ParseResult,
+                GetRasterEnvironment());
+            _decodedPixels = _raster.Image?.Materialize();
             _decodeAttempted = true;
             return _decodedPixels;
         }
@@ -149,10 +167,29 @@ public sealed class SixelData
     /// <summary>
     /// Computes a content hash for a Sixel payload.
     /// </summary>
-    internal static byte[] ComputeHash(string payload)
+    internal static byte[] ComputeHash(string payload) => ComputeHash(payload, null);
+
+    /// <summary>
+    /// Computes a deduplication hash that combines the payload with the raster
+    /// state identity.
+    /// </summary>
+    /// <remarks>
+    /// Identical payloads produce different pixels when the captured background
+    /// or the persistent palette differ, so the raster identity must participate
+    /// in content-addressable reuse.
+    /// </remarks>
+    internal static byte[] ComputeHash(string payload, byte[]? rasterIdentity)
     {
-        // Use SHA256 for robust deduplication
-        return SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(payload));
+        var payloadBytes = System.Text.Encoding.UTF8.GetBytes(payload);
+        if (rasterIdentity is null)
+        {
+            return SHA256.HashData(payloadBytes);
+        }
+
+        var combined = new byte[payloadBytes.Length + rasterIdentity.Length];
+        payloadBytes.CopyTo(combined, 0);
+        rasterIdentity.CopyTo(combined, payloadBytes.Length);
+        return SHA256.HashData(combined);
     }
 
     /// <summary>
@@ -162,4 +199,7 @@ public sealed class SixelData
     {
         return a.AsSpan().SequenceEqual(b.AsSpan());
     }
+
+    private SixelRasterEnvironment GetRasterEnvironment() =>
+        _rasterPreparation?.Environment ?? SixelRasterEnvironment.CreateDefault();
 }

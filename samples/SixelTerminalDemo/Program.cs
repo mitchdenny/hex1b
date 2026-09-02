@@ -84,6 +84,14 @@ static IReadOnlyList<byte[]> BuildDemoOutput(
         var fixture = fixtures[index];
         chunks.Add(Encoding.ASCII.GetBytes($"[{fixture.Name}] Expected: {fixture.Expected}\r\n"));
         chunks.Add(Encoding.ASCII.GetBytes($"Model: {modelDescriptions[index]}\r\n"));
+        if (fixture.SetupDcsBytes is { } setup)
+        {
+            chunks.Add(Encoding.ASCII.GetBytes(
+                $"Setup: {fixture.SetupPayload}\r\n"));
+            chunks.Add(setup);
+            chunks.Add(Encoding.ASCII.GetBytes("\r\n"));
+        }
+
         chunks.Add(fixture.StandardDcsBytes);
         chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
     }
@@ -91,7 +99,7 @@ static IReadOnlyList<byte[]> BuildDemoOutput(
     if (!includeTransportScenes)
     {
         chunks.Add(Encoding.ASCII.GetBytes(
-            "Stage 3: one incremental parser owns Sixel grammar, geometry, palette metadata, and outcomes.\r\n"));
+            "Stage 4: the same parser feeds one deterministic bounded rasterizer for color, background, and aspect.\r\n"));
         return chunks;
     }
 
@@ -117,7 +125,7 @@ static IReadOnlyList<byte[]> BuildDemoOutput(
     chunks.Add(Encoding.ASCII.GetBytes("\r\n\r\n"));
 
     chunks.Add(Encoding.ASCII.GetBytes(
-        "Stage 3: one incremental parser owns Sixel grammar, geometry, palette metadata, and outcomes.\r\n"));
+        "Stage 4: the same parser feeds one deterministic bounded rasterizer for color, background, and aspect.\r\n"));
     return chunks;
 }
 
@@ -144,7 +152,15 @@ static async Task<string> InspectModelAsync(RawSixelFixture fixture)
         CellPixelWidth = 1,
         CellPixelHeight = 1,
     };
-    var workload = new DemoWorkloadAdapter([fixture.StandardDcsBytes]);
+    var chunks = new List<byte[]>();
+    if (fixture.SetupDcsBytes is { } setup)
+    {
+        chunks.Add(setup);
+        chunks.Add(Encoding.ASCII.GetBytes("\r\n"));
+    }
+
+    chunks.Add(fixture.StandardDcsBytes);
+    var workload = new DemoWorkloadAdapter(chunks);
     await using var terminal = Hex1bTerminal.CreateBuilder()
         .WithWorkload(workload)
         .WithPresentation(new HeadlessPresentationAdapter(80, 24, capabilities))
@@ -153,29 +169,72 @@ static async Task<string> InspectModelAsync(RawSixelFixture fixture)
     await terminal.RunAsync();
 
     using var snapshot = terminal.CreateSnapshot();
-    for (var y = 0; y < snapshot.Height; y++)
+    SixelData? inspected = null;
+    for (var y = 0; y < snapshot.Height && inspected is null; y++)
     {
         for (var x = 0; x < snapshot.Width; x++)
         {
             var sixel = snapshot.GetCell(x, y).SixelData;
-            if (sixel is null)
+            if (sixel is not null && sixel.Payload == fixture.Payload)
             {
-                continue;
+                inspected = sixel;
+                break;
             }
-
-            var raster = sixel.GetPixels();
-            var rasterDescription = raster is null
-                ? "metadata-only"
-                : $"retained raster {raster.Width}x{raster.Height}";
-            var declaredDescription = sixel.PixelWidth > 0 && sixel.PixelHeight > 0
-                ? $"declared {sixel.PixelWidth}x{sixel.PixelHeight}px"
-                : "no declared extent";
-            return $"{declaredDescription}, logical geometry " +
-                $"{sixel.WidthInCells}x{sixel.HeightInCells}px, {rasterDescription}";
         }
     }
 
-    return "no placement";
+    if (inspected is null)
+    {
+        return "no placement";
+    }
+
+    return DescribeModel(inspected);
+}
+
+static string DescribeModel(SixelData sixel)
+{
+    var builder = new StringBuilder();
+    builder.Append(sixel.PixelWidth > 0 && sixel.PixelHeight > 0
+        ? $"declared {sixel.PixelWidth}x{sixel.PixelHeight}px"
+        : "no declared extent");
+
+    // The inspection terminal uses 1x1 cell metrics, so the occupied cell span is
+    // the aspect-scaled rendered extent in pixels.
+    builder.Append($", rendered {sixel.WidthInCells}x{sixel.HeightInCells}px");
+
+    var raster = sixel.GetPixels();
+    if (raster is null)
+    {
+        builder.Append(", raster geometry-only (no pixels allocated)");
+        return builder.ToString();
+    }
+
+    builder.Append($", logical raster {raster.Width}x{raster.Height}");
+    builder.Append($", top-left {Describe(raster[0, 0])}");
+    builder.Append($", bottom-right {Describe(raster[raster.Width - 1, raster.Height - 1])}");
+    var distinct = CountDistinctColors(raster);
+    builder.Append($", {distinct} distinct color{(distinct == 1 ? "" : "s")}");
+    return builder.ToString();
+
+    static string Describe(Hex1b.Surfaces.Rgba32 pixel) =>
+        pixel.A == 0
+            ? "transparent"
+            : $"#{pixel.R:X2}{pixel.G:X2}{pixel.B:X2}";
+
+    static int CountDistinctColors(Hex1b.Surfaces.SixelPixelBuffer raster)
+    {
+        var seen = new HashSet<uint>();
+        for (var y = 0; y < raster.Height; y++)
+        {
+            for (var x = 0; x < raster.Width; x++)
+            {
+                var pixel = raster[x, y];
+                seen.Add(((uint)pixel.R << 24) | ((uint)pixel.G << 16) | ((uint)pixel.B << 8) | pixel.A);
+            }
+        }
+
+        return seen.Count;
+    }
 }
 
 static void AddChunks(List<byte[]> chunks, byte[] bytes, IReadOnlyList<int> sizes)
