@@ -7,18 +7,24 @@ namespace Hex1b.Tokens;
 /// </summary>
 public static class AnsiTokenizer
 {
+    private static readonly TokenizerOptions s_defaultOptions = new();
+    private static readonly TokenizerOptions s_withoutDcsOptions = new()
+    {
+        RecognizeDcs = false,
+    };
+
     /// <summary>
     /// Tokenizes the given text into a list of ANSI tokens.
     /// </summary>
     /// <param name="text">The text to tokenize, which may contain ANSI escape sequences.</param>
     /// <returns>A read-only list of tokens representing the parsed text.</returns>
     public static IReadOnlyList<AnsiToken> Tokenize(string text) =>
-        Tokenize(text, recognizeDcs: true);
+        Tokenize(text, s_defaultOptions);
 
     internal static IReadOnlyList<AnsiToken> TokenizeWithoutDcs(string text) =>
-        Tokenize(text, recognizeDcs: false);
+        Tokenize(text, s_withoutDcsOptions);
 
-    private static IReadOnlyList<AnsiToken> Tokenize(string text, bool recognizeDcs)
+    private static IReadOnlyList<AnsiToken> Tokenize(string text, TokenizerOptions options)
     {
         if (string.IsNullOrEmpty(text))
             return [];
@@ -65,7 +71,7 @@ public static class AnsiTokenizer
                 i += apcConsumed;
             }
             // Check for DCS sequence (ESC P or 0x90) - Sixel starts with ESC P q
-            else if (recognizeDcs &&
+            else if (options.RecognizeDcs &&
                 TryParseDcsSequence(text, i, out var dcsConsumed, out var dcsPayload))
             {
                 FlushTextToken(text, ref textStart, i, tokens);
@@ -1034,5 +1040,10 @@ public static class AnsiTokenizer
             return (string)enumerator.Current;
         }
         return text[index].ToString();
+    }
+
+    private sealed class TokenizerOptions
+    {
+        public bool RecognizeDcs { get; init; } = true;
     }
 }
