@@ -130,7 +130,7 @@ Hex1b follows a widget/node separation pattern:
 The `samples/` directory contains example applications demonstrating various features:
 
 - **Cancellation** - Master-detail contact editor with save/cancel functionality
-- **[AzureSandboxDemo](./samples/AzureSandboxDemo/README.md)** - Creates an ephemeral Azure Container Apps Sandbox and embeds its Entra-protected remote shell
+- **[RemoteTerminalAuthDemo](./samples/RemoteTerminalAuthDemo/README.md)** - Connects a client to a bearer-protected remote terminal server
 
 ### Running Samples with Aspire
 
