@@ -13,12 +13,13 @@ var frameMilliseconds = ReadIntOption(args, "--frame-ms") ?? 33;
 var maxFrames = ReadIntOption(args, "--frames");
 var seed = ReadIntOption(args, "--seed") ?? 20260218;
 var headless = args.Contains("--headless");
+var useRaster = args.Contains("--raster");
 
 if (headless)
 {
     // Headless mode paints into an in-memory terminal so the demo can be exercised
     // in CI, where there is no Sixel-capable console to render into.
-    WriteHeadlessTranscript(moteCount, frameMilliseconds, maxFrames ?? 24, seed);
+    WriteHeadlessTranscript(moteCount, frameMilliseconds, maxFrames ?? 24, seed, useRaster);
     return;
 }
 
@@ -31,7 +32,8 @@ var workload = new SixelCloudWorkloadAdapter(
     capabilities.CellPixelHeight,
     TimeSpan.FromMilliseconds(frameMilliseconds),
     maxFrames,
-    seed);
+    seed,
+    useRaster);
 
 Console.Error.WriteLine("SixelCloudDemo fills the terminal with a drifting cloud of raw-DCS Sixel motes.");
 Console.Error.WriteLine("Move the mouse to bend the orbits; press q or Escape to quit.");
@@ -45,7 +47,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
 await terminal.RunAsync();
 
-static void WriteHeadlessTranscript(int moteCount, int frameMilliseconds, int frames, int seed)
+static void WriteHeadlessTranscript(int moteCount, int frameMilliseconds, int frames, int seed, bool useRaster)
 {
     const int Columns = 80;
     const int Rows = 24;
@@ -65,7 +67,7 @@ static void WriteHeadlessTranscript(int moteCount, int frameMilliseconds, int fr
         Rows * CellPixelHeight,
         moteCount);
 
-    var renderer = new SixelCloudRenderer(CellPixelWidth, CellPixelHeight);
+    var renderer = new SixelCloudRenderer(CellPixelWidth, CellPixelHeight, useRaster);
     var frameSeconds = frameMilliseconds / 1000.0;
 
     Console.WriteLine("Frame  Bytes  Placements tracked after frame");
@@ -81,8 +83,9 @@ static void WriteHeadlessTranscript(int moteCount, int frameMilliseconds, int fr
     }
 
     Console.WriteLine();
-    Console.WriteLine("Each frame issues ED (erase display) and then one full-viewport DCS raster,");
-    Console.WriteLine("so placement counts stay bounded rather than accumulating across frames.");
+    Console.WriteLine(useRaster
+        ? "Raster mode: each frame issues ED and then one full-viewport DCS raster, so\nplacement counts stay bounded at one but the image is expensive to decode."
+        : "Placement mode: each frame issues ED and then one small cursor-positioned DCS\nper visible mote, so placement counts track the cloud and reset every frame.");
 }
 
 static int CountPlacements(byte[] frameBytes, int columns, int rows)

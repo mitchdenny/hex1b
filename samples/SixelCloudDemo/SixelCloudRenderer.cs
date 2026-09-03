@@ -51,14 +51,25 @@ internal static class SixelCloudPalette
 /// independently of the code under test.
 /// </para>
 /// <para>
-/// The whole cloud is emitted as a single full-viewport raster rather than as one
-/// small placement per mote. Per-mote placements are appealing because they stress
-/// placement bookkeeping, but they require cursor positioning before each DCS, and a
-/// placement issued near the bottom row scrolls the viewport under the default Sixel
-/// scrolling mode, which walked the cloud off the screen. They were also the
-/// difference between rendering on WezTerm and rendering almost nothing on iTerm2.
-/// A single raster is portable, and it still exercises the interesting path: a large
-/// multi-colour image that is fully replaced every frame.
+/// The default mode emits one small cursor-positioned placement per mote, which is
+/// what Sixel is actually for and what stresses placement bookkeeping. A frame is
+/// therefore a few hundred tiny DCS strings rather than one enormous one.
+/// </para>
+/// <para>
+/// The alternative full-viewport raster mode is kept behind <c>--raster</c> for
+/// comparison. It is far more expensive: at HiDPI cell metrics a full raster is over
+/// ten million pixels for the terminal to decode every frame, against roughly seven
+/// thousand for the same cloud drawn as per-mote placements. That difference is the
+/// difference between smooth animation and a slideshow, so raster mode exists only to
+/// demonstrate the contrast.
+/// </para>
+/// <para>
+/// Two hazards make per-mote placements harder than they look, and both are handled
+/// here rather than avoided. A placement issued on the last row scrolls the viewport
+/// under the default Sixel scrolling mode, dragging the cloud upward every frame, so
+/// DECSDM is disabled and placements are clipped to the last usable row. And motes
+/// must be sorted into cursor order, because emitting hundreds of placements that
+/// jump the cursor around arbitrarily is what terminals handle worst.
 /// </para>
 /// </remarks>
 internal sealed class SixelCloudRenderer
@@ -69,14 +80,17 @@ internal sealed class SixelCloudRenderer
 
     private readonly double _cellPixelWidth;
     private readonly double _cellPixelHeight;
+    private readonly bool _useRaster;
 
     private byte[]? _canvas;
     private StringBuilder? _builder;
+    private DustMote[]? _ordered;
 
-    public SixelCloudRenderer(double cellPixelWidth, double cellPixelHeight)
+    public SixelCloudRenderer(double cellPixelWidth, double cellPixelHeight, bool useRaster = false)
     {
         _cellPixelWidth = cellPixelWidth;
         _cellPixelHeight = cellPixelHeight;
+        _useRaster = useRaster;
     }
 
     /// <summary>
@@ -86,6 +100,133 @@ internal sealed class SixelCloudRenderer
     /// <param name="columns">Terminal width in cells.</param>
     /// <param name="rows">Terminal height in cells.</param>
     public byte[] RenderFrame(DustCloud cloud, int columns, int rows)
+        => _useRaster
+            ? RenderRasterFrame(cloud, columns, rows)
+            : RenderPlacementFrame(cloud, columns, rows);
+
+    /// <summary>
+    /// Paints the cloud as one small cursor-positioned placement per mote.
+    /// </summary>
+    /// <remarks>
+    /// This is the mode the demo exists for: a continuous storm of small, independently
+    /// positioned placements, which is what a terminal's placement bookkeeping actually
+    /// has to cope with.
+    /// </remarks>
+    private byte[] RenderPlacementFrame(DustCloud cloud, int columns, int rows)
+    {
+        var builder = _builder ??= new StringBuilder();
+        builder.Clear();
+
+        builder.Append("\x1b[?2026h");
+
+        // DECSDM off. With Sixel scrolling enabled a placement on the last row scrolls
+        // the whole viewport, which walks the cloud off the top of the screen a row at
+        // a time. Turning it off is what makes bottom-row placements safe.
+        builder.Append("\x1b[?80l");
+
+        builder.Append("\x1b[H\x1b[2J");
+
+        // The last row stays clear even with scrolling disabled, because a placement
+        // there still has nowhere to put the six-pixel band it occupies.
+        var usableRows = Math.Max(1, rows - 1);
+
+        // Placements are emitted in cursor order (top-to-bottom, left-to-right).
+        // Hundreds of placements that jump the cursor around arbitrarily is the access
+        // pattern terminals handle worst, and ordering costs almost nothing.
+        var motes = cloud.Motes;
+        var ordered = _ordered;
+        if (ordered is null || ordered.Length < motes.Count)
+        {
+            ordered = _ordered = new DustMote[motes.Count];
+        }
+
+        var count = 0;
+        foreach (var mote in motes)
+        {
+            ordered[count++] = mote;
+        }
+
+        var cellWidth = _cellPixelWidth;
+        var cellHeight = _cellPixelHeight;
+        Array.Sort(ordered, 0, count, MoteCursorOrder.Instance);
+
+        var lastRow = -1;
+        var lastColumn = -1;
+        for (var index = 0; index < count; index++)
+        {
+            var mote = ordered[index];
+            var column = (int)(mote.X / cellWidth);
+            var row = (int)(mote.Y / cellHeight);
+
+            if (column < 0 || column >= columns || row < 0 || row >= usableRows)
+            {
+                continue;
+            }
+
+            // Skip the cursor move when the previous placement already left the cursor
+            // in the right cell, which is common once motes are sorted.
+            if (row != lastRow || column != lastColumn)
+            {
+                builder.Append("\x1b[").Append(row + 1).Append(';').Append(column + 1).Append('H');
+                lastRow = row;
+                lastColumn = column;
+            }
+
+            AppendMotePlacement(builder, mote);
+        }
+
+        builder.Append("\x1b[?2026l");
+
+        return Encoding.ASCII.GetBytes(builder.ToString());
+    }
+
+    /// <summary>
+    /// Appends a single mote as a minimal two-pixel-square DCS placement.
+    /// </summary>
+    private static void AppendMotePlacement(StringBuilder builder, DustMote mote)
+    {
+        var register = SixelCloudPalette.RegisterFor(mote.ColorIndex);
+        var color = SixelCloudPalette.Colors[mote.ColorIndex];
+
+        // Only the one register this mote needs is declared, so each placement stays a
+        // few dozen bytes rather than carrying the whole palette.
+        builder.Append("\x1bP7;1;0q")
+            .Append("\"1;1;2;2")
+            .Append('#').Append(register).Append(";2;")
+            .Append(color.Red).Append(';')
+            .Append(color.Green).Append(';')
+            .Append(color.Blue)
+            .Append('#').Append(register)
+            // '?' + 3 sets the top two pixels of the band, twice across, giving a 2x2 dot.
+            .Append("BB")
+            .Append("\x1b\\");
+    }
+
+    /// <summary>Orders motes top-to-bottom then left-to-right, in pixel space.</summary>
+    private sealed class MoteCursorOrder : IComparer<DustMote>
+    {
+        public static readonly MoteCursorOrder Instance = new();
+
+        public int Compare(DustMote? x, DustMote? y)
+        {
+            if (x is null || y is null)
+            {
+                return 0;
+            }
+
+            var byRow = x.Y.CompareTo(y.Y);
+            return byRow != 0 ? byRow : x.X.CompareTo(y.X);
+        }
+    }
+
+    /// <summary>
+    /// Paints the cloud as a single full-viewport raster.
+    /// </summary>
+    /// <remarks>
+    /// Retained behind <c>--raster</c> as the slow comparison case. See the type remarks
+    /// for why this is dramatically more expensive for the terminal to decode.
+    /// </remarks>
+    private byte[] RenderRasterFrame(DustCloud cloud, int columns, int rows)
     {
         // Cell metrics can be fractional when derived from a text-area report, so the
         // raster is rounded down to whole pixels. Rounding down rather than up keeps

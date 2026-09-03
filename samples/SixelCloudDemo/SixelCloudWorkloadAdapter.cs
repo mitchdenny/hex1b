@@ -49,6 +49,7 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     private readonly StringBuilder _inputBuffer = new();
 
     private SixelCloudRenderer _renderer;
+    private readonly bool _useRaster;
     private double _cellPixelWidth;
     private double _cellPixelHeight;
     private bool _cellSizeMeasured;
@@ -69,15 +70,17 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
         int cellPixelHeight,
         TimeSpan frameInterval,
         int? maxFrames,
-        int seed)
+        int seed,
+        bool useRaster = false)
     {
         _moteCount = moteCount;
         _cellPixelWidth = cellPixelWidth;
         _cellPixelHeight = cellPixelHeight;
         _frameInterval = frameInterval;
         _maxFrames = maxFrames;
+        _useRaster = useRaster;
         _cloud = new DustCloud(seed);
-        _renderer = new SixelCloudRenderer(cellPixelWidth, cellPixelHeight);
+        _renderer = new SixelCloudRenderer(cellPixelWidth, cellPixelHeight, useRaster);
     }
 
     public event Action? Disconnected
@@ -432,7 +435,7 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
         _cellSizeMeasured = kind == 6;
         _cellPixelWidth = cellWidth;
         _cellPixelHeight = cellHeight;
-        _renderer = new SixelCloudRenderer(cellWidth, cellHeight);
+        _renderer = new SixelCloudRenderer(cellWidth, cellHeight, _useRaster);
         RebuildFieldLocked();
     }
 
