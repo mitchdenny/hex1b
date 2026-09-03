@@ -8,7 +8,7 @@ using Hex1b;
 // SixelWidget or SixelEncoder, so what reaches the terminal is independent of the
 // code the demo is meant to exercise.
 
-var moteCount = ReadIntOption(args, "--motes") ?? 260;
+var moteCount = ReadIntOption(args, "--motes") ?? 700;
 var frameMilliseconds = ReadIntOption(args, "--frame-ms") ?? 33;
 var maxFrames = ReadIntOption(args, "--frames");
 var seed = ReadIntOption(args, "--seed") ?? 20260218;
@@ -36,7 +36,7 @@ var workload = new SixelCloudWorkloadAdapter(
     useRaster);
 
 Console.Error.WriteLine("SixelCloudDemo fills the terminal with a drifting cloud of raw-DCS Sixel motes.");
-Console.Error.WriteLine("Move the mouse to bend the orbits; press q or Escape to quit.");
+Console.Error.WriteLine("Move the mouse to gather the cloud; press q or Escape to quit.");
 
 // No WithDimensions: the console presentation reports the live terminal size, so the
 // cloud fills whatever space is actually available and follows resizes.

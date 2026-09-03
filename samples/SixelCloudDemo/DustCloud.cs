@@ -41,28 +41,20 @@ internal sealed class DustMote
 }
 
 /// <summary>
-/// Simulates a haze of motes orbiting a strong central attractor, with an optional
-/// weaker attractor that follows the mouse pointer.
+/// Simulates a haze of mutually attracting motes, with an optional attractor that
+/// follows the mouse pointer.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Gravity is inverse-square and softened near the centre, so pull grows sharply as a
-/// mote falls inward and fades toward the edges. That gradient is what lets motes
-/// keep orbiting instead of collapsing: a constant inward acceleration removes the
-/// same amount of outward energy on every pass regardless of distance, which
-/// inevitably drains the cloud into a single point.
+/// There is no central attractor. Structure is not imposed on the cloud; it emerges,
+/// because the only sustained force is motes pulling on each other. Motes start spread
+/// across the field drifting slowly, and gravity wells form wherever the initial
+/// scatter happens to be slightly denser.
 /// </para>
 /// <para>
-/// Motes are launched onto near-circular orbits rather than in purely random
-/// directions, and damping is applied only in the outer field. Damping everywhere is
-/// the other half of the collapse problem, because it bleeds the orbital energy that
-/// keeps a mote clear of the centre.
-/// </para>
-/// <para>
-/// Motes also attract each other, approximated on a uniform grid: each grid cell is
-/// treated as a single aggregate mass at its centre of mass, so cost is motes times
-/// occupied cells rather than motes squared. This is what makes the cloud form
-/// filaments and clumps instead of sliding along smooth independent orbits.
+/// Mote-on-mote attraction is approximated on a uniform grid: each occupied cell is
+/// treated as one aggregate mass at its centre of mass, so cost is motes times
+/// occupied cells rather than motes squared.
 /// </para>
 /// <para>
 /// Clumping left alone is terminal, because a clump's pull grows as it gathers and
@@ -74,6 +66,13 @@ internal sealed class DustMote
 /// to grow. The result is a cycle: gather, clump, detonate, disperse, gather again.
 /// </para>
 /// <para>
+/// Global damping bleeds a little speed every step. With a central well this would be
+/// fatal, since it drains the orbital energy that keeps motes clear of the centre, but
+/// without one there are no orbits to preserve: damping instead keeps drift slow
+/// enough to watch and stops collapse kicks accumulating into a field of fast debris.
+/// Containment comes from reflecting edges rather than from a central pull.
+/// </para>
+/// <para>
 /// The simulation is pure state; it never emits bytes. <see cref="SixelCloudRenderer"/>
 /// converts a frame of motes into raw DCS sequences, keeping the physics independent
 /// of how the cloud is painted.
@@ -81,51 +80,47 @@ internal sealed class DustMote
 /// </remarks>
 internal sealed class DustCloud
 {
-    // Gravitational strength, in pixel^3/second^2. Tuned so a mote at mid-field
-    // completes an orbit in a handful of seconds at the default frame rate.
-    private const double CentralGravity = 5_600_000.0;
+    // The mouse attractor. Without a central well this is the only externally imposed
+    // force, so it is kept modest: enough to gather a clump under the pointer, not
+    // enough to drag the whole cloud onto it.
+    private const double PointerGravity = 3_000_000.0;
 
-    // The mouse attractor is deliberately much weaker than the centre so it bends
-    // orbits into visible swirls without capturing the whole cloud.
-    private const double PointerGravity = 1_600_000.0;
-
-    // Softening length. Without it, acceleration goes to infinity at r=0 and motes
-    // get catapulted off the field in a single step.
+    // Softening length for the pointer. Without it, acceleration goes to infinity at
+    // r=0 and motes get catapulted off the field in a single step.
     private const double SofteningPixels = 44.0;
 
-    // Speed cap, as a multiple of the local circular-orbit speed. Motes that slingshot
-    // through the centre would otherwise leave and never return.
-    private const double MaxSpeedFactor = 1.85;
+    // Reference drift speed, as a fraction of field radius per second. Every other
+    // speed in the simulation is expressed as a multiple of this. With no central
+    // attractor there is no circular-orbit speed to derive a scale from, so the scale
+    // is anchored to field size instead, which keeps motion proportionate on resize.
+    private const double ReferenceSpeedFraction = 0.055;
 
-    // Damping applies only well outside the field radius, so it recaptures genuine
-    // escapees in the corners without bleeding energy from ordinary wide orbits.
-    // Damping the whole outer field instead empties it: every mote that ventures out
-    // loses energy and never returns, and the cloud shrinks to a middle band.
-    private const double OuterDampingRadiusFraction = 1.15;
-    private const double OuterDamping = 0.992;
+    // Speed cap, as a multiple of the reference speed. Bounds the debris thrown by a
+    // collapse so a burst cannot fling motes across the field in a few frames.
+    private const double MaxSpeedFactor = 6.0;
 
-    // Orbits are launched close to circular. A small spread keeps the cloud from
-    // looking like a single rigid ring.
-    private const double MinOrbitFactor = 0.86;
-    private const double MaxOrbitFactor = 1.12;
+    // Per-second damping factor, applied everywhere. This is what keeps the cloud slow
+    // and readable, and stops collapse kicks accumulating over time.
+    private const double GlobalDampingPerSecond = 0.25;
 
-    // A mote is "arrived" when it falls inside this radius, at which point it is
-    // relaunched. A strict centre test would essentially never fire.
-    private const double CentreRadiusPixels = 10.0;
+    // Initial speed spread, as multiples of the reference speed. Motes start drifting
+    // slowly in random directions; the structure comes from gravity, not from launch.
+    private const double MinStartSpeedFactor = 0.05;
+    private const double MaxStartSpeedFactor = 0.35;
 
-    // The speed window the colour ramp spans, as multiples of the circular-orbit
-    // speed at the field radius. The window is wider than the typical orbit spread
-    // so that both ends of the palette are actually reached.
-    private const double HeatColdSpeedFactor = 0.45;
-    private const double HeatHotSpeedFactor = 1.85;
+    // The speed window the colour ramp spans, as multiples of the reference speed.
+    // The window is wider than typical drift so both ends of the palette are reached:
+    // settled motes read cold, and motes freshly thrown by a collapse read hot.
+    private const double HeatColdSpeedFactor = 0.1;
+    private const double HeatHotSpeedFactor = 2.2;
 
-    // Mote-on-mote gravity, in pixel^3/second^2 per unit mass. Much weaker than the
-    // centre: this is the force that grows clumps, and clumping needs to be slow
-    // enough to watch.
-    private const double ClusterGravity = 20_000.0;
+    // Mote-on-mote gravity, in pixel^3/second^2 per unit mass. This is now the only
+    // force that shapes the cloud, so it carries the structure that the central well
+    // used to impose.
+    private const double ClusterGravity = 26_000.0;
 
-    // Softening for mote-on-mote attraction. Larger than the central softening because
-    // motes get far closer to each other than they do to the centre, and a hard
+    // Softening for mote-on-mote attraction. Larger than the pointer softening because
+    // motes get far closer to each other than they get to the pointer, and a hard
     // singularity between neighbours ejects both at implausible speed.
     private const double ClusterSofteningPixels = 26.0;
 
@@ -136,19 +131,20 @@ internal sealed class DustCloud
 
     // Mass in one grid cell that triggers collapse. Reached only where a genuine clump
     // has formed, not merely where the cloud is locally busy.
-    private const double CollapseMassThreshold = 5.0;
+    private const double CollapseMassThreshold = 12.0;
 
     // How long a caught mote stays at reduced mass. Long enough to clear the cell that
-    // trapped it and its immediate neighbours.
-    private const double VentSeconds = 1.35;
+    // trapped it, but short: a long window leaves a large standing fraction of the
+    // cloud permanently venting, which flattens the gather-detonate cycle.
+    private const double VentSeconds = 0.7;
 
     // Mass multiplier while venting. Not zero: venting motes still participate weakly,
     // so a collapse disperses rather than vanishing.
     internal const double VentingMass = 0.12;
 
-    // Outward kick applied at collapse, as a multiple of local circular speed. This is
+    // Outward kick applied at collapse, as a multiple of the reference speed. This is
     // what actually breaks the clump apart; reduced mass alone only stops it growing.
-    private const double CollapseKickFactor = 1.05;
+    private const double CollapseKickFactor = 2.4;
 
     private readonly Random _random;
     private readonly List<DustMote> _motes = [];
@@ -190,7 +186,7 @@ internal sealed class DustCloud
         for (var index = 0; index < moteCount; index++)
         {
             var mote = new DustMote();
-            PlaceOnOrbit(mote);
+            PlaceInField(mote);
             _motes.Add(mote);
         }
     }
@@ -213,13 +209,18 @@ internal sealed class DustCloud
     /// </summary>
     /// <remarks>
     /// Each step builds a density grid, collapses any cell that has grown too massive,
-    /// then integrates under the centre, the pointer, and the aggregated pull of every
-    /// other occupied cell.
+    /// then integrates under the pointer and the aggregated pull of every other
+    /// occupied cell. There is no central attractor, so all structure comes from the
+    /// motes themselves.
     /// </remarks>
     public void Advance(double deltaSeconds)
     {
         BuildGrid();
         CollapseDenseCells();
+
+        // Frame-rate independent damping: applying a fixed factor per step would make
+        // the cloud settle faster simply because frames arrived faster.
+        var damping = Math.Pow(GlobalDampingPerSecond, deltaSeconds);
 
         foreach (var mote in _motes)
         {
@@ -228,20 +229,6 @@ internal sealed class DustCloud
                 mote.VentSecondsRemaining = Math.Max(0.0, mote.VentSecondsRemaining - deltaSeconds);
             }
 
-            var offsetX = mote.X - _centreX;
-            var offsetY = mote.Y - _centreY;
-            var distance = Math.Sqrt((offsetX * offsetX) + (offsetY * offsetY));
-
-            if (distance <= CentreRadiusPixels)
-            {
-                // Reaching the centre is the relaunch trigger: the mote is fired back
-                // out onto a fresh orbit in a new random direction.
-                PlaceOnOrbit(mote);
-                continue;
-            }
-
-            ApplyGravity(mote, _centreX, _centreY, CentralGravity, deltaSeconds);
-
             if (_pointerActive)
             {
                 ApplyGravity(mote, _pointerX, _pointerY, PointerGravity, deltaSeconds);
@@ -249,13 +236,10 @@ internal sealed class DustCloud
 
             ApplyClusterGravity(mote, deltaSeconds);
 
-            if (distance > _fieldRadius * OuterDampingRadiusFraction)
-            {
-                mote.VelocityX *= OuterDamping;
-                mote.VelocityY *= OuterDamping;
-            }
+            mote.VelocityX *= damping;
+            mote.VelocityY *= damping;
 
-            ClampSpeed(mote, distance);
+            ClampSpeed(mote);
 
             mote.X += mote.VelocityX * deltaSeconds;
             mote.Y += mote.VelocityY * deltaSeconds;
@@ -360,10 +344,7 @@ internal sealed class DustCloud
                 length = 1.0;
             }
 
-            var radius = Math.Sqrt(
-                ((mote.X - _centreX) * (mote.X - _centreX)) +
-                ((mote.Y - _centreY) * (mote.Y - _centreY)));
-            var kick = CircularSpeed(Math.Max(radius, 1.0)) * CollapseKickFactor;
+            var kick = ReferenceSpeed * CollapseKickFactor;
 
             mote.VelocityX += awayX / length * kick;
             mote.VelocityY += awayY / length * kick;
@@ -435,16 +416,14 @@ internal sealed class DustCloud
     /// Recolours a mote from its speed, so fast motes read hot and slow motes cold.
     /// </summary>
     /// <remarks>
-    /// The ramp is anchored to the circular-orbit speed at the field radius, which
-    /// tracks the field size and so keeps the colouring stable across resizes. The
-    /// window deliberately spans well below and above that speed: wide slow orbits
-    /// sit under it and fast centre passes sit over it, so the full ramp is used.
-    /// Normalising against each mote's own local circular speed would instead paint
-    /// every orbit the same colour, erasing the gradient this is meant to show.
+    /// The ramp is anchored to the reference drift speed, which tracks field size and
+    /// so keeps colouring stable across resizes. The window deliberately spans well
+    /// below and above that speed: settled motes sit under it and motes freshly thrown
+    /// by a collapse sit over it, so the full ramp is used.
     /// </remarks>
     private void UpdateHeat(DustMote mote)
     {
-        var reference = CircularSpeed(_fieldRadius);
+        var reference = ReferenceSpeed;
         var coldest = reference * HeatColdSpeedFactor;
         var hottest = reference * HeatHotSpeedFactor;
         var heat = (mote.Speed - coldest) / (hottest - coldest);
@@ -469,10 +448,9 @@ internal sealed class DustCloud
         mote.VelocityY += towardY / distance * acceleration * deltaSeconds;
     }
 
-    private static void ClampSpeed(DustMote mote, double distance)
+    private void ClampSpeed(DustMote mote)
     {
-        var circular = CircularSpeed(distance);
-        var maximum = circular * MaxSpeedFactor;
+        var maximum = ReferenceSpeed * MaxSpeedFactor;
         var speed = Math.Sqrt((mote.VelocityX * mote.VelocityX) + (mote.VelocityY * mote.VelocityY));
         if (speed <= maximum || speed < 1e-6)
         {
@@ -484,33 +462,34 @@ internal sealed class DustCloud
         mote.VelocityY *= scale;
     }
 
-    private static double CircularSpeed(double distance)
-    {
-        var softened = (distance * distance) + (SofteningPixels * SofteningPixels);
-        return Math.Sqrt(CentralGravity * distance / softened);
-    }
+    /// <summary>
+    /// The speed scale every other speed in the simulation is expressed against, in
+    /// pixels per second.
+    /// </summary>
+    /// <remarks>
+    /// With no central attractor there is no circular-orbit speed to derive a scale
+    /// from, so it is anchored to field size: motion stays visually proportionate when
+    /// the terminal is resized rather than appearing faster in a smaller window.
+    /// </remarks>
+    private double ReferenceSpeed => _fieldRadius * ReferenceSpeedFraction;
 
-    private void PlaceOnOrbit(DustMote mote)
+    /// <summary>Scatters a mote across the field with a slow random drift.</summary>
+    /// <remarks>
+    /// Motes are placed uniformly rather than on orbits, and given only enough speed to
+    /// drift. All structure is left to emerge from mutual gravity, so seeding
+    /// deliberately imposes none.
+    /// </remarks>
+    private void PlaceInField(DustMote mote)
     {
+        mote.X = _random.NextDouble() * Math.Max(1, PixelWidth - 1);
+        mote.Y = _random.NextDouble() * Math.Max(1, PixelHeight - 1);
+
         var angle = _random.NextDouble() * Math.PI * 2.0;
+        var speed = ReferenceSpeed
+            * (MinStartSpeedFactor + (_random.NextDouble() * (MaxStartSpeedFactor - MinStartSpeedFactor)));
 
-        // Square-rooting a uniform sample spreads motes evenly over the disc area
-        // rather than bunching them near the centre.
-        var radius = (0.18 + (0.82 * Math.Sqrt(_random.NextDouble()))) * _fieldRadius;
-
-        mote.X = _centreX + (Math.Cos(angle) * radius);
-        mote.Y = _centreY + (Math.Sin(angle) * radius);
-
-        // Velocity perpendicular to the radius produces an orbit. The direction is
-        // chosen at random so the cloud counter-rotates against itself.
-        var direction = _random.Next(2) == 0 ? 1.0 : -1.0;
-        var speed = CircularSpeed(radius)
-            * (MinOrbitFactor + (_random.NextDouble() * (MaxOrbitFactor - MinOrbitFactor)));
-
-        mote.VelocityX = -Math.Sin(angle) * speed * direction;
-        mote.VelocityY = Math.Cos(angle) * speed * direction;
-
-        // A relaunched mote is a fresh one, so it carries no vent state forward.
+        mote.VelocityX = Math.Cos(angle) * speed;
+        mote.VelocityY = Math.Sin(angle) * speed;
         mote.VentSecondsRemaining = 0.0;
 
         UpdateHeat(mote);
