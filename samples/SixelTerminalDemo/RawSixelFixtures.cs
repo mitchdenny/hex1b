@@ -25,26 +25,26 @@ internal static class RawSixelFixtures
     [
         new(
             "Solid RGB block",
-            "a solid pure-red (#FF0000) rectangle, 240x60px = 24 cells wide by 3 cells tall",
+            "a solid pure-red (#FF0000) rectangle, 240x60px, which is 24x3 cells on a 10x20px cell grid",
             "0;0q\"1;1;240;60#1;2;100;0;0#1" +
                 RepeatBands("!240~", 10)),
         new(
             "RGB rounding",
-            "three stacked full-width bars, each 240x6px (24 cells wide, 1 cell tall):\n  black #000000 on top, mid-red #800000 in the middle, pure red #FF0000 at the bottom.\n  The middle bar is 128, not 127: 50% rounds up",
+            "three stacked full-width bars, each 240x6px (24 cells wide, well under one row tall):\n  black #000000 on top, mid-red #800000 in the middle, pure red #FF0000 at the bottom.\n  The middle bar is 128, not 127: 50% rounds up",
             "0;1q\"1;1;240;18#1;2;0;0;0#2;2;50;0;0#3;2;100;0;0" +
                 "#1!240~-#2!240~-#3!240~"),
         new(
             "Two-color carriage return",
-            "a 240x36px block (24 cells wide, ~2 cells tall) of six horizontal stripe pairs.\n  DECGCR returns to the left margin so green #00FF00 overprints red #FF0000:\n  the top edge reads green, the bottom edge red",
+            "a 240x36px block (240px = 24 cells wide) of six horizontal stripe pairs.\n  DECGCR returns to the left margin so green #00FF00 overprints red #FF0000:\n  the top edge reads green, the bottom edge red",
             "0;1q\"1;1;240;36#1;2;100;0;0#2;2;0;100;0" +
                 RepeatBands("#1!240w$#2!240B", 6)),
         new(
             "Overprint wins last",
-            "a single thin 240x6px band (24 cells wide, well under one cell tall).\n  Red paints first, then DECGCR rewinds and green paints the same pixels,\n  so the band appears entirely green #00FF00: the last write wins",
+            "a single thin 240x6px band (24 cells wide, well under one row tall).\n  Red paints first, then DECGCR rewinds and green paints the same pixels,\n  so the band appears entirely green #00FF00: the last write wins",
             "0;1q\"1;1;240;6#1;2;100;0;0#2;2;0;100;0#1!240~$#2!240~"),
         new(
             "HLS color",
-            "a solid 240x24px block (24 cells wide, ~1 cell tall) in pure blue #0000FF,\n  specified in HLS rather than RGB: hue 0 on the DEC wheel is blue, not red",
+            "a solid 240x24px block (24 cells wide, about one 20px row tall) in pure blue #0000FF,\n  specified in HLS rather than RGB: hue 0 on the DEC wheel is blue, not red",
             "0;0q\"1;1;240;24#3;1;0;50;100#3" +
                 RepeatBands("!240~", 4)),
         new(
@@ -59,12 +59,12 @@ internal static class RawSixelFixtures
             SetupPayload: "0;1q\"1;1;240;6#5;2;100;0;0#5!240~"),
         new(
             "Transparent background",
-            "four red #FF0000 horizontal rules across 240x24px (24 cells wide, ~1 cell tall).\n  The gaps between them are transparent, so whatever is behind shows through",
+            "four red #FF0000 horizontal rules across 240x24px (24 cells wide).\n  The gaps between them are transparent, so whatever is behind shows through",
             "0;1q\"1;1;240;24#1;2;100;0;0#1" +
                 RepeatBands("!240N", 4)),
         new(
             "Opaque background",
-            "a 240x24px block (24 cells wide, ~1 cell tall) with a red #FF0000 top rule.\n  Unlike the transparent screen, P2=0 fills every unpainted pixel with the\n  terminal background, so the rest of the block is solid, not see-through",
+            "a 240x24px block (24 cells wide) with a red #FF0000 top rule.\n  Unlike the transparent screen, P2=0 fills every unpainted pixel with the\n  terminal background, so the rest of the block is solid, not see-through",
             "0;0q\"1;1;240;24#1;2;100;0;0#1!240@"),
         new(
             "DEC default aspect macro",
@@ -80,7 +80,7 @@ internal static class RawSixelFixtures
             "7;1q\"3;1;240;6#1;2;100;0;0#1!240~"),
         new(
             "Declared extent is a hint",
-            "a two-color block: a green #00FF00 stripe down the left 80px (8 cells) and\n  red #FF0000 filling the remaining 160px, 240x60px overall (24 cells wide, 3 tall).\n  The sequence declared only 80x24px, so the image is far larger than declared:\n  the declared extent is a hint, not a limit",
+            "a two-color block: a green #00FF00 stripe down the left 80px (8 cells) and\n  red #FF0000 filling the remaining 160px, 240x60px overall (24 cells wide).\n  The sequence declared only 80x24px, so the image is far larger than declared:\n  the declared extent is a hint, not a limit",
             "7q\"1;1;80;24#1;2;100;0;0#2;2;0;100;0" +
                 RepeatBands("#2!80~#1!160~", 10)),
         new(

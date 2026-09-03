@@ -93,6 +93,10 @@ internal static class DemoScreenRenderer
             }
         }
 
+        // Pixel sizes are exact, but cell counts depend on the host's cell box,
+        // which cannot be probed yet, so say which grid the counts assume.
+        text.Append("\x1b[2K\x1b[2mPixel sizes are exact; cell counts assume a 10x20px cell.\x1b[0m\r\n");
+
         var action = isLast ? "quit" : "next";
         text.Append($"\x1b[{promptRow};1H\x1b[2K\x1b[7m {screen.Number}/{total} \x1b[0m " +
             $"Enter/Space {action}  \u2022  p previous  \u2022  q quit");
