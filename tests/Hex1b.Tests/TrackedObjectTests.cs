@@ -137,7 +137,7 @@ public class TrackedObjectTests
     }
 
     [TestMethod]
-    public async Task TrackedSixel_WhenCellOverwritten_DoesNotPrematurelyReleaseImage()
+    public async Task TrackedSixel_WhenEntireGraphicOverwritten_ReleasesImage()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
@@ -146,15 +146,13 @@ public class TrackedObjectTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
         Assert.AreEqual(1, terminal.TrackedSixelCount);
         
-        // Overwrite the origin cell with text. Under the old per-cell ownership
-        // model this released the tracked Sixel object; under the new
-        // placement-based model, lifetime is reachability-based (screen
-        // placements/history/snapshots), not tied to single-cell presence, so
-        // the image must remain reachable via its still-live placement.
-        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1HXXXXXXXX"));
+        // The default terminal cell metrics make this fixture occupy one cell.
+        // Overwriting that cell destructively removes the visible placement.
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1HX"));
         
-        Assert.AreEqual(1, terminal.TrackedSixelCount);
-        Assert.AreEqual(1, terminal.SixelPlacementCount);
+        Assert.AreEqual(0, terminal.TrackedSixelCount);
+        Assert.AreEqual(0, terminal.SixelPlacementCount);
+        Assert.IsNull(terminal.GetSixelDataAt(0, 0));
     }
 
     [TestMethod]

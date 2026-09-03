@@ -382,25 +382,28 @@ public static class TerminalRegionSvgExtensions
 
         // Sixel graphics: iterate placements directly (not cell attributes) so
         // rendering reflects the independent placement/image lifetime model.
-        // Deduplicate by content hash so shared raster content across
-        // multiple placements is only encoded once.
         if (region is Hex1bTerminalSnapshot snapshot3)
         {
-            var renderedSixelImages = new Dictionary<byte[], string?>(SixelContentHashComparer.Instance);
             foreach (var placement in snapshot3.SixelPlacements.OrderBy(p => p.Sequence))
             {
                 if (!placement.HasPaintedExtent)
                     continue; // Geometry-only placements paint nothing.
 
-                if (!renderedSixelImages.TryGetValue(placement.Image.ContentHash, out var dataUri))
+                var visiblePixels = placement.GetVisiblePixels();
+                if (visiblePixels is not { Width: > 0, Height: > 0 })
+                    continue;
+
+                var rgba = new byte[visiblePixels.Width * visiblePixels.Height * 4];
+                var offset = 0;
+                foreach (var pixel in visiblePixels.AsSpan())
                 {
-                    var decoded = SixelDecoder.Decode(placement.Image);
-                    dataUri = decoded is { Width: > 0, Height: > 0 } ? BmpEncoder.ToDataUri(decoded) : null;
-                    renderedSixelImages[placement.Image.ContentHash] = dataUri;
+                    rgba[offset++] = pixel.R;
+                    rgba[offset++] = pixel.G;
+                    rgba[offset++] = pixel.B;
+                    rgba[offset++] = pixel.A;
                 }
 
-                if (dataUri is null)
-                    continue;
+                var dataUri = BmpEncoder.ToDataUri(new SixelImage(visiblePixels.Width, visiblePixels.Height, rgba));
 
                 var imgX = placement.PaintedLeft * cellWidth;
                 var imgY = placement.PaintedTop * cellHeight;

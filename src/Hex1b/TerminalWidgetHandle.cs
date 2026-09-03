@@ -674,14 +674,14 @@ public sealed class TerminalWidgetHandle :
     private void ApplyTokensToBuffer(IReadOnlyList<AppliedToken> appliedTokens)
     {
         int maxY = -1;
-        var hasKgpChanges = false;
+        var hasGraphicsChanges = false;
         lock (_bufferLock)
         {
             foreach (var applied in appliedTokens)
             {
-                if (applied.Token is KgpToken)
+                if (applied.Token is KgpToken || applied.HasGraphicsImpacts)
                 {
-                    hasKgpChanges = true;
+                    hasGraphicsChanges = true;
                 }
 
                 // Check for mode changes from the child process
@@ -718,9 +718,9 @@ public sealed class TerminalWidgetHandle :
             }
         }
         
-        // KGP state lives in the owning terminal rather than this cell buffer,
-        // but changes still require the bound TerminalNode to render a new frame.
-        if (maxY >= 0 || hasKgpChanges)
+        // Graphics state lives in the owning terminal rather than this cell
+        // buffer, but changes still require the bound TerminalNode to render a new frame.
+        if (maxY >= 0 || hasGraphicsChanges)
         {
             OutputReceived?.Invoke();
         }

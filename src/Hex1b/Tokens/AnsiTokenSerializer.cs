@@ -48,7 +48,10 @@ public static class AnsiTokenSerializer
             DeleteLinesToken dl => dl.Count == 1 ? "\x1b[M" : $"\x1b[{dl.Count}M",
             InsertCharacterToken ich => ich.Count == 1 ? "\x1b[@" : $"\x1b[{ich.Count}@",
             DeleteCharacterToken dch => dch.Count == 1 ? "\x1b[P" : $"\x1b[{dch.Count}P",
+            InsertColumnsToken ic => ic.Count == 1 ? "\x1b['}" : "\x1b[" + ic.Count + "'}",
+            DeleteColumnsToken dc => dc.Count == 1 ? "\x1b['~" : $"\x1b[{dc.Count}'~",
             EraseCharacterToken ech => ech.Count == 1 ? "\x1b[X" : $"\x1b[{ech.Count}X",
+            RectangularEraseToken rect => SerializeRectangularErase(rect),
             RepeatCharacterToken rep => rep.Count == 1 ? "\x1b[b" : $"\x1b[{rep.Count}b",
             IndexToken => "\x1bD",
             SoftResetToken => "\x1b[!p",
@@ -172,6 +175,12 @@ public static class AnsiTokenSerializer
         if (token.Top == 1 && token.Bottom == 0)
             return "\x1b[r";
         return $"\x1b[{token.Top};{token.Bottom}r";
+    }
+
+    private static string SerializeRectangularErase(RectangularEraseToken token)
+    {
+        var final = token.Selective ? '{' : 'z';
+        return $"\x1b[{token.Top};{token.Left};{token.Bottom};{token.Right}${final}";
     }
 
     private static string SerializePrivateMode(PrivateModeToken token)
