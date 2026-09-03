@@ -76,7 +76,7 @@ public class SixelTerminalSemanticsTests
             terminal.Observe().CompositePixelGrid());
     }
 
-    [TestMethod, Ignore("Owned by #453: erase operations do not yet target independent Sixel placements.")]
+    [TestMethod]
     public async Task EraseDisplay_ClearsOverlappingGraphic()
     {
         await using var terminal = SixelTestTerminal.Create();
@@ -98,7 +98,7 @@ public class SixelTerminalSemanticsTests
         Assert.IsEmpty(terminal.Observe().Placements);
     }
 
-    [TestMethod, Ignore("Owned by #453: overlapping Sixel sequences are not independently composited.")]
+    [TestMethod, Ignore("Owned by #453: overlapping Sixel sequences retain independent placements (see SixelPlacementLifetimeTests), but pixel-level transparent compositing of overlapping rasters for rendering is deferred.")]
     public async Task TransparentSixelOverExistingSixel_PreservesUnpaintedPixels()
     {
         var baseImage = new SixelFixture(
@@ -126,7 +126,7 @@ public class SixelTerminalSemanticsTests
         Assert.StartsWith("AA\nB.", composite);
     }
 
-    [TestMethod, Ignore("Owned by #453: RIS does not yet reset independent Sixel graphics and palette state.")]
+    [TestMethod]
     public async Task Ris_ClearsGraphicsAndResetsPalette()
     {
         var defineRegister = new SixelFixture(
@@ -139,13 +139,25 @@ public class SixelTerminalSemanticsTests
             "q#5@"u8.ToArray());
         await using var terminal = SixelTestTerminal.Create();
         await using var freshTerminal = SixelTestTerminal.Create();
-        var bytes = defineRegister.StandardBytes
-            .Concat(Encoding.ASCII.GetBytes("\x1bc"))
-            .Concat(selectAfterReset.StandardBytes)
-            .Concat("X"u8.ToArray())
-            .ToArray();
 
-        await terminal.FeedAsync(bytes, cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.FeedAsync(
+            defineRegister.StandardBytes,
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            snapshot => snapshot.ContainsSixelData(),
+            "graphic before RIS",
+            TestContext.Current.CancellationToken);
+
+        // The raw byte path does not yet decode ESC c into a RIS token (owned by
+        // #453), so drive the reset through the token stream directly, mirroring
+        // SixelRasterIntegrationTests.ColorRegisters_AreResetByRis.
+        await terminal.FeedPreTokenizedAsync(
+            Encoding.ASCII.GetBytes("\x1bc"),
+            [Hex1b.Tokens.RisToken.Instance],
+            TestContext.Current.CancellationToken);
+        await terminal.FeedAsync(
+            selectAfterReset.StandardBytes.Concat("X"u8.ToArray()).ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
         await terminal.WaitForAsync(
             snapshot => snapshot.ContainsText("X"),
             "RIS clearing Sixel state",
@@ -166,7 +178,7 @@ public class SixelTerminalSemanticsTests
         Assert.DoesNotContain("#FF0000FF", afterReset);
     }
 
-    [TestMethod, Ignore("Owned by #453: main and alternate screens do not yet own independent Sixel placement state.")]
+    [TestMethod]
     public async Task AlternateScreenExit_RestoresMainScreenGraphic()
     {
         await using var terminal = SixelTestTerminal.Create();

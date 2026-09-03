@@ -20,7 +20,14 @@ internal sealed record RawCursorScene(
     /// <summary>
     /// Restores every mode a scene may change, so scenes stay independent.
     /// </summary>
-    public const string ResetSequence = "\x1b[?80h\x1b[?8452l\x1b[?69l\x1b[r\x1b[?6l";
+    /// <remarks>
+    /// Exiting the alternate screen (mode 1049) is a no-op when a scene never
+    /// entered it, but is required so a graphics-state scene that
+    /// deliberately leaves the alternate screen active (see
+    /// <see cref="RawGraphicsStateScenes"/>) never leaks into the screen that
+    /// follows it.
+    /// </remarks>
+    public const string ResetSequence = "\x1b[?1049l\x1b[?80h\x1b[?8452l\x1b[?69l\x1b[r\x1b[?6l";
 
     /// <summary>
     /// Gets the scene without its trailing reset, so an inspection can observe the

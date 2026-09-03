@@ -137,7 +137,7 @@ public class TrackedObjectTests
     }
 
     [TestMethod]
-    public async Task TrackedSixel_WhenCellOverwritten_ReleasesReference()
+    public async Task TrackedSixel_WhenCellOverwritten_DoesNotPrematurelyReleaseImage()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
@@ -146,11 +146,15 @@ public class TrackedObjectTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
         Assert.AreEqual(1, terminal.TrackedSixelCount);
         
-        // Overwrite the cell with text
+        // Overwrite the origin cell with text. Under the old per-cell ownership
+        // model this released the tracked Sixel object; under the new
+        // placement-based model, lifetime is reachability-based (screen
+        // placements/history/snapshots), not tied to single-cell presence, so
+        // the image must remain reachable via its still-live placement.
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1HXXXXXXXX"));
         
-        // Sixel data should be released (refcount reached 0)
-        Assert.AreEqual(0, terminal.TrackedSixelCount);
+        Assert.AreEqual(1, terminal.TrackedSixelCount);
+        Assert.AreEqual(1, terminal.SixelPlacementCount);
     }
 
     [TestMethod]
@@ -174,20 +178,19 @@ public class TrackedObjectTests
     }
 
     [TestMethod]
-    public async Task TrackedSixel_RefCount_IncreasesWithDeduplication()
+    public async Task TrackedSixel_Deduplication_SharesOneImageAcrossTwoPlacements()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
-        // Process the same Sixel sequence twice
+        // Process the same Sixel sequence twice at different anchors
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[2;1H")); // Move cursor to next row
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
         
-        var trackedSixel = terminal.GetTrackedSixelAt(0, 0);
-        Assert.IsNotNull(trackedSixel);
-        
-        // RefCount should be 2 (one for each cell)
-        Assert.AreEqual(2, trackedSixel.RefCount);
+        // Two independent placements share the same underlying raster image:
+        // one distinct image, but two live placements referencing it.
+        Assert.AreEqual(1, terminal.TrackedSixelCount);
+        Assert.AreEqual(2, terminal.SixelPlacementCount);
     }
 }

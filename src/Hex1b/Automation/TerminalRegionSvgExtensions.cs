@@ -380,40 +380,33 @@ public static class TerminalRegionSvgExtensions
             }
         }
 
-        // Sixel graphics
-        // Track which sixel payloads we've already rendered to avoid duplicates
-        var renderedSixels = new HashSet<string>();
-        
-        for (int y = 0; y < region.Height; y++)
+        // Sixel graphics: iterate placements directly (not cell attributes) so
+        // rendering reflects the independent placement/image lifetime model.
+        // Deduplicate by content hash so shared raster content across
+        // multiple placements is only encoded once.
+        if (region is Hex1bTerminalSnapshot snapshot3)
         {
-            for (int x = 0; x < region.Width; x++)
+            var renderedSixelImages = new Dictionary<byte[], string?>(SixelContentHashComparer.Instance);
+            foreach (var placement in snapshot3.SixelPlacements.OrderBy(p => p.Sequence))
             {
-                var cell = region.GetCell(x, y);
-                var sixelData = cell.SixelData;
-                
-                // Only render from the origin cell (has IsSixel flag and actual data)
-                if (sixelData == null || !cell.IsSixel)
+                if (!placement.HasPaintedExtent)
+                    continue; // Geometry-only placements paint nothing.
+
+                if (!renderedSixelImages.TryGetValue(placement.Image.ContentHash, out var dataUri))
+                {
+                    var decoded = SixelDecoder.Decode(placement.Image);
+                    dataUri = decoded is { Width: > 0, Height: > 0 } ? BmpEncoder.ToDataUri(decoded) : null;
+                    renderedSixelImages[placement.Image.ContentHash] = dataUri;
+                }
+
+                if (dataUri is null)
                     continue;
-                
-                // Skip if we've already rendered this sixel (deduplication by payload reference)
-                if (!renderedSixels.Add(sixelData.Payload))
-                    continue;
-                
-                // Decode sixel to image
-                var image = SixelDecoder.Decode(sixelData);
-                if (image == null || image.Width == 0 || image.Height == 0)
-                    continue;
-                
-                // Encode to BMP data URI
-                var dataUri = BmpEncoder.ToDataUri(image);
-                
-                // Calculate position and size
-                var imgX = x * cellWidth;
-                var imgY = y * cellHeight;
-                var imgWidth = sixelData.WidthInCells * cellWidth;
-                var imgHeight = sixelData.HeightInCells * cellHeight;
-                
-                // Add image element with pixelated rendering to prevent antialiasing
+
+                var imgX = placement.PaintedLeft * cellWidth;
+                var imgY = placement.PaintedTop * cellHeight;
+                var imgWidth = placement.PaintedColumnCount * cellWidth;
+                var imgHeight = placement.PaintedRowCount * cellHeight;
+
                 sb.AppendLine($"""    <image x="{imgX}" y="{imgY}" width="{imgWidth}" height="{imgHeight}" href="{dataUri}" preserveAspectRatio="none" style="image-rendering: pixelated;"/>""");
             }
         }

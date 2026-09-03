@@ -28,7 +28,7 @@ public class SixelRasterIntegrationTests
             "\x1b[48;2;0;255;0m",
             "\x1bP0;0q#1@\x1b\\");
         await terminal.WaitForAsync(
-            snapshot => snapshot.GetCell(0, 1).SixelData is not null,
+            snapshot => snapshot.GetSixelDataAt(0, 1) is not null,
             "two backgrounds",
             TestContext.Current.CancellationToken);
 
@@ -85,7 +85,7 @@ public class SixelRasterIntegrationTests
             "\x1b[3;1H",
             "\x1bP0;1q#1@\x1b\\");
         await terminal.WaitForAsync(
-            snapshot => snapshot.GetCell(0, 2).SixelData is not null,
+            snapshot => snapshot.GetSixelDataAt(0, 2) is not null,
             "soft reset palette",
             TestContext.Current.CancellationToken);
 
@@ -178,7 +178,7 @@ public class SixelRasterIntegrationTests
         Assert.IsTrue(observation.OccupiedCells.Count > 0);
 
         using var snapshot = terminal.Terminal.CreateSnapshot();
-        var data = snapshot.GetCell(0, 0).SixelData;
+        var data = snapshot.GetSixelDataAt(0, 0);
         Assert.IsNotNull(data);
         Assert.IsNull(data.GetPixels());
         Assert.AreEqual(SixelRasterStatus.GeometryOnly, data.Raster.Status);

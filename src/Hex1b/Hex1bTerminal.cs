@@ -81,6 +81,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private Sixel.SixelCellMetrics? _sixelCellMetricsOverride;
     private readonly TimeProvider _timeProvider;
     private readonly KgpTerminalGraphicsState _kgpGraphicsState = new();
+    private readonly SixelGraphicsState _sixelGraphicsState = new();
+    private long _sixelPlacementSequence;
     private ITimer? _kgpAnimationTimer;
     private int _selectedHistoryCount;
     
@@ -2026,7 +2028,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 for (int x = 0; x < _width; x++)
                 {
-                    screenBuffer[y, x].TrackedSixel?.AddRef();
                     screenBuffer[y, x].TrackedHyperlink?.AddRef();
                 }
             }
@@ -2052,7 +2053,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var retainedCellCount = Math.Min(row.Cells.Length, retainedScrollbackWidth);
                 for (int x = 0; x < retainedCellCount; x++)
                 {
-                    row.Cells[x].TrackedSixel?.AddRef();
                     row.Cells[x].TrackedHyperlink?.AddRef();
                 }
             }
@@ -2065,6 +2065,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _height,
                 Capabilities.CellPixelWidth,
                 Capabilities.CellPixelHeight);
+            var sixel = _sixelGraphicsState.CaptureActiveSnapshot(
+                allScrollbackEntries,
+                selectedScrollbackEntries.Length,
+                _height);
             return new Hex1bTerminalSnapshotState(
                 _width,
                 _height,
@@ -2091,7 +2095,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 screenBuffer,
                 scrollbackRows,
                 kgp.Placements,
-                kgp.Images);
+                kgp.Images,
+                sixel.Placements,
+                sixel.Images);
         }
     }
 
@@ -2127,18 +2133,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             var copy = new TerminalCell[_height, _width];
             Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
-            
-            if (addTrackedObjectRefs)
-            {
-                for (int y = 0; y < _height; y++)
-                {
-                    for (int x = 0; x < _width; x++)
-                    {
-                        copy[y, x].TrackedSixel?.AddRef();
-                    }
-                }
-            }
-            
+
             return copy;
         }
     }
@@ -2444,7 +2439,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             for (int x = 0; x < _width; x++)
             {
-                _screenBuffer[y, x].TrackedSixel?.Release();
                 _screenBuffer[y, x].TrackedHyperlink?.Release();
             }
         }
@@ -2459,7 +2453,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     newBuffer[y, x] = result.ScreenRows[y][x];
                     // AddRef tracked objects in the new buffer
-                    newBuffer[y, x].TrackedSixel?.AddRef();
                     newBuffer[y, x].TrackedHyperlink?.AddRef();
                 }
                 for (int x = result.ScreenRows[y].Length; x < newWidth; x++)
@@ -2541,6 +2534,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 Capabilities.CellPixelHeight);
         }
 
+        // Sixel has no reflow-anchor tracking in this stage (deferred to
+        // #452): always fall back to clipping active placements/screen at
+        // their pre-resize physical coordinates, mirroring the same
+        // non-lineage fallback KGP itself uses above.
+        _sixelGraphicsState.ClipActivePlacementsToViewport(newWidth, newHeight);
+
         if (!_inAlternateScreen)
         {
             _kgpGraphicsState.ClipActiveScreenToViewport(
@@ -2549,6 +2548,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 newHeight,
                 Capabilities.CellPixelWidth,
                 Capabilities.CellPixelHeight);
+            _sixelGraphicsState.ClipActiveScreenToViewport(replacement.Entries, newWidth, newHeight);
         }
     }
 
@@ -2586,7 +2586,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (y < copyHeight && x < copyWidth)
                     continue;
                     
-                _screenBuffer[y, x].TrackedSixel?.Release();
                 _screenBuffer[y, x].TrackedHyperlink?.Release();
             }
         }
@@ -2603,6 +2602,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 newHeight,
                 Capabilities.CellPixelWidth,
                 Capabilities.CellPixelHeight);
+            _sixelGraphicsState.ClipActivePlacementsToViewport(newWidth, newHeight);
         }
         else
         {
@@ -2615,6 +2615,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 newHeight,
                 Capabilities.CellPixelWidth,
                 Capabilities.CellPixelHeight);
+            _sixelGraphicsState.ClipActiveScreenToViewport(historyRows, newWidth, newHeight);
         }
     }
 
@@ -2631,10 +2632,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private void SetCell(int y, int x, TerminalCell newCell, List<CellImpact>? impacts = null)
     {
         ref var oldCell = ref _screenBuffer[y, x];
-        
-        // Release old Sixel data reference
-        oldCell.TrackedSixel?.Release();
-        
+
         // Release old hyperlink data reference
         oldCell.TrackedHyperlink?.Release();
         
@@ -2650,19 +2648,17 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Gets or creates a tracked Sixel object for the given payload.
-    /// The returned object has a reference count that accounts for this request.
+    /// Gets the number of distinct Sixel images currently reachable from the
+    /// active screen's graphics state.
     /// </summary>
-    internal TrackedObject<SixelData> GetOrCreateSixel(string payload, int widthInCells, int heightInCells)
-    {
-        return _trackedObjects.GetOrCreateSixel(payload, widthInCells, heightInCells);
-    }
-
-    /// <summary>
-    /// Gets the number of tracked Sixel objects in the store.
-    /// Useful for testing to verify cleanup behavior.
-    /// </summary>
-    internal int TrackedSixelCount => _trackedObjects.SixelCount;
+    /// <remarks>
+    /// This deliberately counts distinct <em>images</em> (content-hash-deduplicated
+    /// raster resources), matching the historical dedup semantics of the
+    /// old <see cref="TrackedObjectStore"/>-backed counter it replaces. Use
+    /// <see cref="SixelPlacementCount"/> for the number of placements, which
+    /// may exceed the image count when placements share raster content.
+    /// </remarks>
+    internal int TrackedSixelCount => _sixelGraphicsState.ActiveImages.Count;
 
     /// <summary>
     /// Gets the number of tracked hyperlink objects in the store.
@@ -2671,40 +2667,47 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     internal int TrackedHyperlinkCount => _trackedObjects.HyperlinkCount;
 
     /// <summary>
-    /// Gets the Sixel data at the specified cell position, if any.
-    /// Returns null if the cell doesn't contain Sixel data or is a continuation cell.
+    /// Gets the number of live Sixel placements on the active screen.
+    /// </summary>
+    internal int SixelPlacementCount => _sixelGraphicsState.ActivePlacements.Count;
+
+    /// <summary>
+    /// Gets the live Sixel placements on the active screen, for test/inspection use.
+    /// </summary>
+    internal IReadOnlyList<SixelPlacement> SixelPlacements => _sixelGraphicsState.ActivePlacements;
+
+    /// <summary>
+    /// Gets the Sixel image painted at the specified cell position, if any.
+    /// When multiple placements overlap a cell, returns the topmost one (the
+    /// placement with the highest write sequence).
     /// </summary>
     internal SixelData? GetSixelDataAt(int x, int y)
     {
         if (x < 0 || x >= _width || y < 0 || y >= _height)
             return null;
-        return _screenBuffer[y, x].SixelData;
+
+        SixelPlacement? topmost = null;
+        foreach (var placement in _sixelGraphicsState.ActivePlacements)
+        {
+            if (!placement.CoversCell(y, x))
+                continue;
+            if (topmost is null || placement.Sequence > topmost.Sequence)
+                topmost = placement;
+        }
+
+        return topmost?.Image;
     }
 
     /// <summary>
-    /// Gets the tracked Sixel object at the specified cell position, if any.
-    /// Returns null if the cell doesn't contain Sixel data.
-    /// Useful for testing reference count behavior.
-    /// </summary>
-    internal TrackedObject<SixelData>? GetTrackedSixelAt(int x, int y)
-    {
-        if (x < 0 || x >= _width || y < 0 || y >= _height)
-            return null;
-        return _screenBuffer[y, x].TrackedSixel;
-    }
-
-    /// <summary>
-    /// Checks if any cell in the screen buffer contains Sixel data.
+    /// Checks whether the active screen has any Sixel placement that paints
+    /// at least one cell (geometry-only placements do not count).
     /// </summary>
     internal bool ContainsSixelData()
     {
-        for (int y = 0; y < _height; y++)
+        foreach (var placement in _sixelGraphicsState.ActivePlacements)
         {
-            for (int x = 0; x < _width; x++)
-            {
-                if (_screenBuffer[y, x].TrackedSixel is not null)
-                    return true;
-            }
+            if (placement.HasPaintedExtent)
+                return true;
         }
         return false;
     }
@@ -2790,7 +2793,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             for (int x = 0; x < _width; x++)
             {
                 // Release any tracked objects
-                _screenBuffer[y, x].TrackedSixel?.Release();
                 _screenBuffer[y, x].TrackedHyperlink?.Release();
                 _screenBuffer[y, x] = TerminalCell.Empty;
             }
@@ -3322,6 +3324,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 _scrollbackBuffer?.Clear();
                 _kgpGraphicsState.Reset();
+                _sixelGraphicsState.Reset();
                 break;
                 
             case DecalnToken:
@@ -3838,7 +3841,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     ref var leadingCell = ref _screenBuffer[_cursorY, _cursorX - 1];
                     if (leadingCell.Character.Length > 0 && leadingCell.Character != " ")
                     {
-                        leadingCell.TrackedSixel?.Release();
                         leadingCell.TrackedHyperlink?.Release();
                         leadingCell = TerminalCell.Empty;
                     }
@@ -3851,7 +3853,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     if (nextCell.Character == "" && _screenBuffer[_cursorY, _cursorX].Character.Length > 0
                         && DisplayWidth.GetGraphemeWidth(_screenBuffer[_cursorY, _cursorX].Character) > 1)
                     {
-                        nextCell.TrackedSixel?.Release();
                         nextCell.TrackedHyperlink?.Release();
                         nextCell = TerminalCell.Empty;
                     }
@@ -3864,7 +3865,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     : _currentAttributes;
                 var cell = new TerminalCell(
                     grapheme, _currentForeground, _currentBackground, effectiveAttributes,
-                    sequence, writtenAt, TrackedSixel: null, _currentHyperlink,
+                    sequence, writtenAt, _currentHyperlink,
                     _currentUnderlineColor, _currentUnderlineStyle);
                 SetCell(_cursorY, _cursorX, cell, impacts);
                 
@@ -3880,7 +3881,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _currentHyperlink?.AddRef();
                     SetCell(_cursorY, _cursorX + w, new TerminalCell(
                         "", _currentForeground, _currentBackground, _currentAttributes,
-                        sequence, writtenAt, TrackedSixel: null, _currentHyperlink,
+                        sequence, writtenAt, _currentHyperlink,
                         _currentUnderlineColor, _currentUnderlineStyle), impacts);
                 }
                 
@@ -4444,14 +4445,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _kgpGraphicsState.ClearActiveViewport(
                         historyRows,
                         Capabilities.CellPixelHeight);
+                    // Sixel has no relative-placement graph concept, so ED
+                    // (without scrollback) simply clears the active screen's
+                    // live viewport placements and leaves history untouched.
+                    _sixelGraphicsState.ClearActiveScreen(clearHistory: false);
                 }
                 else if (_inAlternateScreen)
                 {
                     _kgpGraphicsState.ClearActiveScreen(clearHistory: true);
+                    _sixelGraphicsState.ClearActiveScreen(clearHistory: true);
                 }
                 else
                 {
                     _kgpGraphicsState.ClearActiveScreen(clearHistory: false);
+                    _sixelGraphicsState.ClearActiveScreen(clearHistory: false);
                     _scrollbackBuffer?.Clear();
                 }
                 break;
@@ -4711,6 +4718,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_inAlternateScreen)
         {
             _kgpGraphicsState.EnterAlternateScreen();
+            _sixelGraphicsState.EnterAlternateScreen();
             if (Capabilities.HandlesAlternateScreenNatively)
                 ClearBufferInternal();
             else
@@ -4731,13 +4739,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             for (int x = 0; x < _width; x++)
             {
                 var cell = _screenBuffer[y, x];
-                cell.TrackedSixel?.AddRef();
                 cell.TrackedHyperlink?.AddRef();
                 _savedMainScreenBuffer[y, x] = cell;
             }
         }
         
         _kgpGraphicsState.EnterAlternateScreen();
+        _sixelGraphicsState.EnterAlternateScreen();
         _inAlternateScreen = true;
         
         // If the presentation handles alternate screen natively, the real terminal
@@ -4764,6 +4772,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
 
         _kgpGraphicsState.ExitAlternateScreen();
+        _sixelGraphicsState.ExitAlternateScreen();
         var historyRows = _scrollbackBuffer is { } scrollback
             ? scrollback.GetEntries(scrollback.Count)
             : [];
@@ -4773,6 +4782,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _height,
             Capabilities.CellPixelWidth,
             Capabilities.CellPixelHeight);
+        _sixelGraphicsState.ClipActiveScreenToViewport(historyRows, _width, _height);
         _inAlternateScreen = false;
     }
 
@@ -4805,7 +4815,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (y < restoreHeight && x < restoreWidth)
                     continue;
 
-                savedBuffer[y, x].TrackedSixel?.Release();
                 savedBuffer[y, x].TrackedHyperlink?.Release();
             }
         }
@@ -4825,7 +4834,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             for (int x = 0; x < savedBuffer.GetLength(1); x++)
             {
-                savedBuffer[y, x].TrackedSixel?.Release();
                 savedBuffer[y, x].TrackedHyperlink?.Release();
             }
         }
@@ -5238,6 +5246,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _scrollBottom,
             leftCol,
             rightCol);
+        var sixelScrollingRegion = new SixelScrollRegion(_scrollTop, _scrollBottom, leftCol, rightCol);
         var createsKgpHistory = !_inAlternateScreen &&
             _scrollbackBuffer is not null &&
             _scrollTop == 0 &&
@@ -5257,12 +5266,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             capturedHistoryRowId = CaptureRowToScrollback(_scrollTop);
             if (_disposed)
                 return false;
-        }
-        
-        // First, release Sixel data from the top row of the region (being scrolled off)
-        for (int x = leftCol; x <= rightCol; x++)
-        {
-            _screenBuffer[_scrollTop, x].TrackedSixel?.Release();
         }
         
         // Shift rows up within the scroll region
@@ -5289,6 +5292,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 capturedHistoryRowId
                     ?? throw new InvalidOperationException(
                         "A history-producing KGP scroll must capture a scrollback row."));
+            _sixelGraphicsState.MoveMainPlacementsIntoHistory(capturedHistoryRowId.Value);
         }
         else
         {
@@ -5297,6 +5301,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 scrollingRectangle,
                 Capabilities.CellPixelWidth,
                 Capabilities.CellPixelHeight);
+            _sixelGraphicsState.AdjustActivePlacementsForScroll(rowDelta: -1, sixelScrollingRegion);
         }
 
         return true;
@@ -5316,12 +5321,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _scrollBottom,
             leftCol,
             rightCol);
-        
-        // First, release Sixel data from the bottom row of the region (being scrolled off)
-        for (int x = leftCol; x <= rightCol; x++)
-        {
-            _screenBuffer[_scrollBottom, x].TrackedSixel?.Release();
-        }
+        var sixelScrollingRegion = new SixelScrollRegion(_scrollTop, _scrollBottom, leftCol, rightCol);
         
         // Shift rows down within the scroll region
         // All affected cells need to be recorded as impacts
@@ -5348,6 +5348,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             scrollingRectangle,
             Capabilities.CellPixelWidth,
             Capabilities.CellPixelHeight);
+        _sixelGraphicsState.AdjustActivePlacementsForScroll(rowDelta: 1, sixelScrollingRegion);
 
         return true;
     }
@@ -5367,9 +5368,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
 
     private void OnScrollbackRowPruned(ScrollbackPrunedRow pruned)
-        => _kgpGraphicsState.PruneMainHistoryRow(
+    {
+        _kgpGraphicsState.PruneMainHistoryRow(
             pruned,
             Capabilities.CellPixelHeight);
+        _sixelGraphicsState.PruneMainHistoryRow(pruned);
+    }
     
     private void InsertLines(int count, List<CellImpact>? impacts = null)
     {
@@ -5394,11 +5398,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         for (int i = 0; i < count; i++)
         {
-            // Release Sixel data from the bottom row of scroll region (being pushed off)
-            for (int x = leftCol; x <= rightCol; x++)
-            {
-                _screenBuffer[bottom, x].TrackedSixel?.Release();
-            }
+            // Release Sixel placements anchored at the bottom row of scroll
+            // region (being pushed off). Ordinary Sixel placements otherwise
+            // stay fixed for IL/DL, matching KGP's policy above; this only
+            // reproduces the prior per-cell model's behavior of releasing a
+            // placement whose anchor row is discarded outright.
+            _sixelGraphicsState.ReleasePlacementsAnchoredAtRow(bottom);
             
             // Shift lines down from cursor position to bottom of scroll region
             for (int y = bottom; y > _cursorY; y--)
@@ -5441,11 +5446,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         for (int i = 0; i < count; i++)
         {
-            // Release Sixel data from the line being deleted
-            for (int x = leftCol; x <= rightCol; x++)
-            {
-                _screenBuffer[_cursorY, x].TrackedSixel?.Release();
-            }
+            // Release Sixel placements anchored at the line being deleted
+            // (see InsertLines for why this differs from KGP's fixed policy).
+            _sixelGraphicsState.ReleasePlacementsAnchoredAtRow(_cursorY);
             
             // Shift lines up from cursor position to bottom of scroll region
             for (int y = _cursorY; y < bottom; y++)
@@ -5766,7 +5769,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _lastPrintedCell.Attributes,
                     sequence, 
                     writtenAt, 
-                    TrackedSixel: null, 
                     TrackedHyperlink: null,
                     _lastPrintedCell.UnderlineColor,
                     _lastPrintedCell.UnderlineStyle);
@@ -5777,7 +5779,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     SetCell(_cursorY, _cursorX + w, new TerminalCell(
                         "", _lastPrintedCell.Foreground, _lastPrintedCell.Background, _lastPrintedCell.Attributes,
-                        sequence, writtenAt, TrackedSixel: null, TrackedHyperlink: null,
+                        sequence, writtenAt, TrackedHyperlink: null,
                         _lastPrintedCell.UnderlineColor, _lastPrintedCell.UnderlineStyle), impacts);
                 }
                 
@@ -6016,21 +6018,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var widthInCells = Math.Max(1, cellMetrics.ColumnsFor(renderedPixelWidth));
         var heightInCells = Math.Max(1, cellMetrics.RowsFor(renderedPixelHeight));
 
-        // Create or reuse a tracked Sixel object. Occupancy recorded on the
-        // placement is the unclipped source geometry; clipping only affects which
-        // cells are painted, never the raster itself.
-        var sixelData = _trackedObjects.GetOrCreateSixel(
-            sixelPayload,
-            widthInCells,
-            heightInCells,
-            parseResult,
-            rasterPreparation,
-            cellMetrics);
-
+        // Create or reuse an anonymous raster resource, and add a placement
+        // anchored at the resolved position that references it. Occupancy
+        // recorded on the placement is the unclipped source geometry;
+        // clipping only affects which cells are painted, never the raster
+        // itself.
         var placement = ResolveSixelPlacement(widthInCells, heightInCells, impacts);
 
-        // Mark cells covered by this Sixel image
-        // The first cell gets the tracked object, others just get the Sixel flag
+        // Mark cells covered by this Sixel image. Painted cells stay blank
+        // glyph cells for text-grid compatibility; the placement (not the
+        // cell) now owns the raster reference.
         var sequence = ++_writeSequence;
         var writtenAt = _timeProvider.GetUtcNow();
 
@@ -6048,32 +6045,32 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             placement.OriginColumn + (long)widthInCells - 1,
             Math.Min(placement.ClipRight, _width - 1));
 
+        _sixelGraphicsState.CreatePlacement(
+            sixelPayload,
+            parseResult,
+            rasterPreparation,
+            cellMetrics,
+            row: placement.OriginRow,
+            column: placement.OriginColumn,
+            widthInCells: widthInCells,
+            heightInCells: heightInCells,
+            paintedRowOffset: (int)(firstRow - placement.OriginRow),
+            paintedRowCount: (int)Math.Max(0, lastRow - firstRow + 1),
+            paintedColumnOffset: (int)(firstColumn - placement.OriginColumn),
+            paintedColumnCount: (int)Math.Max(0, lastColumn - firstColumn + 1),
+            sequence: ++_sixelPlacementSequence,
+            createdAt: writtenAt);
+
         for (var y = firstRow; y <= lastRow; y++)
         {
-            var dy = y - placement.OriginRow;
-
             for (var x = firstColumn; x <= lastColumn; x++)
             {
-                var dx = x - placement.OriginColumn;
-
-                // First cell (origin) holds the tracked object
-                // Other cells just have the Sixel flag set
-                if (dx == 0 && dy == 0)
-                {
-                    SetCell(y, x, new TerminalCell(
-                        " ", _currentForeground, _currentBackground,
-                        _currentAttributes | CellAttributes.Sixel,
-                        sequence, writtenAt, sixelData), impacts);
-                }
-                else
-                {
-                    // Continuation cells - just mark as Sixel, no tracked object
-                    // (The origin cell owns the reference)
-                    SetCell(y, x, new TerminalCell(
-                        "", _currentForeground, _currentBackground,
-                        _currentAttributes | CellAttributes.Sixel,
-                        sequence, writtenAt), impacts);
-                }
+                var isOrigin = x == placement.OriginColumn && y == placement.OriginRow;
+                SetCell(y, x, new TerminalCell(
+                    isOrigin ? " " : "",
+                    _currentForeground, _currentBackground,
+                    _currentAttributes,
+                    sequence, writtenAt), impacts);
             }
         }
 
@@ -6857,6 +6854,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             // History must release its owners before the per-screen image stores reset.
             _scrollbackBuffer?.Clear();
             _kgpGraphicsState.Reset();
+            _sixelGraphicsState.Reset();
             _inAlternateScreen = false;
             return true;
         }

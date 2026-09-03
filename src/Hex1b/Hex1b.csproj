@@ -50,7 +50,13 @@
       and in CI. To deliberately ship a breaking change, comment the element
       out for the spike and let the bot restore it on the next release.
     -->
-    <EnablePackageValidation>true</EnablePackageValidation>
+    <!--
+      Deliberately disabled for this change: removes the public
+      CellAttributes.Sixel / TerminalCell.TrackedSixel per-cell Sixel
+      ownership surface (see issue #451) in favor of independent
+      SixelGraphicsState. The bot will restore this on the next release.
+    -->
+    <!-- <EnablePackageValidation>true</EnablePackageValidation> -->
     <!-- BEGIN: bot-managed baseline -->
     <PackageValidationBaselineVersion>0.165.0</PackageValidationBaselineVersion>
     <!-- END: bot-managed baseline -->
@@ -62,6 +68,7 @@
     <InternalsVisibleTo Include="Hex1b.Tool" />
     <InternalsVisibleTo Include="Hex1b.Tool.Tests" />
     <InternalsVisibleTo Include="hex1bpty" />
+    <InternalsVisibleTo Include="SixelTerminalDemo" />
   </ItemGroup>
 
   <ItemGroup>

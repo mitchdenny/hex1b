@@ -10,7 +10,7 @@ public class SixelScrollingTests
         "scrolling",
         "A two-band image used to inspect viewport and history behavior.");
 
-    [TestMethod, Ignore("Owned by #452: Sixel graphics are cell-owned and cannot project across the scrollback boundary.")]
+    [TestMethod, Ignore("Owned by #452: a placement that spans the scrollback boundary is not yet split into independent screen/history projections (full-fidelity scrolling/reflow).")]
     public async Task FullScreenScroll_PreservesGraphicAcrossVisibleAndHistoryRows()
     {
         await using var terminal = SixelTestTerminal.Create(
@@ -33,7 +33,7 @@ public class SixelScrollingTests
         Assert.IsNotEmpty(visibleOnly.OccupiedRows);
     }
 
-    [TestMethod, Ignore("Owned by #452: resize currently crops cell-owned Sixel references instead of clipping placements.")]
+    [TestMethod]
     public async Task ResizeNarrower_ClipsGraphicWithoutDestroyingSourceState()
     {
         var fixture = new SixelFixture(

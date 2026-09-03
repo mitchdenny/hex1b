@@ -26,4 +26,6 @@ internal sealed record Hex1bTerminalSnapshotState(
     TerminalCell[,] ScreenBuffer,
     ScrollbackRow[] ScrollbackRows,
     IReadOnlyList<KgpPlacement> KgpPlacements,
-    IReadOnlyDictionary<uint, KgpImageData> KgpImages);
+    IReadOnlyDictionary<uint, KgpImageData> KgpImages,
+    IReadOnlyList<SixelPlacement> SixelPlacements,
+    IReadOnlyDictionary<byte[], SixelData> SixelImages);

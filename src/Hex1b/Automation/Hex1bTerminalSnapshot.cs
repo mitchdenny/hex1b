@@ -49,6 +49,8 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         CellPixelHeight = state.CellPixelHeight;
         KgpPlacements = state.KgpPlacements;
         KgpImages = state.KgpImages;
+        SixelPlacements = state.SixelPlacements;
+        SixelImages = state.SixelImages;
 
         var scrollbackRows = state.ScrollbackRows;
         ScrollbackLineCount = scrollbackRows.Length;
@@ -238,6 +240,20 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// </summary>
     public IReadOnlyDictionary<uint, KgpImageData> KgpImages { get; }
 
+    /// <summary>
+    /// Sixel placements visible in this snapshot, including any requested
+    /// scrollback rows. Internal test/inspection surface for stage #451; kept
+    /// internal rather than public until an external consumer need is
+    /// demonstrated (see the api-reviewer skill guidance).
+    /// </summary>
+    internal IReadOnlyList<SixelPlacement> SixelPlacements { get; }
+
+    /// <summary>
+    /// Sixel image data referenced by the visible snapshot placements, keyed
+    /// by content hash.
+    /// </summary>
+    internal IReadOnlyDictionary<byte[], SixelData> SixelImages { get; }
+
     /// <inheritdoc />
     public TerminalCell GetCell(int x, int y)
     {
@@ -247,17 +263,14 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     }
 
     /// <summary>
-    /// Checks if any cell in the snapshot contains Sixel data.
+    /// Checks if any placement in the snapshot paints at least one cell.
     /// </summary>
     public bool ContainsSixelData()
     {
-        for (int y = 0; y < Height; y++)
+        foreach (var placement in SixelPlacements)
         {
-            for (int x = 0; x < Width; x++)
-            {
-                if (_cells[y, x].TrackedSixel is not null)
-                    return true;
-            }
+            if (placement.HasPaintedExtent)
+                return true;
         }
         return false;
     }
@@ -288,7 +301,6 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         {
             for (int x = 0; x < Width; x++)
             {
-                _cells[y, x].TrackedSixel?.Release();
                 _cells[y, x].TrackedHyperlink?.Release();
             }
         }

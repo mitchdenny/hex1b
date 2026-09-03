@@ -863,6 +863,26 @@ public static class TerminalRegionHtmlExtensions
     {
         var rows = new List<string>();
 
+        // Build a per-cell Sixel placement lookup up front (rather than
+        // reading per-cell attributes) so the JSON payload reflects the
+        // independent placement/image model. Only meaningful when exporting
+        // from a snapshot; other region kinds have no Sixel state to inspect.
+        var sixelByCell = new Dictionary<(int X, int Y), SixelPlacement>();
+        if (region is Hex1bTerminalSnapshot snapshot)
+        {
+            foreach (var placement in snapshot.SixelPlacements.OrderBy(p => p.Sequence))
+            {
+                if (!placement.HasPaintedExtent)
+                    continue;
+
+                for (var py = placement.PaintedTop; py <= placement.PaintedBottom; py++)
+                {
+                    for (var px = placement.PaintedLeft; px <= placement.PaintedRight; px++)
+                        sixelByCell[(px, py)] = placement; // later sequence overwrites earlier: topmost wins.
+                }
+            }
+        }
+
         for (int y = 0; y < region.Height; y++)
         {
             var cells = new List<string>();
@@ -894,10 +914,18 @@ public static class TerminalRegionHtmlExtensions
                     ? $"\"{cell.WrittenAt:O}\"" 
                     : "null";
 
-                // Include sixel data if present
-                var sixel = cell.SixelData != null
-                    ? $"{{\"origin\":{(cell.IsSixel ? "true" : "false")},\"w\":{cell.SixelData.WidthInCells},\"h\":{cell.SixelData.HeightInCells}}}"
-                    : "null";
+                // Include sixel placement data if this cell falls within a
+                // placement's painted extent.
+                string sixel;
+                if (sixelByCell.TryGetValue((x, y), out var sixelPlacement))
+                {
+                    var isOrigin = x == sixelPlacement.PaintedLeft && y == sixelPlacement.PaintedTop;
+                    sixel = $"{{\"origin\":{(isOrigin ? "true" : "false")},\"w\":{sixelPlacement.WidthInCells},\"h\":{sixelPlacement.HeightInCells}}}";
+                }
+                else
+                {
+                    sixel = "null";
+                }
 
                 // Include hyperlink data if present (with group ID for highlighting related cells)
                 string hyperlink;
