@@ -70,15 +70,16 @@ static void WriteHeadlessTranscript(int moteCount, int frameMilliseconds, int fr
     var renderer = new SixelCloudRenderer(CellPixelWidth, CellPixelHeight, useRaster);
     var frameSeconds = frameMilliseconds / 1000.0;
 
-    Console.WriteLine("Frame  Bytes  Placements tracked after frame");
+    Console.WriteLine("Frame  Bytes  Placements emitted");
     for (var frame = 1; frame <= frames; frame++)
     {
         cloud.Advance(frameSeconds);
         var bytes = renderer.RenderFrame(cloud, Columns, Rows);
 
-        // A fresh terminal per frame reports the placements a single frame leaves
-        // behind, which is the number a managed presentation would have to carry.
-        var placements = CountPlacements(bytes, Columns, Rows);
+        // Counting the DCS introducers in the emitted bytes keeps the transcript
+        // independent of Hex1b's own parser, matching the rule that this demo's
+        // evidence never round-trips through the code it exercises.
+        var placements = CountPlacements(bytes);
         Console.WriteLine($"{frame,5}  {bytes.Length,5}  {placements,5}");
     }
 
@@ -88,17 +89,19 @@ static void WriteHeadlessTranscript(int moteCount, int frameMilliseconds, int fr
         : "Placement mode: each frame issues ED and then one small cursor-positioned DCS\nper visible mote, so placement counts track the cloud and reset every frame.");
 }
 
-static int CountPlacements(byte[] frameBytes, int columns, int rows)
+/// <summary>
+/// Counts the Sixel placements a frame emits by scanning for DCS introducers.
+/// </summary>
+static int CountPlacements(byte[] frameBytes)
 {
-    using var terminal = Hex1bTerminal.CreateBuilder()
-        .WithWorkload(new ReplayWorkloadAdapter(frameBytes))
-        .WithPresentation(new HeadlessPresentationAdapter(columns, rows))
-        .WithDimensions(columns, rows)
-        .Build();
+    var count = 0;
+    for (var index = 0; index < frameBytes.Length - 1; index++)
+    {
+        if (frameBytes[index] == 0x1b && frameBytes[index + 1] == (byte)'P')
+            count++;
+    }
 
-    terminal.RunAsync().GetAwaiter().GetResult();
-
-    return terminal.CreateSnapshot().SixelPlacements.Count;
+    return count;
 }
 
 static int? ReadIntOption(string[] args, string name)
