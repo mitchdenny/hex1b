@@ -35,6 +35,7 @@ internal sealed class PagedScreenWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
     private int _index;
     private bool _promptPending;
+    private bool _awaitingInput;
     private bool _quit;
 
     /// <param name="screens">The screens to page through, which may be a filtered subset.</param>
@@ -75,6 +76,39 @@ internal sealed class PagedScreenWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
     public async ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
     {
+        // A screen is delivered as two reads: the graphic, then the description and
+        // prompt. The wait for input happens at the START of the read that follows,
+        // so the description and prompt are already flushed to the terminal before
+        // anything blocks. Awaiting before returning them would hold them back until
+        // the key had already been pressed, leaving the screen with no visible prompt.
+        if (_awaitingInput)
+        {
+            _awaitingInput = false;
+
+            DemoNavigation navigation;
+            try
+            {
+                navigation = await _input.Reader.ReadAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return Finish();
+            }
+
+            switch (navigation)
+            {
+                case DemoNavigation.Quit:
+                    _quit = true;
+                    break;
+                case DemoNavigation.Previous:
+                    _index = Math.Max(0, _index - 1);
+                    break;
+                default:
+                    _index++;
+                    break;
+            }
+        }
+
         if (_quit || _index >= _screens.Count)
         {
             return Finish();
@@ -82,46 +116,20 @@ internal sealed class PagedScreenWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
         var screen = _screens[_index];
 
-        // A screen is emitted in two reads: the screen itself, then the prompt.
-        // Splitting them keeps the prompt on screen while the wait happens, so the
-        // viewer always sees why the demo has paused.
         if (!_promptPending)
         {
             _promptPending = true;
             return DemoScreenRenderer.Render(screen, _catalogueTotal);
         }
 
-        var prompt = DemoScreenRenderer.RenderPrompt(
+        _promptPending = false;
+        _awaitingInput = true;
+
+        return DemoScreenRenderer.RenderPrompt(
             screen,
             _catalogueTotal,
             _promptRow,
             isLast: _index == _screens.Count - 1);
-        _promptPending = false;
-
-        DemoNavigation navigation;
-        try
-        {
-            navigation = await _input.Reader.ReadAsync(ct).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            return Finish();
-        }
-
-        switch (navigation)
-        {
-            case DemoNavigation.Quit:
-                _quit = true;
-                break;
-            case DemoNavigation.Previous:
-                _index = Math.Max(0, _index - 1);
-                break;
-            default:
-                _index++;
-                break;
-        }
-
-        return prompt;
     }
 
     public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
