@@ -23,18 +23,35 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     // 1003 reports all motion, not just drags, which is what lets the pointer act as
     // an attractor without requiring a held button. 1006 selects SGR-encoded reports
     // so coordinates past column 223 survive.
-    private const string EnterSequence = "\x1b[?1049h\x1b[?25l\x1b[?1003h\x1b[?1006h";
+    //
+    // CSI 16 t asks for the cell size in pixels and CSI 14 t for the window's text
+    // area in pixels. TerminalCapabilities.CellPixelWidth/Height are documented
+    // defaults (10x20) that nothing probes -- discovering real metrics is deferred to
+    // issue #455 -- so on a HiDPI terminal, where a cell is nearer 16x38 device
+    // pixels, assuming the default paints a raster far smaller than the viewport.
+    // Both queries are sent because terminals answer one or the other.
+    private const string EnterSequence =
+        "\x1b[?1049h\x1b[?25l\x1b[?1003h\x1b[?1006h\x1b[16t\x1b[14t";
+
     private const string ExitSequence = "\x1b[?1006l\x1b[?1003l\x1b[?25h\x1b[?1049l";
 
     private readonly DustCloud _cloud;
-    private readonly SixelCloudRenderer _renderer;
     private readonly TimeSpan _frameInterval;
+    private readonly System.Diagnostics.Stopwatch _frameClock = System.Diagnostics.Stopwatch.StartNew();
+    private TimeSpan _lastFrameStarted;
+
+    // Upper bound on a single simulation step, so a stalled frame cannot teleport
+    // motes across the field in one jump.
+    private const double MaxFrameDeltaSeconds = 0.1;
     private readonly int _moteCount;
-    private readonly int _cellPixelWidth;
-    private readonly int _cellPixelHeight;
     private readonly int? _maxFrames;
     private readonly Lock _gate = new();
     private readonly StringBuilder _inputBuffer = new();
+
+    private SixelCloudRenderer _renderer;
+    private double _cellPixelWidth;
+    private double _cellPixelHeight;
+    private bool _cellSizeMeasured;
 
     private int _columns;
     private int _rows;
@@ -102,13 +119,26 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
         {
             _columns = width;
             _rows = height;
-            _cloud.Reset(
-                width * _cellPixelWidth,
-                height * _cellPixelHeight,
-                _moteCount);
+            RebuildFieldLocked();
         }
 
         return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// Rebuilds the simulation field from the current viewport and cell metrics.
+    /// </summary>
+    private void RebuildFieldLocked()
+    {
+        if (_columns <= 0 || _rows <= 0)
+        {
+            return;
+        }
+
+        _cloud.Reset(
+            (int)Math.Round(_columns * _cellPixelWidth),
+            (int)Math.Round(_rows * _cellPixelHeight),
+            _moteCount);
     }
 
     public async ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken cancellationToken = default)
@@ -124,13 +154,21 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
             return Encoding.ASCII.GetBytes(EnterSequence);
         }
 
-        try
+        // Sleep only for the time left in the budget, not a full interval. Delaying
+        // unconditionally would make the real frame period "interval + render time",
+        // which both lowers the frame rate and makes it wobble with scene cost.
+        var elapsed = _frameClock.Elapsed - _lastFrameStarted;
+        var remaining = _frameInterval - elapsed;
+        if (remaining > TimeSpan.Zero)
         {
-            await Task.Delay(_frameInterval, cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            return Finish();
+            try
+            {
+                await Task.Delay(remaining, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return Finish();
+            }
         }
 
         if (ShouldStop())
@@ -153,7 +191,17 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
             return ReadOnlyMemory<byte>.Empty;
         }
 
-        _cloud.Advance(_frameInterval.TotalSeconds);
+        // Advance by the time that actually passed rather than the nominal interval,
+        // so a late frame still lands the motes where they belong. A dropped frame
+        // then shows as a longer step instead of the whole cloud lurching.
+        var now = _frameClock.Elapsed;
+        var delta = now - _lastFrameStarted;
+        _lastFrameStarted = now;
+
+        // Clamp so a stall (or a debugger pause) cannot teleport the simulation.
+        var deltaSeconds = Math.Clamp(delta.TotalSeconds, 0.001, MaxFrameDeltaSeconds);
+
+        _cloud.Advance(deltaSeconds);
         _framesRendered++;
 
         return _renderer.RenderFrame(_cloud, columns, rows);
@@ -229,6 +277,26 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
                 continue;
             }
 
+            // XTWINOPS geometry replies, answering the CSI 16 t / CSI 14 t queries
+            // sent on entry.
+            if (index + 2 < text.Length && text[index + 1] == '[' && char.IsAsciiDigit(text[index + 2]))
+            {
+                var terminator = FindWindowOpTerminator(text, index + 2);
+                if (terminator == -2)
+                {
+                    // Still arriving; keep it buffered.
+                    break;
+                }
+
+                if (terminator >= 0)
+                {
+                    ApplyWindowOpReportLocked(text.AsSpan(index + 2, terminator - index - 2));
+                    consumedThrough = terminator + 1;
+                    index = terminator + 1;
+                    continue;
+                }
+            }
+
             if (index + 1 >= text.Length)
             {
                 // Could be a bare Escape or the start of a sequence. Waiting one more
@@ -260,6 +328,123 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
         return -1;
     }
+
+    /// <summary>
+    /// Finds the terminator of an XTWINOPS reply body of digits and semicolons.
+    /// </summary>
+    /// <returns>
+    /// The index of the terminating <c>t</c>, <c>-2</c> if the sequence is still
+    /// arriving, or <c>-1</c> if this is some other escape sequence.
+    /// </returns>
+    private static int FindWindowOpTerminator(string text, int start)
+    {
+        for (var index = start; index < text.Length; index++)
+        {
+            var current = text[index];
+            if (current == 't')
+            {
+                return index;
+            }
+
+            if (!char.IsAsciiDigit(current) && current != ';')
+            {
+                // Not a geometry reply; let the normal path consume it.
+                return -1;
+            }
+        }
+
+        return -2;
+    }
+
+    /// <summary>
+    /// Applies an XTWINOPS geometry reply, updating the cell metrics the raster is
+    /// sized against.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A <c>CSI 16 t</c> reply is <c>6;height;width</c> and reports the cell size
+    /// directly. A <c>CSI 14 t</c> reply is <c>4;height;width</c> and reports the text
+    /// area, which is divided by the character grid to derive the cell size.
+    /// </para>
+    /// <para>
+    /// The direct report wins: once a cell size has been measured, a later derived
+    /// value is ignored, because the text area can include padding the character grid
+    /// does not cover.
+    /// </para>
+    /// </remarks>
+    private void ApplyWindowOpReportLocked(ReadOnlySpan<char> body)
+    {
+        var firstSeparator = body.IndexOf(';');
+        if (firstSeparator < 0)
+        {
+            return;
+        }
+
+        if (!int.TryParse(body[..firstSeparator], out var kind))
+        {
+            return;
+        }
+
+        var remainder = body[(firstSeparator + 1)..];
+        var secondSeparator = remainder.IndexOf(';');
+        if (secondSeparator < 0)
+        {
+            return;
+        }
+
+        if (!int.TryParse(remainder[..secondSeparator], out var height)
+            || !int.TryParse(remainder[(secondSeparator + 1)..], out var width)
+            || width <= 0
+            || height <= 0)
+        {
+            return;
+        }
+
+        double cellWidth;
+        double cellHeight;
+
+        switch (kind)
+        {
+            case 6:
+                cellWidth = width;
+                cellHeight = height;
+                break;
+
+            case 4:
+                if (_cellSizeMeasured || _columns <= 0 || _rows <= 0)
+                {
+                    return;
+                }
+
+                cellWidth = (double)width / _columns;
+                cellHeight = (double)height / _rows;
+                break;
+
+            default:
+                return;
+        }
+
+        if (!IsPlausibleCellSize(cellWidth, cellHeight))
+        {
+            return;
+        }
+
+        _cellSizeMeasured = kind == 6;
+        _cellPixelWidth = cellWidth;
+        _cellPixelHeight = cellHeight;
+        _renderer = new SixelCloudRenderer(cellWidth, cellHeight);
+        RebuildFieldLocked();
+    }
+
+    /// <summary>
+    /// Rejects implausible cell metrics so a malformed reply cannot produce a raster
+    /// of absurd size.
+    /// </summary>
+    private static bool IsPlausibleCellSize(double width, double height) =>
+        double.IsFinite(width)
+        && double.IsFinite(height)
+        && width is >= 2 and <= 100
+        && height is >= 2 and <= 200;
 
     private void ApplyMouseReportLocked(ReadOnlySpan<char> body)
     {

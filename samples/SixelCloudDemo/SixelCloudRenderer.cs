@@ -67,10 +67,13 @@ internal sealed class SixelCloudRenderer
     // everywhere in this file.
     private const int SixelBandHeight = 6;
 
-    private readonly int _cellPixelWidth;
-    private readonly int _cellPixelHeight;
+    private readonly double _cellPixelWidth;
+    private readonly double _cellPixelHeight;
 
-    public SixelCloudRenderer(int cellPixelWidth, int cellPixelHeight)
+    private byte[]? _canvas;
+    private StringBuilder? _builder;
+
+    public SixelCloudRenderer(double cellPixelWidth, double cellPixelHeight)
     {
         _cellPixelWidth = cellPixelWidth;
         _cellPixelHeight = cellPixelHeight;
@@ -84,23 +87,46 @@ internal sealed class SixelCloudRenderer
     /// <param name="rows">Terminal height in cells.</param>
     public byte[] RenderFrame(DustCloud cloud, int columns, int rows)
     {
-        var width = columns * _cellPixelWidth;
+        // Cell metrics can be fractional when derived from a text-area report, so the
+        // raster is rounded down to whole pixels. Rounding down rather than up keeps
+        // the image inside the viewport, since overshooting the right edge would clip
+        // or wrap.
+        var width = Math.Max(1, (int)(columns * _cellPixelWidth));
 
         // The raster stops one row short of the bottom. Painting the last row
         // scrolls the viewport under the default Sixel scrolling mode, which would
         // drag the cloud upward a row every frame.
         var usableRows = Math.Max(1, rows - 1);
-        var height = usableRows * _cellPixelHeight;
+        var height = Math.Max(1, (int)(usableRows * _cellPixelHeight));
         var bandCount = (height + SixelBandHeight - 1) / SixelBandHeight;
 
         // One byte per pixel holding "colour index + 1", so 0 means transparent.
-        var canvas = new byte[width * height];
+        // The buffer is reused across frames: at HiDPI metrics this is over ten
+        // megabytes, and reallocating it every frame is pure garbage-collector churn.
+        var pixelCount = width * height;
+        if (_canvas is null || _canvas.Length < pixelCount)
+        {
+            _canvas = new byte[pixelCount];
+        }
+        else
+        {
+            Array.Clear(_canvas, 0, pixelCount);
+        }
+
+        var canvas = _canvas;
         foreach (var mote in cloud.Motes)
         {
             PaintMote(canvas, mote, width, height);
         }
 
-        var builder = new StringBuilder();
+        var builder = _builder ??= new StringBuilder();
+        builder.Clear();
+
+        // Synchronized output (DEC 2026). The frame erases and then repaints, so
+        // without this the terminal is free to present the erased-but-not-yet-painted
+        // state, which reads as a flicker or a slideshow rather than animation.
+        // Terminals that do not implement 2026 ignore it harmlessly.
+        builder.Append("\x1b[?2026h");
 
         // Home the cursor and erase, so each frame replaces the previous one rather
         // than accumulating. ED has to destroy the previous frame's graphics, not
@@ -123,9 +149,10 @@ internal sealed class SixelCloudRenderer
         }
 
         var bandMasks = new int[width];
+        var colorPresent = new bool[SixelCloudPalette.Colors.Count];
         for (var band = 0; band < bandCount; band++)
         {
-            AppendBand(builder, canvas, bandMasks, width, height, band);
+            AppendBand(builder, canvas, bandMasks, colorPresent, width, height, band);
 
             if (band < bandCount - 1)
             {
@@ -134,6 +161,9 @@ internal sealed class SixelCloudRenderer
         }
 
         builder.Append("\x1b\\");
+
+        // End synchronized output; the terminal now presents the completed frame.
+        builder.Append("\x1b[?2026l");
 
         return Encoding.ASCII.GetBytes(builder.ToString());
     }
@@ -171,43 +201,63 @@ internal sealed class SixelCloudRenderer
         StringBuilder builder,
         byte[] canvas,
         int[] bandMasks,
+        bool[] colorPresent,
         int width,
         int height,
         int band)
     {
         var bandTop = band * SixelBandHeight;
+        var bandBottom = Math.Min(bandTop + SixelBandHeight, height);
+
+        // One prepass finds which colours this band actually uses. The cloud is very
+        // sparse, so a band typically holds a handful of colours out of the full
+        // palette; scanning once per palette entry instead would re-read the whole
+        // band twelve times over.
+        Array.Clear(colorPresent);
+        var anyPresent = false;
+
+        for (var y = bandTop; y < bandBottom; y++)
+        {
+            var rowStart = y * width;
+            for (var x = 0; x < width; x++)
+            {
+                var value = canvas[rowStart + x];
+                if (value != 0)
+                {
+                    colorPresent[value - 1] = true;
+                    anyPresent = true;
+                }
+            }
+        }
+
+        if (!anyPresent)
+        {
+            return;
+        }
 
         // One pass per colour present in this band. A single pass cannot mix
         // colours, so each pass rewinds with DECGCR and overprints its own pixels.
-        for (var colorIndex = 0; colorIndex < SixelCloudPalette.Colors.Count; colorIndex++)
+        for (var colorIndex = 0; colorIndex < colorPresent.Length; colorIndex++)
         {
+            if (!colorPresent[colorIndex])
+            {
+                continue;
+            }
+
             var value = (byte)(colorIndex + 1);
-            var present = false;
 
             for (var x = 0; x < width; x++)
             {
                 var mask = 0;
-                for (var bit = 0; bit < SixelBandHeight; bit++)
+                for (var y = bandTop; y < bandBottom; y++)
                 {
-                    var y = bandTop + bit;
-                    if (y >= height)
-                    {
-                        break;
-                    }
-
                     if (canvas[(y * width) + x] == value)
                     {
-                        mask |= 1 << bit;
+                        mask |= 1 << (y - bandTop);
                     }
                 }
 
                 bandMasks[x] = mask;
-                present |= mask != 0;
-            }
-
-            if (!present)
-            {
-                continue;
             }
 
             builder.Append('#').Append(SixelCloudPalette.RegisterFor(colorIndex));

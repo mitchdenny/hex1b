@@ -9,7 +9,7 @@ using Hex1b;
 // code the demo is meant to exercise.
 
 var moteCount = ReadIntOption(args, "--motes") ?? 260;
-var frameMilliseconds = ReadIntOption(args, "--frame-ms") ?? 50;
+var frameMilliseconds = ReadIntOption(args, "--frame-ms") ?? 33;
 var maxFrames = ReadIntOption(args, "--frames");
 var seed = ReadIntOption(args, "--seed") ?? 20260218;
 var headless = args.Contains("--headless");
