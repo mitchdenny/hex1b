@@ -377,10 +377,13 @@ dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
 
 The terminal-first demo sends independently authored raw Sixel bytes through
 `Hex1bTerminal`. It does not use `SixelWidget` or `SixelEncoder`.
-`samples/SixelTerminalDemo/RawSixelFixtures.cs` includes scenes demonstrating
-#451's independent placement ownership: two placements sharing identical raster
-content, overlapping placements that both survive, main/alternate screen
-isolation, and geometry-only placement retention.
+`samples/SixelTerminalDemo/RawGraphicsStateScenes.cs` includes scenes
+demonstrating #451's independent placement ownership: two placements sharing
+identical raster content, overlapping placements that both survive,
+main/alternate screen isolation, and geometry-only placement retention. The
+shared-raster scene separates its two placements by row because native Sixel
+renderers do not all preserve multiple same-row graphics consistently; the
+overlap scene covers same-row ordering as a deliberate, separate contract.
 
 The demo presents one subject per screen. Each screen clears the display, resets
 margins, origin mode, and DECSDM so it cannot inherit state from the screen

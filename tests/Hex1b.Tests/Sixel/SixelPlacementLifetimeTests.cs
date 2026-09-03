@@ -71,6 +71,7 @@ public class SixelPlacementLifetimeTests
 
         var placements = terminal.Terminal.SixelPlacements;
         Assert.AreSame(placements[0].Image, placements[1].Image);
+        Assert.AreNotEqual(placements[0].Row, placements[1].Row);
     }
 
     [TestMethod]

@@ -70,8 +70,8 @@ internal static class RawGraphicsStateScenes
     [
         new(
             "Graphics state: two placements share one raster image",
-            "two identical red #FF0000 squares (40x40px = 4x2 cells) at different\n  positions on screen. They are two independent placements backed by one\n  shared raster image (identical payload bytes deduplicate by content hash):\n  1 image, 2 placements",
-            Cup(2, 2) + Dcs(RedSquare40) + Cup(2, 30) + Dcs(RedSquare40)),
+            "two identical red #FF0000 squares (40x40px = 4x2 cells) at different\n  rows on screen. They are two independent placements backed by one shared\n  raster image (identical payload bytes deduplicate by content hash):\n  1 image, 2 placements. They are vertically separated because some native\n  Sixel renderers collapse or obscure multiple graphics that begin on the\n  same terminal row",
+            Cup(2, 2) + Dcs(RedSquare40) + Cup(8, 2) + Dcs(RedSquare40)),
         new(
             "Graphics state: overlapping placements are both retained",
             "a red #FF0000 square at column 2 and a green #00FF00 square at column 5,\n  overlapping by one cell. The overlap cell shows green (the later write wins\n  the query), but the red placement is not erased: it is still fully retained\n  and still resolves correctly outside the overlap",
