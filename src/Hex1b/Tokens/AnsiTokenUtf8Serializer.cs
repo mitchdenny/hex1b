@@ -238,6 +238,12 @@ public static class AnsiTokenUtf8Serializer
                 WriteByte(writer, (byte)'M');
                 return;
 
+            case SoftResetToken:
+                WriteEscLeftBracket(writer);
+                WriteByte(writer, (byte)'!');
+                WriteByte(writer, (byte)'p');
+                return;
+
             case CharacterSetToken cs:
                 WriteByte(writer, 0x1b);
                 WriteByte(writer, (byte)(cs.Target == 0 ? '(' : ')'));

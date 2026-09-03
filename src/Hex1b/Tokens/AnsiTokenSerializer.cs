@@ -51,6 +51,7 @@ public static class AnsiTokenSerializer
             EraseCharacterToken ech => ech.Count == 1 ? "\x1b[X" : $"\x1b[{ech.Count}X",
             RepeatCharacterToken rep => rep.Count == 1 ? "\x1b[b" : $"\x1b[{rep.Count}b",
             IndexToken => "\x1bD",
+            SoftResetToken => "\x1b[!p",
             ReverseIndexToken => "\x1bM",
             CharacterSetToken cs => $"\x1b{(cs.Target == 0 ? '(' : ')')}{cs.Charset}",
             KeypadModeToken kp => kp.Application ? "\x1b=" : "\x1b>",

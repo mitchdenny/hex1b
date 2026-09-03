@@ -28,6 +28,28 @@ internal enum SixelPaletteScope
 }
 
 /// <summary>
+/// Identifies how DECSDM (private mode 80) set/reset maps onto Sixel scrolling.
+/// </summary>
+/// <remarks>
+/// The VT340 manual and hardware tests make <c>CSI ? 80 h</c> enable Sixel
+/// scrolling. Current xterm documentation and implementation interpret the same
+/// mode in the opposite direction. Hex1b selects the DEC interpretation and keeps
+/// the inversion here rather than in a terminal-name check.
+/// </remarks>
+internal enum SixelDecsdmPolarity
+{
+    /// <summary>
+    /// <c>CSI ? 80 h</c> enables Sixel scrolling; <c>CSI ? 80 l</c> disables it.
+    /// </summary>
+    Dec,
+
+    /// <summary>
+    /// <c>CSI ? 80 h</c> disables Sixel scrolling; <c>CSI ? 80 l</c> enables it.
+    /// </summary>
+    Xterm,
+}
+
+/// <summary>
 /// Centralized, reviewable Sixel compatibility and resource policy.
 /// </summary>
 /// <remarks>
@@ -62,6 +84,38 @@ internal sealed record SixelCompatibilityPolicy
     /// Gets the palette lifetime scope.
     /// </summary>
     public SixelPaletteScope PaletteScope { get; init; } = SixelPaletteScope.TerminalPersistent;
+
+    /// <summary>
+    /// Gets the DECSDM (private mode 80) polarity.
+    /// </summary>
+    public SixelDecsdmPolarity DecsdmPolarity { get; init; } = SixelDecsdmPolarity.Dec;
+
+    /// <summary>
+    /// Gets the Sixel scrolling state a reset restores.
+    /// </summary>
+    /// <remarks>
+    /// DEC VT340 hardware reports and the manual identify scrolling as the normal
+    /// behavior, so RIS and DECSTR restore it.
+    /// </remarks>
+    public bool DefaultSixelScrolling { get; init; } = true;
+
+    /// <summary>
+    /// Gets the xterm private mode 8452 state a reset restores.
+    /// </summary>
+    /// <remarks>
+    /// The reset (default) behavior leaves the text cursor at its original column
+    /// below the graphic. Setting the mode leaves it to the right of the graphic,
+    /// which is confirmed only in xterm and RLogin.
+    /// </remarks>
+    public bool DefaultSixelCursorToRight { get; init; }
+
+    /// <summary>
+    /// Maps a DECSDM set/reset request onto the Sixel scrolling state.
+    /// </summary>
+    /// <param name="decsdmEnabled"><see langword="true"/> for <c>CSI ? 80 h</c>.</param>
+    /// <returns><see langword="true"/> when Sixel scrolling should be enabled.</returns>
+    public bool ResolveSixelScrolling(bool decsdmEnabled) =>
+        DecsdmPolarity == SixelDecsdmPolarity.Xterm ? !decsdmEnabled : decsdmEnabled;
 
     /// <summary>
     /// Gets the maximum number of logical pixels a single graphic may materialize.

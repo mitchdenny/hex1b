@@ -9,7 +9,7 @@ public class SixelTerminalSemanticsTests
         "single-band",
         "One-band cursor and lifecycle probe.");
 
-    [TestMethod, Ignore("Owned by #450: DECSDM and xterm mode 8452 are not modeled yet.")]
+    [TestMethod]
     public async Task DecsdmEnabled_SequenceEndsWithCursorBelowGraphic()
     {
         await using var terminal = SixelTestTerminal.Create();
@@ -24,11 +24,20 @@ public class SixelTerminalSemanticsTests
             TestContext.Current.CancellationToken);
 
         var observation = terminal.Observe();
+        var placement = TestSeq.Single(observation.Placements);
+
+        // The fixture omits P1, so the default 2:1 aspect renders one six-pixel
+        // band as twelve device pixels — two rows at the harness's six-pixel cells.
+        Assert.AreEqual(2, placement.OriginRow);
+        Assert.AreEqual(2, placement.HeightInCells);
+
+        // Mode 8452 is reset, so the cursor returns to the column the sequence
+        // started in, one row below the last row the graphic occupies.
         Assert.AreEqual(3, observation.CursorX);
-        Assert.AreEqual(3, observation.CursorY);
+        Assert.AreEqual(placement.OriginRow + placement.HeightInCells, observation.CursorY);
     }
 
-    [TestMethod, Ignore("Owned by #450: Sixel placement does not yet honor horizontal margins and origin mode.")]
+    [TestMethod]
     public async Task OriginMode_WithMargins_AnchorsGraphicAtMarginRelativeCursor()
     {
         await using var terminal = SixelTestTerminal.Create(width: 12, height: 8);

@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using Hex1b.Automation;
 using Hex1b.Diagnostics;
 using Hex1b.Reflow;
+using Hex1b.Sixel;
 using Hex1b.Surfaces;
 using Hex1b.Tokens;
 
@@ -27,7 +28,8 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         Hex1bMetrics? metrics,
         IHex1bTerminalWorkloadFilter? workloadFilter,
         IHex1bTerminalPresentationFilter? presentationFilter,
-        bool impactAware)
+        bool impactAware,
+        SixelCellMetrics? cellMetrics)
     {
         var capabilities = new TerminalCapabilities
         {
@@ -61,6 +63,14 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         }
 
         Terminal = new Hex1bTerminal(options);
+
+        // Real presentation probing is owned by #455; tests inject protocol cell
+        // metrics directly through the same seam an adapter would use.
+        if (cellMetrics is { } injected)
+        {
+            Terminal.SetSixelCellMetrics(injected);
+        }
+
         _runTask = Terminal.RunAsync(_runCancellation.Token);
     }
 
@@ -79,7 +89,8 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         Hex1bMetrics? metrics = null,
         IHex1bTerminalWorkloadFilter? workloadFilter = null,
         IHex1bTerminalPresentationFilter? presentationFilter = null,
-        bool impactAware = false)
+        bool impactAware = false,
+        SixelCellMetrics? cellMetrics = null)
         => new(
             width,
             height,
@@ -91,7 +102,8 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
             metrics,
             workloadFilter,
             presentationFilter,
-            impactAware);
+            impactAware,
+            cellMetrics);
 
     public async Task FeedAsync(
         ReadOnlyMemory<byte> bytes,
@@ -189,7 +201,8 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
                     pixels?.Width ?? 0,
                     pixels?.Height ?? 0,
                     pixels is null ? "" : SixelPixelGrid.Format(pixels),
-                    pixels));
+                    pixels,
+                    sixel.CellMetrics));
             }
         }
 
@@ -568,7 +581,8 @@ internal sealed record SixelPlacementObservation(
     int PixelWidth,
     int PixelHeight,
     string PixelGrid,
-    SixelPixelBuffer? Pixels);
+    SixelPixelBuffer? Pixels,
+    SixelCellMetrics CellMetrics);
 
 internal sealed record SixelOccupiedRow(int Row, bool InScrollback);
 

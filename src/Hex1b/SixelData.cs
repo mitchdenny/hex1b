@@ -106,7 +106,8 @@ public sealed class SixelData
         int pixelHeight,
         SixelParseResult? parseResult = null,
         SixelRasterResult? raster = null,
-        SixelRasterPreparation? rasterPreparation = null)
+        SixelRasterPreparation? rasterPreparation = null,
+        SixelCellMetrics? cellMetrics = null)
     {
         Payload = payload;
         WidthInCells = widthInCells;
@@ -117,7 +118,17 @@ public sealed class SixelData
         ParseResult = parseResult ?? SixelParser.ParsePayload(payload);
         _raster = raster;
         _rasterPreparation = rasterPreparation;
+        CellMetrics = cellMetrics ?? SixelCellMetrics.Unknown;
     }
+
+    /// <summary>
+    /// Gets the protocol cell metrics captured when this placement was created.
+    /// </summary>
+    /// <remarks>
+    /// Metrics are captured once so a later metric change cannot retroactively
+    /// alter the occupancy already recorded for this placement.
+    /// </remarks>
+    internal SixelCellMetrics CellMetrics { get; }
 
     /// <summary>
     /// Gets the cell span for this sixel using the specified cell metrics.
