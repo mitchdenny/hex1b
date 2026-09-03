@@ -173,37 +173,45 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         var placements = new List<SixelPlacementObservation>();
         var occupiedRows = new HashSet<SixelOccupiedRow>();
         var occupiedCells = new HashSet<SixelOccupiedCell>();
-        for (var y = 0; y < snapshot.Height; y++)
-        {
-            for (var x = 0; x < snapshot.Width; x++)
-            {
-                var cell = snapshot.GetCell(x, y);
-                if (cell.IsSixel)
-                {
-                    occupiedRows.Add(new SixelOccupiedRow(y, y < snapshot.ScrollbackLineCount));
-                    occupiedCells.Add(new SixelOccupiedCell(
-                        x,
-                        y,
-                        y < snapshot.ScrollbackLineCount));
-                }
 
-                var sixel = cell.SixelData;
-                if (sixel is null)
+        // Sixel placements are now independent state, not per-cell ownership,
+        // so occupancy/placement observation walks the snapshot's placements
+        // directly rather than scanning cells for a Sixel flag/reference.
+        foreach (var placement in snapshot.SixelPlacements)
+        {
+            if (!placement.HasPaintedExtent)
+                continue;
+
+            for (var y = placement.PaintedTop; y <= placement.PaintedBottom; y++)
+            {
+                if (y < 0 || y >= snapshot.Height)
                     continue;
 
-                var pixels = sixel.GetPixels();
-                placements.Add(new SixelPlacementObservation(
-                    x,
-                    y,
-                    sixel.WidthInCells,
-                    sixel.HeightInCells,
-                    sixel.Payload,
-                    pixels?.Width ?? 0,
-                    pixels?.Height ?? 0,
-                    pixels is null ? "" : SixelPixelGrid.Format(pixels),
-                    pixels,
-                    sixel.CellMetrics));
+                var inScrollback = y < snapshot.ScrollbackLineCount;
+                occupiedRows.Add(new SixelOccupiedRow(y, inScrollback));
+
+                for (var x = placement.PaintedLeft; x <= placement.PaintedRight; x++)
+                {
+                    if (x < 0 || x >= snapshot.Width)
+                        continue;
+
+                    occupiedCells.Add(new SixelOccupiedCell(x, y, inScrollback));
+                }
             }
+
+            var sixel = placement.Image;
+            var pixels = sixel.GetPixels();
+            placements.Add(new SixelPlacementObservation(
+                placement.PaintedLeft,
+                placement.PaintedTop,
+                sixel.WidthInCells,
+                sixel.HeightInCells,
+                sixel.Payload,
+                pixels?.Width ?? 0,
+                pixels?.Height ?? 0,
+                pixels is null ? "" : SixelPixelGrid.Format(pixels),
+                pixels,
+                sixel.CellMetrics));
         }
 
         return new SixelTerminalObservation(
@@ -225,14 +233,11 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
     public string CreateSvgEvidence()
     {
         using var snapshot = Terminal.CreateSnapshot(scrollbackLines: Terminal.ScrollbackCount);
-        for (var y = 0; y < snapshot.Height; y++)
+        foreach (var placement in snapshot.SixelPlacements)
         {
-            for (var x = 0; x < snapshot.Width; x++)
-            {
-                var pixels = snapshot.GetCell(x, y).SixelData?.GetPixels();
-                if (pixels is not null)
-                    return SixelPixelGrid.ToSvg(pixels);
-            }
+            var pixels = placement.Image.GetPixels();
+            if (pixels is not null)
+                return SixelPixelGrid.ToSvg(pixels);
         }
 
         throw new InvalidOperationException("No decoded Sixel raster is available for SVG evidence.");
@@ -493,6 +498,30 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
                 appliedTokens.Select(applied => applied.Token));
             return WriteOutputAsync(bytes, ct);
         }
+    }
+}
+
+/// <summary>
+/// Test-only convenience for querying which Sixel image (if any) paints a
+/// specific cell in a snapshot. Sixel graphics are independent placement
+/// state now (stage #451), not per-cell ownership, so this is a small
+/// "topmost placement covering this cell" search rather than a direct cell
+/// property lookup.
+/// </summary>
+internal static class SixelSnapshotExtensions
+{
+    public static SixelData? GetSixelDataAt(this Hex1bTerminalSnapshot snapshot, int x, int y)
+    {
+        SixelPlacement? topmost = null;
+        foreach (var placement in snapshot.SixelPlacements)
+        {
+            if (!placement.CoversCell(y, x))
+                continue;
+            if (topmost is null || placement.Sequence > topmost.Sequence)
+                topmost = placement;
+        }
+
+        return topmost?.Image;
     }
 }
 

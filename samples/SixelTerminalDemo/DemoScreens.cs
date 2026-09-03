@@ -11,12 +11,15 @@ internal static class DemoScreens
 {
     /// <summary>
     /// Builds every screen: the grammar and geometry fixtures first, then the
-    /// cursor, DECSDM, and margin scenes, then the transport scenes.
+    /// cursor, DECSDM, and margin scenes, then the graphics-state ownership
+    /// scenes, then the transport scenes.
     /// </summary>
     public static IReadOnlyList<DemoScreen> Build(
         IReadOnlyList<RawSixelFixture> fixtures,
         IReadOnlyList<string> modelDescriptions,
         IReadOnlyList<RawCursorScene> cursorScenes,
+        IReadOnlyList<RawGraphicsStateScene> graphicsStateScenes,
+        IReadOnlyList<string> graphicsStateObservations,
         bool includeTransportScenes)
     {
         var screens = new List<DemoScreen>();
@@ -51,6 +54,17 @@ internal static class DemoScreens
                 scene.Name,
                 scene.Expected,
                 scene.Bytes));
+        }
+
+        for (var index = 0; index < graphicsStateScenes.Count; index++)
+        {
+            var scene = graphicsStateScenes[index];
+            screens.Add(new DemoScreen(
+                number++,
+                scene.Name,
+                scene.Expected,
+                scene.Bytes,
+                Notes: [graphicsStateObservations[index]]));
         }
 
         if (!includeTransportScenes)

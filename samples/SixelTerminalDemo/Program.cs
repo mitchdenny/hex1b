@@ -19,7 +19,12 @@ var cursorScenes = sceneFilter is null
     : RawCursorScenes.All
         .Where(scene => scene.Name.Contains(sceneFilter, StringComparison.OrdinalIgnoreCase))
         .ToArray();
-if (fixtures.Count == 0 && cursorScenes.Count == 0)
+var graphicsStateScenes = sceneFilter is null
+    ? RawGraphicsStateScenes.All
+    : RawGraphicsStateScenes.All
+        .Where(scene => scene.Name.Contains(sceneFilter, StringComparison.OrdinalIgnoreCase))
+        .ToArray();
+if (fixtures.Count == 0 && cursorScenes.Count == 0 && graphicsStateScenes.Count == 0)
 {
     throw new ArgumentException($"No Sixel demo scene contains '{sceneFilter}'.", nameof(args));
 }
@@ -44,10 +49,18 @@ for (var index = 0; index < cursorScenes.Count; index++)
     cursorObservations[index] = await InspectCursorSceneAsync(cursorScenes[index]);
 }
 
+var graphicsStateObservations = new string[graphicsStateScenes.Count];
+for (var index = 0; index < graphicsStateScenes.Count; index++)
+{
+    graphicsStateObservations[index] = await InspectGraphicsStateSceneAsync(graphicsStateScenes[index]);
+}
+
 var allScreens = DemoScreens.Build(
     fixtures,
     modelDescriptions,
     cursorScenes,
+    graphicsStateScenes,
+    graphicsStateObservations,
     includeTransportScenes: sceneFilter is null);
 
 // --screen selects one numbered screen. The number keeps its original value so a
@@ -77,7 +90,9 @@ if (headless)
         fixtures,
         modelDescriptions,
         cursorScenes,
-        cursorObservations);
+        cursorObservations,
+        graphicsStateScenes,
+        graphicsStateObservations);
     return;
 }
 
@@ -101,7 +116,9 @@ static void WriteHeadlessTranscript(
     IReadOnlyList<RawSixelFixture> fixtures,
     IReadOnlyList<string> modelDescriptions,
     IReadOnlyList<RawCursorScene> cursorScenes,
-    IReadOnlyList<string> cursorObservations)
+    IReadOnlyList<string> cursorObservations,
+    IReadOnlyList<RawGraphicsStateScene> graphicsStateScenes,
+    IReadOnlyList<string> graphicsStateObservations)
 {
     Console.WriteLine($"Hex1b Sixel demo: {allScreens.Count} numbered screens.");
     Console.WriteLine("Run without --headless to page through them; --screen <number> opens one.");
@@ -126,6 +143,13 @@ static void WriteHeadlessTranscript(
     for (var index = 0; index < cursorScenes.Count; index++)
     {
         Console.WriteLine($"  {cursorScenes[index].Name}: {cursorObservations[index]}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("Independent graphics-state ownership observations (#451):");
+    for (var index = 0; index < graphicsStateScenes.Count; index++)
+    {
+        Console.WriteLine($"  {graphicsStateScenes[index].Name}: {graphicsStateObservations[index]}");
     }
 }
 
@@ -167,21 +191,18 @@ static async Task<string> InspectCursorSceneAsync(RawCursorScene scene)
     var origins = new List<string>();
     var occupiedColumns = new SortedSet<int>();
     var occupiedRows = new SortedSet<int>();
-    for (var y = 0; y < snapshot.Height; y++)
+    foreach (var placement in snapshot.SixelPlacements)
     {
-        for (var x = 0; x < snapshot.Width; x++)
-        {
-            var cell = snapshot.GetCell(x, y);
-            if (!cell.IsSixel)
-                continue;
+        if (!placement.HasPaintedExtent)
+            continue;
 
-            occupiedColumns.Add(x);
+        for (var y = placement.PaintedTop; y <= placement.PaintedBottom; y++)
             occupiedRows.Add(y);
-            if (cell.SixelData is { } sixel)
-            {
-                origins.Add($"({x},{y}) {sixel.WidthInCells}x{sixel.HeightInCells} cells");
-            }
-        }
+        for (var x = placement.PaintedLeft; x <= placement.PaintedRight; x++)
+            occupiedColumns.Add(x);
+
+        origins.Add(
+            $"({placement.Column},{placement.Row}) {placement.Image.WidthInCells}x{placement.Image.HeightInCells} cells");
     }
 
     builder.Append(origins.Count == 0 ? "no placement" : string.Join("; ", origins));
@@ -193,6 +214,64 @@ static async Task<string> InspectCursorSceneAsync(RawCursorScene scene)
 
     builder.Append($", cursor ({snapshot.CursorX}, {snapshot.CursorY})");
     return builder.ToString();
+}
+
+static async Task<string> InspectGraphicsStateSceneAsync(RawGraphicsStateScene scene)
+{
+    var capabilities = new TerminalCapabilities
+    {
+        SupportsSixel = true,
+        SupportsTrueColor = true,
+        Supports256Colors = true,
+        CellPixelWidth = 10,
+        CellPixelHeight = 20,
+    };
+    var workload = new DemoWorkloadAdapter([scene.Bytes]);
+    await using var terminal = Hex1bTerminal.CreateBuilder()
+        .WithWorkload(workload)
+        .WithPresentation(new HeadlessPresentationAdapter(80, 24, capabilities))
+        .WithDimensions(80, 24)
+        .Build();
+    await terminal.RunAsync();
+
+    var builder = new StringBuilder();
+    builder.Append($"{terminal.SixelPlacementCount} placement(s) on the active screen, ");
+    builder.Append($"{terminal.TrackedSixelCount} distinct image(s)");
+
+    foreach (var placement in terminal.SixelPlacements)
+    {
+        builder.Append($"; ({placement.Column},{placement.Row}) {placement.WidthInCells}x{placement.HeightInCells} cells");
+        builder.Append(placement.IsGeometryOnly
+            ? " geometry-only"
+            : $" {DescribeSixelColor(placement.Image)}");
+    }
+
+    if (scene.Probes is { Count: > 0 } probes)
+    {
+        foreach (var probe in probes)
+        {
+            var resolved = terminal.GetSixelDataAt(probe.Column, probe.Row);
+            var description = resolved is null ? "no placement" : DescribeSixelColor(resolved);
+            builder.Append($"; probe ({probe.Column},{probe.Row}) [{probe.Label}] -> {description}");
+        }
+    }
+
+    return builder.ToString();
+}
+
+static string DescribeSixelColor(SixelData image)
+{
+    // Registers are defined with a fixed color per demo scene (see
+    // RawGraphicsStateScenes), so the payload text itself identifies which
+    // scripted square/band produced a given image without needing to decode
+    // the raster.
+    if (image.Payload.Contains("100;0;0"))
+        return "red";
+    if (image.Payload.Contains("0;100;0"))
+        return "green";
+    if (image.Payload.Contains("240;50;100"))
+        return "blue";
+    return "unrecognized color";
 }
 
 static async Task<string> InspectModelAsync(RawSixelFixture fixture)
@@ -223,16 +302,12 @@ static async Task<string> InspectModelAsync(RawSixelFixture fixture)
 
     using var snapshot = terminal.CreateSnapshot();
     SixelData? inspected = null;
-    for (var y = 0; y < snapshot.Height && inspected is null; y++)
+    foreach (var placement in snapshot.SixelPlacements)
     {
-        for (var x = 0; x < snapshot.Width; x++)
+        if (placement.Image.Payload == fixture.Payload)
         {
-            var sixel = snapshot.GetCell(x, y).SixelData;
-            if (sixel is not null && sixel.Payload == fixture.Payload)
-            {
-                inspected = sixel;
-                break;
-            }
+            inspected = placement.Image;
+            break;
         }
     }
 

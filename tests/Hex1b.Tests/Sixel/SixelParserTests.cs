@@ -276,7 +276,7 @@ public class SixelParserTests
             .ToArray();
         await terminal.FeedAsync(bytes, cancellationToken: TestContext.Current.CancellationToken);
         await terminal.WaitForAsync(
-            snapshot => snapshot.GetCell(0, 1).SixelData is not null,
+            snapshot => snapshot.GetSixelDataAt(0, 1) is not null,
             "persistent palette register",
             TestContext.Current.CancellationToken);
 

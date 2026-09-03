@@ -2,6 +2,7 @@
 
 > **Status**: Evolving contract for [#445](https://github.com/mitchdenny/hex1b/issues/445)
 > **First executable stage**: [#448](https://github.com/mitchdenny/hex1b/issues/448)
+> **Independent graphics state**: [#451](https://github.com/mitchdenny/hex1b/issues/451)
 > **Baseline**: DEC VT340
 
 ## Purpose
@@ -28,7 +29,7 @@ Ignored tests name the later issue that owns the missing behavior.
 | Native presentation | Forward bytes immediately and exactly | A capable terminal must receive the application's original sequence |
 | Parsing | Recognize Sixel only when the DCS final byte is `q` | Other DCS protocols must remain independently dispatchable |
 | Palette | Shared registers persist between images | Matches DEC and the prevailing modern default |
-| Graphics state | Own placements independently of text cells | Required for overlap, screen ownership, scrolling, resize, and reflow |
+| Graphics state | Own placements independently of text cells | Required for overlap, screen ownership, scrolling, resize, and reflow — implemented by [#451](https://github.com/mitchdenny/hex1b/issues/451) |
 | Compatibility | Central policy/profile, never terminal-name checks | Keeps deviations reviewable and testable |
 
 ## Framing and dispatch
@@ -234,25 +235,103 @@ CUP before writing anything that follows.
 
 | Operation | Selected Hex1b behavior | Unresolved details |
 |---|---|---|
-| Sixel over Sixel | Composite painted pixels over existing graphics; transparent holes preserve prior content | Alpha/compositing details across xterm, Windows Terminal, WezTerm, mintty, and xterm.js need #457 testing |
-| Text over Sixel | Damage only the pixels covered by newly written text cells | Exact behavior for wide/combining cells needs implementation tests |
-| ED/EL | Erase graphics in the affected cell/pixel region along with text | Boundary behavior at partially covered cells needs #457 testing |
-| Scroll-region operations | Move, clip, or erase placements using the same region semantics as text rows | Owned by #452/#453 |
-| RIS | Clear all placements and reset Sixel modes and palette | Owned by #453 |
+| Sixel over Sixel | Both placements are retained independently; composite painted pixels over existing graphics for presentation, and transparent holes preserve prior content | Alpha/compositing details across xterm, Windows Terminal, WezTerm, mintty, and xterm.js need #457 testing; destructive pixel-level compositing for rendering is owned by [#453](https://github.com/mitchdenny/hex1b/issues/453) |
+| Text over Sixel | Damage only the pixels covered by newly written text cells | Owned by [#453](https://github.com/mitchdenny/hex1b/issues/453); exact behavior for wide/combining cells needs implementation tests |
+| ED/EL | Erase graphics in the affected cell/pixel region along with text | Whole-screen ED (`CSI 2 J`) already clears every placement anchored to the active screen as of #451; sub-region (EL, partial ED) boundary behavior at partially covered cells is owned by [#453](https://github.com/mitchdenny/hex1b/issues/453) and needs #457 testing |
+| Scroll-region operations | Move, clip, or erase placements using the same region semantics as text rows | Full-fidelity scrolling/reflow projection across the scrollback boundary is owned by #452; #451 already shifts, drops, or moves whole placements for simple full-screen scrolls |
+| RIS | Clear all placements and reset Sixel modes and palette | Implemented by #451 (both main and alternate graphics state are cleared) |
 | DECSTR | Reset modes, including DECSDM and mode 8452; preserve palette, placements, and cursor position | Placement behavior remains unresolved |
 
 Foot has the clearest reviewed prior art for compositing independent placements.
 Hex1b's existing KGP graphics state provides the closest internal model. Sixel
 must not remain represented only by references attached to text cells.
 
+## Independent graphics state (#451)
+
+[#451](https://github.com/mitchdenny/hex1b/issues/451) replaces the earlier
+per-cell ownership model — a `CellAttributes.Sixel` flag plus origin and
+continuation cells that acted as reference-counted anchors for a
+`TrackedObjectStore`-managed `SixelData` — with `SixelGraphicsState`, an
+internal type family in `src/Hex1b/Sixel/` modeled after the mature
+`KgpTerminalGraphicsState` (see `src/Hex1b/Kgp/`) but deliberately smaller and
+protocol-neutral:
+
+- `SixelGraphicsState` owns two independent `SixelScreenGraphicsState`
+  instances (main and alternate). Re-entering the alternate screen while
+  already active resets only the alternate instance; RIS is the only
+  operation that clears both.
+- Each `SixelScreenGraphicsState` owns a `SixelImageStore` (the raster
+  resources, deduplicated by content hash — payload plus captured
+  background/palette identity), a live `Placements` list, and — main screen
+  only — a `HistoryPlacements` partition keyed by stable scrollback row
+  identity.
+- `SixelPlacement` anchors a `SixelData` image at a cell position and retains
+  the anchor/occupied cell span, the painted-crop geometry (offset and count,
+  relative to the anchor so scrolling can shift the anchor without recomputing
+  the crop), the creation-time write sequence used to order overlapping
+  placements, and creation timestamp. `SixelData` itself (unchanged from
+  earlier stages) carries the authoritative decoded raster or geometry-only
+  outcome, logical/rendered/declared/painted extents, creation-time
+  `SixelCellMetrics`, source and captured background, aspect state, a stable
+  content hash for dedup, and parser diagnostics.
+- **Lifetime is reachability-based, not manually reference-counted.** Mirroring
+  `KgpImageStore`, every placement-removing mutation recomputes the set of
+  content hashes reachable from `Placements ∪ HistoryPlacements` and sweeps any
+  image no longer in that set. A `SixelPlacement`'s image is never released
+  just because the text cell it was anchored to was overwritten — only when no
+  placement (live, historical, or held by an existing snapshot) references it
+  anymore. Snapshots decouple entirely: `Hex1bTerminalSnapshot` copies its own
+  `SixelPlacement`/`SixelData` references, kept alive by ordinary garbage
+  collection independent of the live store.
+- Geometry-only placements (the rasterizer refused pixel allocation) are
+  always retained as placements — never silently dropped — so their occupied
+  cell span and diagnostics remain inspectable.
+- A finalized Sixel sequence creates one anonymous image plus one placement
+  anchored at the position #450's cursor/metric logic already determines; this
+  stage reuses `SixelParser`/`SixelRasterizer` and that cursor logic unchanged
+  and does not duplicate any parsing, rasterization, or estimation logic.
+- `TrackedObjectStore` no longer participates in Sixel image lifetime at all;
+  it retains its unrelated duties (hyperlinks, and the Surface/widget path's
+  own use of `GetOrCreateSixel`, which is untouched by this stage).
+  Compatibility surfaces like `ContainsSixelData()`/`GetSixelDataAt()` are
+  preserved, now backed by the placement/image model.
+
+**Extracted from KGP as genuinely protocol-neutral primitives:** raster
+content ownership by content hash, placement/source-crop geometry (anchor +
+occupied span + painted crop), reachability-based lifetime accounting,
+screen/history partitioning, and simple scroll/clip geometry helpers. **Kept
+deliberately KGP-only, not extracted:** public image/placement IDs,
+image-number addressing, explicit delete selectors, relative placement
+graphs, Unicode placeholders, z-index, and chunked uploads — none of these
+concepts exist in the Sixel protocol. The two graphics states are separate
+types with no compile-time coupling; only the underlying *strategy* (mark and
+sweep over a screen/history partition) is shared conceptually. All existing
+KGP tests (state, deletion, scrolling/reflow, snapshot) continue to pass
+unmodified.
+
+**Explicitly deferred past this stage** (see the tables above and
+`tests/Hex1b.Tests/Sixel/SixelScrollingTests.cs` /
+`SixelTerminalSemanticsTests.cs` for the still-`[Ignore]`d placeholders that
+name them):
+
+- Full scrolling/reflow integration — projecting a single placement across
+  the visible/history boundary, and reflow-driven re-anchoring — [#452](https://github.com/mitchdenny/hex1b/issues/452).
+- Destructive overlap/erase semantics — partial text-over-graphic damage,
+  sub-region erase, and true pixel-level compositing of overlapping rasters
+  for rendering — [#453](https://github.com/mitchdenny/hex1b/issues/453).
+- Presentation protocol translation (re-emitting placements as Kitty/iTerm2/
+  Sixel wire protocol) — [#458](https://github.com/mitchdenny/hex1b/issues/458).
+- `SixelWidget`/`Surface`-produced Sixel and widget sizing changes are
+  untouched by this stage.
+
 ## Screens, scrollback, resize, and reflow
 
 | Area | Selected Hex1b contract | Status or unresolved work |
 |---|---|---|
-| Main/alternate screen | Each screen owns independent placements; leaving the alternate screen restores the unchanged main-screen graphics | [#453](https://github.com/mitchdenny/hex1b/issues/453) |
-| Scrollback | Scrolling placements remain anchored to logical row lineage and can span visible and history rows | [#452](https://github.com/mitchdenny/hex1b/issues/452); foot provides verified prior art |
-| History eviction | Remove only the placement portions no longer owned by retained row lineage | Exact partial-eviction policy needs #457 testing |
-| Resize | Clip to the viewport without destroying source pixels; reveal them again when space returns | [#452](https://github.com/mitchdenny/hex1b/issues/452) |
+| Main/alternate screen | Each screen owns independent placements; leaving the alternate screen restores the unchanged main-screen graphics | Implemented by [#451](https://github.com/mitchdenny/hex1b/issues/451) |
+| Scrollback | Scrolling placements remain anchored to logical row lineage and can span visible and history rows | [#452](https://github.com/mitchdenny/hex1b/issues/452); foot provides verified prior art. #451 moves whole placements between the live viewport and history when a full-screen scroll would fully carry them, but does not yet split a single placement across the boundary |
+| History eviction | Remove only the placement portions no longer owned by retained row lineage | [#452](https://github.com/mitchdenny/hex1b/issues/452); #451 releases an entire history-anchored placement when its row is pruned, without KGP's partial-crop/transfer-to-successor-row fidelity |
+| Resize | Clip to the viewport without destroying source pixels; reveal them again when space returns | Implemented by [#451](https://github.com/mitchdenny/hex1b/issues/451): a placement is dropped only once it is wholly outside the new bounds; a partially-visible placement keeps its full underlying raster and geometry, so it reappears in full when space returns. Full reflow re-anchoring remains [#452](https://github.com/mitchdenny/hex1b/issues/452) |
 | Reflow | Re-anchor through the same row-lineage plan as text and KGP placements | [#452](https://github.com/mitchdenny/hex1b/issues/452) |
 | Cell-metric change | Recompute occupied cells from stable pixel geometry using deterministic outward rounding | Reference-terminal behavior needs #457 testing |
 
@@ -274,7 +353,9 @@ reference-terminal evidence:
 3. DECGRA's undocumented carriage-return behavior and aspect-scaled DECGNL.
 4. Exact Sixel-over-Sixel compositing and partial-cell text/erase damage.
 5. DECSTR effects on placements.
-6. Main/alternate-screen, history eviction, resize, and reflow edge behavior.
+6. Full-fidelity scrolling/reflow projection across the scrollback boundary
+   (splitting a single placement between visible and history rows), and
+   partial-eviction of history-anchored placements.
 7. Private-mode save/restore (`CSI ? Pm s` and `CSI ? Pm r`) for Sixel modes.
 8. Exact default palette values for registers 16-255 and private-register
    behavior across modern terminals.
@@ -283,7 +364,11 @@ reference-terminal evidence:
 
 The test fixtures are small ASCII payloads embedded from
 `tests/Hex1b.Tests/TestData/Sixel/`. Expected data is independently authored and
-does not use `SixelEncoder`.
+does not use `SixelEncoder`. `tests/Hex1b.Tests/Sixel/SixelPlacementLifetimeTests.cs`
+is the dedicated regression suite for #451's independent placement/image
+storage and lifetime accounting (multi-cell spans, dedup, overlap, geometry-only
+retention, origin-cell overwrite, snapshot-held survival past active-screen
+removal, and main/alternate/RIS independence).
 
 ```bash
 dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
@@ -292,6 +377,10 @@ dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
 
 The terminal-first demo sends independently authored raw Sixel bytes through
 `Hex1bTerminal`. It does not use `SixelWidget` or `SixelEncoder`.
+`samples/SixelTerminalDemo/RawSixelFixtures.cs` includes scenes demonstrating
+#451's independent placement ownership: two placements sharing identical raster
+content, overlapping placements that both survive, main/alternate screen
+isolation, and geometry-only placement retention.
 
 The demo presents one subject per screen. Each screen clears the display, resets
 margins, origin mode, and DECSDM so it cannot inherit state from the screen

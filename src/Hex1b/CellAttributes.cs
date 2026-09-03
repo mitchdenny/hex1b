@@ -38,8 +38,9 @@ public enum CellAttributes : ushort
     /// <summary>Overline (SGR 53).</summary>
     Overline = 1 << 8,
 
-    /// <summary>Cell contains Sixel graphics data.</summary>
-    Sixel = 1 << 9,
+    // 1 << 9 was previously CellAttributes.Sixel. Sixel graphics ownership was
+    // removed from TerminalCell (see SixelGraphicsState); the bit is retired,
+    // not reused, so any historical serialized value cannot be misread.
 
     /// <summary>
     /// Cell is a soft-wrap point: content continues on the next row without a logical line break.
