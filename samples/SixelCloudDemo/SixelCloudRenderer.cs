@@ -66,10 +66,11 @@ internal static class SixelCloudPalette
 /// <para>
 /// Two hazards make per-mote placements harder than they look, and both are handled
 /// here rather than avoided. A placement issued on the last row scrolls the viewport
-/// under the default Sixel scrolling mode, dragging the cloud upward every frame, so
-/// DECSDM is disabled and placements are clipped to the last usable row. And motes
-/// must be sorted into cursor order, because emitting hundreds of placements that
-/// jump the cursor around arbitrarily is what terminals handle worst.
+/// under Sixel scrolling mode, dragging the cloud upward every frame, so placements
+/// are clipped to the last usable row rather than relying on DECSDM, whose polarity
+/// is inverted between terminals. And motes must be sorted into cursor order, because
+/// emitting hundreds of placements that jump the cursor around arbitrarily is what
+/// terminals handle worst.
 /// </para>
 /// </remarks>
 internal sealed class SixelCloudRenderer
@@ -119,10 +120,12 @@ internal sealed class SixelCloudRenderer
 
         builder.Append("\x1b[?2026h");
 
-        // DECSDM off. With Sixel scrolling enabled a placement on the last row scrolls
-        // the whole viewport, which walks the cloud off the top of the screen a row at
-        // a time. Turning it off is what makes bottom-row placements safe.
-        builder.Append("\x1b[?80l");
+        // Deliberately no DECSDM (private mode 80). Its polarity is inverted between
+        // terminals: under corrected DEC semantics set disables Sixel scrolling and
+        // reset enables it, but xterm implemented the opposite for years. Sending
+        // either value would therefore make bottom-row behaviour terminal-dependent.
+        // Clipping placements to the last usable row below achieves the same result
+        // without depending on which convention the terminal follows.
 
         builder.Append("\x1b[H\x1b[2J");
 
@@ -163,6 +166,13 @@ internal sealed class SixelCloudRenderer
                 continue;
             }
 
+            // The cursor can only be positioned to a cell, so the sub-cell remainder
+            // has to be carried into the placement itself. Dropping it snaps every mote
+            // to its cell origin, which reads as the cells moving rather than the
+            // pixels moving.
+            var offsetX = (int)(mote.X - (column * cellWidth));
+            var offsetY = (int)(mote.Y - (row * cellHeight));
+
             // Skip the cursor move when the previous placement already left the cursor
             // in the right cell, which is common once motes are sorted.
             if (row != lastRow || column != lastColumn)
@@ -172,7 +182,7 @@ internal sealed class SixelCloudRenderer
                 lastColumn = column;
             }
 
-            AppendMotePlacement(builder, mote);
+            AppendMotePlacement(builder, mote, offsetX, offsetY);
         }
 
         builder.Append("\x1b[?2026l");
@@ -181,25 +191,71 @@ internal sealed class SixelCloudRenderer
     }
 
     /// <summary>
-    /// Appends a single mote as a minimal two-pixel-square DCS placement.
+    /// Appends a single mote as a small DCS placement offset within its cell.
     /// </summary>
-    private static void AppendMotePlacement(StringBuilder builder, DustMote mote)
+    /// <remarks>
+    /// The cursor only positions to a cell boundary, so sub-cell motion has to be
+    /// expressed inside the placement. Horizontal offset is leading transparent
+    /// columns; vertical offset is leading empty bands plus the bit position within
+    /// the band the mote lands in. Without this a mote jumps a whole cell at a time.
+    /// </remarks>
+    private static void AppendMotePlacement(StringBuilder builder, DustMote mote, int offsetX, int offsetY)
     {
         var register = SixelCloudPalette.RegisterFor(mote.ColorIndex);
         var color = SixelCloudPalette.Colors[mote.ColorIndex];
 
+        var band = offsetY / SixelBandHeight;
+        var bitInBand = offsetY % SixelBandHeight;
+
+        // A 2x2 dot can straddle a band boundary, so the mask is built over two bits
+        // and any overflow is carried into the following band.
+        var mask = (1 << bitInBand) | (1 << (bitInBand + 1));
+        var lowMask = mask & 0x3F;
+        var carryMask = (mask >> SixelBandHeight) & 0x3F;
+
         // Only the one register this mote needs is declared, so each placement stays a
         // few dozen bytes rather than carrying the whole palette.
         builder.Append("\x1bP7;1;0q")
-            .Append("\"1;1;2;2")
+            .Append("\"1;1;")
+            .Append(offsetX + 2).Append(';')
+            .Append(offsetY + 2)
             .Append('#').Append(register).Append(";2;")
             .Append(color.Red).Append(';')
             .Append(color.Green).Append(';')
-            .Append(color.Blue)
-            .Append('#').Append(register)
-            // '?' + 3 sets the top two pixels of the band, twice across, giving a 2x2 dot.
-            .Append("BB")
-            .Append("\x1b\\");
+            .Append(color.Blue);
+
+        for (var skipped = 0; skipped < band; skipped++)
+        {
+            builder.Append('-');
+        }
+
+        AppendOffsetRun(builder, register, offsetX, lowMask);
+
+        if (carryMask != 0)
+        {
+            builder.Append('-');
+            AppendOffsetRun(builder, register, offsetX, carryMask);
+        }
+
+        builder.Append("\x1b\\");
+    }
+
+    /// <summary>
+    /// Emits one band: <paramref name="offsetX"/> transparent columns then a two-pixel
+    /// run of <paramref name="mask"/>.
+    /// </summary>
+    private static void AppendOffsetRun(StringBuilder builder, int register, int offsetX, int mask)
+    {
+        if (offsetX > 0)
+        {
+            // Transparent padding uses '?' (mask 0) rather than a cursor move, because
+            // Sixel has no intra-band horizontal seek.
+            builder.Append('!').Append(offsetX).Append('?');
+        }
+
+        builder.Append('#').Append(register)
+            .Append((char)('?' + mask))
+            .Append((char)('?' + mask));
     }
 
     /// <summary>Orders motes top-to-bottom then left-to-right, in pixel space.</summary>
