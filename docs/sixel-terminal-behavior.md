@@ -299,6 +299,12 @@ before it, then draws its subject and waits. Enter or Space advances, `p` goes
 back, and `q` quits. Screens are numbered so a specific one can be named in
 review and reopened directly.
 
+The description is drawn below the image, after the graphic has been placed. A
+Sixel graphic is painted at the cursor, and some screens deliberately anchor it
+at the page origin, so a description above the image would be overpainted.
+Each description states the expected colour and the size in both pixels and
+cells, so a screen can be checked against what is actually on the terminal.
+
 ```bash
 dotnet run --project samples/SixelTerminalDemo
 dotnet run --project samples/SixelTerminalDemo -- --screen 17

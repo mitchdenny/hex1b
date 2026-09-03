@@ -61,7 +61,7 @@ internal static class DemoScreens
         screens.Add(new DemoScreen(
             number++,
             "Framing: two images, one write",
-            "two consecutive DCS images arrive with no transport boundary between them",
+            "two red #FF0000 blocks stacked vertically, the first 240x60px (24x3 cells) and\n  the second 240x18px, both delivered in a single write with no transport boundary\n  between them. Both should appear complete and correctly separated",
             [
                 .. fixtures[0].StandardDcsBytes,
                 .. fixtures[1].StandardDcsBytes,
@@ -72,13 +72,13 @@ internal static class DemoScreens
         screens.Add(new DemoScreen(
             number++,
             "Framing: split writes",
-            "the introducer, payload, and ESC-backslash terminator arrive in separate reads",
+            "the same solid red #FF0000 240x60px (24 cells wide, 3 cells tall) rectangle as\n  screen 1, but its DCS introducer, payload, and ESC-backslash terminator arrive in\n  six separate reads. It should look identical to screen 1: framing is transport-independent",
             [.. split]));
 
         screens.Add(new DemoScreen(
             number,
             "Framing: one byte at a time",
-            "single-byte workload reads still form the original image upstream",
+            "the same 240x6px (24 cells wide) all-green #00FF00 band as screen 4, delivered\n  one byte at a time. It should render identically: the parser reassembles the\n  image regardless of how the bytes are chunked",
             fixtures[3].StandardDcsBytes));
 
         return screens;

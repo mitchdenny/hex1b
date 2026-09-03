@@ -51,37 +51,37 @@ internal static class RawCursorScenes
     [
         new(
             "Cursor scrolling mode",
-            "the graphic is anchored at row 3 column 5 and the probe text starts on the row below it, in the same column",
+            "a red #FF0000 square, 40x40px = 4 cells wide by 3 cells tall, anchored at row 3\n  column 5. The probe text starts on the row directly below the square, back at\n  column 5: in scrolling mode the cursor returns to the column it started in",
             "\x1b[?80h\x1b[3;5H",
             Square40,
             "<- cursor returned to the original column"),
         new(
             "Cursor non-scrolling mode",
-            "the graphic is drawn at the page origin and the probe text stays exactly where the cursor already was",
+            "the same 4x3 cell red #FF0000 square, but drawn at the top-left page origin\n  even though the cursor was at row 6 column 20. The probe text appears at row 6\n  column 20, untouched: DECSDM off anchors the graphic to the page, not the cursor",
             "\x1b[?80l\x1b[6;20H",
             Square40,
             "<- cursor never moved"),
         new(
             "Cursor mode 8452",
-            "mode 8452 leaves the cursor to the right of the graphic instead of at the original column",
+            "the same 4x3 cell red #FF0000 square at row 3 column 5, but the probe text now\n  starts immediately to the RIGHT of the square rather than below-left of it.\n  Mode 8452 leaves the cursor beside the graphic",
             "\x1b[?80h\x1b[?8452h\x1b[3;5H",
             Square40,
             "<- cursor left to the right of the graphic"),
         new(
             "Margin clipping",
-            "left/right margins clip the 200px graphic to columns 10-24 without changing its source raster",
+            "a green #00FF00 bar that is 200px (20 cells) wide in its source raster but is\n  visibly cut off at column 25 by the left/right margins, so only columns 10-24\n  are painted. The raster is unchanged; only the painting is clipped",
             "\x1b[?80h\x1b[?69h\x1b[10;25s\x1b[2;12r\x1b[4;10H",
             Wide200,
             "clipped"),
         new(
             "Bottom margin completion",
-            "the graphic starts on the last row of a small scrolling region, so the region scrolls and the cursor stays inside it",
+            "a 4x3 cell red #FF0000 square placed on the last row of a 5-row scrolling region\n  (rows 10-14). The region scrolls up to make room, so the square finishes inside\n  the region and the probe text stays within rows 10-14, never below it",
             "\x1b[?80h\x1b[10;14r\x1b[14;3H",
             Square40,
             "<- cursor stayed inside the region"),
         new(
             "Explicit repositioning",
-            "Hex1b never assumes where an upstream terminal leaves the cursor: managed output re-positions with CUP first",
+            "a 4x3 cell red #FF0000 square at row 18 column 5, with the probe text at row 20\n  column 40, far from where the graphic ended. Hex1b never assumes where an\n  upstream terminal leaves the cursor, so managed output issues an explicit CUP first",
             "\x1b[?80h\x1b[18;5H",
             Square40,
             "\x1b[20;40Hexplicitly positioned"),

@@ -4,8 +4,10 @@ using Hex1b;
 var headless = args.Contains("--headless", StringComparer.OrdinalIgnoreCase);
 var sceneFilter = GetOption(args, "--scene");
 var screenOption = GetOption(args, "--screen");
-const int Width = 80;
-const int Height = 24;
+// Wide enough for the longest description line, and tall enough that the cursor
+// scenes (which paint as low as row 20) never reach the description block.
+const int Width = 100;
+const int Height = 32;
 
 var fixtures = sceneFilter is null
     ? RawSixelFixtures.All
@@ -79,7 +81,7 @@ if (headless)
     return;
 }
 
-var workload = new PagedScreenWorkloadAdapter(screens, promptRow: Height);
+var workload = new PagedScreenWorkloadAdapter(screens, allScreens.Count, promptRow: Height);
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithWorkload(workload)
     .WithPresentation(new ConsolePresentationAdapter(enableMouse: false))

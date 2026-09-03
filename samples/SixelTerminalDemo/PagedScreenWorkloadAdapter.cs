@@ -21,6 +21,7 @@ using Hex1b;
 internal sealed class PagedScreenWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 {
     private readonly IReadOnlyList<DemoScreen> _screens;
+    private readonly int _catalogueTotal;
     private readonly int _promptRow;
     private readonly Channel<DemoNavigation> _input =
         Channel.CreateUnbounded<DemoNavigation>(new UnboundedChannelOptions
@@ -36,9 +37,19 @@ internal sealed class PagedScreenWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     private bool _promptPending;
     private bool _quit;
 
-    public PagedScreenWorkloadAdapter(IReadOnlyList<DemoScreen> screens, int promptRow)
+    /// <param name="screens">The screens to page through, which may be a filtered subset.</param>
+    /// <param name="catalogueTotal">
+    /// The total number of screens in the full demo. Reported alongside each screen
+    /// number so a filtered run still shows a screen's real catalogue position.
+    /// </param>
+    /// <param name="promptRow">The row the footer prompt is drawn on.</param>
+    public PagedScreenWorkloadAdapter(
+        IReadOnlyList<DemoScreen> screens,
+        int catalogueTotal,
+        int promptRow)
     {
         _screens = screens;
+        _catalogueTotal = catalogueTotal;
         _promptRow = promptRow;
     }
 
@@ -77,10 +88,14 @@ internal sealed class PagedScreenWorkloadAdapter : IHex1bTerminalWorkloadAdapter
         if (!_promptPending)
         {
             _promptPending = true;
-            return DemoScreenRenderer.Render(screen, _screens.Count);
+            return DemoScreenRenderer.Render(screen, _catalogueTotal);
         }
 
-        var prompt = DemoScreenRenderer.RenderPrompt(screen, _screens.Count, _promptRow);
+        var prompt = DemoScreenRenderer.RenderPrompt(
+            screen,
+            _catalogueTotal,
+            _promptRow,
+            isLast: _index == _screens.Count - 1);
         _promptPending = false;
 
         DemoNavigation navigation;
