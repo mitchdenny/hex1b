@@ -83,6 +83,12 @@ internal sealed class SixelCloudRenderer
     private readonly double _cellPixelHeight;
     private readonly bool _useRaster;
 
+    // Every mote placement declares this same raster size. It has to cover a mote
+    // anywhere in the cell plus the mote's own 2x2 extent, and the height is rounded
+    // up to a whole band because a placement cannot declare a partial one.
+    private readonly int _placementWidth;
+    private readonly int _placementHeight;
+
     private byte[]? _canvas;
     private StringBuilder? _builder;
     private DustMote[]? _ordered;
@@ -92,6 +98,12 @@ internal sealed class SixelCloudRenderer
         _cellPixelWidth = cellPixelWidth;
         _cellPixelHeight = cellPixelHeight;
         _useRaster = useRaster;
+
+        _placementWidth = (int)Math.Ceiling(cellPixelWidth) + 1;
+
+        var coveredHeight = (int)Math.Ceiling(cellPixelHeight) + 1;
+        var bands = (coveredHeight + SixelBandHeight - 1) / SixelBandHeight;
+        _placementHeight = bands * SixelBandHeight;
     }
 
     /// <summary>
@@ -198,8 +210,16 @@ internal sealed class SixelCloudRenderer
     /// expressed inside the placement. Horizontal offset is leading transparent
     /// columns; vertical offset is leading empty bands plus the bit position within
     /// the band the mote lands in. Without this a mote jumps a whole cell at a time.
+    /// <para>
+    /// Every placement declares the same raster size regardless of where the mote sits
+    /// inside its cell. Sizing the image to the offset instead makes each mote a
+    /// differently sized image, and a terminal that rounds or scales images
+    /// independently then rounds each one differently, so a drifting mote visibly
+    /// changes shape from frame to frame. A constant size costs a few transparent
+    /// pixels and keeps every mote identical.
+    /// </para>
     /// </remarks>
-    private static void AppendMotePlacement(StringBuilder builder, DustMote mote, int offsetX, int offsetY)
+    private void AppendMotePlacement(StringBuilder builder, DustMote mote, int offsetX, int offsetY)
     {
         var register = SixelCloudPalette.RegisterFor(mote.ColorIndex);
         var color = SixelCloudPalette.Colors[mote.ColorIndex];
@@ -217,8 +237,8 @@ internal sealed class SixelCloudRenderer
         // few dozen bytes rather than carrying the whole palette.
         builder.Append("\x1bP7;1;0q")
             .Append("\"1;1;")
-            .Append(offsetX + 2).Append(';')
-            .Append(offsetY + 2)
+            .Append(_placementWidth).Append(';')
+            .Append(_placementHeight)
             .Append('#').Append(register).Append(";2;")
             .Append(color.Red).Append(';')
             .Append(color.Green).Append(';')
