@@ -587,8 +587,10 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("          <div class=\"tooltip-label\">Sixel Graphics</div>");
         sb.AppendLine("          <div class=\"tooltip-value\">");
         sb.AppendLine("            ${cell.sixel.origin ? '<span class=\"attr-badge\" style=\"background:#4e9a06\">Origin</span>' : '<span class=\"attr-badge\">Continuation</span>'}");
+        sb.AppendLine("            ${cell.sixel.geometryOnly ? '<span class=\"attr-badge\" style=\"background:#a06e4e\">Geometry-only</span>' : ''}");
         sb.AppendLine("            ${cell.sixel.w}×${cell.sixel.h} cells");
-        sb.AppendLine("          </div>");
+        sb.AppendLine("            <br><span style=\"color:#888;font-size:11px\">Outcome: ${cell.sixel.outcome}</span>");
+        sb.AppendLine("        </div>");
         sb.AppendLine("        </div>` : ''}");
         sb.AppendLine("        ${hasLink ? `");
         sb.AppendLine("        <div class=\"tooltip-section\">");
@@ -878,7 +880,14 @@ public static class TerminalRegionHtmlExtensions
                 for (var py = placement.PaintedTop; py <= placement.PaintedBottom; py++)
                 {
                     for (var px = placement.PaintedLeft; px <= placement.PaintedRight; px++)
-                        sixelByCell[(px, py)] = placement; // later sequence overwrites earlier: topmost wins.
+                    {
+                        // CoversCell excludes cells a later text write has
+                        // damaged, so damaged cells correctly stop reporting
+                        // Sixel metadata even while still inside the painted
+                        // rectangle. CoversCell takes (row, column) — py, px.
+                        if (placement.CoversCell(py, px))
+                            sixelByCell[(px, py)] = placement; // later sequence overwrites earlier: topmost wins.
+                    }
                 }
             }
         }
@@ -920,7 +929,9 @@ public static class TerminalRegionHtmlExtensions
                 if (sixelByCell.TryGetValue((x, y), out var sixelPlacement))
                 {
                     var isOrigin = x == sixelPlacement.PaintedLeft && y == sixelPlacement.PaintedTop;
-                    sixel = $"{{\"origin\":{(isOrigin ? "true" : "false")},\"w\":{sixelPlacement.WidthInCells},\"h\":{sixelPlacement.HeightInCells}}}";
+                    var geometryOnly = sixelPlacement.IsGeometryOnly ? "true" : "false";
+                    var outcome = EscapeJsonString(sixelPlacement.Image.RasterStatus.ToString());
+                    sixel = $"{{\"origin\":{(isOrigin ? "true" : "false")},\"w\":{sixelPlacement.WidthInCells},\"h\":{sixelPlacement.HeightInCells},\"geometryOnly\":{geometryOnly},\"outcome\":\"{outcome}\"}}";
                 }
                 else
                 {

@@ -9,7 +9,7 @@ namespace Hex1b.Sixel;
 /// (commonly 9x20 or 10x20) instead of its physical glyph box, so the source must
 /// travel with the value.
 /// </remarks>
-internal enum SixelCellMetricsSource
+public enum SixelCellMetricsSource
 {
     /// <summary>
     /// The presentation reported protocol cell metrics directly.
@@ -41,7 +41,7 @@ internal enum SixelCellMetricsSource
 /// <summary>
 /// Describes how much a <see cref="SixelCellMetrics"/> value can be trusted.
 /// </summary>
-internal enum SixelCellMetricsReliability
+public enum SixelCellMetricsReliability
 {
     /// <summary>
     /// The upstream presentation reported the value for the Sixel protocol grid.
@@ -80,7 +80,7 @@ internal enum SixelCellMetricsReliability
 /// next cell.
 /// </para>
 /// </remarks>
-internal readonly record struct SixelCellMetrics(
+public readonly record struct SixelCellMetrics(
     double Width,
     double Height,
     SixelCellMetricsSource Source,

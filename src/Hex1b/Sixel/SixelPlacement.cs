@@ -26,17 +26,33 @@ namespace Hex1b;
 /// existing placement's declared geometry. The painted crop window
 /// (<see cref="PaintedRowOffset"/>/<see cref="PaintedRowCount"/>/
 /// <see cref="PaintedColumnOffset"/>/<see cref="PaintedColumnCount"/>) may
-/// still shrink after creation via <see cref="ClipToCellRectangle"/> — always
+/// still shrink after creation via <c>ClipToCellRectangle</c> — always
 /// by intersecting the *current* painted rectangle with a new clip bound, so
 /// a row or column already cropped away can never resurface later regardless
 /// of operation order (scroll, resize, and history pruning all funnel through
 /// this same monotonic intersection). <see cref="Column"/> is likewise
-/// repositioned only via <see cref="WithPosition"/>, used by reflow when an
-/// anchor's wrapped-line position genuinely moves horizontally; ordinary
-/// scrolling and margin operations never touch it.
+/// repositioned only via internal reflow machinery, used when an anchor's
+/// wrapped-line position genuinely moves horizontally; ordinary scrolling and
+/// margin operations never touch it.
+/// </para>
+/// <para>
+/// This type deliberately omits KGP-only protocol concepts: no public
+/// image/placement IDs, no image-number addressing, no explicit delete
+/// selectors, no relative-placement graph, no Unicode placeholders, no
+/// z-index, and no chunked uploads. A placement's identity for automation
+/// purposes is its anchor position plus <see cref="Sequence"/> (for
+/// disambiguating overlapping placements created from identical content).
+/// </para>
+/// <para>
+/// Whether a placement was captured from the live viewport or from
+/// scrollback history is derived, not stored: a placement whose
+/// <see cref="Row"/> falls below <see cref="Hex1b.Automation.Hex1bTerminalSnapshot.ScrollbackLineCount"/>
+/// is a viewport placement, and one at or above it is a history placement —
+/// the same row-space unification <see cref="Hex1b.Automation.Hex1bTerminalSnapshot"/> uses for
+/// its text cell buffer.
 /// </para>
 /// </remarks>
-internal sealed class SixelPlacement
+public sealed class SixelPlacement
 {
     private readonly HashSet<int> _damagedCells;
     private SixelPixelBuffer? _visiblePixels;
@@ -103,77 +119,78 @@ internal sealed class SixelPlacement
     /// allocation. Also carries this image's logical/rendered/declared/painted
     /// extents, creation-time <see cref="Hex1b.Sixel.SixelCellMetrics"/>,
     /// background mode, aspect state, stable content identity, and protocol
-    /// diagnostics (see <see cref="SixelData.ParseResult"/> and
-    /// <see cref="SixelData.Raster"/>).
+    /// diagnostics (see <see cref="SixelData.Outcome"/>,
+    /// <see cref="SixelData.Diagnostics"/>, <see cref="SixelData.RasterStatus"/>,
+    /// and <see cref="SixelData.RasterDiagnostics"/>).
     /// </summary>
-    internal SixelData Image { get; }
+    public SixelData Image { get; }
 
     /// <summary>
     /// The anchor row (0-based, in the owning screen's local coordinate
     /// space). Mutable so scroll and history operations can shift it in place.
     /// </summary>
-    internal int Row { get; set; }
+    public int Row { get; internal set; }
 
     /// <summary>
     /// The anchor column. Ordinary scrolling and margin operations never
-    /// change this; only reflow (<see cref="WithPosition"/>) repositions it,
+    /// change this; only internal reflow machinery repositions it,
     /// when a wrapped line's anchor genuinely lands in a different column
     /// under the new width.
     /// </summary>
-    internal int Column { get; }
+    public int Column { get; }
 
     /// <summary>
     /// The unclipped occupied width, in cells, of the source geometry (the
     /// anchor + occupied cell span the issue requires each placement to
     /// retain, independent of how much of it actually painted).
     /// </summary>
-    internal int WidthInCells { get; }
+    public int WidthInCells { get; }
 
     /// <summary>
     /// The unclipped occupied height, in cells, of the source geometry.
     /// </summary>
-    internal int HeightInCells { get; }
+    public int HeightInCells { get; }
 
     /// <summary>
     /// Row offset (relative to <see cref="Row"/>) where the visible/painted
     /// crop begins. Stored relative to the anchor so shifting <see cref="Row"/>
     /// during scrolling automatically keeps the crop consistent.
     /// </summary>
-    internal int PaintedRowOffset { get; }
+    public int PaintedRowOffset { get; }
 
     /// <summary>
     /// Number of rows actually painted: the visible crop clipped to the
     /// scrolling region/page bounds in effect when the placement was created.
     /// </summary>
-    internal int PaintedRowCount { get; }
+    public int PaintedRowCount { get; }
 
     /// <summary>
     /// Column offset (relative to <see cref="Column"/>) where the
     /// visible/painted crop begins.
     /// </summary>
-    internal int PaintedColumnOffset { get; }
+    public int PaintedColumnOffset { get; }
 
     /// <summary>
     /// Number of columns actually painted.
     /// </summary>
-    internal int PaintedColumnCount { get; }
+    public int PaintedColumnCount { get; }
 
     /// <summary>
     /// Monotonic write sequence used to order overlapping placements (later
     /// sequence paints on top), and to disambiguate otherwise-identical
     /// placements created from the same content.
     /// </summary>
-    internal long Sequence { get; }
+    public long Sequence { get; }
 
     /// <summary>When this placement was created.</summary>
-    internal DateTimeOffset CreatedAt { get; }
+    public DateTimeOffset CreatedAt { get; }
 
     /// <summary>
     /// <see langword="true"/> when the authoritative rasterizer could not
     /// produce pixels for this placement's image (a geometry-only outcome).
     /// Geometry-only placements are always retained, never silently dropped.
     /// </summary>
-    internal bool IsGeometryOnly => Image.Raster.Status == SixelRasterStatus.GeometryOnly;
+    public bool IsGeometryOnly => Image.RasterStatus == SixelRasterStatus.GeometryOnly;
 
     /// <summary>
     /// <see langword="true"/> when this placement paints at least one cell.
@@ -181,22 +198,22 @@ internal sealed class SixelPlacement
     /// time can have a zero-size painted crop while still occupying its
     /// declared cell span.
     /// </summary>
-    internal bool HasPaintedExtent => PaintedRowCount > 0 && PaintedColumnCount > 0;
+    public bool HasPaintedExtent => PaintedRowCount > 0 && PaintedColumnCount > 0;
 
     /// <summary>Absolute top row of the painted/visible crop.</summary>
-    internal int PaintedTop => Row + PaintedRowOffset;
+    public int PaintedTop => Row + PaintedRowOffset;
 
     /// <summary>Absolute bottom row (inclusive) of the painted/visible crop.</summary>
-    internal int PaintedBottom => PaintedTop + PaintedRowCount - 1;
+    public int PaintedBottom => PaintedTop + PaintedRowCount - 1;
 
     /// <summary>Absolute left column of the painted/visible crop.</summary>
-    internal int PaintedLeft => Column + PaintedColumnOffset;
+    public int PaintedLeft => Column + PaintedColumnOffset;
 
     /// <summary>Absolute right column (inclusive) of the painted/visible crop.</summary>
-    internal int PaintedRight => PaintedLeft + PaintedColumnCount - 1;
+    public int PaintedRight => PaintedLeft + PaintedColumnCount - 1;
 
     /// <summary>Whether the painted/visible crop of this placement covers the given cell.</summary>
-    internal bool CoversCell(int row, int column) =>
+    public bool CoversCell(int row, int column) =>
         HasPaintedExtent
         && row >= PaintedTop && row <= PaintedBottom
         && column >= PaintedLeft && column <= PaintedRight
@@ -206,7 +223,7 @@ internal sealed class SixelPlacement
     /// Gets whether this placement still has at least one painted cell that has
     /// not been destructively damaged.
     /// </summary>
-    internal bool HasVisiblePaintedCells =>
+    public bool HasVisiblePaintedCells =>
         HasPaintedExtent && _damagedCells.Count < PaintedRowCount * PaintedColumnCount;
 
     /// <summary>
@@ -226,7 +243,7 @@ internal sealed class SixelPlacement
     /// <summary>
     /// Materializes this placement's pixels with damaged cells made transparent.
     /// </summary>
-    internal SixelPixelBuffer? GetVisiblePixels()
+    public SixelPixelBuffer? GetVisiblePixels()
     {
         var pixels = Image.GetPixels();
         if (pixels is null || _damagedCells.Count == 0)
@@ -265,6 +282,62 @@ internal sealed class SixelPlacement
         _visiblePixels = visible;
         return visible;
     }
+
+    /// <summary>
+    /// Materializes exactly the pixels within this placement's painted/visible
+    /// crop rectangle (<see cref="PaintedRowOffset"/>/<see cref="PaintedRowCount"/>/
+    /// <see cref="PaintedColumnOffset"/>/<see cref="PaintedColumnCount"/>), with
+    /// damaged cells made transparent.
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="GetVisiblePixels"/> — which always returns the full
+    /// declared image, damage-masked but uncropped — this maps the placement's
+    /// cell-space crop window into the underlying pixel buffer using the same
+    /// <see cref="Hex1b.Sixel.SixelCellMetrics"/>-based rounding
+    /// <see cref="GetVisiblePixels"/> uses for damage, so exporters render
+    /// exactly what the terminal shows even when scrolling, margin operations,
+    /// or history eviction have cropped away part of the originally declared
+    /// image. Consumers that need the exact source-crop pixels (SVG/HTML
+    /// export, automation assertions) should use this method rather than
+    /// re-deriving the crop themselves.
+    /// </remarks>
+    /// <returns>
+    /// The cropped pixel buffer, or <see langword="null"/> when the image has
+    /// no decoded raster (geometry-only) or the painted crop is empty.
+    /// </returns>
+    public SixelPixelBuffer? GetPaintedPixels()
+    {
+        var full = GetVisiblePixels();
+        if (full is null || !HasPaintedExtent)
+            return null;
+
+        if (PaintedRowOffset == 0 && PaintedColumnOffset == 0 &&
+            PaintedRowCount == HeightInCells && PaintedColumnCount == WidthInCells)
+        {
+            // Nothing cropped away: avoid an unnecessary copy.
+            return full;
+        }
+
+        var pixelLeft = Math.Clamp((int)Math.Floor(PaintedColumnOffset * Image.CellMetrics.SafeWidth), 0, full.Width);
+        var pixelRight = Math.Clamp((int)Math.Ceiling((PaintedColumnOffset + PaintedColumnCount) * Image.CellMetrics.SafeWidth), 0, full.Width);
+        var pixelTop = Math.Clamp((int)Math.Floor(PaintedRowOffset * Image.CellMetrics.SafeHeight), 0, full.Height);
+        var pixelBottom = Math.Clamp((int)Math.Ceiling((PaintedRowOffset + PaintedRowCount) * Image.CellMetrics.SafeHeight), 0, full.Height);
+
+        var width = Math.Max(0, pixelRight - pixelLeft);
+        var height = Math.Max(0, pixelBottom - pixelTop);
+        if (width == 0 || height == 0)
+            return null;
+
+        var cropped = new SixelPixelBuffer(width, height);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+                cropped[x, y] = full[pixelLeft + x, pixelTop + y];
+        }
+
+        return cropped;
+    }
+
 
     /// <summary>Creates a copy of this placement repositioned to <paramref name="row"/>.</summary>
     /// <remarks>
@@ -422,7 +495,13 @@ internal sealed class SixelPlacement
         return filtered ?? _damagedCells;
     }
 
-    private bool IsCellDamaged(int row, int column) => _damagedCells.Contains(CellKey(row, column));
+    /// <summary>
+    /// Gets whether text has destructively overwritten this cell's pixels
+    /// since the placement was created.
+    /// </summary>
+    /// <param name="row">The absolute row to check.</param>
+    /// <param name="column">The absolute column to check.</param>
+    public bool IsCellDamaged(int row, int column) => _damagedCells.Contains(CellKey(row, column));
 
     private int CellKey(int row, int column) => ((row - Row) * WidthInCells) + (column - Column);
 }

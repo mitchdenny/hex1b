@@ -3,6 +3,7 @@
 > **Status**: Evolving contract for [#445](https://github.com/mitchdenny/hex1b/issues/445)
 > **First executable stage**: [#448](https://github.com/mitchdenny/hex1b/issues/448)
 > **Independent graphics state**: [#451](https://github.com/mitchdenny/hex1b/issues/451)
+> **Snapshots, exports, recording, and replay**: [#456](https://github.com/mitchdenny/hex1b/issues/456)
 > **Baseline**: DEC VT340
 
 ## Purpose
@@ -441,6 +442,160 @@ untouched; every behavior below is implemented purely in `SixelGraphicsState`,
   KGP-only concepts with no Sixel equivalent. All existing KGP scrolling,
   history, reflow, and snapshot tests continue to pass unmodified.
 
+## Immutable snapshots, export, recording, and replay (#456)
+
+[#456](https://github.com/mitchdenny/hex1b/issues/456) makes Sixel graphics
+first-class in `Hex1bTerminalSnapshot`, SVG/HTML export, and HMP1 state
+synchronization/recording/replay, analogous in capability to KGP's existing
+snapshot/export/replay support but exposing no KGP-only protocol concept (no
+image IDs, no delete selectors, no z-index — see "Independent graphics state
+(#451)" above for the full extracted/kept-KGP-only split, which this stage
+does not revisit). No parser, rasterizer, cursor, graphics-state, damage,
+history, or reflow behavior from #448-#453 changes; this stage only adds
+read paths over that authoritative state.
+
+- **Snapshot model.** `Hex1bTerminalSnapshot.SixelPlacements` (an
+  `IReadOnlyList<SixelPlacement>`) and `SixelImages` (an
+  `IReadOnlyDictionary<byte[], SixelData>` keyed by content hash) are now
+  public, mirroring the shape of the existing `KgpPlacements`/KGP image
+  surfaces. `SixelPlacement` and the `SixelData` properties it exposes
+  (`Image`, `Row`, `Column`, `WidthInCells`/`HeightInCells`,
+  `PaintedRowOffset`/`PaintedRowCount`/`PaintedColumnOffset`/`PaintedColumnCount`
+  and their derived `PaintedTop`/`PaintedBottom`/`PaintedLeft`/`PaintedRight`,
+  `Sequence`, `CreatedAt`, `IsGeometryOnly`, `HasPaintedExtent`,
+  `HasVisiblePaintedCells`, `CoversCell`, `IsCellDamaged`, `GetVisiblePixels`,
+  and the new `GetPaintedPixels`) were promoted from `internal` to `public`
+  for this stage; everything else on both types remains internal. `SixelData`
+  itself gained public `ContentHash`, `Outcome`, `Diagnostics`,
+  `BackgroundMode`, `RasterStatus`, `RasterDiagnostics`, `Extents`, and
+  `CellMetrics` so a consumer can inspect a placement's authoritative parser
+  outcome and geometry without reaching into internals. Whether a placement
+  is a viewport or history placement is derived, not stored: a placement's
+  `Row` is unified with the text scrollback buffer's own numbering (a `Row`
+  at or above `ScrollbackLineCount` is history, below it is viewport),
+  exactly the coordinate space `CaptureActiveSnapshot` already established
+  for #452. `CreateSnapshot(scrollbackLines:)` therefore continues to select
+  viewport-only (`0`), history-inclusive (`>0`), and
+  `ScrollbackWidth.CurrentTerminal`/`ScrollbackWidth.Original` projections
+  with no Sixel-specific parameter — the same call already used for text and
+  KGP.
+- **Retention and disposal.** `SixelData` has no reference-counting
+  mechanism of its own (unlike `TrackedHyperlink`, which the snapshot does
+  release in `Dispose()`) — it is a plain garbage-collected object, and its
+  raster is retained once per referenced image, never per covered cell,
+  exactly as the live `SixelImageStore` already guarantees (see "Independent
+  graphics state (#451)" above). A snapshot's placements reference the same
+  `SixelData` instance as the live placements they were captured from, and
+  two independently captured snapshots that both reference the same content
+  hash share that same instance; disposing one snapshot has no effect on
+  another snapshot's (or the live terminal's) access to that instance, and
+  `Hex1bTerminalSnapshot.Dispose()` is idempotent, so it can never
+  double-release Sixel state because there is nothing Sixel-specific to
+  release. `tests/Hex1b.Tests/Sixel/SixelSnapshotSharingTests.cs` is the
+  dedicated regression suite for this contract.
+- **Automation API.** `ContainsSixelData()` and the other existing
+  compatibility surfaces remain, now backed entirely by the placement/image
+  model above rather than any separate bookkeeping — there is exactly one
+  authoritative source for "does this cell show Sixel graphics." Deterministic
+  assertions over image/placement counts, dimensions, RGBA pixels
+  (`GetVisiblePixels`/`GetPaintedPixels`), anchor/occupied cells, source crop,
+  history-vs-viewport (via unified `Row`), parser outcome/geometry-only
+  downgrade (`IsGeometryOnly`, `Image.Outcome`, `Image.Diagnostics`,
+  `Image.RasterStatus`, `Image.RasterDiagnostics`), and cursor/graphics-state
+  correspondence are all available directly from the public surface above; no
+  new bespoke assertion type was introduced.
+- **SVG/HTML export.** `TerminalRegionSvgExtensions`/
+  `TerminalRegionHtmlExtensions` render Sixel using
+  `SixelPlacement.GetPaintedPixels()` — the exact snapshot pixels within the
+  placement's current painted/visible crop rectangle (never the full
+  declared image, so scrolling, margin clipping, and history eviction that
+  cropped the placement are reflected exactly), mapped through the image's
+  own `SixelCellMetrics` so cell geometry matches the snapshot precisely. A
+  geometry-only placement (the rasterizer could not produce pixels) renders
+  an explicit dashed-outline placeholder with a `<title>` diagnostic built
+  from `Image.Outcome`/`Image.RasterDiagnostics`/`Image.Diagnostics` —
+  `#456` forbids silently omitting it — occupying the same painted cell
+  rectangle a rasterized placement would, so overall export geometry never
+  depends on whether an image happened to rasterize. HTML export's
+  interaction payload reports the same `geometryOnly`/`outcome` metadata per
+  cell. Both exporters reuse the snapshot's already-decoded `SixelData`
+  directly; neither reparses, redecodes, or rehashes the payload. Repeated
+  export of the same snapshot is byte-identical
+  (`SvgExport_RepeatedExportOfSameSnapshot_IsByteIdentical`,
+  `HtmlExport_RepeatedExportOfSameSnapshot_IsByteIdentical`). KGP's own
+  export output, layering, and z-order behavior are unmodified by this
+  stage — the two placement kinds are painted through the same z-ordered
+  loop they already shared, keyed by each placement's own `Sequence`.
+- **Recording, state sync, and replay.** Two independent mechanisms exist,
+  matching the pre-existing KGP split:
+  - `Hmp1SixelStateReplay` (internal) extends the live HMP1 state-sync path
+    exactly as `Hmp1KgpStateReplay` already does for KGP: it writes plain
+    cursor-position + Sixel DCS escape sequences that a freshly joining
+    peer's own terminal parses through the ordinary live path, so replay
+    reconstructs state through the same authoritative parser/rasterizer used
+    for live processing rather than a separate code path. Because Sixel
+    placements (unlike KGP's) own the character cells they occupy, replay
+    also emits a trailing "damage patch" that restores exactly the damaged
+    cells' original content after placement recreation would otherwise
+    re-blank them. Rasterized placements are replayed via a fresh,
+    self-contained re-encode of their already-decoded pixels
+    (`SixelExactEncoder`, not `Hex1b.Surfaces.SixelEncoder`, which is
+    lossy/quantizing and reserved for widget authoring) rather than the
+    placement's original payload, because that payload may depend on
+    persistent color-register state the joining peer's terminal never saw;
+    a geometry-only placement has no decoded pixels and is safe to replay
+    verbatim, since its outcome is a deterministic function of the payload's
+    own declared extents. Only the viewport is replayed here, matching
+    `Hex1bTerminal.CreateSnapshot()`'s existing zero-scrollback state-sync
+    scope.
+  - `Hmp1SixelRecording` (internal) is a new, versioned binary format for
+    the explicit record/serialize/replay/compare scenarios the plain-bytes
+    wire replay above cannot express (truncation, unsupported version,
+    missing references, invalid geometry, resource limits). It serializes
+    an `IReadOnlyList<SixelPlacement>` — the same type the live snapshot and
+    live wire replay use — into a `SXRC`-tagged, versioned
+    (`Hmp1SixelRecording.CurrentVersion = 1`) stream: an image table
+    deduplicated by `SixelData.ContentHash` (content-addressed, so a raster
+    shared by multiple placements is never repeated in the stream), followed
+    by placements referencing that table by index, each carrying its
+    geometry, painted crop, sequence, creation time, and anchor-relative
+    damaged-cell offsets. Rasterized images are re-encoded byte-exact via
+    `SixelExactEncoder`; geometry-only images retain their original payload
+    verbatim, for the same reason `Hmp1SixelStateReplay` does. Deserializing
+    validates every field explicitly and throws
+    `Hmp1SixelRecordingException` (never returns a success-shaped partial
+    result, never a broad catch) tagged with a specific
+    `Hmp1SixelRecordingFailureReason`: `Malformed` (bad magic marker,
+    negative counts, unrecognized raster status), `UnsupportedVersion`,
+    `Truncated` (stream ends before declared data), `MissingImageReference`
+    (a placement's image index is out of range), `InvalidGeometry`
+    (non-positive cell dimensions or negative painted extents), or
+    `ResourceLimitExceeded` (`MaxPlacementCount`/`MaxImageCount` = 4096,
+    `MaxPayloadLength` = 64 MiB, `MaxDamagedCellCount` = 2^20). Recorded
+    placements/images (`Hmp1SixelRecordedPlacement`/`Hmp1SixelRecordedImage`)
+    are plain immutable data carriers, not `SixelPlacement`/`SixelData`
+    themselves, keeping the recording format decoupled from the live
+    graphics-state types' internal invariants.
+- **Coverage.** In addition to the export/sharing/recording suites named
+  above: `tests/Hex1b.Tests/Hmp1/Hmp1SixelRecordingTests.cs` round-trips
+  single and multi-placement recordings (including image-table
+  deduplication, anchor-relative damage offsets, geometry-only payload
+  preservation, main/alternate-screen isolation, and distinct
+  history-vs-viewport unified row offsets across a scroll), replays a
+  recording's escape-sequence reconstruction into a fresh terminal and
+  compares resulting pixels, and exercises every `Hmp1SixelRecordingException`
+  failure mode named above. `tests/Hex1b.Tests/Hmp1/Hmp1SixelStateReplayTests.cs`
+  covers the existing live wire replay path, including the damage-patch
+  restoration. All pre-existing KGP snapshot/export/replay and terminal
+  automation tests continue to pass unmodified, confirming this stage adds
+  a parallel Sixel path without touching KGP's.
+- **Explicitly out of scope for this stage** (see the exclusions in
+  [#456](https://github.com/mitchdenny/hex1b/issues/456)): capability probing
+  ([#455](https://github.com/mitchdenny/hex1b/issues/455)), native
+  presentation protocol translation
+  ([#458](https://github.com/mitchdenny/hex1b/issues/458)), and any
+  `SixelWidget`/`Surface`-side preview generation.
+
 ## Screens, scrollback, resize, and reflow
 
 | Area | Selected Hex1b contract | Status or unresolved work |
@@ -493,10 +648,19 @@ alternate-screen isolation, current/original-width scrollback projection,
 #453 damage persistence across scroll/history/snapshot, and final-reference
 release) — including the partial-vertical-margin history transfer fixed by
 this stage.
+`tests/Hex1b.Tests/Sixel/SixelSnapshotSharingTests.cs`,
+`tests/Hex1b.Tests/Sixel/SixelSvgExportTests.cs`, and
+`tests/Hex1b.Tests/Sixel/SixelHtmlExportTests.cs`, together with
+`tests/Hex1b.Tests/Hmp1/Hmp1SixelRecordingTests.cs` and
+`tests/Hex1b.Tests/Hmp1/Hmp1SixelStateReplayTests.cs`, are #456's dedicated
+regression suites for the snapshot/export/recording/replay contract described
+above.
 
 ```bash
 dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
   --filter "FullyQualifiedName~Hex1b.Tests.Sixel."
+dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
+  --filter "FullyQualifiedName~Hex1b.Tests.Hmp1.Hmp1Sixel"
 ```
 
 The terminal-first demo sends independently authored raw Sixel bytes through
@@ -523,6 +687,22 @@ above is authoritative for history/crop/reflow geometry that has already
 scrolled out of view or been reflowed, and the differences between what an
 interactive terminal can show live versus what the headless evidence reports
 are called out explicitly in each scene's description.
+`samples/SixelTerminalDemo/RawSnapshotExportReplayScenes.cs` adds #456's
+snapshot/export/recording/replay scenes, again using the same raw-DCS
+convention with no `SixelWidget`/`SixelEncoder` involvement. Its headless
+inspector (`InspectSnapshotExportReplaySceneAsync` in `Program.cs`) goes
+beyond replaying the script: it also creates multiple snapshots to prove
+raster sharing and safe double-disposal, compares the four projection modes
+against each other, exports SVG/HTML to confirm the geometry-only diagnostic
+placeholder and byte-identical repeated export, and drives
+`Hmp1SixelRecording.Serialize`/`Deserialize`/`BuildReplayEscapeSequence` to
+record a snapshot, replay it into a brand-new terminal with no live upstream
+connection, and compare the resulting pixels and painted (damage) extent —
+including across a main/alternate screen transition — plus feeds
+deliberately corrupted recordings (wrong magic marker, truncation, a bumped
+version number) through `Deserialize` to show each fails with its own
+explicit `Hmp1SixelRecordingFailureReason`, never a silent or success-shaped
+fallback.
 
 The demo presents one subject per screen. Each screen clears the display, resets
 margins, origin mode, and DECSDM so it cannot inherit state from the screen

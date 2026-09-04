@@ -2,18 +2,43 @@ using Hex1b.Tokens;
 
 namespace Hex1b.Sixel;
 
-internal enum SixelParseOutcome
+/// <summary>
+/// The authoritative outcome of parsing a Sixel DCS sequence.
+/// </summary>
+/// <remarks>
+/// Automation code can use this to assert whether a graphic parsed cleanly or
+/// degraded, without inspecting raw diagnostics. See
+/// <see cref="Hex1b.SixelData.Outcome"/> and <see cref="Hex1b.SixelData.Diagnostics"/>
+/// for the explanatory detail behind a non-<see cref="Complete"/> outcome.
+/// </remarks>
+public enum SixelParseOutcome
 {
+    /// <summary>The sequence parsed to completion with no downgrades.</summary>
     Complete,
+
+    /// <summary>The upstream stream cancelled the sequence before it terminated.</summary>
     Cancelled,
+
+    /// <summary>The sequence was structurally invalid.</summary>
     Malformed,
+
+    /// <summary>The sequence parsed, but bounded retention limits downgraded it.</summary>
     LimitDowngraded,
+
+    /// <summary>The DCS introducer was not an accepted Sixel form.</summary>
     Rejected,
 }
 
-internal enum SixelBackgroundMode
+/// <summary>
+/// Whether unpainted Sixel pixels resolve to the captured background color or
+/// remain transparent.
+/// </summary>
+public enum SixelBackgroundMode
 {
+    /// <summary>Unpainted pixels resolve to the captured background color.</summary>
     Opaque,
+
+    /// <summary>Unpainted pixels remain transparent.</summary>
     Transparent,
 }
 
@@ -23,21 +48,52 @@ internal enum SixelColorSpace
     Rgb = 2,
 }
 
-internal enum SixelDiagnosticCode
+/// <summary>
+/// Explicit reasons a Sixel parse degraded or was annotated, surfaced via
+/// <see cref="SixelDiagnostic"/> on <see cref="Hex1b.SixelData.Diagnostics"/>.
+/// </summary>
+public enum SixelDiagnosticCode
 {
+    /// <summary>The DCS introducer is not an accepted Sixel form.</summary>
     RejectedIntroducer,
+
+    /// <summary>The header carried more parameters than the policy allows.</summary>
     ExcessiveHeaderParameters,
+
+    /// <summary>The pixel-aspect-ratio macro is not one this parser supports.</summary>
     UnsupportedAspectMacro,
+
+    /// <summary>A byte outside the accepted Sixel alphabet was encountered.</summary>
     InvalidByte,
+
+    /// <summary>A command ended before it was fully specified.</summary>
     IncompleteCommand,
+
+    /// <summary>A later command replaced an earlier, conflicting one.</summary>
     ReplacedCommand,
+
+    /// <summary>A command carried more parameters than the policy allows.</summary>
     ExcessiveCommandParameters,
+
+    /// <summary>A numeric parameter exceeded the implementation's coordinate limit.</summary>
     NumericLimitExceeded,
+
+    /// <summary>Geometry accumulation saturated at the coordinate limit.</summary>
     GeometrySaturated,
+
+    /// <summary>The raster attributes (DECGRA) command was invalid.</summary>
     InvalidRasterAttributes,
+
+    /// <summary>A palette definition or selection command was invalid.</summary>
     InvalidPaletteCommand,
+
+    /// <summary>A bounded metadata limit (e.g. palette entries) was exceeded.</summary>
     MetadataLimitExceeded,
+
+    /// <summary>Bounded command retention truncated the remaining sequence.</summary>
     CommandRetentionLimitExceeded,
+
+    /// <summary>The DCS sequence ended before a string terminator.</summary>
     UnterminatedSequence,
 }
 
@@ -49,19 +105,39 @@ internal enum SixelCommandKind
 
 internal readonly record struct SixelPoint(int X, int Y);
 
-internal readonly record struct SixelExtent(int Width, int Height)
+/// <summary>
+/// A width/height pixel extent.
+/// </summary>
+/// <param name="Width">The width, in pixels.</param>
+/// <param name="Height">The height, in pixels.</param>
+public readonly record struct SixelExtent(int Width, int Height)
 {
+    /// <summary>An empty (zero-size) extent.</summary>
     public static SixelExtent Empty { get; } = new(0, 0);
 }
 
-internal readonly record struct SixelBounds(int X, int Y, int Width, int Height)
+/// <summary>
+/// A pixel-space rectangle.
+/// </summary>
+/// <param name="X">The left offset, in pixels.</param>
+/// <param name="Y">The top offset, in pixels.</param>
+/// <param name="Width">The width, in pixels.</param>
+/// <param name="Height">The height, in pixels.</param>
+public readonly record struct SixelBounds(int X, int Y, int Width, int Height)
 {
+    /// <summary>An empty (zero-size) bounds.</summary>
     public static SixelBounds Empty { get; } = new(0, 0, 0, 0);
 
+    /// <summary>Gets whether this bounds has zero width or height.</summary>
     public bool IsEmpty => Width == 0 || Height == 0;
 }
 
-internal readonly record struct SixelAspectRatio(int Numerator, int Denominator);
+/// <summary>
+/// A pixel aspect ratio expressed as a numerator/denominator pair (DECGRA/DECSIXEL macro).
+/// </summary>
+/// <param name="Numerator">The vertical scale numerator.</param>
+/// <param name="Denominator">The vertical scale denominator.</param>
+public readonly record struct SixelAspectRatio(int Numerator, int Denominator);
 
 internal readonly record struct SixelHeader(
     int PixelAspectMacro,
@@ -94,7 +170,14 @@ internal readonly record struct SixelCommand(
     int RepeatCount,
     SixelPaletteCommand? Palette);
 
-internal readonly record struct SixelDiagnostic(
+/// <summary>
+/// A single explicit Sixel parse diagnostic explaining a degraded or annotated outcome.
+/// </summary>
+/// <param name="Code">The specific reason this diagnostic was raised.</param>
+/// <param name="Offset">The byte offset into the payload where the condition was observed.</param>
+/// <param name="Command">The offending command byte, when applicable.</param>
+/// <param name="Message">A human-readable explanation.</param>
+public readonly record struct SixelDiagnostic(
     SixelDiagnosticCode Code,
     long Offset,
     byte? Command,

@@ -387,11 +387,17 @@ public static class TerminalRegionSvgExtensions
             foreach (var placement in snapshot3.SixelPlacements.OrderBy(p => p.Sequence))
             {
                 if (!placement.HasPaintedExtent)
-                    continue; // Geometry-only placements paint nothing.
+                    continue; // Nothing occupies visible area (e.g. scrolled fully off-screen).
 
-                var visiblePixels = placement.GetVisiblePixels();
-                if (visiblePixels is not { Width: > 0, Height: > 0 })
+                if (placement.IsGeometryOnly)
+                {
+                    AppendSixelGeometryOnlyPlaceholder(sb, placement, cellWidth, cellHeight);
                     continue;
+                }
+
+                var visiblePixels = placement.GetPaintedPixels();
+                if (visiblePixels is not { Width: > 0, Height: > 0 })
+                    continue; // Fully damaged: nothing left to paint.
 
                 var rgba = new byte[visiblePixels.Width * visiblePixels.Height * 4];
                 var offset = 0;
@@ -658,6 +664,54 @@ public static class TerminalRegionSvgExtensions
         sb.AppendLine("</svg>");
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Renders an explicit, deterministic diagnostic placeholder for a
+    /// geometry-only Sixel placement: the authoritative rasterizer could not
+    /// produce pixels for it, but the issue's contract forbids silently
+    /// omitting the placement from the export. The placeholder occupies the
+    /// same painted cell rectangle a rasterized placement would, so overall
+    /// export geometry never depends on whether an image rasterized.
+    /// </summary>
+    private static void AppendSixelGeometryOnlyPlaceholder(
+        StringBuilder sb, SixelPlacement placement, int cellWidth, int cellHeight)
+    {
+        var imgX = placement.PaintedLeft * cellWidth;
+        var imgY = placement.PaintedTop * cellHeight;
+        var imgWidth = placement.PaintedColumnCount * cellWidth;
+        var imgHeight = placement.PaintedRowCount * cellHeight;
+        var diagnosticText = DescribeSixelGeometryOnlyOutcome(placement);
+
+        sb.AppendLine($"""    <g class="sixel-geometry-only" data-sixel-outcome="{placement.Image.RasterStatus}">""");
+        sb.AppendLine($"""      <title>{HttpUtility.HtmlEncode(diagnosticText)}</title>""");
+        sb.AppendLine($"""      <rect x="{imgX}" y="{imgY}" width="{imgWidth}" height="{imgHeight}" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="4,2"/>""");
+        sb.AppendLine($"""      <line x1="{imgX}" y1="{imgY}" x2="{imgX + imgWidth}" y2="{imgY + imgHeight}" stroke="currentColor" stroke-width="1" stroke-dasharray="4,2"/>""");
+        sb.AppendLine($"""      <line x1="{imgX + imgWidth}" y1="{imgY}" x2="{imgX}" y2="{imgY + imgHeight}" stroke="currentColor" stroke-width="1" stroke-dasharray="4,2"/>""");
+        sb.AppendLine("    </g>");
+    }
+
+    /// <summary>
+    /// Builds a stable, human-readable description of why a placement's
+    /// image is geometry-only, from its captured parser/raster diagnostics.
+    /// Deterministic for a given <see cref="SixelData"/>: diagnostics are
+    /// captured once at parse/raster time and never mutate afterward.
+    /// </summary>
+    private static string DescribeSixelGeometryOnlyOutcome(SixelPlacement placement)
+    {
+        var image = placement.Image;
+        var parts = new List<string>
+        {
+            $"Sixel geometry-only ({image.RasterStatus}): outcome={image.Outcome}",
+        };
+
+        foreach (var diagnostic in image.RasterDiagnostics)
+            parts.Add($"raster:{diagnostic.Code}: {diagnostic.Message}");
+
+        foreach (var diagnostic in image.Diagnostics)
+            parts.Add($"parse:{diagnostic.Code}: {diagnostic.Message}");
+
+        return string.Join(" | ", parts);
     }
 
     private static string? EncodeKgpImageToDataUri(
