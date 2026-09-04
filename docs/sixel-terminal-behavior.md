@@ -237,9 +237,9 @@ CUP before writing anything that follows.
 |---|---|---|
 | Sixel over Sixel | Both placements are retained independently; presentation composites in placement sequence order. Painted pixels from a later placement cover earlier pixels; unpainted/transparent pixels leave earlier placements visible. | Protocol translation into native downstream graphics remains #458; broader cross-terminal visual comparison remains #457. |
 | Text over Sixel | Any text-cell write destructively damages the Sixel pixels projected into the overwritten cell. A space, styled background write, combining-cluster update, wide-character leading cell, or wide-character continuation cleanup is still a text write for graphics damage. Destroyed Sixel pixels do not reappear if the text is later erased. | Damage is modeled at bounded cell granularity rather than sub-cell glyph-shape granularity. |
-| ED/EL/ECH/DECERA/DECSERA | Erase graphics in the same clipped cell region that text erasure affects. Selective erase preserves graphics only where the underlying terminal cell is protected. Full ED/RIS remove active placements; partial erases damage only intersecting placement cells. | Full scrolling/reflow projection across the scrollback boundary remains #452. |
-| Insert/delete characters, columns, and lines | Character/column/line edits damage every overwritten destination or blank-fill cell in their clipped edit region, while Sixel placements themselves do not shift with ordinary text edits unless the existing scroll integration explicitly moves/drops them. | Full history/reflow projection remains #452. |
-| Scroll-region operations | Move, clip, or erase placements using the same region semantics as text rows | Full-fidelity scrolling/reflow projection across the scrollback boundary is owned by #452; #451 already shifts, drops, or moves whole placements for simple full-screen scrolls |
+| ED/EL/ECH/DECERA/DECSERA | Erase graphics in the same clipped cell region that text erasure affects. Selective erase preserves graphics only where the underlying terminal cell is protected. Full ED/RIS remove active placements; partial erases damage only intersecting placement cells. | Implemented; scrolling/reflow projection across the scrollback boundary is implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452) (see below). |
+| Insert/delete characters, columns, and lines | Character/column/line edits damage every overwritten destination or blank-fill cell in their clipped edit region, while Sixel placements themselves do not shift with ordinary text edits unless the existing scroll integration explicitly moves/drops them. | History/reflow projection is implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452). |
+| Scroll-region operations | Move, clip, split into history, or erase placements using the same region semantics as text rows, including partial vertical/horizontal margins under DECSTBM/DECLRMM | Full-fidelity scrolling/reflow projection across the scrollback boundary is implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452); see "Independent Sixel scrolling, history, and reflow (#452)" below |
 | RIS | Clear main and alternate placements, reset Sixel modes, reset the palette, clear saved screen state, and leave previously captured snapshots valid. | Implemented for lifecycle; native downstream redraw protocol remains #458. |
 | DECSTR | Reset modes, including DECSDM and mode 8452; preserve palette, placements, cursor position, and snapshots. | Broader terminal comparison remains #457, but Hex1b's compatibility choice is centralized and deterministic. |
 
@@ -326,23 +326,131 @@ unmodified.
 placeholders that name them):
 
 - Full scrolling/reflow integration — projecting a single placement across
-  the visible/history boundary, and reflow-driven re-anchoring — [#452](https://github.com/mitchdenny/hex1b/issues/452).
+  the visible/history boundary, and reflow-driven re-anchoring — is
+  implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452); see
+  "Independent Sixel scrolling, history, and reflow (#452)" below.
 - Native presentation protocol translation (removing/replacing damaged
   downstream rasters in terminals that are not using Hex1b's managed
   presentation model) — [#458](https://github.com/mitchdenny/hex1b/issues/458).
 - `SixelWidget`/`Surface`-produced Sixel and widget sizing changes are
   untouched by this stage.
 
+## Independent Sixel scrolling, history, and reflow (#452)
+
+[#452](https://github.com/mitchdenny/hex1b/issues/452) layers scrolling,
+main-screen scrollback history, viewport clipping/pruning, resize, and
+anchor-based reflow onto #451's placement/image model, mirroring
+`KgpTerminalGraphicsState`'s scrolling/history/reflow fidelity with the same
+deliberate protocol-neutral simplifications — no public placement IDs, no
+delete selectors, no z-index. KGP's own scroll/history/reflow code paths are
+untouched; every behavior below is implemented purely in `SixelGraphicsState`,
+`SixelScreenGraphicsState`, `SixelPlacement`, and the new
+`SixelHistoryPlacement`.
+
+- **Scrolling.** LF and IND at the bottom margin, RI and SD (scroll down) at
+  the top margin, and the explicit `CSI Ps S`/`CSI Ps T` sequences all drive
+  the same `SixelGraphicsState.AdjustActivePlacementsForScroll`/
+  `MoveMainPlacementsIntoHistory` pair `Hex1bTerminal.ScrollUp`/`ScrollDown`
+  already use for KGP. Full, partial, and horizontal (DECLRMM) margins are all
+  supported: a placement is only shifted, cropped, or moved into history when
+  it is wholly contained in the current scroll region (`IsWhollyContained`);
+  a placement that straddles the region's boundary, or lies wholly outside
+  it, is left completely untouched, matching real hardware's row-local
+  scrolling semantics. Repeated scroll-up progressively and irreversibly
+  crops a departing placement one row at a time until nothing remains
+  ("progressive crop"); reverse scrolling (RI/SD) only ever shifts what is
+  still active and can never resurrect a row that has already departed into
+  history on an earlier forward scroll ("no resurrection"). DECSDM changes
+  where a finalized Sixel graphic is initially anchored, not whether later
+  ordinary scrolling moves it — the two behaviors are independent.
+- **Main-screen history.** `SixelScreenGraphicsState.HistoryPlacements`
+  partitions history entries by the same stable scrollback row identity
+  (`rowId`) the terminal's own text scrollback buffer assigns, so a placement
+  spanning the visible/history boundary keeps an independently-clippable copy
+  on each side (`SixelPlacement.SliceHistoryRows`), cut from the placement's
+  *current* painted window, never its original declared geometry — the
+  invariant that makes "no resurrection" possible. `PruneMainHistoryRow`
+  evicts exactly the placement portions no longer owned by a retained row
+  (partial-crop/transfer-to-successor-row fidelity, mirroring KGP).
+  `CaptureActiveSnapshot` projects history and viewport placements into one
+  unified coordinate space and supports both `ScrollbackWidth.CurrentTerminal`
+  (the live terminal's current width) and `ScrollbackWidth.Original` (each row's
+  width at capture time) projections, matching the text scrollback buffer's
+  own dual-width contract. Entering the alternate screen creates a fully
+  independent `SixelScreenGraphicsState` with no `HistoryPlacements`
+  partition at all — alternate-screen scrolling can never create or observe
+  main-screen history, and leaving the alternate screen restores the
+  untouched main-screen state exactly as #451 already guarantees.
+- **Resize and reflow.** `ClipActivePlacementsToViewport`/
+  `ClipActiveScreenToViewport` implement plain viewport-only resize: a
+  placement's own painted window and creation-time `SixelCellMetrics` are
+  never mutated by a smaller viewport, so widening the viewport back out
+  reveals previously off-screen rows/columns unchanged; a placement is
+  dropped only once its bounding box no longer intersects the viewport at
+  all. `PrepareActiveReflow`/`ApplyActiveReflow` implement optional
+  line-oriented reflow using the same `TerminalReflowAnchor`/
+  `ReflowHelper.PerformReflowWithAnchors` machinery as KGP and text (Sixel's
+  anchors use negative ids so they can be merged into one combined reflow
+  call without colliding with KGP's positive ids): each placement moves
+  atomically to wherever its single anchor point was mapped — reflow itself
+  never splits a placement across rows — and is then re-partitioned into
+  history vs. live viewport, and (when its anchor lands inside a
+  history/discarded window) split via the same non-destructive
+  `SliceHistoryRows` projection used by ordinary scrolling ("projection-only
+  splitting"). A placement whose anchor could not be represented in the
+  reflowed layout at all (its row was consumed elsewhere, or falls in a
+  discarded/unrepresentable window) is dropped outright rather than left in
+  an inconsistent state — the explicit safe behavior the issue requires.
+  Sixel protocol metric changes (a `CSI Ps ; Ps ; Ps ; Ps ; Ps S` geometry
+  query response, for example) never resize the terminal on their own and
+  leave every existing placement's occupied footprint untouched; only an
+  actual `Hex1bTerminal.Resize`/reflow call changes what is on-screen.
+- **Damage persistence (#453).** Destructive text-damage state recorded on a
+  `SixelPlacement` (its bounded sparse damaged-cell set) travels unchanged
+  through every operation above: scroll shift, history split/crop,
+  eviction, resize clip, reflow, and snapshot projection all copy or slice
+  the placement without ever clearing or reinitializing its damage set, so a
+  cell damaged before a scroll stays damaged after the scroll, after a
+  scrollback round trip, and in a captured snapshot.
+- **Partial-vertical-margin history fix.** KGP's own history-transfer gate
+  (`createsKgpHistory` in `Hex1bTerminal.ScrollUp`) intentionally requires the
+  scroll region to span the *entire* physical screen height before treating a
+  departing row as history-worthy — a deliberate, unchanged KGP behavior.
+  Sixel cannot reuse that same gate: DECSTBM lets a program declare a
+  vertical margin strictly smaller than the physical terminal (a "partial
+  vertical margin"), and the terminal's own text scrollback buffer already
+  captures the departing row in that case. Before this stage, a Sixel
+  placement that fully departed such a region in a single scroll step (for
+  example, a one-row-tall placement anchored at the region's top row) was
+  simply deleted with no history transfer and no cropped remainder — a
+  silent, permanent data loss the existing full-height-only test fixtures
+  never exercised. The fix introduces a separate, less-restrictive
+  `createsSixelHistory` condition (the scrollback-capture guard, without the
+  full-height requirement) and makes `SixelGraphicsState.MoveMainPlacementsIntoHistory`
+  accept the active `SixelScrollRegion` and gate each placement on
+  `IsWhollyContained` before shifting it — exactly the same containment test
+  `AdjustActivePlacementsForScroll` already used, so a placement outside a
+  partial region is still left untouched. KGP's `createsKgpHistory` gate and
+  `KgpTerminalGraphicsState.MoveMainPlacementsIntoHistory` call are completely
+  unchanged by this fix.
+- **Extracted vs. kept KGP-only:** the same split #451 established still
+  holds. Scroll/clip/history-partition/reflow-anchor *mechanics* are shared
+  conceptually with KGP (mirrored, not inherited — the two graphics states
+  remain separate types with no compile-time coupling); public IDs, delete
+  selectors, relative placement graphs, and z-index remain genuinely
+  KGP-only concepts with no Sixel equivalent. All existing KGP scrolling,
+  history, reflow, and snapshot tests continue to pass unmodified.
+
 ## Screens, scrollback, resize, and reflow
 
 | Area | Selected Hex1b contract | Status or unresolved work |
 |---|---|---|
 | Main/alternate screen | Each screen owns independent placements; leaving the alternate screen restores the unchanged main-screen graphics | Implemented by [#451](https://github.com/mitchdenny/hex1b/issues/451) |
-| Scrollback | Scrolling placements remain anchored to logical row lineage and can span visible and history rows | [#452](https://github.com/mitchdenny/hex1b/issues/452); foot provides verified prior art. #451 moves whole placements between the live viewport and history when a full-screen scroll would fully carry them, but does not yet split a single placement across the boundary |
-| History eviction | Remove only the placement portions no longer owned by retained row lineage | [#452](https://github.com/mitchdenny/hex1b/issues/452); #451 releases an entire history-anchored placement when its row is pruned, without KGP's partial-crop/transfer-to-successor-row fidelity |
-| Resize | Clip to the viewport without destroying source pixels; reveal them again when space returns | Implemented by [#451](https://github.com/mitchdenny/hex1b/issues/451): a placement is dropped only once it is wholly outside the new bounds; a partially-visible placement keeps its full underlying raster and geometry, so it reappears in full when space returns. Full reflow re-anchoring remains [#452](https://github.com/mitchdenny/hex1b/issues/452) |
-| Reflow | Re-anchor through the same row-lineage plan as text and KGP placements | [#452](https://github.com/mitchdenny/hex1b/issues/452) |
-| Cell-metric change | Recompute occupied cells from stable pixel geometry using deterministic outward rounding | Reference-terminal behavior needs #457 testing |
+| Scrollback | Scrolling placements remain anchored to logical row lineage and can span visible and history rows; a placement is split across the visible/history boundary via a non-destructive crop of its *current* painted window | Implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452); foot provides verified prior art |
+| History eviction | Remove only the placement portions no longer owned by retained row lineage | Implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452), with KGP's partial-crop/transfer-to-successor-row fidelity |
+| Resize | Clip to the viewport without destroying source pixels; reveal them again when space returns | Implemented by [#451](https://github.com/mitchdenny/hex1b/issues/451)/[#452](https://github.com/mitchdenny/hex1b/issues/452): a placement is dropped only once it is wholly outside the new bounds; a partially-visible placement keeps its full underlying raster and geometry, so it reappears in full when space returns |
+| Reflow | Re-anchor through the same row-lineage plan as text and KGP placements; atomic per-anchor movement, with projection-only splitting when an anchor lands in a history/discarded window | Implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452) |
+| Cell-metric change | Recompute occupied cells from stable pixel geometry using deterministic outward rounding; a protocol metric-query response never resizes the terminal or its placements on its own | Implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452); reference-terminal behavior needs #457 testing |
 
 No reviewed reference provided a complete answer for resize/reflow or
 main/alternate-screen ownership. These decisions intentionally align Sixel with
@@ -362,11 +470,8 @@ reference-terminal evidence:
 3. DECGRA's undocumented carriage-return behavior and aspect-scaled DECGNL.
 4. Exact Sixel-over-Sixel compositing and partial-cell text/erase damage.
 5. DECSTR effects on placements.
-6. Full-fidelity scrolling/reflow projection across the scrollback boundary
-   (splitting a single placement between visible and history rows), and
-   partial-eviction of history-anchored placements.
-7. Private-mode save/restore (`CSI ? Pm s` and `CSI ? Pm r`) for Sixel modes.
-8. Exact default palette values for registers 16-255 and private-register
+6. Private-mode save/restore (`CSI ? Pm s` and `CSI ? Pm r`) for Sixel modes.
+7. Exact default palette values for registers 16-255 and private-register
    behavior across modern terminals.
 
 ## Evidence and running the contract
@@ -378,6 +483,16 @@ is the dedicated regression suite for #451's independent placement/image
 storage and lifetime accounting (multi-cell spans, dedup, overlap, geometry-only
 retention, origin-cell overwrite, snapshot-held survival past active-screen
 removal, and main/alternate/RIS independence).
+`tests/Hex1b.Tests/Sixel/SixelScrollHistoryReflowTests.cs` is the dedicated
+regression suite for #452's scrolling, main-screen history, resize, and reflow
+integration (LF/IND/RI/SU/SD equivalence, full/partial vertical margins,
+DECLRMM horizontal margins, progressive crop, no-resurrection reverse
+scrolling, DECSDM independence, capacity-one/two history pruning, both resize
+directions, fractional-pixel crops, protocol metric-change independence,
+alternate-screen isolation, current/original-width scrollback projection,
+#453 damage persistence across scroll/history/snapshot, and final-reference
+release) — including the partial-vertical-margin history transfer fixed by
+this stage.
 
 ```bash
 dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
@@ -393,6 +508,21 @@ main/alternate screen isolation, and geometry-only placement retention. The
 shared-raster scene separates its two placements by row because native Sixel
 renderers do not all preserve multiple same-row graphics consistently; the
 overlap scene covers same-row ordering as a deliberate, separate contract.
+`samples/SixelTerminalDemo/RawScrollHistoryReflowScenes.cs` adds #452's
+scrolling/history/crop/prune/margin/resize/reflow/alternate/damage scenes
+using the same raw-DCS convention. Its headless output is the authoritative
+evidence for these scenes: it reports scrollback-line, active-placement, and
+tracked-image counts, each active placement's declared vs. painted geometry,
+the current viewport's observed rows/columns after clipping, and — for
+placements that live purely in history — their own origin-cell coverage, so
+#453 damage persisting into a scrolled-past row is directly inspectable
+without an interactive terminal. Because interactive terminals render Sixel
+graphics as an overlay independent of the text grid, an interactive session of
+these scenes can only show the *current* screen's pixels; the headless model
+above is authoritative for history/crop/reflow geometry that has already
+scrolled out of view or been reflowed, and the differences between what an
+interactive terminal can show live versus what the headless evidence reports
+are called out explicitly in each scene's description.
 
 The demo presents one subject per screen. Each screen clears the display, resets
 margins, origin mode, and DECSDM so it cannot inherit state from the screen
@@ -410,6 +540,7 @@ cells, so a screen can be checked against what is actually on the terminal.
 dotnet run --project samples/SixelTerminalDemo
 dotnet run --project samples/SixelTerminalDemo -- --screen 17
 dotnet run --project samples/SixelTerminalDemo -- --scene "Declared extent"
+dotnet run --project samples/SixelTerminalDemo -- --scene "Scrolling"
 dotnet run --project samples/SixelTerminalDemo -- --headless
 ```
 

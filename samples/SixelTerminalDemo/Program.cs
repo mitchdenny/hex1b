@@ -24,7 +24,12 @@ var graphicsStateScenes = sceneFilter is null
     : RawGraphicsStateScenes.All
         .Where(scene => scene.Name.Contains(sceneFilter, StringComparison.OrdinalIgnoreCase))
         .ToArray();
-if (fixtures.Count == 0 && cursorScenes.Count == 0 && graphicsStateScenes.Count == 0)
+var scrollHistoryReflowScenes = sceneFilter is null
+    ? RawScrollHistoryReflowScenes.All
+    : RawScrollHistoryReflowScenes.All
+        .Where(scene => scene.Name.Contains(sceneFilter, StringComparison.OrdinalIgnoreCase))
+        .ToArray();
+if (fixtures.Count == 0 && cursorScenes.Count == 0 && graphicsStateScenes.Count == 0 && scrollHistoryReflowScenes.Count == 0)
 {
     throw new ArgumentException($"No Sixel demo scene contains '{sceneFilter}'.", nameof(args));
 }
@@ -55,12 +60,20 @@ for (var index = 0; index < graphicsStateScenes.Count; index++)
     graphicsStateObservations[index] = await InspectGraphicsStateSceneAsync(graphicsStateScenes[index]);
 }
 
+var scrollHistoryReflowObservations = new string[scrollHistoryReflowScenes.Count];
+for (var index = 0; index < scrollHistoryReflowScenes.Count; index++)
+{
+    scrollHistoryReflowObservations[index] = await InspectScrollHistoryReflowSceneAsync(scrollHistoryReflowScenes[index]);
+}
+
 var allScreens = DemoScreens.Build(
     fixtures,
     modelDescriptions,
     cursorScenes,
     graphicsStateScenes,
     graphicsStateObservations,
+    scrollHistoryReflowScenes,
+    scrollHistoryReflowObservations,
     includeTransportScenes: sceneFilter is null);
 
 // --screen selects one numbered screen. The number keeps its original value so a
@@ -92,7 +105,9 @@ if (headless)
         cursorScenes,
         cursorObservations,
         graphicsStateScenes,
-        graphicsStateObservations);
+        graphicsStateObservations,
+        scrollHistoryReflowScenes,
+        scrollHistoryReflowObservations);
     return;
 }
 
@@ -118,7 +133,9 @@ static void WriteHeadlessTranscript(
     IReadOnlyList<RawCursorScene> cursorScenes,
     IReadOnlyList<string> cursorObservations,
     IReadOnlyList<RawGraphicsStateScene> graphicsStateScenes,
-    IReadOnlyList<string> graphicsStateObservations)
+    IReadOnlyList<string> graphicsStateObservations,
+    IReadOnlyList<RawScrollHistoryReflowScene> scrollHistoryReflowScenes,
+    IReadOnlyList<string> scrollHistoryReflowObservations)
 {
     Console.WriteLine($"Hex1b Sixel demo: {allScreens.Count} numbered screens.");
     Console.WriteLine("Run without --headless to page through them; --screen <number> opens one.");
@@ -150,6 +167,13 @@ static void WriteHeadlessTranscript(
     for (var index = 0; index < graphicsStateScenes.Count; index++)
     {
         Console.WriteLine($"  {graphicsStateScenes[index].Name}: {graphicsStateObservations[index]}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("Scrolling, history, and resize observations (#452):");
+    for (var index = 0; index < scrollHistoryReflowScenes.Count; index++)
+    {
+        Console.WriteLine($"  {scrollHistoryReflowScenes[index].Name}: {scrollHistoryReflowObservations[index]}");
     }
 }
 
@@ -272,6 +296,114 @@ static string DescribeSixelColor(SixelData image)
     if (image.Payload.Contains("240;50;100"))
         return "blue";
     return "unrecognized color";
+}
+
+static async Task<string> InspectScrollHistoryReflowSceneAsync(RawScrollHistoryReflowScene scene)
+{
+    var capabilities = new TerminalCapabilities
+    {
+        SupportsSixel = true,
+        SupportsTrueColor = true,
+        Supports256Colors = true,
+        CellPixelWidth = 10,
+        CellPixelHeight = 20,
+    };
+    var workload = new DemoWorkloadAdapter([scene.Bytes]);
+    var terminalBuilder = Hex1bTerminal.CreateBuilder()
+        .WithWorkload(workload)
+        .WithPresentation(new HeadlessPresentationAdapter(80, 24, capabilities))
+        .WithDimensions(80, 24);
+    if (scene.ScrollbackCapacity > 0)
+    {
+        terminalBuilder = terminalBuilder.WithScrollback(scene.ScrollbackCapacity);
+    }
+
+    await using var terminal = terminalBuilder.Build();
+    await terminal.RunAsync();
+
+    var builder = new StringBuilder();
+    builder.Append(DescribeScrollHistoryReflowState(terminal, "after script"));
+
+    if (scene.ResizeSteps is { Count: > 0 } steps)
+    {
+        foreach (var (width, height) in steps)
+        {
+            terminal.Resize(width, height);
+            builder.Append("; ");
+            builder.Append(DescribeScrollHistoryReflowState(terminal, $"after resize to {width}x{height}"));
+        }
+    }
+
+    return builder.ToString();
+}
+
+static string DescribeScrollHistoryReflowState(Hex1bTerminal terminal, string label)
+{
+    var builder = new StringBuilder();
+    builder.Append(label);
+    builder.Append(": ");
+    builder.Append($"{terminal.ScrollbackCount} scrollback line(s), {terminal.SixelPlacementCount} active placement(s), {terminal.TrackedSixelCount} tracked image(s)");
+
+    foreach (var placement in terminal.SixelPlacements)
+    {
+        builder.Append(
+            $"; ({placement.Column},{placement.Row}) declared {placement.WidthInCells}x{placement.HeightInCells} cells, painted {placement.PaintedColumnCount}x{placement.PaintedRowCount}");
+    }
+
+    // The declared/painted geometry above never changes just because the
+    // viewport got smaller (see SixelGraphicsState.ClipActivePlacementsToViewport):
+    // only what the *current* viewport can actually observe narrows. Walking a
+    // fresh snapshot's placements the same way SixelTestTerminal.Observe does in
+    // the test suite makes that distinction visible here too.
+    using var snapshot = terminal.CreateSnapshot(scrollbackLines: terminal.ScrollbackCount);
+    builder.Append($" [snapshot: {snapshot.SixelPlacements.Count} placement(s), scrollbackLineCount={snapshot.ScrollbackLineCount}]");
+    var mainScreenRows = new SortedSet<int>();
+    var mainScreenColumns = new SortedSet<int>();
+    foreach (var placement in snapshot.SixelPlacements)
+    {
+        if (!placement.HasPaintedExtent)
+            continue;
+
+        var top = Math.Max(placement.PaintedTop, snapshot.ScrollbackLineCount);
+        var bottom = Math.Min(placement.PaintedBottom, snapshot.Height - 1);
+        var left = Math.Max(placement.PaintedLeft, 0);
+        var right = Math.Min(placement.PaintedRight, snapshot.Width - 1);
+        for (var row = top; row <= bottom; row++)
+        {
+            for (var column = left; column <= right; column++)
+            {
+                if (!placement.CoversCell(row, column))
+                    continue;
+
+                mainScreenRows.Add(row - snapshot.ScrollbackLineCount);
+                mainScreenColumns.Add(column);
+            }
+        }
+    }
+
+    if (mainScreenRows.Count > 0)
+        builder.Append($"; viewport rows observed: {string.Join(",", mainScreenRows)}");
+    if (mainScreenColumns.Count > 0)
+        builder.Append($"; viewport columns observed: {string.Join(",", mainScreenColumns)}");
+
+    // Placements that live purely in history (their painted top already
+    // scrolled past the visible viewport) are not walked above, since the
+    // live-viewport loop only reports what a real presentation adapter could
+    // draw. Reporting their own origin-cell coverage here is the direct,
+    // authoritative evidence that #453 destructive damage survives the
+    // history/snapshot projection (SixelPlacement.SliceHistoryRows), not just
+    // that the row count matches.
+    foreach (var placement in snapshot.SixelPlacements)
+    {
+        if (!placement.HasPaintedExtent || placement.PaintedTop >= snapshot.ScrollbackLineCount)
+            continue;
+
+        var originCovered = placement.CoversCell(placement.PaintedTop, placement.PaintedLeft);
+        builder.Append(
+            $"; history placement ({placement.PaintedLeft},{placement.PaintedTop}) painted {placement.PaintedColumnCount}x{placement.PaintedRowCount}, origin cell covered: {originCovered}");
+    }
+
+    return builder.ToString();
 }
 
 static async Task<string> InspectModelAsync(RawSixelFixture fixture)
