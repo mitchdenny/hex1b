@@ -342,4 +342,55 @@ public class Hex1bTerminalScrollbackTests
         // Should not capture to scrollback since scroll region doesn't start at row 0
         Assert.AreEqual(0, terminal.Scrollback!.Count);
     }
+
+    /// <summary>
+    /// Plain-text (no Sixel state involved) regression coverage for the
+    /// #452 history-transfer fix: a DECSTBM region that starts at row 0 but
+    /// is *smaller* than the physical screen ("partial vertical margin")
+    /// must still capture the departing row into scrollback, and rows
+    /// outside the margin must be completely unaffected by the scroll.
+    /// </summary>
+    /// <remarks>
+    /// This complements <see cref="PartialScrollRegion_DoesNotCaptureScrollback"/>
+    /// (region not starting at row 0 -&gt; no capture) by covering the other
+    /// partial-margin shape (region starting at row 0, ending above the
+    /// bottom of the screen -&gt; capture still happens). It exists to prove,
+    /// independently of any Sixel test, that the <c>Hex1bTerminal.ScrollUp</c>
+    /// changes made to support the new Sixel-only <c>createsSixelHistory</c>
+    /// gate (see <c>SixelScrollHistoryReflowTests</c>) left plain scrollback
+    /// capture and row-shift behavior for a top-anchored partial margin
+    /// exactly as it was before.
+    /// </remarks>
+    [TestMethod]
+    public void PartialVerticalMargin_FromTop_CapturesScrollbackAndLeavesRowsBelowUntouched()
+    {
+        using var terminal = CreateTerminal(width: 10, height: 5);
+
+        // Set scroll region to rows 1-3 (starts at row 0, ends above the
+        // physical bottom row 4) - a "partial vertical margin from the top".
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;3r")); // DECSTBM: rows 1-3 (1-based)
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1H")); // Move cursor to row 1
+
+        // Fill the 3-row margin and force exactly one scroll within it.
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("A\r\nB\r\nC\r\nD"));
+
+        // The departing row ("A") must still be captured into scrollback,
+        // even though the margin doesn't span the full physical screen.
+        Assert.IsNotNull(terminal.Scrollback);
+        Assert.AreEqual(1, terminal.Scrollback.Count);
+        var lines = terminal.Scrollback.GetLines(1);
+        Assert.AreEqual("A", lines[0].Cells[0].Character);
+
+        // Rows inside the margin shifted up by one and the new row was
+        // written at the margin's bottom.
+        using var snapshot = terminal.CreateSnapshot();
+        Assert.AreEqual("B", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("C", snapshot.GetCell(0, 1).Character);
+        Assert.AreEqual("D", snapshot.GetCell(0, 2).Character);
+
+        // Rows 4-5 (outside the margin, physical rows 3-4) were never part
+        // of the scroll region and must remain completely blank/untouched.
+        Assert.AreEqual(" ", snapshot.GetCell(0, 3).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(0, 4).Character);
+    }
 }
