@@ -242,17 +242,33 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
 
     /// <summary>
     /// Sixel placements visible in this snapshot, including any requested
-    /// scrollback rows. Internal test/inspection surface for stage #451; kept
-    /// internal rather than public until an external consumer need is
-    /// demonstrated (see the api-reviewer skill guidance).
+    /// scrollback rows.
     /// </summary>
-    internal IReadOnlyList<SixelPlacement> SixelPlacements { get; }
+    /// <remarks>
+    /// Analogous to <see cref="KgpPlacements"/> but sized and shaped for the
+    /// Sixel protocol: there is no image ID (Sixel has no protocol concept
+    /// of one), so placements reference their <see cref="SixelPlacement.Image"/>
+    /// directly and <see cref="SixelImages"/> is keyed by content hash instead.
+    /// Each placement captures its own creation-time
+    /// <see cref="Sixel.SixelCellMetrics"/>, painted/declared extents, and
+    /// per-cell damage independently of any other placement, and remains
+    /// valid for the lifetime of this snapshot even after the live terminal
+    /// erases, prunes, or resets the placement that produced it.
+    /// </remarks>
+    public IReadOnlyList<SixelPlacement> SixelPlacements { get; }
 
     /// <summary>
     /// Sixel image data referenced by the visible snapshot placements, keyed
     /// by content hash.
     /// </summary>
-    internal IReadOnlyDictionary<byte[], SixelData> SixelImages { get; }
+    /// <remarks>
+    /// An image's decoded raster (or geometry-only outcome) is retained once
+    /// per referenced image, never once per covered cell: two placements —
+    /// in this snapshot or across independently captured snapshots — that
+    /// reference the same content hash share the same <see cref="SixelData"/>
+    /// instance and its underlying raster.
+    /// </remarks>
+    public IReadOnlyDictionary<byte[], SixelData> SixelImages { get; }
 
     /// <inheritdoc />
     public TerminalCell GetCell(int x, int y)

@@ -6,11 +6,16 @@ namespace Hex1b.Sixel;
 /// <summary>
 /// Describes whether a rasterization produced pixels or only geometry.
 /// </summary>
-internal enum SixelRasterStatus
+/// <remarks>
+/// A <see cref="GeometryOnly"/> outcome means the authoritative rasterizer
+/// explicitly refused pixel allocation (a bounded resource limit, or a parse
+/// outcome that carried no rasterable data), not a bug: the placement is
+/// still retained with its declared geometry and explanatory
+/// <see cref="Hex1b.SixelData.RasterDiagnostics"/>, never silently dropped.
+/// </remarks>
+public enum SixelRasterStatus
 {
-    /// <summary>
-    /// Pixels are available through <see cref="SixelRasterResult.Image"/>.
-    /// </summary>
+    /// <summary>Pixels are available through <see cref="Hex1b.SixelData.GetPixels"/>.</summary>
     Rasterized,
 
     /// <summary>
@@ -21,24 +26,44 @@ internal enum SixelRasterStatus
 }
 
 /// <summary>
-/// Explicit reasons a rasterization degraded or annotated its result.
+/// Explicit reasons a rasterization degraded or annotated its result,
+/// surfaced via <see cref="SixelRasterDiagnostic"/> on
+/// <see cref="Hex1b.SixelData.RasterDiagnostics"/>.
 /// </summary>
-internal enum SixelRasterDiagnosticCode
+public enum SixelRasterDiagnosticCode
 {
+    /// <summary>The parse outcome (cancelled/malformed/rejected) carried no complete graphic to rasterize.</summary>
     ParseOutcomeNotRasterable,
+
+    /// <summary>Bounded command retention truncated the sequence, leaving only geometry and palette state.</summary>
     CommandsIncomplete,
+
+    /// <summary>The sequence produced no logical raster extent.</summary>
     NoRasterableExtent,
+
+    /// <summary>The logical raster extent exceeded the implementation coordinate limit.</summary>
     RasterExtentOverflow,
+
+    /// <summary>The logical pixel count exceeded the configured raster pixel limit.</summary>
     RasterPixelLimitExceeded,
+
+    /// <summary>The number of requested pixel writes exceeded the configured raster operation limit.</summary>
     RasterOperationLimitExceeded,
+
+    /// <summary>A tiled-raster resource limit was exceeded.</summary>
     RasterTileLimitExceeded,
+
+    /// <summary>A referenced color register fell outside the compatibility policy's accepted range.</summary>
     ColorRegisterOutOfPolicy,
 }
 
 /// <summary>
-/// A single explicit rasterization diagnostic.
+/// A single explicit rasterization diagnostic explaining a geometry-only
+/// downgrade or other annotated raster outcome.
 /// </summary>
-internal readonly record struct SixelRasterDiagnostic(
+/// <param name="Code">The specific reason this diagnostic was raised.</param>
+/// <param name="Message">A human-readable explanation.</param>
+public readonly record struct SixelRasterDiagnostic(
     SixelRasterDiagnosticCode Code,
     string Message);
 
@@ -51,7 +76,7 @@ internal readonly record struct SixelRasterDiagnostic(
 /// <param name="Data">The unscaled extent reached by data commands.</param>
 /// <param name="Painted">The unscaled bounds of explicitly painted pixels.</param>
 /// <param name="Aspect">The effective pixel aspect ratio.</param>
-internal readonly record struct SixelRasterExtents(
+public readonly record struct SixelRasterExtents(
     SixelExtent Logical,
     SixelExtent Rendered,
     SixelExtent Declared,
@@ -59,6 +84,7 @@ internal readonly record struct SixelRasterExtents(
     SixelBounds Painted,
     SixelAspectRatio Aspect)
 {
+    /// <summary>An empty set of extents, using the default 2:1 aspect ratio.</summary>
     public static SixelRasterExtents Empty { get; } = new(
         SixelExtent.Empty,
         SixelExtent.Empty,

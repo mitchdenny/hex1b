@@ -234,6 +234,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         byte[] syncBytes;
         IReadOnlyList<KgpPlacement> kgpPlacements;
         IReadOnlyDictionary<uint, KgpImageData> kgpImages;
+        IReadOnlyList<SixelPlacement> sixelPlacements;
+        IReadOnlyList<(int Row, int Column, TerminalCell Cell)> sixelDamagedCells;
         int cursorX;
         int cursorY;
         string? primarySnapshot;
@@ -267,6 +269,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                 syncBytes = Encoding.UTF8.GetBytes(prefix + ansi + suffix);
                 kgpPlacements = snap.KgpPlacements;
                 kgpImages = snap.KgpImages;
+                sixelPlacements = snap.SixelPlacements;
+                sixelDamagedCells = CaptureSixelDamagedCells(snap, sixelPlacements);
                 cursorX = snap.CursorX;
                 cursorY = snap.CursorY;
             }
@@ -275,6 +279,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                 syncBytes = [];
                 kgpPlacements = [];
                 kgpImages = new Dictionary<uint, KgpImageData>();
+                sixelPlacements = [];
+                sixelDamagedCells = [];
                 cursorX = 0;
                 cursorY = 0;
             }
@@ -292,6 +298,22 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                         kgpImages,
                         cursorX,
                         cursorY,
+                        session.Cts.Token));
+            }
+
+            // Sixel placements own the character cells they occupy (unlike KGP), but
+            // StateSync's CSI-2J clear unconditionally erases every Sixel placement
+            // regardless of ordering. So — exactly like KGP — this must be queued
+            // after StateSync on the per-client write pump, not written directly
+            // before it. See Hmp1SixelStateReplay for the full rationale, including
+            // why a trailing damage patch is required.
+            if (sixelPlacements.Count > 0)
+            {
+                EnqueueControlFrameAsync(session, stream =>
+                    Hmp1SixelStateReplay.WriteAsync(
+                        stream,
+                        sixelPlacements,
+                        sixelDamagedCells,
                         session.Cts.Token));
             }
 
@@ -322,6 +344,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         // hasn't yet received a handle.
         await Hmp1Protocol.WriteHelloAsync(
             stream, widthSnapshot, heightSnapshot, peerId, primarySnapshot, roster, ct).ConfigureAwait(false);
+
         await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.StateSync, syncBytes, ct).ConfigureAwait(false);
 
         // Start per-client write pump and read pump
@@ -419,6 +442,43 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Captures the exact content of every cell any of <paramref name="placements"/>
+    /// reports as damaged, while <paramref name="snapshot"/> is still valid.
+    /// </summary>
+    /// <remarks>
+    /// Sixel replay must run after StateSync's unconditional erase-display, which
+    /// re-blanks these cells when the placement is recreated. The captured cells
+    /// let <see cref="Hmp1SixelStateReplay"/> patch them back afterward. Capturing
+    /// (rather than deferring the read) is required because the snapshot is
+    /// disposed at the end of the caller's <c>using</c> block, well before the
+    /// queued replay writer runs.
+    /// </remarks>
+    private static List<(int Row, int Column, TerminalCell Cell)> CaptureSixelDamagedCells(
+        Hex1bTerminalSnapshot snapshot,
+        IReadOnlyList<SixelPlacement> placements)
+    {
+        if (placements.Count == 0)
+            return [];
+
+        var damaged = new List<(int Row, int Column, TerminalCell Cell)>();
+        foreach (var placement in placements)
+        {
+            for (var row = placement.PaintedTop; row <= placement.PaintedBottom; row++)
+            {
+                for (var column = placement.PaintedLeft; column <= placement.PaintedRight; column++)
+                {
+                    if (placement.IsCellDamaged(row, column))
+                    {
+                        damaged.Add((row, column, snapshot.GetCell(column, row)));
+                    }
+                }
+            }
+        }
+
+        return damaged;
     }
 
     /// <inheritdoc />

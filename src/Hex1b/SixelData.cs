@@ -55,9 +55,33 @@ public sealed class SixelData
     /// <summary>
     /// Gets the content hash used for deduplication.
     /// </summary>
-    internal byte[] ContentHash { get; }
+    /// <remarks>
+    /// Identical payloads that also capture the same background and palette
+    /// state produce the same hash, which content-addressed replay and
+    /// serialization can use to reference this image without repeating its
+    /// pixel payload.
+    /// </remarks>
+    public byte[] ContentHash { get; }
 
     internal SixelParseResult ParseResult { get; }
+
+    /// <summary>
+    /// Gets the authoritative parser outcome for this image's payload.
+    /// </summary>
+    public SixelParseOutcome Outcome => ParseResult.Outcome;
+
+    /// <summary>
+    /// Gets the explicit parser diagnostics explaining any downgraded or
+    /// annotated outcome. Empty when <see cref="Outcome"/> is
+    /// <see cref="SixelParseOutcome.Complete"/> with nothing to report.
+    /// </summary>
+    public IReadOnlyList<SixelDiagnostic> Diagnostics => ParseResult.Diagnostics;
+
+    /// <summary>
+    /// Gets whether unpainted pixels resolve to the captured background color
+    /// or remain transparent.
+    /// </summary>
+    public SixelBackgroundMode BackgroundMode => ParseResult.Header.BackgroundMode;
 
     /// <summary>
     /// Gets the authoritative bounded rasterization of <see cref="ParseResult"/>.
@@ -80,6 +104,31 @@ public sealed class SixelData
             }
         }
     }
+
+    /// <summary>
+    /// Gets whether the authoritative rasterizer produced pixels for this
+    /// image, or explicitly refused allocation (a geometry-only outcome).
+    /// </summary>
+    /// <remarks>
+    /// A geometry-only image still carries its declared/logical extents and
+    /// <see cref="RasterDiagnostics"/> explaining the downgrade; it is never
+    /// silently indistinguishable from a fully rasterized one.
+    /// </remarks>
+    public SixelRasterStatus RasterStatus => Raster.Status;
+
+    /// <summary>
+    /// Gets the explicit rasterizer diagnostics explaining a geometry-only
+    /// outcome or other annotated raster result. Empty when
+    /// <see cref="RasterStatus"/> is <see cref="SixelRasterStatus.Rasterized"/>
+    /// with nothing to report.
+    /// </summary>
+    public IReadOnlyList<SixelRasterDiagnostic> RasterDiagnostics => Raster.Diagnostics;
+
+    /// <summary>
+    /// Gets this image's logical/rendered/declared/data/painted extents and
+    /// effective pixel aspect ratio.
+    /// </summary>
+    public SixelRasterExtents Extents => Raster.Extents;
 
     internal SixelData(
         string payload,
@@ -122,13 +171,13 @@ public sealed class SixelData
     }
 
     /// <summary>
-    /// Gets the protocol cell metrics captured when this placement was created.
+    /// Gets the protocol cell metrics captured when this image was created.
     /// </summary>
     /// <remarks>
     /// Metrics are captured once so a later metric change cannot retroactively
-    /// alter the occupancy already recorded for this placement.
+    /// alter the occupancy already recorded for a placement of this image.
     /// </remarks>
-    internal SixelCellMetrics CellMetrics { get; }
+    public SixelCellMetrics CellMetrics { get; }
 
     /// <summary>
     /// Gets the cell span for this sixel using the specified cell metrics.

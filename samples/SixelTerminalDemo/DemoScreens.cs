@@ -13,7 +13,8 @@ internal static class DemoScreens
     /// Builds every screen: the grammar and geometry fixtures first, then the
     /// cursor, DECSDM, and margin scenes, then the graphics-state ownership
     /// scenes (#451), then the scrolling/history/resize scenes (#452), then
-    /// the transport scenes.
+    /// the snapshot/export/recording/replay scenes (#456), then the
+    /// transport scenes.
     /// </summary>
     public static IReadOnlyList<DemoScreen> Build(
         IReadOnlyList<RawSixelFixture> fixtures,
@@ -23,6 +24,8 @@ internal static class DemoScreens
         IReadOnlyList<string> graphicsStateObservations,
         IReadOnlyList<RawScrollHistoryReflowScene> scrollHistoryReflowScenes,
         IReadOnlyList<string> scrollHistoryReflowObservations,
+        IReadOnlyList<RawSnapshotExportReplayScene> snapshotExportReplayScenes,
+        IReadOnlyList<string> snapshotExportReplayObservations,
         bool includeTransportScenes)
     {
         var screens = new List<DemoScreen>();
@@ -79,6 +82,17 @@ internal static class DemoScreens
                 scene.Expected,
                 scene.Bytes,
                 Notes: [scrollHistoryReflowObservations[index]]));
+        }
+
+        for (var index = 0; index < snapshotExportReplayScenes.Count; index++)
+        {
+            var scene = snapshotExportReplayScenes[index];
+            screens.Add(new DemoScreen(
+                number++,
+                scene.Name,
+                scene.Expected,
+                scene.Bytes,
+                Notes: [snapshotExportReplayObservations[index]]));
         }
 
         if (!includeTransportScenes)

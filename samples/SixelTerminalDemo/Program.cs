@@ -1,5 +1,7 @@
+using System.Security.Cryptography;
 using System.Text;
 using Hex1b;
+using Hex1b.Automation;
 
 var headless = args.Contains("--headless", StringComparer.OrdinalIgnoreCase);
 var sceneFilter = GetOption(args, "--scene");
@@ -29,7 +31,13 @@ var scrollHistoryReflowScenes = sceneFilter is null
     : RawScrollHistoryReflowScenes.All
         .Where(scene => scene.Name.Contains(sceneFilter, StringComparison.OrdinalIgnoreCase))
         .ToArray();
-if (fixtures.Count == 0 && cursorScenes.Count == 0 && graphicsStateScenes.Count == 0 && scrollHistoryReflowScenes.Count == 0)
+var snapshotExportReplayScenes = sceneFilter is null
+    ? RawSnapshotExportReplayScenes.All
+    : RawSnapshotExportReplayScenes.All
+        .Where(scene => scene.Name.Contains(sceneFilter, StringComparison.OrdinalIgnoreCase))
+        .ToArray();
+if (fixtures.Count == 0 && cursorScenes.Count == 0 && graphicsStateScenes.Count == 0
+    && scrollHistoryReflowScenes.Count == 0 && snapshotExportReplayScenes.Count == 0)
 {
     throw new ArgumentException($"No Sixel demo scene contains '{sceneFilter}'.", nameof(args));
 }
@@ -66,6 +74,12 @@ for (var index = 0; index < scrollHistoryReflowScenes.Count; index++)
     scrollHistoryReflowObservations[index] = await InspectScrollHistoryReflowSceneAsync(scrollHistoryReflowScenes[index]);
 }
 
+var snapshotExportReplayObservations = new string[snapshotExportReplayScenes.Count];
+for (var index = 0; index < snapshotExportReplayScenes.Count; index++)
+{
+    snapshotExportReplayObservations[index] = await InspectSnapshotExportReplaySceneAsync(snapshotExportReplayScenes[index]);
+}
+
 var allScreens = DemoScreens.Build(
     fixtures,
     modelDescriptions,
@@ -74,6 +88,8 @@ var allScreens = DemoScreens.Build(
     graphicsStateObservations,
     scrollHistoryReflowScenes,
     scrollHistoryReflowObservations,
+    snapshotExportReplayScenes,
+    snapshotExportReplayObservations,
     includeTransportScenes: sceneFilter is null);
 
 // --screen selects one numbered screen. The number keeps its original value so a
@@ -107,7 +123,9 @@ if (headless)
         graphicsStateScenes,
         graphicsStateObservations,
         scrollHistoryReflowScenes,
-        scrollHistoryReflowObservations);
+        scrollHistoryReflowObservations,
+        snapshotExportReplayScenes,
+        snapshotExportReplayObservations);
     return;
 }
 
@@ -135,7 +153,9 @@ static void WriteHeadlessTranscript(
     IReadOnlyList<RawGraphicsStateScene> graphicsStateScenes,
     IReadOnlyList<string> graphicsStateObservations,
     IReadOnlyList<RawScrollHistoryReflowScene> scrollHistoryReflowScenes,
-    IReadOnlyList<string> scrollHistoryReflowObservations)
+    IReadOnlyList<string> scrollHistoryReflowObservations,
+    IReadOnlyList<RawSnapshotExportReplayScene> snapshotExportReplayScenes,
+    IReadOnlyList<string> snapshotExportReplayObservations)
 {
     Console.WriteLine($"Hex1b Sixel demo: {allScreens.Count} numbered screens.");
     Console.WriteLine("Run without --headless to page through them; --screen <number> opens one.");
@@ -174,6 +194,13 @@ static void WriteHeadlessTranscript(
     for (var index = 0; index < scrollHistoryReflowScenes.Count; index++)
     {
         Console.WriteLine($"  {scrollHistoryReflowScenes[index].Name}: {scrollHistoryReflowObservations[index]}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("Snapshot, export, and recording/replay observations (#456):");
+    for (var index = 0; index < snapshotExportReplayScenes.Count; index++)
+    {
+        Console.WriteLine($"  {snapshotExportReplayScenes[index].Name}: {snapshotExportReplayObservations[index]}");
     }
 }
 
@@ -496,3 +523,273 @@ static string DescribeModel(SixelData sixel)
         return seen.Count;
     }
 }
+
+// #456: snapshot model, SVG/HTML export, and HMP1 recording/replay evidence.
+// Each RawSnapshotExportReplayScene.Kind needs materially different
+// follow-up work beyond just replaying the script, so this dispatches to one
+// focused inspector per kind rather than one function trying to do all of it.
+static async Task<string> InspectSnapshotExportReplaySceneAsync(RawSnapshotExportReplayScene scene) =>
+    scene.Kind switch
+    {
+        SnapshotExportReplayScenarioKind.SnapshotSharing => await InspectSnapshotSharingAsync(scene),
+        SnapshotExportReplayScenarioKind.Projections => await InspectProjectionsAsync(scene),
+        SnapshotExportReplayScenarioKind.GeometryOnlyExport => await InspectGeometryOnlyExportAsync(scene),
+        SnapshotExportReplayScenarioKind.DeterministicExport => await InspectDeterministicExportAsync(scene),
+        SnapshotExportReplayScenarioKind.RecordReplayWithDamage => await InspectRecordReplayWithDamageAsync(scene),
+        SnapshotExportReplayScenarioKind.MainAlternateIndependence => await InspectMainAlternateIndependenceAsync(scene),
+        SnapshotExportReplayScenarioKind.MalformedFailures => await InspectMalformedFailuresAsync(scene),
+        _ => throw new ArgumentOutOfRangeException(nameof(scene)),
+    };
+
+static Hex1bTerminalBuilder CreateSnapshotExportReplayTerminalBuilder(byte[] script, int scrollbackCapacity)
+{
+    var capabilities = new TerminalCapabilities
+    {
+        SupportsSixel = true,
+        SupportsTrueColor = true,
+        Supports256Colors = true,
+        CellPixelWidth = 10,
+        CellPixelHeight = 20,
+    };
+    var builder = Hex1bTerminal.CreateBuilder()
+        .WithWorkload(new DemoWorkloadAdapter([script]))
+        .WithPresentation(new HeadlessPresentationAdapter(80, 24, capabilities))
+        .WithDimensions(80, 24);
+    return scrollbackCapacity > 0 ? builder.WithScrollback(scrollbackCapacity) : builder;
+}
+
+static async Task<string> InspectSnapshotSharingAsync(RawSnapshotExportReplayScene scene)
+{
+    await using var terminal = CreateSnapshotExportReplayTerminalBuilder(scene.Bytes, scene.ScrollbackCapacity).Build();
+    await terminal.RunAsync();
+
+    // Not `using`, since the double-Dispose() below is the point of this
+    // scene: it must be safe and must not affect snapshotB's independent
+    // lifetime, matching SixelSnapshotSharingTests' disposal contract.
+    var snapshotA = terminal.CreateSnapshot();
+    using var snapshotB = terminal.CreateSnapshot();
+
+    var placementsA = snapshotA.SixelPlacements;
+    var placementsB = snapshotB.SixelPlacements;
+    var sharedWithinSnapshot = placementsA.Count >= 2 && ReferenceEquals(placementsA[0].Image, placementsA[1].Image);
+    var sharedAcrossSnapshots = placementsA.Count > 0 && placementsB.Count > 0
+        && ReferenceEquals(placementsA[0].Image, placementsB[0].Image);
+
+    snapshotA.Dispose();
+    snapshotA.Dispose();
+
+    var builder = new StringBuilder();
+    builder.Append($"{placementsA.Count} placement(s); both anchors reference the same image instance: {sharedWithinSnapshot}");
+    builder.Append($"; a second independent snapshot observes that identical shared instance: {sharedAcrossSnapshots}");
+    builder.Append($"; snapshot B still resolves pixels after snapshot A was disposed twice: {snapshotB.ContainsSixelData()}");
+    return builder.ToString();
+}
+
+static async Task<string> InspectProjectionsAsync(RawSnapshotExportReplayScene scene)
+{
+    await using var terminal = CreateSnapshotExportReplayTerminalBuilder(scene.Bytes, scene.ScrollbackCapacity).Build();
+    await terminal.RunAsync();
+
+    using var viewportOnly = terminal.CreateSnapshot(scrollbackLines: 0);
+    using var historyInclusive = terminal.CreateSnapshot(scrollbackLines: terminal.ScrollbackCount);
+    using var currentWidth = terminal.CreateSnapshot(scrollbackLines: terminal.ScrollbackCount, scrollbackWidth: ScrollbackWidth.CurrentTerminal);
+    using var originalWidth = terminal.CreateSnapshot(scrollbackLines: terminal.ScrollbackCount, scrollbackWidth: ScrollbackWidth.Original);
+
+    var builder = new StringBuilder();
+    builder.Append($"viewport-only: {viewportOnly.SixelPlacements.Count} placement(s), scrollbackLineCount={viewportOnly.ScrollbackLineCount}");
+    builder.Append($"; history-inclusive: {historyInclusive.SixelPlacements.Count} placement(s), scrollbackLineCount={historyInclusive.ScrollbackLineCount}");
+    builder.Append($"; current-width projection: {currentWidth.SixelPlacements.Count} placement(s)");
+    builder.Append($"; original-width projection: {originalWidth.SixelPlacements.Count} placement(s)");
+    return builder.ToString();
+}
+
+static async Task<string> InspectGeometryOnlyExportAsync(RawSnapshotExportReplayScene scene)
+{
+    await using var terminal = CreateSnapshotExportReplayTerminalBuilder(scene.Bytes, scene.ScrollbackCapacity).Build();
+    await terminal.RunAsync();
+
+    using var snapshot = terminal.CreateSnapshot();
+    var placement = snapshot.SixelPlacements.Count > 0 ? snapshot.SixelPlacements[0] : null;
+    var svg = snapshot.ToSvg();
+    var html = snapshot.ToHtml();
+
+    var builder = new StringBuilder();
+    builder.Append($"placement geometry-only: {placement?.IsGeometryOnly ?? false}");
+    builder.Append($"; SVG diagnostic placeholder present ('sixel-geometry-only'): {svg.Contains("sixel-geometry-only", StringComparison.Ordinal)}");
+    builder.Append($"; HTML geometry-only metadata present ('\"geometryOnly\":true'): {html.Contains("\"geometryOnly\":true", StringComparison.Ordinal)}");
+    return builder.ToString();
+}
+
+static async Task<string> InspectDeterministicExportAsync(RawSnapshotExportReplayScene scene)
+{
+    await using var terminal = CreateSnapshotExportReplayTerminalBuilder(scene.Bytes, scene.ScrollbackCapacity).Build();
+    await terminal.RunAsync();
+
+    using var snapshot = terminal.CreateSnapshot();
+    var svgFirst = snapshot.ToSvg();
+    var svgSecond = snapshot.ToSvg();
+    var htmlFirst = snapshot.ToHtml();
+    var htmlSecond = snapshot.ToHtml();
+
+    var builder = new StringBuilder();
+    builder.Append($"SVG export byte-identical across repeats: {string.Equals(svgFirst, svgSecond, StringComparison.Ordinal)}");
+    builder.Append($"; HTML export byte-identical across repeats: {string.Equals(htmlFirst, htmlSecond, StringComparison.Ordinal)}");
+    builder.Append($"; SVG SHA-256 (first 16 hex chars): {Sha256Hex(svgFirst)}");
+    return builder.ToString();
+}
+
+static async Task<string> InspectRecordReplayWithDamageAsync(RawSnapshotExportReplayScene scene)
+{
+    await using var terminal = CreateSnapshotExportReplayTerminalBuilder(scene.Bytes, scene.ScrollbackCapacity).Build();
+    await terminal.RunAsync();
+
+    using var snapshot = terminal.CreateSnapshot(scrollbackLines: terminal.ScrollbackCount);
+    var recorded = Hmp1SixelRecording.Serialize(snapshot.SixelPlacements);
+    var deserialized = Hmp1SixelRecording.Deserialize(recorded);
+    var replayScript = deserialized.BuildReplayEscapeSequence();
+
+    await using var viewer = CreateSnapshotExportReplayTerminalBuilder(
+        Encoding.ASCII.GetBytes(replayScript), scene.ScrollbackCapacity).Build();
+    await viewer.RunAsync();
+
+    using var replayed = viewer.CreateSnapshot(scrollbackLines: viewer.ScrollbackCount);
+
+    var builder = new StringBuilder();
+    builder.Append($"original: {snapshot.SixelPlacements.Count} placement(s), {recorded.Length} recorded byte(s)");
+    builder.Append($"; replayed: {replayed.SixelPlacements.Count} placement(s)");
+
+    var pixelsMatch = snapshot.SixelPlacements.Count == replayed.SixelPlacements.Count;
+    var damageMatches = pixelsMatch;
+    for (var index = 0; pixelsMatch && index < snapshot.SixelPlacements.Count; index++)
+    {
+        var original = snapshot.SixelPlacements[index];
+        var replayedPlacement = replayed.SixelPlacements[index];
+        if (!PixelsEqual(original.Image.GetPixels(), replayedPlacement.Image.GetPixels()))
+        {
+            pixelsMatch = false;
+        }
+
+        if (original.PaintedRowCount != replayedPlacement.PaintedRowCount
+            || original.PaintedColumnCount != replayedPlacement.PaintedColumnCount)
+        {
+            damageMatches = false;
+        }
+    }
+
+    builder.Append($"; surviving pixels match after record/replay: {pixelsMatch}");
+    builder.Append($"; painted (post-damage) extent matches after record/replay: {damageMatches}");
+    return builder.ToString();
+}
+
+static async Task<string> InspectMainAlternateIndependenceAsync(RawSnapshotExportReplayScene scene)
+{
+    if (scene.Checkpoints is not { Count: > 0 } checkpoints)
+    {
+        throw new InvalidOperationException($"'{scene.Name}' requires at least one checkpoint.");
+    }
+
+    var labels = new[] { "main only", "alternate active", "back to main" };
+    var builder = new StringBuilder();
+    for (var index = 0; index < checkpoints.Count; index++)
+    {
+        var script = Encoding.ASCII.GetBytes(checkpoints[index]);
+        await using var terminal = CreateSnapshotExportReplayTerminalBuilder(script, 0).Build();
+        await terminal.RunAsync();
+
+        using var snapshot = terminal.CreateSnapshot();
+        var recorded = Hmp1SixelRecording.Serialize(snapshot.SixelPlacements);
+        var deserialized = Hmp1SixelRecording.Deserialize(recorded);
+        var replayScript = deserialized.BuildReplayEscapeSequence();
+
+        await using var viewer = CreateSnapshotExportReplayTerminalBuilder(
+            Encoding.ASCII.GetBytes(replayScript), 0).Build();
+        await viewer.RunAsync();
+        using var replayed = viewer.CreateSnapshot();
+
+        var pixelsMatch = snapshot.SixelPlacements.Count == replayed.SixelPlacements.Count
+            && snapshot.SixelPlacements.Count > 0
+            && PixelsEqual(snapshot.SixelPlacements[0].Image.GetPixels(), replayed.SixelPlacements[0].Image.GetPixels());
+
+        if (index > 0)
+        {
+            builder.Append("; ");
+        }
+
+        var label = index < labels.Length ? labels[index] : $"checkpoint {index}";
+        builder.Append(
+            $"{label}: in alternate screen={snapshot.InAlternateScreen}, {snapshot.SixelPlacements.Count} placement(s) recorded, replay pixel match={pixelsMatch}");
+    }
+
+    return builder.ToString();
+}
+
+static async Task<string> InspectMalformedFailuresAsync(RawSnapshotExportReplayScene scene)
+{
+    await using var terminal = CreateSnapshotExportReplayTerminalBuilder(scene.Bytes, scene.ScrollbackCapacity).Build();
+    await terminal.RunAsync();
+
+    using var snapshot = terminal.CreateSnapshot();
+    var baseline = Hmp1SixelRecording.Serialize(snapshot.SixelPlacements);
+
+    var wrongMagic = new byte[16];
+    Encoding.ASCII.GetBytes("XXXX").CopyTo(wrongMagic, 0);
+
+    var truncated = baseline[..^8];
+
+    using var versionStream = new MemoryStream();
+    using (var writer = new BinaryWriter(versionStream, Encoding.UTF8, leaveOpen: true))
+    {
+        writer.Write("SXRC"u8.ToArray());
+        writer.Write(Hmp1SixelRecording.CurrentVersion + 1);
+        writer.Write(0); // placementCount
+        writer.Write(0); // imageCount
+    }
+
+    var builder = new StringBuilder();
+    builder.Append($"baseline recording: {baseline.Length} byte(s)");
+    builder.Append($"; wrong magic marker -> {DescribeRecordingFailure(wrongMagic)}");
+    builder.Append($"; truncated mid-record -> {DescribeRecordingFailure(truncated)}");
+    builder.Append($"; unsupported version -> {DescribeRecordingFailure(versionStream.ToArray())}");
+    return builder.ToString();
+}
+
+static string DescribeRecordingFailure(byte[] data)
+{
+    try
+    {
+        Hmp1SixelRecording.Deserialize(data);
+        return "unexpectedly succeeded";
+    }
+    catch (Hmp1SixelRecordingException ex)
+    {
+        return ex.Reason.ToString();
+    }
+}
+
+static bool PixelsEqual(Hex1b.Surfaces.SixelPixelBuffer? a, Hex1b.Surfaces.SixelPixelBuffer? b)
+{
+    if (a is null || b is null)
+    {
+        return a is null && b is null;
+    }
+
+    if (a.Width != b.Width || a.Height != b.Height)
+    {
+        return false;
+    }
+
+    for (var y = 0; y < a.Height; y++)
+    {
+        for (var x = 0; x < a.Width; x++)
+        {
+            if (!a[x, y].Equals(b[x, y]))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+static string Sha256Hex(string text) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)))[..16];
