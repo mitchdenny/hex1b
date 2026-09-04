@@ -2069,7 +2069,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             var sixel = _sixelGraphicsState.CaptureActiveSnapshot(
                 allScrollbackEntries,
                 selectedScrollbackEntries.Length,
-                _height);
+                _height,
+                retainedScrollbackWidth);
             return new Hex1bTerminalSnapshotState(
                 _width,
                 _height,
@@ -2421,13 +2422,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _cursorSaved ? _savedCursorY : null);
 
         var kgpReflow = _kgpGraphicsState.PrepareActiveReflow(scrollbackEntries);
+        var sixelReflow = _sixelGraphicsState.PrepareActiveReflow(scrollbackEntries);
         var internalResult = default(InternalReflowResult);
         var hasKgpLineage = false;
         if (reflowProvider is IInternalTerminalReflowProvider internalReflow)
         {
+            var mergedAnchors = new List<TerminalReflowAnchor>(
+                kgpReflow.Anchors.Count + sixelReflow.Anchors.Count);
+            mergedAnchors.AddRange(kgpReflow.Anchors);
+            mergedAnchors.AddRange(sixelReflow.Anchors);
             hasKgpLineage = internalReflow.TryReflowWithAnchors(
                 context,
-                kgpReflow.Anchors,
+                mergedAnchors,
                 out internalResult);
         }
 
@@ -2522,6 +2528,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 newHeight,
                 Capabilities.CellPixelWidth,
                 Capabilities.CellPixelHeight);
+            _sixelGraphicsState.ApplyActiveReflow(
+                sixelReflow,
+                internalResult.Anchors,
+                result.ScrollbackRows.Length,
+                replacement,
+                newWidth,
+                newHeight);
         }
         else
         {
@@ -2533,13 +2546,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 newHeight,
                 Capabilities.CellPixelWidth,
                 Capabilities.CellPixelHeight);
+            _sixelGraphicsState.ClipActivePlacementsToViewport(newWidth, newHeight);
         }
-
-        // Sixel has no reflow-anchor tracking in this stage (deferred to
-        // #452): always fall back to clipping active placements/screen at
-        // their pre-resize physical coordinates, mirroring the same
-        // non-lineage fallback KGP itself uses above.
-        _sixelGraphicsState.ClipActivePlacementsToViewport(newWidth, newHeight);
 
         if (!_inAlternateScreen)
         {
@@ -5294,6 +5302,21 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _scrollBottom == _height - 1 &&
             leftCol == 0 &&
             rightCol == _width - 1;
+
+        // Unlike KGP's history transfer (which is intentionally restricted to
+        // a full-height scroll region), Sixel history must also fire under a
+        // partial vertical margin: DECSTBM's bottom smaller than the physical
+        // screen still genuinely scrolls row 0 off the visible screen and
+        // into the same scrollback row captured below, so a placement wholly
+        // inside that margin must not silently lose its departing row's
+        // pixels just because the region doesn't span every physical row.
+        // KGP behavior is preserved exactly as-is via the separate, unchanged
+        // createsKgpHistory condition above.
+        var createsSixelHistory = !_inAlternateScreen &&
+            _scrollbackBuffer is not null &&
+            _scrollTop == 0 &&
+            leftCol == 0 &&
+            rightCol == _width - 1;
         long? capturedHistoryRowId = null;
         
         // Capture the top row into the scrollback buffer before it's overwritten.
@@ -5310,13 +5333,21 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         // Shift rows up within the scroll region
-        // All affected cells need to be recorded as impacts
+        // All affected cells need to be recorded as impacts. Sixel damage is
+        // suppressed here: this is a coordinated region shift, not an
+        // overwrite of unrelated content, and MoveMainPlacementsIntoHistory /
+        // AdjustActivePlacementsForScroll (below) already recompute each
+        // placement's post-scroll geometry — including any cropping a
+        // partial scroll region requires. Letting per-cell damage tracking
+        // run here as well would see a still-in-place placement's rows
+        // overwritten one by one and destroy it before the real geometry
+        // update ever runs.
         for (int y = _scrollTop; y < _scrollBottom; y++)
         {
             for (int x = leftCol; x <= rightCol; x++)
             {
                 var cellFromBelow = _screenBuffer[y + 1, x];
-                SetCell(y, x, cellFromBelow, impacts);
+                SetCell(y, x, cellFromBelow, impacts, damageSixel: false);
             }
         }
         
@@ -5324,7 +5355,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var eraseCell = CreateEraseCell();
         for (int x = leftCol; x <= rightCol; x++)
         {
-            SetCell(_scrollBottom, x, eraseCell, impacts);
+            SetCell(_scrollBottom, x, eraseCell, impacts, damageSixel: false);
         }
 
         if (createsKgpHistory)
@@ -5333,7 +5364,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 capturedHistoryRowId
                     ?? throw new InvalidOperationException(
                         "A history-producing KGP scroll must capture a scrollback row."));
-            _sixelGraphicsState.MoveMainPlacementsIntoHistory(capturedHistoryRowId.Value);
         }
         else
         {
@@ -5342,6 +5372,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 scrollingRectangle,
                 Capabilities.CellPixelWidth,
                 Capabilities.CellPixelHeight);
+        }
+
+        if (createsSixelHistory)
+        {
+            _sixelGraphicsState.MoveMainPlacementsIntoHistory(
+                capturedHistoryRowId
+                    ?? throw new InvalidOperationException(
+                        "A history-producing Sixel scroll must capture a scrollback row."),
+                sixelScrollingRegion);
+        }
+        else
+        {
             _sixelGraphicsState.AdjustActivePlacementsForScroll(rowDelta: -1, sixelScrollingRegion);
         }
 
@@ -5365,13 +5407,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var sixelScrollingRegion = new SixelScrollRegion(_scrollTop, _scrollBottom, leftCol, rightCol);
         
         // Shift rows down within the scroll region
-        // All affected cells need to be recorded as impacts
+        // All affected cells need to be recorded as impacts. Sixel damage is
+        // suppressed here for the same reason as ScrollUp: AdjustActivePlacementsForScroll
+        // (below) recomputes each placement's post-scroll geometry directly.
         for (int y = _scrollBottom; y > _scrollTop; y--)
         {
             for (int x = leftCol; x <= rightCol; x++)
             {
                 var cellFromAbove = _screenBuffer[y - 1, x];
-                SetCell(y, x, cellFromAbove, impacts);
+                SetCell(y, x, cellFromAbove, impacts, damageSixel: false);
             }
         }
         
@@ -5379,7 +5423,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var eraseCell = CreateEraseCell();
         for (int x = leftCol; x <= rightCol; x++)
         {
-            SetCell(_scrollTop, x, eraseCell, impacts);
+            SetCell(_scrollTop, x, eraseCell, impacts, damageSixel: false);
         }
 
         // Reverse scrolling does not pull rows from history. Placements whose

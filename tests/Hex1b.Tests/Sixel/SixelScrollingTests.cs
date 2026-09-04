@@ -10,7 +10,7 @@ public class SixelScrollingTests
         "scrolling",
         "A two-band image used to inspect viewport and history behavior.");
 
-    [TestMethod, Ignore("Owned by #452: a placement that spans the scrollback boundary is not yet split into independent screen/history projections (full-fidelity scrolling/reflow).")]
+    [TestMethod]
     public async Task FullScreenScroll_PreservesGraphicAcrossVisibleAndHistoryRows()
     {
         await using var terminal = SixelTestTerminal.Create(
@@ -64,7 +64,7 @@ public class SixelScrollingTests
         Assert.IsTrue(restored.OccupiedCells.Any(cell => cell.Column == 3));
     }
 
-    [TestMethod, Ignore("Owned by #452: Sixel placements do not yet participate in row-lineage reflow.")]
+    [TestMethod]
     public async Task Reflow_WiderThenNarrower_PreservesGraphicAnchor()
     {
         await using var terminal = SixelTestTerminal.Create(

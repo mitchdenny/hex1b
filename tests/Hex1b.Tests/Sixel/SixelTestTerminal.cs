@@ -170,10 +170,13 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         throw new TimeoutException($"Timed out waiting for Sixel test terminal state: {expectation}.");
     }
 
-    public SixelTerminalObservation Observe(bool includeScrollback = true)
+    public SixelTerminalObservation Observe(
+        bool includeScrollback = true,
+        ScrollbackWidth scrollbackWidth = ScrollbackWidth.CurrentTerminal)
     {
         using var snapshot = Terminal.CreateSnapshot(
-            scrollbackLines: includeScrollback ? Terminal.ScrollbackCount : 0);
+            scrollbackLines: includeScrollback ? Terminal.ScrollbackCount : 0,
+            scrollbackWidth: scrollbackWidth);
         var placements = new List<SixelPlacementObservation>();
         var occupiedRows = new HashSet<SixelOccupiedRow>();
         var occupiedCells = new HashSet<SixelOccupiedCell>();
@@ -396,7 +399,8 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         TerminalCapabilities capabilities,
         ITerminalReflowProvider? reflow) :
         IHex1bTerminalPresentationAdapter,
-        ITerminalReflowProvider
+        ITerminalReflowProvider,
+        IInternalTerminalReflowProvider
     {
         private readonly List<byte> _bytes = [];
         private TaskCompletionSource _changed =
@@ -485,6 +489,18 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         public (int Row, int Column) GetCursorPosition() => (0, 0);
         public ReflowResult Reflow(ReflowContext context) =>
             (reflow ?? throw new InvalidOperationException("Reflow is not enabled.")).Reflow(context);
+
+        bool IInternalTerminalReflowProvider.TryReflowWithAnchors(
+            ReflowContext context,
+            IReadOnlyList<TerminalReflowAnchor> anchors,
+            out InternalReflowResult result)
+        {
+            if (reflow is null)
+                throw new InvalidOperationException("Reflow is not enabled.");
+
+            return InternalTerminalReflow.TryReflow(reflow, context, anchors, out result);
+        }
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 

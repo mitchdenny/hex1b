@@ -20,7 +20,7 @@ internal sealed class SixelScreenGraphicsState
     /// to. Only ever populated for the main screen; the alternate screen has
     /// no history partition.
     /// </summary>
-    internal Dictionary<long, List<SixelPlacement>> HistoryPlacements { get; } = [];
+    internal Dictionary<long, List<SixelHistoryPlacement>> HistoryPlacements { get; } = [];
 
     internal void Clear()
     {
@@ -41,8 +41,8 @@ internal sealed class SixelScreenGraphicsState
             retained.Add(placement.Image.ContentHash);
         foreach (var list in HistoryPlacements.Values)
         {
-            foreach (var placement in list)
-                retained.Add(placement.Image.ContentHash);
+            foreach (var historyPlacement in list)
+                retained.Add(historyPlacement.Placement.Image.ContentHash);
         }
 
         Images.RemoveUnreferenced(retained);
