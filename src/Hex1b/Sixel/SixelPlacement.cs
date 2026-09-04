@@ -1,4 +1,5 @@
 using Hex1b.Sixel;
+using Hex1b.Surfaces;
 
 namespace Hex1b;
 
@@ -26,6 +27,9 @@ namespace Hex1b;
 /// </remarks>
 internal sealed class SixelPlacement
 {
+    private readonly HashSet<int> _damagedCells;
+    private SixelPixelBuffer? _visiblePixels;
+
     internal SixelPlacement(
         SixelData image,
         int row,
@@ -50,6 +54,36 @@ internal sealed class SixelPlacement
         PaintedColumnCount = paintedColumnCount;
         Sequence = sequence;
         CreatedAt = createdAt;
+        _damagedCells = [];
+    }
+
+    private SixelPlacement(
+        SixelData image,
+        int row,
+        int column,
+        int widthInCells,
+        int heightInCells,
+        int paintedRowOffset,
+        int paintedRowCount,
+        int paintedColumnOffset,
+        int paintedColumnCount,
+        long sequence,
+        DateTimeOffset createdAt,
+        HashSet<int> damagedCells)
+        : this(
+            image,
+            row,
+            column,
+            widthInCells,
+            heightInCells,
+            paintedRowOffset,
+            paintedRowCount,
+            paintedColumnOffset,
+            paintedColumnCount,
+            sequence,
+            createdAt)
+    {
+        _damagedCells = [.. damagedCells];
     }
 
     /// <summary>
@@ -152,7 +186,72 @@ internal sealed class SixelPlacement
     internal bool CoversCell(int row, int column) =>
         HasPaintedExtent
         && row >= PaintedTop && row <= PaintedBottom
-        && column >= PaintedLeft && column <= PaintedRight;
+        && column >= PaintedLeft && column <= PaintedRight
+        && !IsCellDamaged(row, column);
+
+    /// <summary>
+    /// Gets whether this placement still has at least one painted cell that has
+    /// not been destructively damaged.
+    /// </summary>
+    internal bool HasVisiblePaintedCells =>
+        HasPaintedExtent && _damagedCells.Count < PaintedRowCount * PaintedColumnCount;
+
+    /// <summary>
+    /// Destructively clears this placement's pixels that project into the cell.
+    /// </summary>
+    /// <returns><see langword="true"/> when the cell overlapped a still-visible part of the placement.</returns>
+    internal bool DamageCell(int row, int column)
+    {
+        if (!CoversCell(row, column))
+            return false;
+
+        _visiblePixels = null;
+        _damagedCells.Add(CellKey(row, column));
+        return true;
+    }
+
+    /// <summary>
+    /// Materializes this placement's pixels with damaged cells made transparent.
+    /// </summary>
+    internal SixelPixelBuffer? GetVisiblePixels()
+    {
+        var pixels = Image.GetPixels();
+        if (pixels is null || _damagedCells.Count == 0)
+            return pixels;
+
+        if (_visiblePixels is not null)
+            return _visiblePixels;
+
+        var visible = new SixelPixelBuffer(pixels.Width, pixels.Height);
+        for (var y = 0; y < pixels.Height; y++)
+        {
+            for (var x = 0; x < pixels.Width; x++)
+                visible[x, y] = pixels[x, y];
+        }
+
+        foreach (var key in _damagedCells)
+        {
+            var relativeRow = key / WidthInCells;
+            var relativeColumn = key % WidthInCells;
+            var pixelLeft = (int)Math.Floor(relativeColumn * Image.CellMetrics.SafeWidth);
+            var pixelRight = (int)Math.Ceiling((relativeColumn + 1) * Image.CellMetrics.SafeWidth);
+            var pixelTop = (int)Math.Floor(relativeRow * Image.CellMetrics.SafeHeight);
+            var pixelBottom = (int)Math.Ceiling((relativeRow + 1) * Image.CellMetrics.SafeHeight);
+
+            pixelLeft = Math.Clamp(pixelLeft, 0, visible.Width);
+            pixelRight = Math.Clamp(pixelRight, 0, visible.Width);
+            pixelTop = Math.Clamp(pixelTop, 0, visible.Height);
+            pixelBottom = Math.Clamp(pixelBottom, 0, visible.Height);
+            for (var y = pixelTop; y < pixelBottom; y++)
+            {
+                for (var x = pixelLeft; x < pixelRight; x++)
+                    visible[x, y] = Rgba32.Transparent;
+            }
+        }
+
+        _visiblePixels = visible;
+        return visible;
+    }
 
     /// <summary>Creates a copy of this placement repositioned to <paramref name="row"/>.</summary>
     /// <remarks>
@@ -172,5 +271,10 @@ internal sealed class SixelPlacement
         PaintedColumnOffset,
         PaintedColumnCount,
         Sequence,
-        CreatedAt);
+        CreatedAt,
+        _damagedCells);
+
+    private bool IsCellDamaged(int row, int column) => _damagedCells.Contains(CellKey(row, column));
+
+    private int CellKey(int row, int column) => ((row - Row) * WidthInCells) + (column - Column);
 }

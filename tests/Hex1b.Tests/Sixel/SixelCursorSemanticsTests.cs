@@ -488,7 +488,7 @@ public class SixelCursorSemanticsTests
             Encoding.ASCII.GetBytes("\x1b[?80l\x1b[?8452h"),
             cancellationToken: TestContext.Current.CancellationToken);
         await terminal.FeedPreTokenizedAsync(
-            Encoding.ASCII.GetBytes("\x1bc"),
+            Encoding.ASCII.GetBytes("\x1b" + "c"),
             [Hex1b.Tokens.RisToken.Instance],
             TestContext.Current.CancellationToken);
 

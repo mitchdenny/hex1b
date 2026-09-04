@@ -78,6 +78,10 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
 
     public byte[] PresentationBytes => _presentation.CapturedBytes;
 
+    public IReadOnlyList<AppliedToken> AppliedTokens => _presentation is ImpactAwarePresentationAdapter adapter
+        ? adapter.AppliedTokens
+        : [];
+
     public static SixelTestTerminal Create(
         int width = 20,
         int height = 10,
@@ -194,13 +198,15 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
                 {
                     if (x < 0 || x >= snapshot.Width)
                         continue;
+                    if (!placement.CoversCell(y, x))
+                        continue;
 
                     occupiedCells.Add(new SixelOccupiedCell(x, y, inScrollback));
                 }
             }
 
             var sixel = placement.Image;
-            var pixels = sixel.GetPixels();
+            var pixels = placement.GetVisiblePixels();
             placements.Add(new SixelPlacementObservation(
                 placement.PaintedLeft,
                 placement.PaintedTop,
@@ -235,7 +241,7 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         using var snapshot = Terminal.CreateSnapshot(scrollbackLines: Terminal.ScrollbackCount);
         foreach (var placement in snapshot.SixelPlacements)
         {
-            var pixels = placement.Image.GetPixels();
+            var pixels = placement.GetVisiblePixels();
             if (pixels is not null)
                 return SixelPixelGrid.ToSvg(pixels);
         }
@@ -490,10 +496,15 @@ internal sealed class SixelTestTerminal : IAsyncDisposable
         ExactBytePresentationAdapter(width, height, capabilities, reflow),
         ICellImpactAwarePresentationAdapter
     {
+        private readonly List<AppliedToken> _appliedTokens = [];
+
+        public IReadOnlyList<AppliedToken> AppliedTokens => _appliedTokens;
+
         public ValueTask WriteOutputWithImpactsAsync(
             IReadOnlyList<AppliedToken> appliedTokens,
             CancellationToken ct = default)
         {
+            _appliedTokens.AddRange(appliedTokens);
             var bytes = AnsiTokenUtf8Serializer.Serialize(
                 appliedTokens.Select(applied => applied.Token));
             return WriteOutputAsync(bytes, ct);

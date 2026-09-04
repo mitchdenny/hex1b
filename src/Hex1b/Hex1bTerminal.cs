@@ -119,6 +119,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across workload output reads
     private readonly Decoder _inputUtf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across presentation input reads
     private readonly DcsByteStreamParser _dcsByteStreamParser;
+    private List<TerminalGraphicsImpact>? _currentGraphicsImpacts;
 
     // On browser-wasm (specifically with the Mono interpreter that
     // `dotnet run` uses, and possibly with [JSImport]-returned byte
@@ -2629,7 +2630,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <param name="x">The column position (0-based).</param>
     /// <param name="newCell">The new cell value.</param>
     /// <param name="impacts">Optional list to record the cell impact for delta tracking.</param>
-    private void SetCell(int y, int x, TerminalCell newCell, List<CellImpact>? impacts = null)
+    /// <param name="damageSixel">Whether this cell write destructively damages overlapping Sixel pixels.</param>
+    private void SetCell(int y, int x, TerminalCell newCell, List<CellImpact>? impacts = null, bool damageSixel = true)
     {
         ref var oldCell = ref _screenBuffer[y, x];
 
@@ -2642,6 +2644,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // with the correct refcount
         
         oldCell = newCell;
+
+        if (damageSixel && _sixelGraphicsState.DamageActiveCell(y, x))
+        {
+            _currentGraphicsImpacts?.Add(new TerminalGraphicsImpact(
+                TerminalGraphicsImpactKind.SixelDamaged,
+                x,
+                y,
+                1,
+                1));
+        }
         
         // Record the impact if tracking is enabled
         impacts?.Add(new CellImpact(x, y, newCell));
@@ -2870,7 +2882,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 int cursorYBefore = _cursorY;
                 
                 var impacts = new List<CellImpact>();
-                if (!ApplyToken(token, impacts, framedDcs))
+                var graphicsImpacts = new List<TerminalGraphicsImpact>();
+                _currentGraphicsImpacts = graphicsImpacts;
+                bool applied;
+                try
+                {
+                    applied = ApplyToken(token, impacts, framedDcs);
+                }
+                finally
+                {
+                    _currentGraphicsImpacts = null;
+                }
+
+                if (!applied)
                 {
                     RestoreValidCursorAfterAbortedScroll(cursorXBefore, cursorYBefore);
                     break;
@@ -2880,7 +2904,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     token,
                     impacts,
                     cursorXBefore, cursorYBefore,
-                    _cursorX, _cursorY));
+                    _cursorX, _cursorY)
+                {
+                    GraphicsImpacts = graphicsImpacts
+                });
             }
 
             RefreshKgpAnimationTimerUnsafe();
@@ -3228,10 +3255,17 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 DeleteLines(deleteLinesToken.Count, impacts);
                 break;
                 
+            case InsertColumnsToken insertColumnsToken:
+                InsertColumns(insertColumnsToken.Count, impacts);
+                break;
+
+            case DeleteColumnsToken deleteColumnsToken:
+                DeleteColumns(deleteColumnsToken.Count, impacts);
+                break;
+
             case SoftResetToken:
                 // DECSTR (CSI ! p): mode-only reset. The screen, the scrollback, the
-                // Sixel color registers and the cursor position all survive; palette
-                // and placement lifetime on reset is owned by #453.
+                // Sixel color registers, placements, and the cursor position all survive.
                 _scrollTop = 0;
                 _scrollBottom = _height - 1;
                 _marginLeft = 0;
@@ -3358,6 +3392,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 EraseCharacters(eraseCharToken.Count, impacts);
                 break;
                 
+            case RectangularEraseToken rectEraseToken:
+                EraseRectangularArea(rectEraseToken, impacts);
+                break;
+
             case DecscaToken decscaToken:
                 ApplyDecsca(decscaToken.Mode);
                 break;
@@ -4448,17 +4486,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Sixel has no relative-placement graph concept, so ED
                     // (without scrollback) simply clears the active screen's
                     // live viewport placements and leaves history untouched.
-                    _sixelGraphicsState.ClearActiveScreen(clearHistory: false);
+                    if (!respectProtection)
+                        _sixelGraphicsState.ClearActiveScreen(clearHistory: false);
                 }
                 else if (_inAlternateScreen)
                 {
                     _kgpGraphicsState.ClearActiveScreen(clearHistory: true);
-                    _sixelGraphicsState.ClearActiveScreen(clearHistory: true);
+                    if (!respectProtection)
+                        _sixelGraphicsState.ClearActiveScreen(clearHistory: true);
                 }
                 else
                 {
                     _kgpGraphicsState.ClearActiveScreen(clearHistory: false);
-                    _sixelGraphicsState.ClearActiveScreen(clearHistory: false);
+                    if (!respectProtection)
+                        _sixelGraphicsState.ClearActiveScreen(clearHistory: false);
                     _scrollbackBuffer?.Clear();
                 }
                 break;
@@ -5522,6 +5563,76 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
         }
     }
+
+    private void InsertColumns(int count, List<CellImpact>? impacts = null)
+    {
+        // DECIC resets pending wrap and affects each row in the scrolling region.
+        _pendingWrap = false;
+        if (count == 0)
+            return;
+
+        int leftCol = _declrmm ? Math.Max(_cursorX, _marginLeft) : _cursorX;
+        int rightCol = _declrmm ? _marginRight : _width - 1;
+        if (leftCol > rightCol)
+            return;
+
+        count = Math.Min(count, rightCol - leftCol + 1);
+        var eraseCell = CreateEraseCell();
+        for (var y = _scrollTop; y <= _scrollBottom; y++)
+        {
+            for (var x = rightCol; x >= leftCol + count; x--)
+                SetCell(y, x, _screenBuffer[y, x - count], impacts);
+
+            for (var x = leftCol; x < leftCol + count; x++)
+                SetCell(y, x, eraseCell, impacts);
+        }
+    }
+
+    private void DeleteColumns(int count, List<CellImpact>? impacts = null)
+    {
+        // DECDC resets pending wrap and affects each row in the scrolling region.
+        _pendingWrap = false;
+        if (count == 0)
+            return;
+
+        int leftCol = _declrmm ? Math.Max(_cursorX, _marginLeft) : _cursorX;
+        int rightCol = _declrmm ? _marginRight : _width - 1;
+        if (leftCol > rightCol)
+            return;
+
+        count = Math.Min(count, rightCol - leftCol + 1);
+        var eraseCell = CreateEraseCell();
+        for (var y = _scrollTop; y <= _scrollBottom; y++)
+        {
+            for (var x = leftCol; x <= rightCol - count; x++)
+                SetCell(y, x, _screenBuffer[y, x + count], impacts);
+
+            for (var x = rightCol - count + 1; x <= rightCol; x++)
+                SetCell(y, x, eraseCell, impacts);
+        }
+    }
+
+    private void EraseRectangularArea(RectangularEraseToken token, List<CellImpact>? impacts = null)
+    {
+        // DECERA/DECSERA coordinates are 1-based, inclusive, and clipped to the viewport.
+        _pendingWrap = false;
+        var top = Math.Clamp(Math.Min(token.Top, token.Bottom) - 1, 0, _height - 1);
+        var bottom = Math.Clamp(Math.Max(token.Top, token.Bottom) - 1, 0, _height - 1);
+        var left = Math.Clamp(Math.Min(token.Left, token.Right) - 1, 0, _width - 1);
+        var right = Math.Clamp(Math.Max(token.Left, token.Right) - 1, 0, _width - 1);
+        var eraseCell = CreateEraseCell();
+
+        for (var y = top; y <= bottom; y++)
+        {
+            for (var x = left; x <= right; x++)
+            {
+                if (token.Selective && IsProtectedCell(y, x))
+                    continue;
+
+                SetCell(y, x, eraseCell, impacts);
+            }
+        }
+    }
     
     private void DeleteCharacters(int count, List<CellImpact>? impacts = null)
     {
@@ -6061,16 +6172,29 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             sequence: ++_sixelPlacementSequence,
             createdAt: writtenAt);
 
+        if (lastRow >= firstRow && lastColumn >= firstColumn)
+        {
+            _currentGraphicsImpacts?.Add(new TerminalGraphicsImpact(
+                TerminalGraphicsImpactKind.SixelAdded,
+                (int)firstColumn,
+                (int)firstRow,
+                (int)(lastColumn - firstColumn + 1),
+                (int)(lastRow - firstRow + 1)));
+        }
+
         for (var y = firstRow; y <= lastRow; y++)
         {
             for (var x = firstColumn; x <= lastColumn; x++)
             {
                 var isOrigin = x == placement.OriginColumn && y == placement.OriginRow;
+                var effectiveAttributes = _cursorProtected
+                    ? _currentAttributes | CellAttributes.Protected
+                    : _currentAttributes;
                 SetCell(y, x, new TerminalCell(
                     isOrigin ? " " : "",
                     _currentForeground, _currentBackground,
-                    _currentAttributes,
-                    sequence, writtenAt), impacts);
+                    effectiveAttributes,
+                    sequence, writtenAt), impacts, damageSixel: false);
             }
         }
 

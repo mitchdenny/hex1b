@@ -128,7 +128,7 @@ public class SixelPlacementLifetimeTests
     }
 
     [TestMethod]
-    public async Task OriginCellOverwrittenWithText_DoesNotPrematurelyReleaseTheImage()
+    public async Task OriginCellOverwrittenWithText_DamagesOnlyTheOverwrittenCell()
     {
         var wide = new SixelFixture(
             "origin-overwrite",
@@ -154,10 +154,11 @@ public class SixelPlacementLifetimeTests
             "origin cell overwritten",
             TestContext.Current.CancellationToken);
 
-        // The placement (and its image) is still fully reachable: only the
-        // origin's text-grid glyph changed, not the graphics ownership.
+        // The placement remains reachable only because the second cell still
+        // paints; the overwritten origin cell is destructively damaged.
         Assert.AreEqual(1, terminal.Terminal.TrackedSixelCount);
         Assert.AreEqual(1, terminal.Terminal.SixelPlacementCount);
+        Assert.IsNull(terminal.Terminal.GetSixelDataAt(0, 0));
         Assert.IsNotNull(terminal.Terminal.GetSixelDataAt(1, 0));
     }
 
@@ -302,7 +303,7 @@ public class SixelPlacementLifetimeTests
         // by #453), so drive the reset through the token stream directly,
         // mirroring SixelRasterIntegrationTests.ColorRegisters_AreResetByRis.
         await terminal.FeedPreTokenizedAsync(
-            Encoding.ASCII.GetBytes("\x1bc"),
+            Encoding.ASCII.GetBytes("\x1b" + "c"),
             [RisToken.Instance],
             TestContext.Current.CancellationToken);
         await terminal.WaitForAsync(

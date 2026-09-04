@@ -107,7 +107,7 @@ public class SixelRasterIntegrationTests
         // The raw byte path does not yet decode ESC c into a RIS token (owned by
         // #453), so drive the reset through the token stream directly.
         await terminal.FeedPreTokenizedAsync(
-            Encoding.Latin1.GetBytes("\x1bc"),
+            Encoding.Latin1.GetBytes("\x1b" + "c"),
             [RisToken.Instance],
             TestContext.Current.CancellationToken);
         await FeedAsync(terminal, "\x1bP0;1q#1@\x1b\\");

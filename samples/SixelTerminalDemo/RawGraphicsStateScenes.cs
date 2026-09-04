@@ -12,7 +12,7 @@ internal readonly record struct GraphicsStateProbe(int Column, int Row, string L
 
 /// <summary>
 /// A hand-authored scene that exercises Hex1b's independent Sixel raster
-/// storage and placement lifetime state (stage #451): every byte is written by
+/// storage, placement lifetime, and destructive damage state: every byte is written by
 /// hand, using raw CUP/DCS/alternate-screen control sequences with no
 /// <c>SixelWidget</c> or <c>SixelEncoder</c> involved, so the scene stays an
 /// independent contract probe of <c>SixelGraphicsState</c>.
@@ -31,11 +31,11 @@ internal sealed record RawGraphicsStateScene(
 }
 
 /// <summary>
-/// Scenes demonstrating the independent placement/image ownership introduced
-/// by stage #451: shared raster dedup, overlapping placements, geometry-only
-/// retention, origin-cell overwrite survival, and main/alternate screen
-/// isolation. See <c>tests/Hex1b.Tests/Sixel/SixelPlacementLifetimeTests.cs</c>
-/// for the equivalent assertions run against the terminal directly.
+/// Scenes demonstrating independent placement/image ownership and destructive
+/// Sixel lifecycle behavior: shared raster dedup, overlapping placements,
+/// text/erase damage, resets, and main/alternate screen isolation. See
+/// <c>tests/Hex1b.Tests/Sixel/SixelPlacementLifetimeTests.cs</c> and
+/// <c>SixelTerminalSemanticsTests.cs</c> for equivalent terminal assertions.
 /// </summary>
 internal static class RawGraphicsStateScenes
 {
@@ -51,10 +51,9 @@ internal static class RawGraphicsStateScenes
     private static string BlueSquare40 =>
         "7;1q\"1;1;40;40#3;1;240;50;100#3!40~-!40~-!40~-!40~-!40~-!40~-!40~";
 
-    // Two cells wide (20px at a 10px cell) and one band tall, so a probe can
-    // overwrite the left cell's text glyph while the right cell keeps
-    // resolving to the same placement.
-    private const string RedTwoCellBand = "7;1q#1;2;100;0;0#1!20~";
+    // Three cells wide (30px at a 10px cell) and one band tall, so destructive
+    // edits can remove some cells while the rest of the placement stays visible.
+    private const string RedThreeCellBand = "7;1q#1;2;100;0;0#1!30~";
 
     // Declares an absurd canvas that exceeds the raster allocation policy, so
     // geometry is recorded but no pixels are ever allocated.
@@ -86,10 +85,19 @@ internal static class RawGraphicsStateScenes
             "nothing visible. The declared canvas is far larger than the raster\n  allocation policy allows, so no pixels are ever allocated, but the placement\n  itself is still retained (geometry-only), not silently discarded",
             Cup(2, 2) + Dcs(GeometryOnly)),
         new(
-            "Graphics state: origin cell overwrite does not release the image",
-            "a red #FF0000 two-cell band at row 2. The left cell is then overwritten\n  with the letter X. The image is still fully reachable afterwards: only the\n  left cell's text glyph changed, not the graphics ownership, so the right\n  cell still resolves to the same placement",
-            Cup(2, 2) + Dcs(RedTwoCellBand) + Cup(2, 2) + "X",
-            Probes: [new(2, 1, "right cell of the band: should still resolve to the placement")]),
+            "Graphics state: text destructively damages covered Sixel cells",
+            "a red #FF0000 three-cell band at row 2. The left cell is overwritten\n  with X. That cell's Sixel pixels are gone and will not reappear after later\n  text erasure, while the untouched cells in the same placement remain visible",
+            Cup(2, 2) + Dcs(RedThreeCellBand) + Cup(2, 2) + "X" + Cup(2, 2) + "\x1b[X",
+            Probes:
+            [
+                new(1, 1, "damaged cell: should no longer resolve to Sixel data"),
+                new(3, 1, "undamaged cell: should still resolve to the placement"),
+            ]),
+        new(
+            "Graphics state: DECSTR preserves placements but RIS clears them",
+            "a red #FF0000 square is drawn, DECSTR resets modes without removing it,\n  then RIS clears placements and resets the palette. The final probe reports\n  no Sixel because RIS is the full lifecycle reset",
+            Cup(2, 2) + Dcs(RedSquare40) + "\x1b[!p" + "\x1b" + "c",
+            Probes: [new(2, 1, "after RIS: should not resolve to Sixel data")]),
         new(
             "Graphics state: alternate screen owns independent placements",
             "a red #FF0000 square drawn on the main screen, then the alternate screen\n  is entered and a blue #0000FF square is drawn there instead. While the\n  alternate screen is active its graphics state holds only the blue square:\n  the red square belongs to the main screen and is not visible here",

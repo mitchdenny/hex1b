@@ -273,8 +273,9 @@ public static class AnsiTokenizer
         if (isPrivateMode)
             end++;
 
-        // Read parameters until we hit a final byte (CSI final bytes are 0x40-0x7E: @ through ~)
-        while (end < text.Length && !char.IsLetter(text[end]) && text[end] != '~' && text[end] != '@')
+        // Read parameters/intermediates until we hit a CSI final byte (0x40-0x7E).
+        // Parameter bytes are 0x30-0x3F and intermediate bytes are 0x20-0x2F.
+        while (end < text.Length && (text[end] < '\x40' || text[end] > '\x7e'))
         {
             end++;
         }
@@ -565,8 +566,52 @@ public static class AnsiTokenizer
                 break;
                 
             case '~':
-                // Special key sequence (ESC [ n ~ or ESC [ n ; m ~)
-                ParseSpecialKey(parameters, tokens);
+                if (parameters.Contains('\''))
+                {
+                    // DECDC - Delete Columns: CSI Ps ' ~
+                    tokens.Add(new DeleteColumnsToken(ParseMoveCountAllowZero(parameters.Replace("'", ""))));
+                }
+                else
+                {
+                    // Special key sequence (ESC [ n ~ or ESC [ n ; m ~)
+                    ParseSpecialKey(parameters, tokens);
+                }
+                break;
+
+            case '}':
+                if (parameters.Contains('\''))
+                {
+                    // DECIC - Insert Columns: CSI Ps ' }
+                    tokens.Add(new InsertColumnsToken(ParseMoveCountAllowZero(parameters.Replace("'", ""))));
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+
+            case 'z':
+                if (parameters.Contains('$'))
+                {
+                    // DECERA - Erase Rectangular Area: CSI Pt;Pl;Pb;Pr $ z
+                    tokens.Add(ParseRectangularErase(parameters, selective: false));
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+
+            case '{':
+                if (parameters.Contains('$'))
+                {
+                    // DECSERA - Selective Erase Rectangular Area: CSI Pt;Pl;Pb;Pr $ {
+                    tokens.Add(ParseRectangularErase(parameters, selective: true));
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
                 break;
 
             default:
@@ -576,6 +621,27 @@ public static class AnsiTokenizer
         }
 
         return end + 1;
+    }
+
+    private static RectangularEraseToken ParseRectangularErase(string parameters, bool selective)
+    {
+        var normalized = parameters.Replace("$", "");
+        var parts = normalized.Split(';');
+        var top = ParseRectCoordinate(parts, 0, 1);
+        var left = ParseRectCoordinate(parts, 1, 1);
+        var bottom = ParseRectCoordinate(parts, 2, top);
+        var right = ParseRectCoordinate(parts, 3, left);
+        return new RectangularEraseToken(top, left, bottom, right, selective);
+    }
+
+    private static int ParseRectCoordinate(string[] parts, int index, int defaultValue)
+    {
+        if (index >= parts.Length || string.IsNullOrEmpty(parts[index]))
+            return defaultValue;
+
+        return int.TryParse(parts[index], out var value) && value > 0
+            ? value
+            : defaultValue;
     }
     
     private static int ParseSgrMouseSequence(string text, int start, List<AnsiToken> tokens)

@@ -235,12 +235,13 @@ CUP before writing anything that follows.
 
 | Operation | Selected Hex1b behavior | Unresolved details |
 |---|---|---|
-| Sixel over Sixel | Both placements are retained independently; composite painted pixels over existing graphics for presentation, and transparent holes preserve prior content | Alpha/compositing details across xterm, Windows Terminal, WezTerm, mintty, and xterm.js need #457 testing; destructive pixel-level compositing for rendering is owned by [#453](https://github.com/mitchdenny/hex1b/issues/453) |
-| Text over Sixel | Damage only the pixels covered by newly written text cells | Owned by [#453](https://github.com/mitchdenny/hex1b/issues/453); exact behavior for wide/combining cells needs implementation tests |
-| ED/EL | Erase graphics in the affected cell/pixel region along with text | Whole-screen ED (`CSI 2 J`) already clears every placement anchored to the active screen as of #451; sub-region (EL, partial ED) boundary behavior at partially covered cells is owned by [#453](https://github.com/mitchdenny/hex1b/issues/453) and needs #457 testing |
+| Sixel over Sixel | Both placements are retained independently; presentation composites in placement sequence order. Painted pixels from a later placement cover earlier pixels; unpainted/transparent pixels leave earlier placements visible. | Protocol translation into native downstream graphics remains #458; broader cross-terminal visual comparison remains #457. |
+| Text over Sixel | Any text-cell write destructively damages the Sixel pixels projected into the overwritten cell. A space, styled background write, combining-cluster update, wide-character leading cell, or wide-character continuation cleanup is still a text write for graphics damage. Destroyed Sixel pixels do not reappear if the text is later erased. | Damage is modeled at bounded cell granularity rather than sub-cell glyph-shape granularity. |
+| ED/EL/ECH/DECERA/DECSERA | Erase graphics in the same clipped cell region that text erasure affects. Selective erase preserves graphics only where the underlying terminal cell is protected. Full ED/RIS remove active placements; partial erases damage only intersecting placement cells. | Full scrolling/reflow projection across the scrollback boundary remains #452. |
+| Insert/delete characters, columns, and lines | Character/column/line edits damage every overwritten destination or blank-fill cell in their clipped edit region, while Sixel placements themselves do not shift with ordinary text edits unless the existing scroll integration explicitly moves/drops them. | Full history/reflow projection remains #452. |
 | Scroll-region operations | Move, clip, or erase placements using the same region semantics as text rows | Full-fidelity scrolling/reflow projection across the scrollback boundary is owned by #452; #451 already shifts, drops, or moves whole placements for simple full-screen scrolls |
-| RIS | Clear all placements and reset Sixel modes and palette | Implemented by #451 (both main and alternate graphics state are cleared) |
-| DECSTR | Reset modes, including DECSDM and mode 8452; preserve palette, placements, and cursor position | Placement behavior remains unresolved |
+| RIS | Clear main and alternate placements, reset Sixel modes, reset the palette, clear saved screen state, and leave previously captured snapshots valid. | Implemented for lifecycle; native downstream redraw protocol remains #458. |
+| DECSTR | Reset modes, including DECSDM and mode 8452; preserve palette, placements, cursor position, and snapshots. | Broader terminal comparison remains #457, but Hex1b's compatibility choice is centralized and deterministic. |
 
 Foot has the clearest reviewed prior art for compositing independent placements.
 Hex1b's existing KGP graphics state provides the closest internal model. Sixel
@@ -269,7 +270,10 @@ protocol-neutral:
   the anchor/occupied cell span, the painted-crop geometry (offset and count,
   relative to the anchor so scrolling can shift the anchor without recomputing
   the crop), the creation-time write sequence used to order overlapping
-  placements, and creation timestamp. `SixelData` itself (unchanged from
+  placements, creation timestamp, and a bounded sparse set of destructively
+  damaged cells. The damage set is capped by the placement's painted cell
+  count, so repeated edits cannot fragment a placement without bound.
+  `SixelData` itself (unchanged from
   earlier stages) carries the authoritative decoded raster or geometry-only
   outcome, logical/rendered/declared/painted extents, creation-time
   `SixelCellMetrics`, source and captured background, aspect state, a stable
@@ -278,11 +282,12 @@ protocol-neutral:
   `KgpImageStore`, every placement-removing mutation recomputes the set of
   content hashes reachable from `Placements ∪ HistoryPlacements` and sweeps any
   image no longer in that set. A `SixelPlacement`'s image is never released
-  just because the text cell it was anchored to was overwritten — only when no
-  placement (live, historical, or held by an existing snapshot) references it
-  anymore. Snapshots decouple entirely: `Hex1bTerminalSnapshot` copies its own
-  `SixelPlacement`/`SixelData` references, kept alive by ordinary garbage
-  collection independent of the live store.
+  just because one text cell it covered was overwritten — only when no
+  visible cell remains in any placement (live, historical, or held by an
+  existing snapshot). Snapshots decouple entirely:
+  `Hex1bTerminalSnapshot` copies its own `SixelPlacement`/`SixelData`
+  references and damage state, kept alive by ordinary garbage collection
+  independent of the live store.
 - Geometry-only placements (the rasterizer refused pixel allocation) are
   always retained as placements — never silently dropped — so their occupied
   cell span and diagnostics remain inspectable.
@@ -295,6 +300,13 @@ protocol-neutral:
   own use of `GetOrCreateSixel`, which is untouched by this stage).
   Compatibility surfaces like `ContainsSixelData()`/`GetSixelDataAt()` are
   preserved, now backed by the placement/image model.
+
+Managed presentation adapters receive Sixel placement and damage deltas through
+`AppliedToken.GraphicsImpacts` independently of `AppliedToken.CellImpacts`.
+Consumers that maintain their own raster cache should process those regions in
+token order: add/replace on `SixelAdded`, and remove or requery covered fragments
+on `SixelDamaged`. A graphics-only delta is still a render-invalidating change
+even when no text cell value changed.
 
 **Extracted from KGP as genuinely protocol-neutral primitives:** raster
 content ownership by content hash, placement/source-crop geometry (anchor +
@@ -310,17 +322,14 @@ KGP tests (state, deletion, scrolling/reflow, snapshot) continue to pass
 unmodified.
 
 **Explicitly deferred past this stage** (see the tables above and
-`tests/Hex1b.Tests/Sixel/SixelScrollingTests.cs` /
-`SixelTerminalSemanticsTests.cs` for the still-`[Ignore]`d placeholders that
-name them):
+`tests/Hex1b.Tests/Sixel/SixelScrollingTests.cs` for the still-`[Ignore]`d
+placeholders that name them):
 
 - Full scrolling/reflow integration — projecting a single placement across
   the visible/history boundary, and reflow-driven re-anchoring — [#452](https://github.com/mitchdenny/hex1b/issues/452).
-- Destructive overlap/erase semantics — partial text-over-graphic damage,
-  sub-region erase, and true pixel-level compositing of overlapping rasters
-  for rendering — [#453](https://github.com/mitchdenny/hex1b/issues/453).
-- Presentation protocol translation (re-emitting placements as Kitty/iTerm2/
-  Sixel wire protocol) — [#458](https://github.com/mitchdenny/hex1b/issues/458).
+- Native presentation protocol translation (removing/replacing damaged
+  downstream rasters in terminals that are not using Hex1b's managed
+  presentation model) — [#458](https://github.com/mitchdenny/hex1b/issues/458).
 - `SixelWidget`/`Surface`-produced Sixel and widget sizing changes are
   untouched by this stage.
 

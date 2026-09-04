@@ -137,6 +137,30 @@ internal sealed class SixelGraphicsState
     }
 
     /// <summary>
+    /// Destructively damages Sixel pixels projected into one active-screen cell.
+    /// </summary>
+    /// <returns><see langword="true"/> when at least one visible placement was damaged.</returns>
+    internal bool DamageActiveCell(int row, int column)
+    {
+        var active = Active;
+        var changed = false;
+        for (var i = active.Placements.Count - 1; i >= 0; i--)
+        {
+            var placement = active.Placements[i];
+            if (!placement.DamageCell(row, column))
+                continue;
+
+            changed = true;
+            if (!placement.HasVisiblePaintedCells)
+                active.Placements.RemoveAt(i);
+        }
+
+        if (changed)
+            active.ReconcileImages();
+        return changed;
+    }
+
+    /// <summary>
     /// Moves every main-screen placement anchored at row 0 into history under
     /// <paramref name="rowId"/> (the scrollback row identity that row was just
     /// captured under), and shifts every other placement's anchor up by one

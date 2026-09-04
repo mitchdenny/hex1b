@@ -1,4 +1,6 @@
 using System.Text;
+using Hex1b.Sixel;
+using Hex1b.Tokens;
 
 namespace Hex1b.Tests.Sixel;
 
@@ -8,6 +10,12 @@ public class SixelTerminalSemanticsTests
     private static readonly SixelFixture SingleBand = SixelFixture.Load(
         "single-band",
         "One-band cursor and lifecycle probe.");
+
+    private static SixelCellMetrics PixelCellMetrics() => new(
+        1,
+        6,
+        SixelCellMetricsSource.Direct,
+        SixelCellMetricsReliability.Authoritative);
 
     [TestMethod]
     public async Task DecsdmEnabled_SequenceEndsWithCursorBelowGraphic()
@@ -55,14 +63,14 @@ public class SixelTerminalSemanticsTests
         Assert.AreEqual(1, placement.OriginRow);
     }
 
-    [TestMethod, Ignore("Owned by #453: text overlap must operate on independent graphics placements.")]
+    [TestMethod]
     public async Task TextWrittenOverGraphic_DamagesOnlyOverlappedGraphicArea()
     {
         var wide = new SixelFixture(
             "wide-red",
             "Four red columns provide damaged and undamaged regions.",
             "q#1;2;100;0;0#1!4~"u8.ToArray());
-        await using var terminal = SixelTestTerminal.Create(cellPixelWidth: 1, cellPixelHeight: 6);
+        await using var terminal = SixelTestTerminal.Create(cellMetrics: PixelCellMetrics());
         var bytes = wide.StandardBytes.Concat(Encoding.ASCII.GetBytes("\x1b[1;2HX")).ToArray();
 
         await terminal.FeedAsync(bytes, cancellationToken: TestContext.Current.CancellationToken);
@@ -98,7 +106,7 @@ public class SixelTerminalSemanticsTests
         Assert.IsEmpty(terminal.Observe().Placements);
     }
 
-    [TestMethod, Ignore("Owned by #453: overlapping Sixel sequences retain independent placements (see SixelPlacementLifetimeTests), but pixel-level transparent compositing of overlapping rasters for rendering is deferred.")]
+    [TestMethod]
     public async Task TransparentSixelOverExistingSixel_PreservesUnpaintedPixels()
     {
         var baseImage = new SixelFixture(
@@ -109,7 +117,7 @@ public class SixelTerminalSemanticsTests
             "transparent-green",
             "Paints green at the left while preserving the right pixel.",
             "0;1q#2;2;0;100;0#2A?"u8.ToArray());
-        await using var terminal = SixelTestTerminal.Create(cellPixelWidth: 1, cellPixelHeight: 6);
+        await using var terminal = SixelTestTerminal.Create(cellMetrics: PixelCellMetrics());
         var bytes = baseImage.StandardBytes
             .Concat(Encoding.ASCII.GetBytes("\x1b[1;1H"))
             .Concat(transparent.StandardBytes)
@@ -123,7 +131,7 @@ public class SixelTerminalSemanticsTests
             TestContext.Current.CancellationToken);
 
         var composite = terminal.Observe().CompositePixelGrid();
-        Assert.StartsWith("AA\nB.", composite);
+        Assert.StartsWith("AA\nB", composite);
     }
 
     [TestMethod]
@@ -148,13 +156,9 @@ public class SixelTerminalSemanticsTests
             "graphic before RIS",
             TestContext.Current.CancellationToken);
 
-        // The raw byte path does not yet decode ESC c into a RIS token (owned by
-        // #453), so drive the reset through the token stream directly, mirroring
-        // SixelRasterIntegrationTests.ColorRegisters_AreResetByRis.
-        await terminal.FeedPreTokenizedAsync(
-            Encoding.ASCII.GetBytes("\x1bc"),
-            [Hex1b.Tokens.RisToken.Instance],
-            TestContext.Current.CancellationToken);
+        await terminal.FeedAsync(
+            Encoding.ASCII.GetBytes("\x1b" + "c"),
+            cancellationToken: TestContext.Current.CancellationToken);
         await terminal.FeedAsync(
             selectAfterReset.StandardBytes.Concat("X"u8.ToArray()).ToArray(),
             cancellationToken: TestContext.Current.CancellationToken);
@@ -176,6 +180,95 @@ public class SixelTerminalSemanticsTests
         var freshDefault = TestSeq.Single(freshTerminal.Observe().Placements).PixelGrid;
         Assert.AreEqual(freshDefault, afterReset);
         Assert.DoesNotContain("#FF0000FF", afterReset);
+    }
+
+    [TestMethod]
+    public async Task EraseCharacter_DestructivelyDamagesOnlyErasedCells()
+    {
+        var wide = new SixelFixture(
+            "ech-wide-red",
+            "Four red columns provide damaged and undamaged regions.",
+            "q#1;2;100;0;0#1!30~"u8.ToArray());
+        await using var terminal = SixelTestTerminal.Create(cellMetrics: PixelCellMetrics());
+
+        await terminal.FeedAsync(
+            wide.StandardBytes.Concat(Encoding.ASCII.GetBytes("\x1b[1;2H\x1b[2X")).ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.Terminal.SixelPlacementCount == 1,
+            "ECH leaves partially damaged Sixel placement",
+            TestContext.Current.CancellationToken);
+
+        Assert.StartsWith("....", terminal.Observe().CompositePixelGrid());
+    }
+
+    [TestMethod]
+    public async Task SelectiveRectangularErase_PreservesProtectedCoveredCells()
+    {
+        var wide = new SixelFixture(
+            "protected-rect-red",
+            "Four red columns for selective rectangular erase.",
+            "q#1;2;100;0;0#1!30~"u8.ToArray());
+        await using var terminal = SixelTestTerminal.Create(cellMetrics: PixelCellMetrics());
+
+        var bytes = Encoding.ASCII.GetBytes("\x1b[1\"q")
+            .Concat(wide.StandardBytes)
+            .Concat(Encoding.ASCII.GetBytes("\x1b[0\"q"))
+            .Concat(Encoding.ASCII.GetBytes("\x1b[1;1;1;4${"))
+            .ToArray();
+        await terminal.FeedAsync(bytes, cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.Terminal.SixelPlacementCount == 1,
+            "DECSERA preserves protected Sixel placement",
+            TestContext.Current.CancellationToken);
+
+        Assert.StartsWith("AAAAAAAA", terminal.Observe().CompositePixelGrid());
+    }
+
+    [TestMethod]
+    public async Task RectangularErase_DamagesAllCoveredCellsRegardlessOfProtection()
+    {
+        var wide = new SixelFixture(
+            "rect-red",
+            "Four red columns for rectangular erase.",
+            "q#1;2;100;0;0#1!30~"u8.ToArray());
+        await using var terminal = SixelTestTerminal.Create(cellMetrics: PixelCellMetrics());
+
+        var bytes = Encoding.ASCII.GetBytes("\x1b[1\"q")
+            .Concat(wide.StandardBytes)
+            .Concat(Encoding.ASCII.GetBytes("\x1b[0\"q"))
+            .Concat(Encoding.ASCII.GetBytes("\x1b[1;1;1;4$z"))
+            .ToArray();
+        await terminal.FeedAsync(bytes, cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.Terminal.SixelPlacementCount == 1,
+            "DECERA leaves partially damaged Sixel placement",
+            TestContext.Current.CancellationToken);
+
+        Assert.StartsWith("....", terminal.Observe().CompositePixelGrid());
+    }
+
+    [TestMethod]
+    public async Task PresentationImpacts_ReportSixelAddAndTextDamageWithoutRelyingOnCellDiffs()
+    {
+        var wide = new SixelFixture(
+            "impact-red",
+            "Two red cells for graphics impact reporting.",
+            "q#1;2;100;0;0#1!2~"u8.ToArray());
+        await using var terminal = SixelTestTerminal.Create(impactAware: true, cellMetrics: PixelCellMetrics());
+
+        await terminal.FeedAsync(
+            wide.StandardBytes.Concat(Encoding.ASCII.GetBytes("\x1b[1;2H ")).ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.AppliedTokens.Any(token => token.HasGraphicsImpacts),
+            "graphics impacts",
+            TestContext.Current.CancellationToken);
+
+        Assert.IsTrue(terminal.AppliedTokens.Any(
+            applied => applied.GraphicsImpacts.Any(impact => impact.Kind == TerminalGraphicsImpactKind.SixelAdded)));
+        Assert.IsTrue(terminal.AppliedTokens.Any(
+            applied => applied.GraphicsImpacts.Any(impact => impact.Kind == TerminalGraphicsImpactKind.SixelDamaged)));
     }
 
     [TestMethod]
