@@ -17,8 +17,14 @@ using Hex1b;
 /// <see cref="DisposeAsync"/>, because a cancelled run must still leave the user on
 /// the normal buffer with a visible cursor and mouse tracking switched off.
 /// </para>
+/// <para>
+/// The exact bytes a frame is made of are the renderer's business, not this
+/// adapter's. Both cloud demos share this class and differ only in the
+/// <see cref="ICloudRenderer"/> they supply, so pacing, resize handling, cell-metric
+/// discovery, mouse tracking, and the screen-mode lifecycle are written once.
+/// </para>
 /// </remarks>
-internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
+internal sealed class CloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 {
     // 1003 reports all motion, not just drags, which is what lets the pointer act as
     // an attractor without requiring a held button. 1006 selects SGR-encoded reports
@@ -28,8 +34,9 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     // area in pixels. TerminalCapabilities.CellPixelWidth/Height are documented
     // defaults (10x20) that nothing probes -- discovering real metrics is deferred to
     // issue #455 -- so on a HiDPI terminal, where a cell is nearer 16x38 device
-    // pixels, assuming the default paints a raster far smaller than the viewport.
-    // Both queries are sent because terminals answer one or the other.
+    // pixels, assuming the default paints motes far smaller than intended and, in the
+    // Sixel demo's raster mode, a raster far smaller than the viewport. Both queries
+    // are sent because terminals answer one or the other.
     private const string EnterSequence =
         "\x1b[?1049h\x1b[?25l\x1b[?1003h\x1b[?1006h\x1b[16t\x1b[14t";
 
@@ -48,8 +55,10 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     private readonly Lock _gate = new();
     private readonly StringBuilder _inputBuffer = new();
 
-    private SixelCloudRenderer _renderer;
-    private readonly bool _useRaster;
+    // Renderers are built against fixed cell metrics, so a measured cell size means
+    // building a new one rather than mutating the old.
+    private readonly Func<double, double, ICloudRenderer> _rendererFactory;
+    private ICloudRenderer _renderer;
     private double _cellPixelWidth;
     private double _cellPixelHeight;
     private bool _cellSizeMeasured;
@@ -64,23 +73,23 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
     private Action? _disconnected;
 
-    public SixelCloudWorkloadAdapter(
+    public CloudWorkloadAdapter(
         int moteCount,
         int cellPixelWidth,
         int cellPixelHeight,
         TimeSpan frameInterval,
         int? maxFrames,
         int seed,
-        bool useRaster = false)
+        Func<double, double, ICloudRenderer> rendererFactory)
     {
         _moteCount = moteCount;
         _cellPixelWidth = cellPixelWidth;
         _cellPixelHeight = cellPixelHeight;
         _frameInterval = frameInterval;
         _maxFrames = maxFrames;
-        _useRaster = useRaster;
+        _rendererFactory = rendererFactory;
         _cloud = new DustCloud(seed);
-        _renderer = new SixelCloudRenderer(cellPixelWidth, cellPixelHeight, useRaster);
+        _renderer = rendererFactory(cellPixelWidth, cellPixelHeight);
     }
 
     public event Action? Disconnected
@@ -179,35 +188,36 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
             return Finish();
         }
 
-        int columns;
-        int rows;
+        // Resize and cell-metric replies reset the mote list. Keep the dimensions,
+        // simulation step, and renderer together under the same lock so a reset
+        // cannot invalidate an enumeration or mix geometry from different frames.
         lock (_gate)
         {
-            columns = _columns;
-            rows = _rows;
+            var columns = _columns;
+            var rows = _rows;
+
+            if (columns <= 0 || rows <= 0)
+            {
+                // The terminal has not reported its size yet, so there is nothing
+                // meaningful to paint into.
+                return ReadOnlyMemory<byte>.Empty;
+            }
+
+            // Advance by the time that actually passed rather than the nominal interval,
+            // so a late frame still lands the motes where they belong. A dropped frame
+            // then shows as a longer step instead of the whole cloud lurching.
+            var now = _frameClock.Elapsed;
+            var delta = now - _lastFrameStarted;
+            _lastFrameStarted = now;
+
+            // Clamp so a stall (or a debugger pause) cannot teleport the simulation.
+            var deltaSeconds = Math.Clamp(delta.TotalSeconds, 0.001, MaxFrameDeltaSeconds);
+
+            _cloud.Advance(deltaSeconds);
+            _framesRendered++;
+
+            return _renderer.RenderFrame(_cloud, columns, rows);
         }
-
-        if (columns <= 0 || rows <= 0)
-        {
-            // The terminal has not reported its size yet, so there is nothing
-            // meaningful to paint into.
-            return ReadOnlyMemory<byte>.Empty;
-        }
-
-        // Advance by the time that actually passed rather than the nominal interval,
-        // so a late frame still lands the motes where they belong. A dropped frame
-        // then shows as a longer step instead of the whole cloud lurching.
-        var now = _frameClock.Elapsed;
-        var delta = now - _lastFrameStarted;
-        _lastFrameStarted = now;
-
-        // Clamp so a stall (or a debugger pause) cannot teleport the simulation.
-        var deltaSeconds = Math.Clamp(delta.TotalSeconds, 0.001, MaxFrameDeltaSeconds);
-
-        _cloud.Advance(deltaSeconds);
-        _framesRendered++;
-
-        return _renderer.RenderFrame(_cloud, columns, rows);
     }
 
     public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
@@ -360,8 +370,8 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     }
 
     /// <summary>
-    /// Applies an XTWINOPS geometry reply, updating the cell metrics the raster is
-    /// sized against.
+    /// Applies an XTWINOPS geometry reply, updating the cell metrics motes are sized
+    /// and positioned against.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -435,13 +445,13 @@ internal sealed class SixelCloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
         _cellSizeMeasured = kind == 6;
         _cellPixelWidth = cellWidth;
         _cellPixelHeight = cellHeight;
-        _renderer = new SixelCloudRenderer(cellWidth, cellHeight, _useRaster);
+        _renderer = _rendererFactory(cellWidth, cellHeight);
         RebuildFieldLocked();
     }
 
     /// <summary>
-    /// Rejects implausible cell metrics so a malformed reply cannot produce a raster
-    /// of absurd size.
+    /// Rejects implausible cell metrics so a malformed reply cannot produce a
+    /// simulation field of absurd size.
     /// </summary>
     private static bool IsPlausibleCellSize(double width, double height) =>
         double.IsFinite(width)

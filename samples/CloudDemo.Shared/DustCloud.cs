@@ -73,9 +73,9 @@ internal sealed class DustMote
 /// Containment comes from reflecting edges rather than from a central pull.
 /// </para>
 /// <para>
-/// The simulation is pure state; it never emits bytes. <see cref="SixelCloudRenderer"/>
-/// converts a frame of motes into raw DCS sequences, keeping the physics independent
-/// of how the cloud is painted.
+/// The simulation is pure state; it never emits bytes. An <see cref="ICloudRenderer"/>
+/// converts a frame of motes into raw escape sequences, keeping the physics
+/// independent of how the cloud is painted — as Sixel rasters or as KGP placements.
 /// </para>
 /// </remarks>
 internal sealed class DustCloud
@@ -427,7 +427,7 @@ internal sealed class DustCloud
         var coldest = reference * HeatColdSpeedFactor;
         var hottest = reference * HeatHotSpeedFactor;
         var heat = (mote.Speed - coldest) / (hottest - coldest);
-        mote.ColorIndex = SixelCloudPalette.IndexForHeat(heat);
+        mote.ColorIndex = CloudPalette.IndexForHeat(heat);
     }
 
     private void ApplyGravity(DustMote mote, double sourceX, double sourceY, double strength, double deltaSeconds)

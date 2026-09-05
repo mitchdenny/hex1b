@@ -4,40 +4,23 @@ using System.Text;
 /// The register colours the cloud paints with, as Sixel 0-100 RGB triples.
 /// </summary>
 /// <remarks>
-/// The ramp runs cold to hot: slow motes out in the shallow field are dark blue, and
-/// motes whipping through the centre glow red-white. Register 0 is deliberately
-/// unused because some terminals treat it as a reserved background slot.
+/// The ramp itself lives in <see cref="CloudPalette"/> at full 8-bit depth, because
+/// that is what KGP transmits and both cloud demos are meant to look identical. Sixel
+/// colour registers are specified in percent, so each channel is narrowed here.
+/// Register 0 is deliberately unused because some terminals treat it as a reserved
+/// background slot.
 /// </remarks>
 internal static class SixelCloudPalette
 {
     /// <summary>Cold-to-hot ramp, ordered from slowest to fastest.</summary>
     public static IReadOnlyList<(int Red, int Green, int Blue)> Colors { get; } =
-    [
-        (8, 10, 34),
-        (12, 20, 60),
-        (16, 34, 86),
-        (24, 55, 100),
-        (45, 80, 100),
-        (78, 96, 100),
-        (100, 92, 72),
-        (100, 74, 36),
-        (100, 50, 16),
-        (100, 26, 12),
-        (100, 12, 20),
-        (100, 62, 62),
-    ];
+        CloudPalette.Colors.Select(color => (ToPercent(color.Red), ToPercent(color.Green), ToPercent(color.Blue)))
+            .ToArray();
 
     /// <summary>The Sixel register number used for the colour at <paramref name="index"/>.</summary>
     public static int RegisterFor(int index) => index + 1;
 
-    /// <summary>
-    /// Maps a normalised heat value in [0,1] onto a palette index.
-    /// </summary>
-    public static int IndexForHeat(double heat)
-    {
-        var scaled = (int)(heat * Colors.Count);
-        return Math.Clamp(scaled, 0, Colors.Count - 1);
-    }
+    private static int ToPercent(byte channel) => (int)Math.Round(channel * 100.0 / 255.0);
 }
 
 /// <summary>
@@ -73,7 +56,7 @@ internal static class SixelCloudPalette
 /// terminals handle worst.
 /// </para>
 /// </remarks>
-internal sealed class SixelCloudRenderer
+internal sealed class SixelCloudRenderer : ICloudRenderer
 {
     // Sixel encodes six vertical pixels per character, so band arithmetic is
     // everywhere in this file.
@@ -276,23 +259,6 @@ internal sealed class SixelCloudRenderer
         builder.Append('#').Append(register)
             .Append((char)('?' + mask))
             .Append((char)('?' + mask));
-    }
-
-    /// <summary>Orders motes top-to-bottom then left-to-right, in pixel space.</summary>
-    private sealed class MoteCursorOrder : IComparer<DustMote>
-    {
-        public static readonly MoteCursorOrder Instance = new();
-
-        public int Compare(DustMote? x, DustMote? y)
-        {
-            if (x is null || y is null)
-            {
-                return 0;
-            }
-
-            var byRow = x.Y.CompareTo(y.Y);
-            return byRow != 0 ? byRow : x.X.CompareTo(y.X);
-        }
     }
 
     /// <summary>
