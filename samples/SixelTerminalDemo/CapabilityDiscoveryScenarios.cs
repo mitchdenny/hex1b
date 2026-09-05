@@ -314,8 +314,11 @@ internal static class CapabilityDiscoveryScenarios
             results.Add($"native ConsolePresentationAdapter: workload received {workload.WrittenBytes.Length} synthesized byte(s) (0 expected — silence, the upstream terminal owns the reply)");
         }
 
-        // Default headless (no declared Sixel support): Hex1bTerminal owns the
-        // reply and correctly reports "not available."
+        // Default headless (no declared Sixel support): capability discovery has
+        // not run, so SixelSupport defaults to Unknown — a distinct value from a
+        // confirmed-unsupported declaration, but Hex1bTerminal must still treat
+        // both the same way for advertisement purposes: it owns the reply and
+        // correctly reports "not available."
         {
             var presentation = new HeadlessPresentationAdapter(80, 24);
             var workload = new ScriptedWorkloadAdapter();
@@ -330,7 +333,32 @@ internal static class CapabilityDiscoveryScenarios
 
             workload.EnqueueOutput(da1Query);
             await workload.WaitForWrittenLengthAsync(1);
-            results.Add($"default headless: reply={Encoding.UTF8.GetString(workload.WrittenBytes)} (no parameter 4 — parser support alone never advertises Sixel)");
+            results.Add($"default headless (SixelSupport={presentation.Capabilities.SixelSupport}): reply={Encoding.UTF8.GetString(workload.WrittenBytes)} (no parameter 4 — an unknown/no-probe state never advertises Sixel)");
+        }
+
+        // Explicitly confirmed unsupported (SixelSupport.None): distinct from the
+        // Unknown default above in the capability model itself, but reaches the
+        // same workload-facing answer, since neither is an affirmative "yes."
+        {
+            var capabilities = new TerminalCapabilities
+            {
+                SupportsSixel = false,
+                SixelSupport = SixelPresentationSupport.None,
+            };
+            var presentation = new HeadlessPresentationAdapter(80, 24, capabilities);
+            var workload = new ScriptedWorkloadAdapter();
+            var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+            {
+                PresentationAdapter = presentation,
+                WorkloadAdapter = workload,
+                Width = 80,
+                Height = 24,
+            });
+            await using var t = terminal;
+
+            workload.EnqueueOutput(da1Query);
+            await workload.WaitForWrittenLengthAsync(1);
+            results.Add($"confirmed-unsupported headless (SixelSupport={presentation.Capabilities.SixelSupport}): reply={Encoding.UTF8.GetString(workload.WrittenBytes)} (no parameter 4 — same answer as Unknown, for a different, explicit reason)");
         }
 
         // Authoritative headless (explicit SixelSupport.Headless + declared

@@ -115,9 +115,11 @@ public sealed class ConsolePresentationAdapter :
     /// </summary>
     /// <param name="support">
     /// The Sixel support level to report. Passing <see cref="SixelPresentationSupport.None"/>
-    /// declares "confirmed unsupported," which is distinct from never calling this
-    /// method at all (which leaves support to be discovered, or left unknown if
-    /// discovery does not run or does not conclude).
+    /// declares "confirmed unsupported," which is distinct from
+    /// <see cref="SixelPresentationSupport.Unknown"/> — the value left in effect by
+    /// never calling this method at all (support is then left to be discovered, or
+    /// stays <see cref="SixelPresentationSupport.Unknown"/> if discovery does not run
+    /// or does not conclude).
     /// </param>
     /// <param name="metrics">
     /// Known protocol cell metrics to report alongside <paramref name="support"/>, or
@@ -146,12 +148,24 @@ public sealed class ConsolePresentationAdapter :
         _declaredSixelMetrics = metrics;
         _capabilities = _capabilities with
         {
-            SupportsSixel = support != SixelPresentationSupport.None,
+            SupportsSixel = IsAdvertisableSupport(support),
             SixelSupport = support,
             SixelCellMetrics = metrics
         };
         return this;
     }
+
+    /// <summary>
+    /// Whether <paramref name="support"/> should be advertised to a hosted workload as
+    /// "Sixel is available." Only an affirmative, effective support level counts —
+    /// both <see cref="SixelPresentationSupport.Unknown"/> (not yet established) and
+    /// <see cref="SixelPresentationSupport.None"/> (confirmed unsupported) must not be
+    /// advertised.
+    /// </summary>
+    private static bool IsAdvertisableSupport(SixelPresentationSupport support) => support is
+        SixelPresentationSupport.Native or
+        SixelPresentationSupport.Translated or
+        SixelPresentationSupport.Headless;
 
     /// <summary>
     /// Gets bounded diagnostics describing how Sixel support and protocol cell
@@ -439,6 +453,10 @@ public sealed class ConsolePresentationAdapter :
                     SelectedMetrics: null,
                     MetricsDisagreement: false,
                     DisagreementDetail: null);
+                // Explicit, not just relying on the enum default: capability
+                // discovery could not run, so support is unknown, never "confirmed
+                // unsupported."
+                _capabilities = _capabilities with { SixelSupport = SixelPresentationSupport.Unknown };
             }
             return;
         }
@@ -945,11 +963,12 @@ public sealed class ConsolePresentationAdapter :
         if (!da1Done || da1Malformed)
         {
             // Unknown: DA1 never answered (or answered unparseably). Do not claim
-            // support since nothing renders it if we are wrong, but this is
-            // "unknown" rather than "confirmed unsupported" for callers that
-            // inspect Da1DeclaresSixel directly.
+            // support since nothing renders it if we are wrong, and — unlike a DA1
+            // reply that affirmatively omits parameter 4 — this is "unknown" rather
+            // than "confirmed unsupported," both in the capability model itself
+            // (SixelPresentationSupport.Unknown) and via Da1DeclaresSixel (null).
             supportsSixel = false;
-            sixelSupport = SixelPresentationSupport.None;
+            sixelSupport = SixelPresentationSupport.Unknown;
             effectiveDa1DeclaresSixel = null;
         }
         else

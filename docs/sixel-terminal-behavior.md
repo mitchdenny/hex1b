@@ -618,34 +618,46 @@ can the *effective presentation* render those bytes at all?
 
 | Value | Meaning |
 |---|---|
-| `None` | The effective presentation cannot render Sixel, **or** support has not yet been established. The two are indistinguishable from this value alone — see "Unknown vs. unsupported" below. |
+| `Unknown` | Discovery has not yet run, timed out, or could not be completed. Nothing is known either way. This is the enum's default value (numeric `0`), so an unconfigured `TerminalCapabilities.SixelSupport` reads as "unknown" rather than as a false claim of "confirmed unsupported." |
+| `None` | Discovery ran and positively determined the effective presentation cannot render Sixel (for example, DA1 replied without declaring parameter 4, or an adapter explicitly declared no support). Distinct from `Unknown` — see "Unknown vs. unsupported" below. |
 | `Native` | A real, Sixel-understanding terminal sits behind the presentation and receives Hex1b's Sixel DCS bytes unmodified (raw passthrough). |
 | `Translated` | Sixel is rendered by converting Hex1b's raster into a different image protocol (KGP, iTerm2) before it reaches the presentation. The enum value exists so the capability model has a home for this once [#458](https://github.com/mitchdenny/hex1b/issues/458) implements the conversion; no translation logic exists yet. |
 | `Headless` | There is no real display; `Hex1bTerminal`'s own graphics-state model (from [#451](https://github.com/mitchdenny/hex1b/issues/451)/[#452](https://github.com/mitchdenny/hex1b/issues/452)/[#456](https://github.com/mitchdenny/hex1b/issues/456)) is the sole, authoritative source of truth. |
 
 `TerminalCapabilities.SixelSupport` carries this value; the older
 `TerminalCapabilities.SupportsSixel` boolean remains for back-compatibility and
-must be kept consistent with it (`true` whenever `SixelSupport` is not `None`)
-by any adapter that participates in discovery. Workload-facing feature
-reporting (the DA1 reply below) advertises Sixel to a hosted workload only when
-the effective path is `Native`, `Translated`, or an authoritative `Headless`
-model — parser capability alone is never sufficient, and `None` always means
-"do not advertise."
+must be kept consistent with it (`true` only when `SixelSupport` is `Native`,
+`Translated`, or `Headless` — never for `Unknown` or `None`) by any adapter
+that participates in discovery. Workload-facing feature reporting (the DA1
+reply below) advertises Sixel to a hosted workload only when the effective
+path is `Native`, `Translated`, or an authoritative `Headless` model — parser
+capability alone is never sufficient, and both `Unknown` and `None` always mean
+"do not advertise." Advertisement logic is written as an allowlist
+(`is Native or Translated or Headless`) rather than a `!= None` denylist,
+precisely so that adding `Unknown` to the enum could not silently start being
+treated as advertisable.
 
 ### Unknown vs. unsupported
 
-Two different kinds of "no" must never collapse into one:
+Two different kinds of "no" must never collapse into one, and — unlike an
+earlier draft of this stage — that distinction lives in the capability model
+itself, not only in optional, adapter-specific diagnostics:
 
-- **Unknown** — discovery has not run, timed out, or could not be completed.
-  Nothing is known either way.
-- **Unsupported** — discovery ran and positively determined the presentation
-  cannot render Sixel (for example, DA1 replied without declaring parameter 4).
+- **Unknown** (`SixelPresentationSupport.Unknown`) — discovery has not run,
+  timed out, or could not be completed. Nothing is known either way.
+- **Unsupported** (`SixelPresentationSupport.None`) — discovery ran and
+  positively determined the presentation cannot render Sixel (for example, DA1
+  replied without declaring parameter 4).
 
-Both currently present as `SixelPresentationSupport.None`; the distinction
-lives one layer down, in `SixelCapabilityProbeDiagnostics.Da1DeclaresSixel`
-(`bool?`): `null` means DA1 never answered or answered unparseably (unknown),
-`false` means it answered and declared no Sixel support (unsupported), `true`
-means it declared support. The same nullable-first discipline applies to cell
+Both values still reach the same workload-facing answer ("do not advertise
+Sixel"), but they are separately observable from `TerminalCapabilities.SixelSupport`
+alone, without also needing to inspect an adapter's probe diagnostics.
+`ConsolePresentationAdapter` additionally exposes
+`SixelCapabilityProbeDiagnostics.Da1DeclaresSixel` (`bool?`) for a finer-grained
+view of *why*: `null` means DA1 never answered or answered unparseably (and
+`SixelSupport` is `Unknown`), `false` means it answered and declared no Sixel
+support (and `SixelSupport` is `None`), `true` means it declared support (and
+`SixelSupport` is `Native`). The same nullable-first discipline applies to cell
 metrics: `TerminalCapabilities.SixelCellMetrics` (`Sixel.SixelCellMetrics?`) is
 `null` for "unknown," never a silent `SixelCellMetrics.Unknown` (the documented
 10x20 fallback) — that fallback is applied only once, at the moment a
@@ -734,14 +746,15 @@ attributes. Only replies carrying the `?` private-parameter marker — which
 every DA1 reply this library targets includes — are treated as DA1 responses
 at all, so a workload's own bare `CSI c` query can never be misinterpreted as
 a probe reply. Support is a strict tri-state, mirrored in the diagnostics'
-`Da1DeclaresSixel` as `bool?`: DA1 timed out or replied unparseably → unknown
-(`SixelSupport = None`, `Da1DeclaresSixel = null`); DA1 replied without
-parameter 4 → confirmed unsupported (`SixelSupport = None`,
-`Da1DeclaresSixel = false`); DA1 replied with parameter 4 → confirmed native
-support (`SixelSupport = Native`, `Da1DeclaresSixel = true`). A direct
-declaration via `WithSixelSupport` skips this probe entirely, including on
-paths (declared `None`) where sending a visible DA1 query would be unnecessary
-and, on some terminals, produce a visible response.
+`Da1DeclaresSixel` as `bool?` and in `SixelPresentationSupport` itself: DA1
+timed out or replied unparseably → unknown (`SixelSupport = Unknown`,
+`Da1DeclaresSixel = null`); DA1 replied without parameter 4 → confirmed
+unsupported (`SixelSupport = None`, `Da1DeclaresSixel = false`); DA1 replied
+with parameter 4 → confirmed native support (`SixelSupport = Native`,
+`Da1DeclaresSixel = true`). A direct declaration via `WithSixelSupport` skips
+this probe entirely, including on paths declared `None` or `Unknown` where
+sending a visible DA1 query would be unnecessary and, on some terminals,
+produce a visible response.
 
 ### Caching and invalidation
 
@@ -804,10 +817,12 @@ is the only one that ever reaches the workload. For every other presentation,
 
 - **DA1** (`CSI c`/`CSI 0 c`, recognized without a private-mode prefix per
   `AnsiTokenizer`) replies `\x1b[?62;4c` (VT220-class identity plus Sixel,
-  parameter 4) when `Capabilities.SixelSupport != None ||
-  Capabilities.SupportsSixel`, or `\x1b[?62c` otherwise. This reply format is
-  a Hex1b-owned synthetic identity, not verified byte-for-byte against a
-  specific real terminal's own DA1 string.
+  parameter 4) when `Capabilities.SixelSupport` is `Native`, `Translated`, or
+  `Headless` (or `Capabilities.SupportsSixel` is set), or `\x1b[?62c`
+  otherwise — including for both `Unknown` and `None`, since neither is an
+  affirmative "yes." This reply format is a Hex1b-owned synthetic identity,
+  not verified byte-for-byte against a specific real terminal's own DA1
+  string.
 - **`CSI 18 t`** (report text-area size in characters) replies
   `\x1b[8;{rows};{cols}t` from the terminal's own row/column count.
 - **`CSI 14 t`** (report text-area size in pixels) replies
@@ -1022,8 +1037,13 @@ recorded metrics unchanged while a subsequent placement (with distinct
 payload content, since identical content is deduplicated by
 `TrackedObjectStore.GetOrCreateSixel`) picks up the new value; and, run
 against `Hex1bTerminal` directly, native-presentation silence versus
-default-headless "no parameter 4" versus authoritative-headless "parameter 4
-present" DA1 replies, matching `Hex1bTerminalQueryOwnershipTests.cs` exactly.
+default-headless (`SixelSupport.Unknown`, "no parameter 4") versus an
+explicitly declared confirmed-unsupported headless (`SixelSupport.None`,
+also "no parameter 4," for a different, explicit reason) versus
+authoritative-headless ("parameter 4 present") DA1 replies — demonstrating
+that `Unknown` and `None` are distinct, separately observable capability
+states that nonetheless agree on the workload-facing answer, matching
+`Hex1bTerminalQueryOwnershipTests.cs` exactly.
 
 The demo presents one subject per screen. Each screen clears the display, resets
 margins, origin mode, and DECSDM so it cannot inherit state from the screen

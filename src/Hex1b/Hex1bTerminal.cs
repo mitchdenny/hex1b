@@ -3537,7 +3537,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_workload == null) return;
         if (_presentation is INativeUpstreamPresentationAdapter) return;
 
-        var sixelSupported = Capabilities.SixelSupport != SixelPresentationSupport.None || Capabilities.SupportsSixel;
+        // Advertise Sixel only for an affirmative, effective support level. Both
+        // SixelPresentationSupport.Unknown (not yet established) and .None
+        // (confirmed unsupported) must not be advertised — see
+        // SixelPresentationSupport's remarks for why those are distinct states that
+        // nonetheless agree here on the workload-facing answer.
+        var sixelSupported = Capabilities.SixelSupport is
+            SixelPresentationSupport.Native or
+            SixelPresentationSupport.Translated or
+            SixelPresentationSupport.Headless
+            || Capabilities.SupportsSixel;
         var response = sixelSupported ? "\x1b[?62;4c" : "\x1b[?62c";
         _ = SendProtocolResponseAsync(Encoding.UTF8.GetBytes(response));
     }

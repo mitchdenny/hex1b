@@ -85,6 +85,24 @@ public class SixelCapabilityDiscoveryTests
         Assert.DoesNotContain("\x1b[c", driver.WrittenText);
     }
 
+    [TestMethod]
+    public async Task WithSixelSupport_DeclaredUnknown_PreemptsProbingAndStaysUnknown()
+    {
+        using var driver = new FakeConsoleDriver();
+        await using var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: ProbeTimeout);
+        // An adapter can also declare "unknown" directly (for example, one that
+        // deliberately defers the decision to a later stage). This must remain
+        // distinct from both an affirmative declaration and an unanswered probe,
+        // and must still pre-empt DA1 probing exactly like any other declared value.
+        adapter.WithSixelSupport(SixelPresentationSupport.Unknown);
+
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+
+        Assert.AreEqual(SixelPresentationSupport.Unknown, adapter.Capabilities.SixelSupport);
+        Assert.IsFalse(adapter.Capabilities.SupportsSixel);
+        Assert.DoesNotContain("\x1b[c", driver.WrittenText);
+    }
+
     // Single-source acceptance -------------------------------------------------
 
     [TestMethod]
@@ -326,8 +344,10 @@ public class SixelCapabilityDiscoveryTests
 
         // Conservative default: no claimed support...
         Assert.IsFalse(adapter.Capabilities.SupportsSixel);
-        Assert.AreEqual(SixelPresentationSupport.None, adapter.Capabilities.SixelSupport);
-        // ...but the diagnostics explicitly distinguish "never answered" (null)
+        // ...represented in the capability model itself as Unknown, never coerced
+        // into the same value as a confirmed-unsupported reply (None).
+        Assert.AreEqual(SixelPresentationSupport.Unknown, adapter.Capabilities.SixelSupport);
+        // ...and the diagnostics likewise distinguish "never answered" (null)
         // from "answered and declined" (false).
         Assert.IsNull(adapter.SixelProbeDiagnostics.Da1DeclaresSixel);
     }
@@ -341,6 +361,7 @@ public class SixelCapabilityDiscoveryTests
         await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
 
         Assert.IsFalse(adapter.Capabilities.SupportsSixel);
+        Assert.AreEqual(SixelPresentationSupport.Unknown, adapter.Capabilities.SixelSupport);
         Assert.IsNull(adapter.SixelProbeDiagnostics.Da1DeclaresSixel);
     }
 

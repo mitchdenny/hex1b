@@ -13,20 +13,41 @@ namespace Hex1b.Sixel;
 /// path, discovered by <see href="https://github.com/mitchdenny/hex1b/issues/455">#455</see>.
 /// </para>
 /// <para>
-/// <see cref="None"/> covers both "not yet probed" and "confirmed unsupported" — the
-/// finer distinction between those two lives in probe diagnostics
-/// (see <see cref="SixelCapabilityProbeDiagnostics"/>), not in this enum. Workload-facing
-/// feature reporting (for example <c>SixelNode</c> deciding whether to advertise Sixel
-/// to a hosted app) must treat <see cref="None"/> as "do not advertise," never assume
+/// <see cref="Unknown"/> and <see cref="None"/> are deliberately distinct values, not a
+/// single collapsed "no support" state: <see cref="Unknown"/> means discovery has not
+/// run, has not concluded, or could not reach a confident answer (for example a probe
+/// that timed out or returned a malformed reply); <see cref="None"/> means discovery
+/// (or a direct declaration) affirmatively concluded the effective presentation cannot
+/// render Sixel. Workload-facing feature reporting (for example <c>SixelNode</c>
+/// deciding whether to advertise Sixel to a hosted app) must treat both
+/// <see cref="Unknown"/> and <see cref="None"/> as "do not advertise" — never assume
 /// support, and never silently substitute a specific cell size when support itself is
-/// unknown.
+/// unknown — but code that needs to tell "never checked" apart from "checked and no"
+/// (for example diagnostics or a support-status display) can rely on this enum alone,
+/// without also inspecting <see cref="SixelCapabilityProbeDiagnostics"/>.
+/// </para>
+/// <para>
+/// <see cref="Unknown"/> is the type's default value (numeric 0), so a
+/// <see cref="TerminalCapabilities"/> instance nobody has explicitly configured reads
+/// as "unknown," never as "confirmed unsupported."
 /// </para>
 /// </remarks>
 public enum SixelPresentationSupport
 {
     /// <summary>
-    /// The effective presentation cannot render Sixel graphics, or support has not
-    /// been established. Workloads must not be told Sixel is available.
+    /// Whether the effective presentation can render Sixel graphics has not been
+    /// established: discovery has not run yet, has not concluded, or a probe timed
+    /// out or returned a reply that could not be parsed. Workloads must not be told
+    /// Sixel is available, but this is distinct from <see cref="None"/> — nothing has
+    /// been confirmed either way.
+    /// </summary>
+    Unknown,
+
+    /// <summary>
+    /// Discovery (or a direct declaration) affirmatively concluded that the effective
+    /// presentation cannot render Sixel graphics. Workloads must not be told Sixel is
+    /// available. Distinct from <see cref="Unknown"/> — this is a confirmed negative
+    /// answer, not an absence of an answer.
     /// </summary>
     None,
 

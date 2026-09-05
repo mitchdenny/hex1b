@@ -218,6 +218,23 @@ public class Hex1bTerminalQueryOwnershipTests
     }
 
     [TestMethod]
+    public async Task Da1Query_NonNativePresentationWithUnknownSixelSupport_RepliesWithoutParameter4()
+    {
+        // A no-probe state (discovery has not run, or is still pending) must be
+        // just as conservative as a confirmed-unsupported one: parser capability
+        // alone is not sufficient grounds to advertise Sixel to the workload.
+        var presentation = new FakePresentationAdapter(
+            SixelCapabilities(SixelPresentationSupport.Unknown, supportsSixel: false));
+        var (terminal, workload) = CreateTerminal(presentation);
+        await using var t = terminal;
+
+        workload.EnqueueOutput(Da1Query);
+        await workload.WaitForWrittenLengthAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.AreEqual("\x1b[?62c", Encoding.UTF8.GetString(workload.WrittenBytes));
+    }
+
+    [TestMethod]
     public async Task Da1Query_NativeUpstreamPresentation_ReceivesNoSynthesizedReply()
     {
         var presentation = new NativeFakePresentationAdapter(
