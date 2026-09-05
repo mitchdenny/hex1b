@@ -36,9 +36,10 @@ public enum SixelRasterRouteDiagnosticKind
     PlaceholderApplied,
 
     /// <summary>
-    /// <see cref="Sixel.SixelPresentationSupport.Translated"/> was selected but no
-    /// supported translation target protocol (currently only KGP) is available, so
-    /// the unsupported-presentation policy was applied instead.
+    /// <see cref="Sixel.SixelPresentationSupport.Translated"/> was selected but Hex1b
+    /// implements no Sixel-to-image-protocol translation (an explicit non-goal; see
+    /// <see href="https://github.com/mitchdenny/hex1b/issues/458">#458</see>), so the
+    /// unsupported-presentation policy was applied instead.
     /// </summary>
     TranslationUnavailable,
 }
