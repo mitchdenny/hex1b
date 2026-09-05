@@ -170,8 +170,8 @@ internal sealed class SixelRasterRouter
         // Iterate currentPlacements directly (not the dictionary, whose enumeration
         // order is unspecified) so that overlapping-placement stacking order —
         // ascending SixelPlacement.Sequence, "later sequence paints on top" — is
-        // preserved in the emitted event order for both a managed sink and the KGP
-        // translator, neither of which re-derives paint order from scratch.
+        // preserved in the emitted event order for the managed sink, which does not
+        // re-derive paint order from scratch.
         foreach (var placement in currentPlacements)
         {
             var sequence = placement.Sequence;

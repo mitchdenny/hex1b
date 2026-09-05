@@ -58,15 +58,23 @@ public enum SixelPresentationSupport
     Native,
 
     /// <summary>
-    /// Sixel graphics are rendered by translating Hex1b's raster output into a
-    /// different image protocol (for example Kitty Graphics Protocol or the iTerm2
-    /// inline image protocol) before reaching the presentation.
+    /// The effective presentation cannot render Sixel graphics natively, but could
+    /// potentially display them if Hex1b's raster output were translated into a
+    /// different image protocol (for example the iTerm2 inline image protocol) before
+    /// reaching it.
     /// </summary>
     /// <remarks>
-    /// Implementing the translation itself is explicitly out of scope for #455 (see
-    /// <see href="https://github.com/mitchdenny/hex1b/issues/458">#458</see>); this
-    /// value exists so the capability model has a place to record it once that work
-    /// lands.
+    /// Hex1b does not implement any such translation today, and automatically
+    /// translating Sixel into another wire protocol is an explicit non-goal (see
+    /// <see href="https://github.com/mitchdenny/hex1b/issues/458">#458</see> and
+    /// "Sixel-to-image-protocol translation: explicit non-goal" in
+    /// <c>docs/sixel-terminal-behavior.md</c>). A presentation reporting this value
+    /// always resolves to the <c>Unsupported</c> effective route with a
+    /// <c>TranslationUnavailable</c> diagnostic. This value is retained purely for
+    /// forward compatibility — for example a possible future, explicitly opt-in
+    /// iTerm2 translator once <see href="https://github.com/mitchdenny/hex1b/issues/430">#430</see>/<see href="https://github.com/mitchdenny/hex1b/issues/433">#433</see>
+    /// land — so a host can distinguish "could translate, if Hex1b ever supported it"
+    /// from a confirmed <see cref="None"/>.
     /// </remarks>
     Translated,
 

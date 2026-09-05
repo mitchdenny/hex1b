@@ -1486,8 +1486,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 if (needsSixelGraphicsImpacts)
                 {
-                    // Route Sixel raster changes to a managed sink, the KGP translator,
-                    // an unsupported-presentation placeholder, and/or diagnostics — all
+                    // Route Sixel raster changes to a managed sink, an
+                    // unsupported-presentation placeholder, and/or diagnostics — all
                     // driven from the same authoritative appliedTokens this batch just
                     // produced, never a second independent observation mechanism.
                     await ProcessSixelRoutingAsync(sixelRoute, appliedTokens, wasAlternateScreenBeforeBatch, ct);

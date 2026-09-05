@@ -235,9 +235,9 @@ public sealed partial class Hex1bTerminal
     /// Whether the effective Sixel route (see <see cref="SixelRouteAllowsRawWire"/>)
     /// permits Sixel wire bytes to reach the presentation at all this batch. When
     /// <see langword="false"/>, every Sixel-shaped token is removed regardless of the
-    /// sanitization policy — the route's own mechanism (structured events, KGP
-    /// translation, or neither) already carries the authoritative model, and raw or
-    /// reconstructed Sixel bytes would be redundant, uninterpretable noise.
+    /// sanitization policy — the route's own mechanism (structured events or neither)
+    /// already carries the authoritative model, and raw or reconstructed Sixel bytes
+    /// would be redundant, uninterpretable noise.
     /// </param>
     /// <remarks>
     /// When <paramref name="sixelAllowsRawWire"/> is <see langword="true"/>, this

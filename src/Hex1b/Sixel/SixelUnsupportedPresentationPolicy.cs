@@ -3,7 +3,8 @@ namespace Hex1b.Sixel;
 /// <summary>
 /// Governs what happens to Sixel graphics when the effective presentation route is
 /// <c>Unsupported</c> — no real display can render Sixel, no managed raster sink is
-/// attached, and no translation target (currently only KGP) is available.
+/// attached, and Hex1b implements no translation to another image protocol (see
+/// <see cref="SixelPresentationSupport.Translated"/>).
 /// </summary>
 /// <remarks>
 /// Hex1b's authoritative Sixel model (<see cref="Hex1b.SixelGraphicsState"/>,
