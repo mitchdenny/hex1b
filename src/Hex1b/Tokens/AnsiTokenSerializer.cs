@@ -71,6 +71,8 @@ public static class AnsiTokenSerializer
             UnrecognizedSequenceToken unrec => unrec.Sequence,
             KgpToken kgp => SerializeKgp(kgp),
             DeviceStatusReportToken dsr => $"\x1b[{dsr.Type}n",
+            DeviceAttributesQueryToken => "\x1b[c",
+            WindowOperationToken win => $"\x1b[{win.Operation}t",
             _ => throw new ArgumentException($"Unknown token type: {token.GetType().Name}", nameof(token))
         };
     }

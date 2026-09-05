@@ -3505,11 +3505,90 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             case DeviceStatusReportToken dsr:
                 HandleDeviceStatusReport(dsr);
                 break;
+
+            case DeviceAttributesQueryToken:
+                HandleDeviceAttributesQuery();
+                break;
+
+            case WindowOperationToken windowOp:
+                HandleWindowOperationQuery(windowOp);
+                break;
         }
 
         return !_disposed;
     }
-    
+
+    /// <summary>
+    /// Answers a primary Device Attributes (DA1) query on behalf of the workload,
+    /// unless the active presentation is a real upstream terminal that will already
+    /// answer it itself.
+    /// </summary>
+    /// <remarks>
+    /// See <see href="https://github.com/mitchdenny/hex1b/issues/455">#455</see> for
+    /// the query-ownership model: <see cref="ConsolePresentationAdapter"/> is the
+    /// only <see cref="INativeUpstreamPresentationAdapter"/>, so it is the only
+    /// presentation this method stays silent for — every other presentation
+    /// (headless, WebSocket, future translated adapters) gets a synthesized reply
+    /// here so a single, deterministic answerer always exists and duplicate
+    /// responses from both Hex1b and a real terminal are impossible.
+    /// </remarks>
+    private void HandleDeviceAttributesQuery()
+    {
+        if (_workload == null) return;
+        if (_presentation is INativeUpstreamPresentationAdapter) return;
+
+        var sixelSupported = Capabilities.SixelSupport != SixelPresentationSupport.None || Capabilities.SupportsSixel;
+        var response = sixelSupported ? "\x1b[?62;4c" : "\x1b[?62c";
+        _ = SendProtocolResponseAsync(Encoding.UTF8.GetBytes(response));
+    }
+
+    /// <summary>
+    /// Answers an XTWINOPS window-operation query (<c>CSI 14/16/18 t</c>) on behalf
+    /// of the workload, using the terminal's own authoritative size and cell-metric
+    /// model, unless the active presentation is a real upstream terminal that will
+    /// already answer it itself.
+    /// </summary>
+    /// <remarks>
+    /// Only the report-style operations recognized by
+    /// <see cref="AnsiTokenizer"/> reach here (see <see cref="WindowOperationToken"/>);
+    /// any other window-op remains an <see cref="UnrecognizedSequenceToken"/> and
+    /// is never routed to this method.
+    /// </remarks>
+    private void HandleWindowOperationQuery(WindowOperationToken windowOp)
+    {
+        if (_workload == null) return;
+        if (_presentation is INativeUpstreamPresentationAdapter) return;
+
+        string? response = windowOp.Operation switch
+        {
+            18 => $"\x1b[8;{_height};{_width}t",
+            14 => BuildTextAreaPixelSizeResponse(),
+            16 => BuildCellPixelSizeResponse(),
+            _ => null,
+        };
+
+        if (!string.IsNullOrEmpty(response))
+        {
+            _ = SendProtocolResponseAsync(Encoding.UTF8.GetBytes(response));
+        }
+    }
+
+    private string BuildTextAreaPixelSizeResponse()
+    {
+        var metrics = SixelCellMetrics;
+        var widthPixels = (int)Math.Round(_width * metrics.SafeWidth, MidpointRounding.AwayFromZero);
+        var heightPixels = (int)Math.Round(_height * metrics.SafeHeight, MidpointRounding.AwayFromZero);
+        return $"\x1b[4;{heightPixels};{widthPixels}t";
+    }
+
+    private string BuildCellPixelSizeResponse()
+    {
+        var metrics = SixelCellMetrics;
+        var width = (int)Math.Round(metrics.SafeWidth, MidpointRounding.AwayFromZero);
+        var height = (int)Math.Round(metrics.SafeHeight, MidpointRounding.AwayFromZero);
+        return $"\x1b[6;{height};{width}t";
+    }
+
     private void HandleDeviceStatusReport(DeviceStatusReportToken dsr)
     {
         if (_workload == null) return;
@@ -6069,14 +6148,25 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Gets the protocol cell metrics Sixel placements are measured against.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Sixel cell metrics are protocol metrics rather than physical font metrics, so
-    /// they are modelled separately from <see cref="TerminalCapabilities"/>. Until
-    /// real presentation probing lands, the value is derived from capabilities and
-    /// reported as estimated. Adapters and tests can inject a value through
-    /// <see cref="SetSixelCellMetrics"/>.
+    /// they are modelled separately from <see cref="TerminalCapabilities"/>. Priority
+    /// order: an explicit test/adapter override (<see cref="SetSixelCellMetrics"/>),
+    /// then metrics discovered by the active presentation adapter
+    /// (<see cref="TerminalCapabilities.SixelCellMetrics"/>, populated per
+    /// <see href="https://github.com/mitchdenny/hex1b/issues/455">#455</see>'s
+    /// discovery precedence), then a capability-derived estimate as a last resort.
+    /// </para>
+    /// <para>
+    /// Read fresh on every access (never cached here), so a presentation's discovered
+    /// metrics updating later only ever affects placements created afterward —
+    /// existing placements already captured their own immutable snapshot.
+    /// </para>
     /// </remarks>
     internal Sixel.SixelCellMetrics SixelCellMetrics =>
-        _sixelCellMetricsOverride ?? Sixel.SixelCellMetrics.FromCapabilities(Capabilities);
+        _sixelCellMetricsOverride
+            ?? Capabilities.SixelCellMetrics
+            ?? Sixel.SixelCellMetrics.FromCapabilities(Capabilities);
 
     /// <summary>
     /// Overrides the protocol cell metrics used for new Sixel placements.

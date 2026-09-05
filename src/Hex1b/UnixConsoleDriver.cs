@@ -92,6 +92,24 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     
     public int Width => Console.WindowWidth;
     public int Height => Console.WindowHeight;
+
+    /// <inheritdoc />
+    public bool TryGetWindowPixelSize(out int pixelWidth, out int pixelHeight)
+    {
+        pixelWidth = 0;
+        pixelHeight = 0;
+
+        var winSize = default(WinSize);
+        if (ioctl(STDOUT_FILENO, TiocgwinszRequest, ref winSize) != 0)
+            return false;
+
+        if (winSize.ws_xpixel == 0 || winSize.ws_ypixel == 0)
+            return false;
+
+        pixelWidth = winSize.ws_xpixel;
+        pixelHeight = winSize.ws_ypixel;
+        return true;
+    }
     public Encoding InputEncoding => Console.InputEncoding;
     
     public event Action<int, int>? Resized;
@@ -341,4 +359,23 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     
     [DllImport("libc", SetLastError = true)]
     private static extern int poll(ref PollFd fds, nuint nfds, int timeout);
+
+    // P/Invoke for ioctl(TIOCGWINSZ) - reads window size including pixel fields,
+    // which Console.WindowWidth/WindowHeight do not expose. The request code
+    // differs between Linux and the BSD-derived macOS ioctl encoding.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WinSize
+    {
+        public ushort ws_row;
+        public ushort ws_col;
+        public ushort ws_xpixel;
+        public ushort ws_ypixel;
+    }
+
+    private static readonly nuint TiocgwinszRequest = OperatingSystem.IsMacOS()
+        ? (nuint)0x40087468
+        : (nuint)0x5413;
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern int ioctl(int fd, nuint request, ref WinSize winSize);
 }
