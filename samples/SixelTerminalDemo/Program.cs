@@ -86,7 +86,7 @@ var capabilityDiscoveryObservations = sceneFilter is null
     ? await CapabilityDiscoveryScenarios.RunAllAsync()
     : [];
 
-// Routing, translation, and sanitization (#458) is also a headless-only,
+// Routing and sanitization (#458) is also a headless-only,
 // no-real-terminal concern: every route/policy combination is independent of
 // which paged screen (if any) is being viewed.
 var routingTranslationObservations = sceneFilter is null
@@ -228,7 +228,7 @@ static void WriteHeadlessTranscript(
     }
 
     Console.WriteLine();
-    Console.WriteLine("Routing, translation, and sanitization observations (#458):");
+    Console.WriteLine("Routing and sanitization observations (#458):");
     foreach (var (title, observation) in routingTranslationObservations)
     {
         Console.WriteLine($"  {title}: {observation}");

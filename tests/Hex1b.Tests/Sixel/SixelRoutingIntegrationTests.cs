@@ -6,11 +6,17 @@ namespace Hex1b.Tests.Sixel;
 
 /// <summary>
 /// Terminal-level coverage for stage #458's routing matrix: native byte-exact
-/// passthrough, the managed raster sink, KGP translation, the unsupported-
-/// presentation policy, and opt-in sanitization, driven end to end through
-/// <see cref="Hex1bTerminal"/> with raw Sixel DCS fixtures (never
-/// <c>SixelWidget</c>/<c>SixelEncoder</c>).
+/// passthrough, the managed raster sink, the unsupported-presentation policy, and
+/// opt-in sanitization, driven end to end through <see cref="Hex1bTerminal"/> with
+/// raw Sixel DCS fixtures (never <c>SixelWidget</c>/<c>SixelEncoder</c>).
 /// </summary>
+/// <remarks>
+/// Hex1b does not translate Sixel into another wire protocol (e.g. Kitty Graphics
+/// Protocol): a presentation declaring <see cref="SixelPresentationSupport.Translated"/>
+/// always resolves to <see cref="SixelEffectiveRoute.Unsupported"/> with a
+/// <see cref="SixelRasterRouteDiagnosticKind.TranslationUnavailable"/> diagnostic.
+/// See <c>TranslatedRoute_AlwaysRaisesTranslationUnavailableDiagnostic</c>.
+/// </remarks>
 [TestClass]
 public class SixelRoutingIntegrationTests
 {
@@ -219,60 +225,6 @@ public class SixelRoutingIntegrationTests
         }
     }
 
-    // KGP translation ------------------------------------------------------------
-
-    [TestMethod]
-    public async Task KgpTranslatedRoute_TransmitsImageThenPlacementWithReservedIdBit()
-    {
-        await using var terminal = SixelRoutingTestTerminal.Create(
-            sixelSupport: SixelPresentationSupport.Translated,
-            supportsKgp: true);
-
-        await terminal.FeedAsync(Bytes(SmallRedGraphic), cancellationToken: TestContext.Current.CancellationToken);
-        await terminal.WaitForPresentationLengthAsync(1, TestContext.Current.CancellationToken);
-        await terminal.WaitForAsync(
-            _ => terminal.PresentationText.Contains("a=p"),
-            "KGP placement command",
-            TestContext.Current.CancellationToken);
-
-        var text = terminal.PresentationText;
-        Assert.Contains("\x1b_Ga=t,f=32", text);
-        Assert.Contains("\x1b_Ga=p,i=", text);
-
-        // Workload-authored KGP IDs are typically small; translated IDs always carry
-        // the reserved high bit (0x8000_0000), so a naive small-integer collision is
-        // structurally impossible.
-        var idIndex = text.IndexOf("a=p,i=", StringComparison.Ordinal) + "a=p,i=".Length;
-        var idEnd = text.IndexOf(',', idIndex);
-        var imageId = uint.Parse(text[idIndex..idEnd]);
-        Assert.IsTrue((imageId & 0x8000_0000) != 0, "Translated image IDs must carry the reserved high bit.");
-    }
-
-    [TestMethod]
-    public async Task KgpTranslatedRoute_ScrollOffScreen_EmitsDeleteCommands()
-    {
-        await using var terminal = SixelRoutingTestTerminal.Create(
-            sixelSupport: SixelPresentationSupport.Translated,
-            supportsKgp: true,
-            width: 20,
-            height: 3);
-
-        await terminal.FeedAsync(Bytes(SmallRedGraphic), cancellationToken: TestContext.Current.CancellationToken);
-        await terminal.WaitForAsync(
-            _ => terminal.PresentationText.Contains("a=p"),
-            "initial KGP placement",
-            TestContext.Current.CancellationToken);
-
-        var newlines = string.Concat(Enumerable.Repeat("\n", 10));
-        await terminal.FeedAsync(Bytes(newlines), cancellationToken: TestContext.Current.CancellationToken);
-        await terminal.WaitForAsync(
-            _ => terminal.PresentationText.Contains("a=d,d=i"),
-            "KGP placement delete",
-            TestContext.Current.CancellationToken);
-
-        Assert.Contains("\x1b_Ga=d,d=i,", terminal.PresentationText);
-    }
-
     // Unsupported presentation policy -----------------------------------------------
 
     [TestMethod]
@@ -310,11 +262,16 @@ public class SixelRoutingIntegrationTests
     }
 
     [TestMethod]
-    public async Task TranslatedRoute_WithoutKgp_RaisesTranslationUnavailableDiagnostic()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task TranslatedRoute_AlwaysRaisesTranslationUnavailableDiagnostic(bool supportsKgp)
     {
+        // Hex1b does not translate Sixel into another wire protocol: a Translated
+        // presentation raises TranslationUnavailable regardless of KGP capability —
+        // KGP support alone was never sufficient to select a translated route.
         await using var terminal = SixelRoutingTestTerminal.Create(
             sixelSupport: SixelPresentationSupport.Translated,
-            supportsKgp: false);
+            supportsKgp: supportsKgp);
 
         await terminal.FeedAsync(Bytes(SmallRedGraphic), cancellationToken: TestContext.Current.CancellationToken);
         await terminal.WaitForAsync(
@@ -396,89 +353,6 @@ public class SixelRoutingIntegrationTests
             TestContext.Current.CancellationToken);
 
         Assert.IsTrue(terminal.RasterEvents.Any(e => e is SixelRasterPlacementDamaged or SixelRasterPlacementReleased));
-    }
-
-    [TestMethod]
-    public async Task KgpTranslatedRoute_IdenticalContentTwice_DoesNotRetransmitImage()
-    {
-        await using var terminal = SixelRoutingTestTerminal.Create(
-            sixelSupport: SixelPresentationSupport.Translated,
-            supportsKgp: true,
-            width: 40,
-            height: 20);
-
-        await terminal.FeedAsync(Bytes(SmallRedGraphic), cancellationToken: TestContext.Current.CancellationToken);
-        await terminal.WaitForAsync(
-            _ => terminal.PresentationText.Contains("a=p"),
-            "first KGP placement",
-            TestContext.Current.CancellationToken);
-
-        var afterFirst = terminal.PresentationText;
-        var firstTransmitCount = CountOccurrences(afterFirst, "a=t,f=32");
-        Assert.AreEqual(1, firstTransmitCount);
-
-        await terminal.FeedAsync(
-            Bytes("\x1b[2;1H" + SmallRedGraphic),
-            cancellationToken: TestContext.Current.CancellationToken);
-        await terminal.WaitForAsync(
-            _ => CountOccurrences(terminal.PresentationText, "a=p,i=") >= 2,
-            "second KGP placement",
-            TestContext.Current.CancellationToken);
-
-        // Same raster content, painted at a fresh anchor: a second placement command
-        // is transmitted, but the image content itself is defined only once.
-        Assert.AreEqual(1, CountOccurrences(terminal.PresentationText, "a=t,f=32"));
-        Assert.AreEqual(2, CountOccurrences(terminal.PresentationText, "a=p,i="));
-    }
-
-    [TestMethod]
-    public async Task RouteChangeAwayFromKgpTranslated_ReleasesStalePlacementAndImage()
-    {
-        // Regression for the confirmed defect: switching the effective route away
-        // from KgpTranslated on the same live presentation must release every
-        // outstanding translated placement/image before bookkeeping resets, so the
-        // presentation is never left with stale KGP graphics it can no longer be
-        // told about.
-        await using var terminal = SixelRoutingTestTerminal.Create(
-            sixelSupport: SixelPresentationSupport.Translated,
-            supportsKgp: true);
-
-        await terminal.FeedAsync(Bytes(SmallRedGraphic), cancellationToken: TestContext.Current.CancellationToken);
-        await terminal.WaitForAsync(
-            _ => terminal.PresentationText.Contains("a=p"),
-            "initial KGP placement",
-            TestContext.Current.CancellationToken);
-
-        Assert.Contains("a=t,f=32", terminal.PresentationText);
-        Assert.DoesNotContain("a=d,d=i,", terminal.PresentationText);
-
-        // The presentation connection itself never changes (see Hex1bTerminal's
-        // readonly _presentation field) — simulate a post-discovery capability
-        // update that moves the effective route away from KgpTranslated entirely.
-        terminal.SetSixelSupport(SixelPresentationSupport.Native);
-
-        await terminal.FeedAsync(Bytes("x"), cancellationToken: TestContext.Current.CancellationToken);
-        await terminal.WaitForAsync(
-            _ => terminal.PresentationText.Contains("a=d,d=i,"),
-            "KGP placement delete on route change",
-            TestContext.Current.CancellationToken);
-
-        var text = terminal.PresentationText;
-        Assert.Contains("\x1b_Ga=d,d=i,", text);
-        Assert.Contains("\x1b_Ga=d,d=I,", text);
-    }
-
-    private static int CountOccurrences(string haystack, string needle)
-    {
-        var count = 0;
-        var index = 0;
-        while ((index = haystack.IndexOf(needle, index, StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            index += needle.Length;
-        }
-
-        return count;
     }
 
     // Sanitization -------------------------------------------------------------

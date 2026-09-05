@@ -26,22 +26,16 @@ internal enum SixelEffectiveRoute
     /// </summary>
     ManagedRasterSink,
 
-    /// <summary>
-    /// <see cref="SixelPresentationSupport.Translated"/> was selected and a supported
-    /// translation target (currently only Kitty Graphics Protocol) is available:
-    /// Sixel raster state is translated into KGP image/placement operations.
-    /// </summary>
-    KgpTranslated,
-
     /// <summary>There is no real display; Hex1b's own model is authoritative and no output is rendered.</summary>
     Headless,
 
     /// <summary>
     /// No route can render Sixel graphics for a human to see: no native support, no
-    /// managed sink, and either no translation was requested or none is available.
-    /// The authoritative model is still retained; see
-    /// <see cref="SixelUnsupportedPresentationPolicy"/> for what (if anything) is
-    /// substituted in the output stream.
+    /// managed sink, and no translation target is available (Hex1b does not
+    /// translate Sixel into another wire protocol; see
+    /// <see cref="SixelPresentationSupport.Translated"/>). The authoritative model
+    /// is still retained; see <see cref="SixelUnsupportedPresentationPolicy"/> for
+    /// what (if anything) is substituted in the output stream.
     /// </summary>
     Unsupported,
 }
@@ -50,7 +44,7 @@ internal enum SixelEffectiveRoute
 /// Computes the effective Sixel route for a terminal/presentation pairing and
 /// incrementally diffs the authoritative live placement set into an ordered
 /// <see cref="SixelRasterEvent"/> stream for a <see cref="ISixelRasterPresentationSink"/>
-/// or a <see cref="Kgp.KgpSixelTranslator"/> to consume.
+/// to consume.
 /// </summary>
 /// <remarks>
 /// This type owns no terminal state of its own beyond its own dedup/visibility
@@ -88,6 +82,21 @@ internal sealed class SixelRasterRouter
     /// <summary>
     /// Computes the effective route for the given capability/presentation pairing.
     /// </summary>
+    /// <param name="capabilities">The terminal's current capability set.</param>
+    /// <param name="presentation">The active presentation adapter.</param>
+    /// <remarks>
+    /// Hex1b never translates Sixel into a different wire protocol: a
+    /// <see cref="SixelPresentationSupport.Translated"/> presentation always
+    /// resolves to <see cref="SixelEffectiveRoute.Unsupported"/> (with a
+    /// <see cref="SixelRasterRouteDiagnosticKind.TranslationUnavailable"/>
+    /// diagnostic), governed by <see cref="SixelUnsupportedPresentationPolicy"/>
+    /// like any other unsupported route. Translation was deliberately scoped out —
+    /// rewriting one graphics protocol into another on the wire is a meaningful
+    /// behavioral decision Hex1b does not make on a host's behalf. A protocol-neutral
+    /// managed raster sink (<see cref="ISixelRasterPresentationSink"/>) remains
+    /// available for any presentation that wants to render Sixel content through a
+    /// different mechanism.
+    /// </remarks>
     internal static SixelEffectiveRoute ComputeRoute(
         TerminalCapabilities capabilities,
         IHex1bTerminalPresentationAdapter presentation)
@@ -99,9 +108,6 @@ internal sealed class SixelRasterRouter
         {
             SixelPresentationSupport.Native => SixelEffectiveRoute.NativePassthrough,
             SixelPresentationSupport.Headless => SixelEffectiveRoute.Headless,
-            SixelPresentationSupport.Translated => capabilities.SupportsKgp
-                ? SixelEffectiveRoute.KgpTranslated
-                : SixelEffectiveRoute.Unsupported,
             _ => SixelEffectiveRoute.Unsupported,
         };
     }

@@ -5,11 +5,11 @@ using Hex1b.Sixel;
 
 /// <summary>
 /// Deterministic, no-real-terminal-required scenarios demonstrating stage #458's
-/// Sixel routing/translation/sanitization contract: early chunk-boundary native
-/// forwarding with byte equality, ordered managed-sink events with content
-/// deduplication and damage, translated KGP wire-equivalence, a geometry-only
-/// diagnostic placeholder, sanitization suppressing a malformed sequence while
-/// preserving ordinary text, and effective-capability reporting in headless mode.
+/// Sixel routing/sanitization contract: early chunk-boundary native forwarding with
+/// byte equality, ordered managed-sink events with content deduplication and damage,
+/// a geometry-only diagnostic placeholder, sanitization suppressing a malformed
+/// sequence while preserving ordinary text, and effective-capability reporting in
+/// headless mode.
 /// </summary>
 /// <remarks>
 /// Every scenario feeds independently authored raw Sixel bytes (reusing
@@ -19,7 +19,10 @@ using Hex1b.Sixel;
 /// <c>SixelWidget</c> or <c>SixelEncoder</c>. This mirrors
 /// <c>tests/Hex1b.Tests/Sixel/SixelRoutingIntegrationTests.cs</c>, so this file's
 /// observations are direct, reproducible evidence of the same behavior those
-/// tests assert.
+/// tests assert. Hex1b deliberately does not translate Sixel into another wire
+/// protocol (e.g. Kitty Graphics Protocol): a <see cref="SixelPresentationSupport.Translated"/>
+/// presentation always resolves to <c>SixelEffectiveRoute.Unsupported</c>, governed
+/// by the same unsupported-presentation policy as any other route with no display.
 /// </remarks>
 internal static class RoutingTranslationScenarios
 {
@@ -40,7 +43,6 @@ internal static class RoutingTranslationScenarios
         [
             ("Native route: early chunk forwarding is byte-exact", await NativeEarlyChunkForwardingAsync()),
             ("Managed sink: ordered events, content dedup, and damage", await ManagedSinkOrderedEventsAsync()),
-            ("KGP translation: wire equivalence for the same raster", await KgpTranslationEquivalenceAsync()),
             ("Unsupported route: geometry-only diagnostic placeholder", await GeometryOnlyPlaceholderAsync()),
             ("Sanitization: suppresses malformed, preserves ordinary text", await SanitizationSuppressesMalformedAsync()),
             ("Capability reporting: effective route drives DA1, in headless mode", await CapabilityReportingHeadlessAsync()),
@@ -105,32 +107,7 @@ internal static class RoutingTranslationScenarios
             $"text overwrite at the first placement's origin produced a damage/release event: {damagedOrReleased}";
     }
 
-    // 3. KGP translation converts the same authoritative raster into KGP wire ---
-    //    commands: a transmit command followed by a placement command, with no
-    //    internal ID ever colliding with a workload-authored small integer ID.
-
-    private static async Task<string> KgpTranslationEquivalenceAsync()
-    {
-        await using var harness = RoutingHarness.Create(SixelPresentationSupport.Translated, supportsKgp: true);
-
-        await harness.FeedAsync(SolidBlock.StandardDcsBytes);
-        await harness.WaitForAsync(() => harness.PresentationText.Contains("a=p,i="));
-
-        var text = harness.PresentationText;
-        var hasTransmit = text.Contains("\x1b_Ga=t,f=32");
-        var hasPlacement = text.Contains("\x1b_Ga=p,i=");
-        var idIndex = text.IndexOf("a=p,i=", StringComparison.Ordinal) + "a=p,i=".Length;
-        var idEnd = text.IndexOf(',', idIndex);
-        var imageId = uint.Parse(text[idIndex..idEnd]);
-        var reservedBitSet = (imageId & 0x8000_0000) != 0;
-
-        return
-            $"the same red-block raster translated to a KGP transmit command (f=32 PNG payload): {hasTransmit}, " +
-            $"followed by a placement command: {hasPlacement}; translated image id {imageId} carries the reserved " +
-            $"high bit (0x8000_0000) so it can never collide with a workload-authored small-integer KGP id: {reservedBitSet}";
-    }
-
-    // 4. When no display, managed sink, or translation target is available, an ---
+    // 3. When no display, managed sink, or translation target is available, an ---
     //    opt-in placeholder policy substitutes an explicit diagnostic instead of
     //    silently discarding the graphic a human cannot see.
 
@@ -155,7 +132,7 @@ internal static class RoutingTranslationScenarios
             "only presentation-side substitution is affected)";
     }
 
-    // 5. Opt-in sanitization suppresses a malformed Sixel sequence before it ---
+    // 4. Opt-in sanitization suppresses a malformed Sixel sequence before it ---
     //    reaches a native upstream, while leaving ordinary text untouched.
 
     private static async Task<string> SanitizationSuppressesMalformedAsync()
@@ -178,11 +155,16 @@ internal static class RoutingTranslationScenarios
             $"a Suppressed diagnostic was raised: {suppressed}";
     }
 
-    // 6. Effective capability reported to a hosted workload (DA1) matches the ---
+    // 5. Effective capability reported to a hosted workload (DA1) matches the ---
     //    actual selected route, demonstrated headlessly with no real terminal.
 
     private static async Task<string> CapabilityReportingHeadlessAsync()
     {
+        await using var native = RoutingHarness.Create(SixelPresentationSupport.Native);
+        await native.FeedAsync("\x1b[c"u8.ToArray());
+        await native.WaitForWorkloadReplyAsync();
+        var nativeAdvertises = native.WorkloadReplyText.Contains(";4c");
+
         await using var translatedWithKgp = RoutingHarness.Create(SixelPresentationSupport.Translated, supportsKgp: true);
         await translatedWithKgp.FeedAsync("\x1b[c"u8.ToArray());
         await translatedWithKgp.WaitForWorkloadReplyAsync();
@@ -194,11 +176,14 @@ internal static class RoutingTranslationScenarios
         var withoutKgpAdvertises = translatedWithoutKgp.WorkloadReplyText.Contains(";4c");
 
         return
-            "Translated + SupportsKgp=true DA1 reply " +
-            $"\"{translatedWithKgp.WorkloadReplyText.Replace("\x1b", "ESC")}\" advertises parameter 4 (Sixel): {withKgpAdvertises}; " +
+            $"Native DA1 reply \"{native.WorkloadReplyText.Replace("\x1b", "ESC")}\" advertises parameter 4 (Sixel): " +
+            $"{nativeAdvertises}; Translated + SupportsKgp=true DA1 reply " +
+            $"\"{translatedWithKgp.WorkloadReplyText.Replace("\x1b", "ESC")}\" advertises parameter 4: {withKgpAdvertises}; " +
             "Translated + SupportsKgp=false DA1 reply " +
             $"\"{translatedWithoutKgp.WorkloadReplyText.Replace("\x1b", "ESC")}\" advertises parameter 4: {withoutKgpAdvertises} " +
-            "(effective capability matches the actual selected route, not raw parser support, and is never duplicated)";
+            "(effective capability matches the actual selected route, not raw parser support, and is never " +
+            "duplicated; Hex1b does not translate Sixel into another wire protocol, so Translated never " +
+            "advertises parameter 4 regardless of KGP capability)";
     }
 
     /// <summary>

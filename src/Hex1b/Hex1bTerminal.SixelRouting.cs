@@ -1,5 +1,4 @@
 using System.Text;
-using Hex1b.Kgp;
 using Hex1b.Sixel;
 using Hex1b.Tokens;
 
@@ -8,7 +7,6 @@ namespace Hex1b;
 public sealed partial class Hex1bTerminal
 {
     private readonly SixelRasterRouter _sixelRasterRouter = new();
-    private readonly KgpSixelTranslator _kgpSixelTranslator = new();
     private SixelEffectiveRoute _lastSixelRoute;
     private bool _lastSixelRouteInitialized;
     private SixelSanitizationPolicy _sixelSanitization = SixelSanitizationPolicy.Disabled;
@@ -43,7 +41,7 @@ public sealed partial class Hex1bTerminal
     /// cheaper impact-free <see cref="ApplyTokens"/> fast path.
     /// </summary>
     private bool SixelRoutingNeedsGraphicsImpacts(SixelEffectiveRoute route) =>
-        route is SixelEffectiveRoute.ManagedRasterSink or SixelEffectiveRoute.KgpTranslated
+        route is SixelEffectiveRoute.ManagedRasterSink
         || (route is SixelEffectiveRoute.Unsupported && _sixelUnsupportedPresentation == SixelUnsupportedPresentationPolicy.Placeholder)
         || SixelRouteDiagnosticRaised is not null;
 
@@ -67,12 +65,11 @@ public sealed partial class Hex1bTerminal
     ///     — the documented dual-delivery case where a managed sink observes
     ///     structured events <em>alongside</em>, not instead of, raw bytes reaching a
     ///     real native upstream through the same presentation.</item>
-    ///   <item><see cref="SixelEffectiveRoute.Headless"/> and
-    ///     <see cref="SixelEffectiveRoute.KgpTranslated"/> never allow it: these
-    ///     presentations only ever receive the authoritative model (as structured
-    ///     events, translated KGP bytes, or neither) — raw, uninterpretable Sixel
-    ///     bytes would serve no purpose and would violate the "structured events
-    ///     only" contract these routes document.</item>
+    ///   <item><see cref="SixelEffectiveRoute.Headless"/> never allows it: this
+    ///     presentation only ever receives the authoritative model (as structured
+    ///     events or neither) — raw, uninterpretable Sixel bytes would serve no
+    ///     purpose and would violate the "structured events only" contract this
+    ///     route documents.</item>
     /// </list>
     /// </remarks>
     private bool SixelRouteAllowsRawWire(SixelEffectiveRoute route) => route switch
@@ -86,8 +83,8 @@ public sealed partial class Hex1bTerminal
     /// <summary>
     /// Diffs this batch's now-current live Sixel placements against what was
     /// previously observed, and delivers the resulting ordered events to whatever
-    /// consumes them for the current effective route: a managed raster sink, the KGP
-    /// translator, an unsupported-presentation placeholder, and/or the
+    /// consumes them for the current effective route: a managed raster sink, an
+    /// unsupported-presentation placeholder, and/or the
     /// <see cref="SixelRouteDiagnosticRaised"/> event.
     /// </summary>
     /// <param name="route">The effective route computed for this batch.</param>
@@ -105,26 +102,11 @@ public sealed partial class Hex1bTerminal
     {
         if (!_lastSixelRouteInitialized || route != _lastSixelRoute)
         {
-            if (_lastSixelRouteInitialized && !_disposed)
-            {
-                // The presentation itself is never replaced (see Hex1bTerminal's
-                // readonly _presentation field) — a route change always happens on
-                // the same live connection, driven by the presentation's own
-                // capabilities changing (e.g. a post-discovery update). If the prior
-                // route was KgpTranslated, this releases every placement/image the
-                // translator emitted before bookkeeping is cleared, so a route change
-                // away from it never leaves stale graphics/resources behind on the
-                // presentation. This is a no-op for any other prior route, since only
-                // KgpTranslated ever populates the translator's tracked state.
-                await _kgpSixelTranslator.ReleaseAllAsync(_presentation, ct).ConfigureAwait(false);
-            }
-
             // A route change (including the very first batch) starts dedup/visibility
             // bookkeeping clean without rewriting any already-reported historical
             // placement metrics — the authoritative SixelGraphicsState itself is
             // untouched by this reset.
             _sixelRasterRouter.ResetBookkeeping();
-            _kgpSixelTranslator.ResetBookkeeping();
             _lastSixelRoute = route;
             _lastSixelRouteInitialized = true;
         }
@@ -183,29 +165,13 @@ public sealed partial class Hex1bTerminal
                 await sink.OnSixelRasterEventsAsync(events, ct).ConfigureAwait(false);
                 break;
 
-            case SixelEffectiveRoute.KgpTranslated:
-                var placementsBySequence = new Dictionary<long, SixelPlacement>(SixelPlacementCount);
-                foreach (var placement in SixelPlacements)
-                {
-                    placementsBySequence[placement.Sequence] = placement;
-                }
-
-                await _kgpSixelTranslator.ApplyAsync(
-                    events,
-                    placementsBySequence,
-                    _presentation,
-                    _cursorY,
-                    _cursorX,
-                    ct).ConfigureAwait(false);
-                break;
-
             case SixelEffectiveRoute.Unsupported:
                 if (Capabilities.SixelSupport == SixelPresentationSupport.Translated)
                 {
-                    // Translation was explicitly requested (SixelSupport == Translated)
-                    // but no supported translation target is available (currently only
-                    // KGP) -- report this distinctly from "no translation was ever
-                    // requested" so a host can tell the two Unsupported reasons apart.
+                    // Translation was explicitly requested (SixelSupport == Translated),
+                    // but Hex1b does not translate Sixel into another wire protocol --
+                    // report this distinctly from "no translation was ever requested" so
+                    // a host can tell the two Unsupported reasons apart.
                     RaiseTranslationUnavailableDiagnostics(events);
                 }
 
