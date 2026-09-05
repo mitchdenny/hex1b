@@ -4,6 +4,7 @@
 > **First executable stage**: [#448](https://github.com/mitchdenny/hex1b/issues/448)
 > **Independent graphics state**: [#451](https://github.com/mitchdenny/hex1b/issues/451)
 > **Snapshots, exports, recording, and replay**: [#456](https://github.com/mitchdenny/hex1b/issues/456)
+> **Capability discovery and protocol cell metrics**: [#455](https://github.com/mitchdenny/hex1b/issues/455)
 > **Baseline**: DEC VT340
 
 ## Purpose
@@ -596,6 +597,290 @@ read paths over that authoritative state.
   ([#458](https://github.com/mitchdenny/hex1b/issues/458)), and any
   `SixelWidget`/`Surface`-side preview generation.
 
+## Capability discovery and protocol cell metrics (#455)
+
+[#455](https://github.com/mitchdenny/hex1b/issues/455) answers a question no
+earlier stage needed to ask: given an effective upstream presentation, can it
+actually turn Sixel bytes into pixels a human can see, and if so, what protocol
+cell size should occupancy math use? This stage adds no raster decoding, no
+Sixel-to-KGP/iTerm2 translation ([#458](https://github.com/mitchdenny/hex1b/issues/458)),
+and no `SixelWidget`/`Surface`-side fallback logic — it only discovers and
+reports, safely and without ever consuming, reordering, or duplicating a byte
+of user input or a terminal's own query response.
+
+### Support vs. parser capability
+
+Hex1b's Sixel *parser* always understands Sixel DCS sequences, unconditionally,
+regardless of what sits downstream — that has been true since
+[#448](https://github.com/mitchdenny/hex1b/issues/448) and does not change here.
+`SixelPresentationSupport` (`Hex1b.Sixel`) is a deliberately separate question:
+can the *effective presentation* render those bytes at all?
+
+| Value | Meaning |
+|---|---|
+| `Unknown` | Discovery has not yet run, timed out, or could not be completed. Nothing is known either way. This is the enum's default value (numeric `0`), so an unconfigured `TerminalCapabilities.SixelSupport` reads as "unknown" rather than as a false claim of "confirmed unsupported." |
+| `None` | Discovery ran and positively determined the effective presentation cannot render Sixel (for example, DA1 replied without declaring parameter 4, or an adapter explicitly declared no support). Distinct from `Unknown` — see "Unknown vs. unsupported" below. |
+| `Native` | A real, Sixel-understanding terminal sits behind the presentation and receives Hex1b's Sixel DCS bytes unmodified (raw passthrough). |
+| `Translated` | Sixel is rendered by converting Hex1b's raster into a different image protocol (KGP, iTerm2) before it reaches the presentation. The enum value exists so the capability model has a home for this once [#458](https://github.com/mitchdenny/hex1b/issues/458) implements the conversion; no translation logic exists yet. |
+| `Headless` | There is no real display; `Hex1bTerminal`'s own graphics-state model (from [#451](https://github.com/mitchdenny/hex1b/issues/451)/[#452](https://github.com/mitchdenny/hex1b/issues/452)/[#456](https://github.com/mitchdenny/hex1b/issues/456)) is the sole, authoritative source of truth. |
+
+`TerminalCapabilities.SixelSupport` carries this value; the older
+`TerminalCapabilities.SupportsSixel` boolean remains for back-compatibility and
+must be kept consistent with it (`true` only when `SixelSupport` is `Native`,
+`Translated`, or `Headless` — never for `Unknown` or `None`) by any adapter
+that participates in discovery. Workload-facing feature reporting (the DA1
+reply below) advertises Sixel to a hosted workload only when the effective
+path is `Native`, `Translated`, or an authoritative `Headless` model — parser
+capability alone is never sufficient, and both `Unknown` and `None` always mean
+"do not advertise." Advertisement logic is written as an allowlist
+(`is Native or Translated or Headless`) rather than a `!= None` denylist,
+precisely so that adding `Unknown` to the enum could not silently start being
+treated as advertisable.
+
+### Unknown vs. unsupported
+
+Two different kinds of "no" must never collapse into one, and — unlike an
+earlier draft of this stage — that distinction lives in the capability model
+itself, not only in optional, adapter-specific diagnostics:
+
+- **Unknown** (`SixelPresentationSupport.Unknown`) — discovery has not run,
+  timed out, or could not be completed. Nothing is known either way.
+- **Unsupported** (`SixelPresentationSupport.None`) — discovery ran and
+  positively determined the presentation cannot render Sixel (for example, DA1
+  replied without declaring parameter 4).
+
+Both values still reach the same workload-facing answer ("do not advertise
+Sixel"), but they are separately observable from `TerminalCapabilities.SixelSupport`
+alone, without also needing to inspect an adapter's probe diagnostics.
+`ConsolePresentationAdapter` additionally exposes
+`SixelCapabilityProbeDiagnostics.Da1DeclaresSixel` (`bool?`) for a finer-grained
+view of *why*: `null` means DA1 never answered or answered unparseably (and
+`SixelSupport` is `Unknown`), `false` means it answered and declared no Sixel
+support (and `SixelSupport` is `None`), `true` means it declared support (and
+`SixelSupport` is `Native`). The same nullable-first discipline applies to cell
+metrics: `TerminalCapabilities.SixelCellMetrics` (`Sixel.SixelCellMetrics?`) is
+`null` for "unknown," never a silent `SixelCellMetrics.Unknown` (the documented
+10x20 fallback) — that fallback is applied only once, at the moment a
+placement is actually created, via `SixelCellMetrics.FromCapabilities`/the
+terminal's own `SixelCellMetrics` accessor. Discovery itself never invents a
+number it did not obtain or derive.
+
+### Discovery precedence
+
+Cell-metrics discovery consults sources in strict precedence order and stops
+as soon as a sufficient, authoritative answer exists. `ConsolePresentationAdapter`
+implements exactly this order in `ResolveSixelCapabilities`:
+
+1. **Direct declaration.** `ConsolePresentationAdapter.WithSixelSupport(support, metrics)`
+   lets a host that already knows the answer (from its own configuration)
+   report it outright. This is the highest-precedence source and pre-empts
+   probing entirely — no DA1 or XTWINOPS query is sent once it has been
+   called.
+2. **`CSI 16 t`** (XTWINOPS "report cell size in pixels"), replying
+   `CSI 6 ; height ; width t`. Preferred for Sixel over any physical/OSC
+   value, even when they disagree, because it is the value xterm and Windows
+   Terminal derive specifically for the Sixel/character-cell grid rather than
+   a font metric.
+3. **`OSC 1337;ReportCellSize`** (iTerm2), where supported.
+4. **`CSI 14 t`** (text-area size in pixels) divided by **`CSI 18 t`**
+   (rows/columns) — both queried, then the pixel extents divided by the grid
+   to derive a fractional per-cell size. Both replies must arrive and parse
+   before this tier can produce a value.
+5. **`TIOCGWINSZ`** pixel fields (a local syscall, no round trip), used only
+   when the driver reports nonzero, trustworthy values and only as the last
+   resort before falling back to "unknown."
+6. **Environment variables** are never consulted as evidence of support or
+   metrics anywhere in this precedence chain — they exist only as
+   terminal-identification hints elsewhere in the codebase (for example
+   reflow-strategy auto-detection) and must not influence Sixel discovery.
+
+Every dimension a source reports is validated before acceptance: zero,
+negative, non-finite (`NaN`/`Infinity`), and implausibly large values (window
+pixel extents above one million, cell extents above the adapter's plausible
+cell-dimension ceiling) are explicitly rejected, never silently clamped or
+substituted. A response that parses correctly but fails this plausibility
+check is recorded with outcome `Rejected`; a response that cannot be parsed at
+all is recorded `Malformed`; a source that never replies within the bounded
+probe deadline is `TimedOut`; a source deliberately skipped because a
+higher-precedence source already produced a sufficient answer is
+`NotAttempted`. These four outcomes are `SixelMetricsProbeOutcome`, and one
+`SixelMetricsProbeAttempt` per source (in precedence order) is recorded in
+`SixelCapabilityProbeDiagnostics.Attempts` regardless of which source
+ultimately won, so a caller can always see what every tier reported — not just
+the winner. When two or more sources are independently accepted but disagree
+by more than half a pixel in either dimension,
+`SixelCapabilityProbeDiagnostics.MetricsDisagreement` is set and
+`DisagreementDetail` names both values and which one the documented precedence
+selected; the disagreement is surfaced as a diagnostic, never silently
+resolved by an undocumented tie-break.
+
+A parser limitation is worth naming explicitly because it shapes what
+`Malformed` can and cannot mean for the `CSI 16/14/18 t` tiers specifically:
+`TryConsumeWindowOperationResponse`'s response scanner only continues through
+bytes that are digits or `;`. The instant it meets any other byte before the
+terminating `t`, it treats the candidate as "not a window-operation reply at
+all" and leaves the buffered bytes untouched, rather than classifying it as
+malformed. This is a deliberate safety choice, not an oversight: it is the
+only way to guarantee a workload's ordinary keyboard input that merely
+*begins* like a window-op reply (for example, the Delete key's `CSI 3 ~`) can
+never be misconsumed as a truncated or garbled probe response. Two
+consequences follow: a genuinely non-numeric reply (`"abc"` where a number was
+expected) can never be diagnosed as `Malformed` for these three tiers — it
+simply never matches, and the tier eventually reports `TimedOut` — and a
+negative window-op value can never arrive as a recognized reply either, since
+`-` falls outside the same digit/semicolon character class (real terminals do
+not emit negative window-op values, so this is not a practical limitation).
+`Malformed` for `CSI 16/14/18 t` is reachable only for structurally-valid-but-
+unparseable content, such as an empty parameter field (`CSI 6;;20 t`).
+OSC 1337's payload has no such character-class pre-filter — it captures the
+full payload verbatim up to the string terminator — so implausible values
+including negative numbers are parsed successfully and then rejected on
+plausibility, exercising the `Rejected` outcome distinctly from `Malformed`.
+
+### Sixel support discovery
+
+Support itself (as opposed to metrics) is discovered through Primary Device
+Attributes (DA1): `ConsolePresentationAdapter` sends a bare `CSI c` probe and
+parses the reply for DEC conformance parameter `4` among the reported
+attributes. Only replies carrying the `?` private-parameter marker — which
+every DA1 reply this library targets includes — are treated as DA1 responses
+at all, so a workload's own bare `CSI c` query can never be misinterpreted as
+a probe reply. Support is a strict tri-state, mirrored in the diagnostics'
+`Da1DeclaresSixel` as `bool?` and in `SixelPresentationSupport` itself: DA1
+timed out or replied unparseably → unknown (`SixelSupport = Unknown`,
+`Da1DeclaresSixel = null`); DA1 replied without parameter 4 → confirmed
+unsupported (`SixelSupport = None`, `Da1DeclaresSixel = false`); DA1 replied
+with parameter 4 → confirmed native support (`SixelSupport = Native`,
+`Da1DeclaresSixel = true`). A direct declaration via `WithSixelSupport` skips
+this probe entirely, including on paths declared `None` or `Unknown` where
+sending a visible DA1 query would be unnecessary and, on some terminals,
+produce a visible response.
+
+### Caching and invalidation
+
+The probe runs at most once per `ConsolePresentationAdapter` instance, the
+first time `EnterRawModeAsync` executes it (or never, if a direct declaration
+pre-empted it). Results are cached on `Capabilities` for the adapter's
+lifetime. Two invalidation triggers exist:
+
+- **Resize.** A resize can change a physical terminal's real cell pixel size,
+  but the adapter cannot re-run a live query probe mid-session without risking
+  disruption to the workload's own output stream. Instead, `SixelCellMetrics`
+  derived from window-pixel/grid division (`SixelCellMetricsSource.Derived`)
+  is invalidated back to `null` ("unknown") on every resize, so a stale
+  derived value is never trusted after the geometry it was computed from has
+  changed; `Native`/`Csi16`/`Osc1337`-sourced metrics are left untouched, since
+  those already describe the protocol grid directly rather than being
+  recomputed from window pixels. Sixel *support* itself (`SixelSupport`) is
+  never invalidated by resize — a terminal's fundamental Sixel capability does
+  not change when its window is resized.
+- **Presentation replacement / reconnect.** Creating a new
+  `ConsolePresentationAdapter` (or any other presentation adapter) starts with
+  a fresh, unprobed capability set; there is no cross-instance cache to
+  invalidate. A caller that reconnects by constructing a new adapter gets a
+  fresh discovery pass on its next `EnterRawModeAsync`.
+
+Either trigger affects only **future** placements. `TerminalCapabilities` is
+read live (never cached inside `Hex1bTerminal`) at the moment a new placement
+is created, but an already-created `SixelPlacement`'s recorded
+`SixelData.CellMetrics` is a permanent, immutable snapshot from its creation
+time — this invariant predates this stage (`SixelCellMetrics`'s own
+documentation) and is exercised end-to-end by the pre-existing
+`SixelScrollHistoryReflowTests.ProtocolMetricChange_WithoutResize_LeavesExistingPlacementUnaffected`,
+together with this stage's own resize-invalidation coverage in
+`SixelCapabilityDiscoveryTests`.
+
+### Query ownership
+
+A hosted workload queries its terminal for DA1/window-operation information
+the same way any application does: by writing the query's raw escape sequence
+to its own output stream, exactly as if it were talking directly to a real
+terminal. Exactly one side must answer each query — never zero, never two:
+
+| Presentation | Who answers | Why |
+|---|---|---|
+| `ConsolePresentationAdapter` (native raw upstream) | The real terminal, directly | Raw bytes flow through to it unmodified; a synthetic Hex1b reply would arrive as an unwanted duplicate in the workload's input. |
+| `HeadlessPresentationAdapter` | `Hex1bTerminal`, synthesized from its own authoritative model | There is no real terminal to answer at all. |
+| `WebSocketPresentationAdapter` (managed browser presentation) | `Hex1bTerminal`, synthesized | The browser side is not an independent terminal emulator that autonomously answers VT queries; Hex1b owns the reply. |
+| A future translated (`Translated`) raster-graphics presentation | `Hex1bTerminal`, synthesized | Same reasoning as WebSocket: the real answering party is Hex1b's own graphics model, translated for display, not an independent terminal emulator. |
+
+This is implemented by a single presentation-adapter property,
+`IHex1bTerminalPresentationAdapter.AnswersProtocolQueriesDirectly` (default
+`false`): a presentation adapter overrides it to `true` only when it connects
+Hex1b directly to a real, independent terminal emulator whose raw
+stdin/stdout Hex1b merely forwards — currently only
+`ConsolePresentationAdapter`. `Hex1bTerminal.HandleDeviceAttributesQuery` and
+`HandleWindowOperationQuery` both check
+`_presentation.AnswersProtocolQueriesDirectly` first and return immediately
+without sending anything when it is true, guaranteeing the real terminal's own
+reply is the only one that ever reaches the workload. For every other
+presentation, `Hex1bTerminal` is the single, deterministic answerer:
+
+- **DA1** (`CSI c`/`CSI 0 c`, recognized without a private-mode prefix per
+  `AnsiTokenizer`) replies `\x1b[?62;4c` (VT220-class identity plus Sixel,
+  parameter 4) when `Capabilities.SixelSupport` is `Native`, `Translated`, or
+  `Headless` (or `Capabilities.SupportsSixel` is set), or `\x1b[?62c`
+  otherwise — including for both `Unknown` and `None`, since neither is an
+  affirmative "yes." This reply format is a Hex1b-owned synthetic identity,
+  not verified byte-for-byte against a specific real terminal's own DA1
+  string.
+- **`CSI 18 t`** (report text-area size in characters) replies
+  `\x1b[8;{rows};{cols}t` from the terminal's own row/column count.
+- **`CSI 14 t`** (report text-area size in pixels) replies
+  `\x1b[4;{heightPixels};{widthPixels}t`, computed by multiplying rows/columns
+  by the terminal's current `SixelCellMetrics` (falling back to the documented
+  10x20 estimate only when metrics are genuinely unknown) and rounding to the
+  nearest pixel.
+- **`CSI 16 t`** (report cell size in pixels) replies
+  `\x1b[6;{height};{width}t` from the same `SixelCellMetrics`, rounded.
+
+Only the report-style window operations recognized by `AnsiTokenizer` as a
+`WindowOperationToken` (`CSI 14/16/18 t` specifically) ever reach these
+handlers; any other `Ps` value remains an unrecognized sequence and is not
+routed here. Capability changes (from discovery completing, a resize
+invalidating derived metrics, or a direct declaration) propagate to these
+handlers deterministically because `Hex1bTerminal.Capabilities` is a live
+passthrough to `_presentation.Capabilities` — it is never cached or
+snapshotted inside `Hex1bTerminal` itself, so the very next query answered
+after a capability change always reflects the new value.
+
+### Console probe integration
+
+All of the above, for `ConsolePresentationAdapter`, is implemented as an
+extension of its pre-existing KGP/background-color probe pass in
+`ProbeCapabilitiesAsync` — not a second, competing reader. A single bounded
+read loop demultiplexes DA1, `CSI 16/14/18 t`, `OSC 1337;ReportCellSize`, and
+the existing KGP/OSC 11 background-color replies by their exact wire
+signatures, regardless of fragmentation (a reply split at any byte boundary
+across multiple reads is still recognized) or interleaving (replies for
+different queries, and arbitrary workload/keyboard input, can arrive mixed
+together in any order and are all still recognized independently). The loop
+terminates as soon as every expected reply has been accounted for (answered,
+malformed, or otherwise resolved) or a single shared deadline
+(`_kgpProbeTimeout`) elapses, whichever comes first — it never blocks
+indefinitely. Every byte that is not consumed as part of a recognized reply —
+including a fully unrelated reply, ordinary keyboard input, or a partially
+read fragment of a reply that eventually times out — is preserved
+byte-for-byte, in original order, into `_prefetchedInput`, so nothing the
+probe does not explicitly recognize and consume is ever lost, reordered, or
+duplicated. On Windows, `ConsolePresentationAdapter` skips the entire Sixel
+probe outright (Windows console input records are not a raw byte stream
+compatible with these replies) and reports every tier as `NotAttempted` with
+an explicit diagnostic reason, rather than attempting to read a stream that
+does not exist for that platform — Sixel support and metrics stay unknown on
+Windows unless declared directly via `WithSixelSupport`.
+
+### Explicitly out of scope for this stage
+
+Per the exclusions in [#455](https://github.com/mitchdenny/hex1b/issues/455):
+no changes to raster decoding, no Sixel-to-KGP/iTerm2 translation (the
+`Translated` enum value is a placeholder for
+[#458](https://github.com/mitchdenny/hex1b/issues/458), which alone implements
+it), and no `SixelWidget`/`Surface`-side fallback logic. Broad conformance
+hardening beyond the safe, bounded probing described above is likewise
+deferred; this stage answers "what can the presentation do and how big is a
+cell," not "make every terminal work perfectly."
+
 ## Screens, scrollback, resize, and reflow
 
 | Area | Selected Hex1b contract | Status or unresolved work |
@@ -655,12 +940,37 @@ this stage.
 `tests/Hex1b.Tests/Hmp1/Hmp1SixelStateReplayTests.cs`, are #456's dedicated
 regression suites for the snapshot/export/recording/replay contract described
 above.
+`tests/Hex1b.Tests/Sixel/SixelCapabilityDiscoveryTests.cs` is #455's dedicated
+regression suite for `ConsolePresentationAdapter`'s probe engine: direct
+declaration short-circuiting the probe, single-source acceptance for each of
+CSI16/OSC1337/CSI14+18/TIOCGWINSZ, precedence and disagreement across
+conflicting sources, plausibility rejection (zero/negative/non-finite/
+overflowing/malformed), the DA1 support tri-state (unknown/unsupported/
+native), exhaustive single-byte-boundary fragmentation of every supported
+response, exhaustive interleaving of DA1/CSI16/CSI14/CSI18/OSC1337/KGP/
+background-color replies with ordinary keyboard input, timeout/malformed/
+cancellation preservation of already-read bytes, and resize invalidation of
+derived-but-not-authoritative metrics.
+`tests/Hex1b.Tests/Sixel/Hex1bTerminalQueryOwnershipTests.cs` is #455's
+dedicated regression suite for `Hex1bTerminal`'s query-ownership model: DA1 and
+`CSI 14/16/18 t` replies (with and without Sixel support declared) for
+non-native presentations, confirmed silence for a native
+(`AnswersProtocolQueriesDirectly == true`) presentation across all four query
+types, `HeadlessPresentationAdapter`'s default (no advertisement) versus
+explicitly authoritative (advertises) capability reporting, and
+`WebSocketPresentationAdapter`'s always-native capability declaration. All
+pre-existing capability, `ConsolePresentationAdapter`, KGP-probe, WebSocket,
+terminal-query, and Sixel tests continue to pass unmodified, confirming this
+stage adds a parallel discovery/query-ownership path without altering any
+prior-stage behavior.
 
 ```bash
 dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
   --filter "FullyQualifiedName~Hex1b.Tests.Sixel."
 dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
   --filter "FullyQualifiedName~Hex1b.Tests.Hmp1.Hmp1Sixel"
+dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
+  --filter "FullyQualifiedName~SixelCapabilityDiscoveryTests|FullyQualifiedName~Hex1bTerminalQueryOwnershipTests"
 ```
 
 The terminal-first demo sends independently authored raw Sixel bytes through
@@ -703,6 +1013,38 @@ deliberately corrupted recordings (wrong magic marker, truncation, a bumped
 version number) through `Deserialize` to show each fails with its own
 explicit `Hmp1SixelRecordingFailureReason`, never a silent or success-shaped
 fallback.
+`samples/SixelTerminalDemo/CapabilityDiscoveryScenarios.cs` adds #455's
+capability-discovery scenarios. Unlike the scenes above, discovery is a
+wire-protocol probing concern with no visual/raster component, so it has no
+corresponding numbered screen and runs only in the headless transcript, under
+"Capability discovery and query ownership observations (#455)". It reuses the
+same no-real-terminal-required approach as
+`SixelCapabilityDiscoveryTests.cs`/`Hex1bTerminalQueryOwnershipTests.cs`: a
+demo-local `FakeConsoleDriver` (an `IConsoleDriver` the demo can implement via
+`InternalsVisibleTo`) drives `ConsolePresentationAdapter`'s probe with queued,
+deterministic reply bytes, and a demo-local `ScriptedWorkloadAdapter` drives
+`Hex1bTerminal`'s query-ownership behavior directly. Its eight scenarios are
+direct evidence for the contract above: a direct `WithSixelSupport`
+declaration writing zero probe bytes; DA1 and `CSI 16 t` replies fed one byte
+at a time and interleaved with arbitrary keyboard bytes and the existing
+KGP/background probe replies, with the keyboard bytes preserved byte-for-byte
+and in order; `CSI 16 t` overriding a conflicting `OSC 1337` value with the
+disagreement surfaced in diagnostics; a fractional cell size derived from
+`CSI 14 t`/`CSI 18 t` alone; an implausible (negative) `OSC 1337` height
+rejected with an explicit diagnostic detail; a resize invalidating only
+`Derived`-sourced metrics while leaving `SixelSupport` itself untouched; a
+later `SetSixelCellMetrics` change leaving an already-created placement's
+recorded metrics unchanged while a subsequent placement (with distinct
+payload content, since identical content is deduplicated by
+`TrackedObjectStore.GetOrCreateSixel`) picks up the new value; and, run
+against `Hex1bTerminal` directly, native-presentation silence versus
+default-headless (`SixelSupport.Unknown`, "no parameter 4") versus an
+explicitly declared confirmed-unsupported headless (`SixelSupport.None`,
+also "no parameter 4," for a different, explicit reason) versus
+authoritative-headless ("parameter 4 present") DA1 replies — demonstrating
+that `Unknown` and `None` are distinct, separately observable capability
+states that nonetheless agree on the workload-facing answer, matching
+`Hex1bTerminalQueryOwnershipTests.cs` exactly.
 
 The demo presents one subject per screen. Each screen clears the display, resets
 margins, origin mode, and DECSDM so it cannot inherit state from the screen

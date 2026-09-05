@@ -614,6 +614,36 @@ public static class AnsiTokenizer
                 }
                 break;
 
+            case 'c':
+                // Primary Device Attributes (DA1): CSI c or CSI 0 c. The query carries
+                // no parameter prefix; CSI > c (Secondary DA) and other prefixed
+                // variants are deliberately left unrecognized — only Primary DA drives
+                // Sixel support discovery (#455).
+                if (!isPrivateMode && (parameters.Length == 0 || parameters == "0"))
+                {
+                    tokens.Add(new DeviceAttributesQueryToken());
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+
+            case 't':
+                // XTWINOPS window operation: CSI Ps t. Only the report operations
+                // relevant to Sixel cell-metrics discovery are modeled (#455); all
+                // other window operations stay unrecognized.
+                if (!isPrivateMode && int.TryParse(parameters, out var winOp) &&
+                    winOp is 14 or 16 or 18)
+                {
+                    tokens.Add(new WindowOperationToken(winOp));
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+
             default:
                 // Unrecognized CSI sequence
                 tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));

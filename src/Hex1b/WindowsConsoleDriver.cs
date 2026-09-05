@@ -178,6 +178,22 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     public Encoding InputEncoding => Encoding.UTF8;
     
     public event Action<int, int>? Resized;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Windows exposes no <c>TIOCGWINSZ</c> equivalent through the console APIs
+    /// this driver uses, so this always reports unavailable. See
+    /// <see href="https://github.com/mitchdenny/hex1b/issues/455">#455</see> for
+    /// the corresponding query-based discovery paths this driver does not yet
+    /// support either (console input records require different handling than the
+    /// raw stdin byte stream <see cref="ConsolePresentationAdapter"/> probes).
+    /// </remarks>
+    public bool TryGetWindowPixelSize(out int pixelWidth, out int pixelHeight)
+    {
+        pixelWidth = 0;
+        pixelHeight = 0;
+        return false;
+    }
     
     public void EnterRawMode(bool preserveOPost = false)
     {

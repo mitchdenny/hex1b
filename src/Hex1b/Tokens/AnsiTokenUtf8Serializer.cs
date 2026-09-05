@@ -373,6 +373,17 @@ public static class AnsiTokenUtf8Serializer
                 WriteByte(writer, (byte)'n');
                 return;
 
+            case DeviceAttributesQueryToken:
+                WriteEscLeftBracket(writer);
+                WriteByte(writer, (byte)'c');
+                return;
+
+            case WindowOperationToken win:
+                WriteEscLeftBracket(writer);
+                WriteInt(writer, win.Operation);
+                WriteByte(writer, (byte)'t');
+                return;
+
             default:
                 throw new ArgumentException($"Unknown token type: {token.GetType().Name}", nameof(token));
         }

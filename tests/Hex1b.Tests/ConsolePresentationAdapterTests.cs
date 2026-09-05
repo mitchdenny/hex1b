@@ -435,10 +435,32 @@ internal sealed class FakeConsoleDriver : IConsoleDriver
 
     public string WrittenText => Encoding.ASCII.GetString(_written.ToArray());
 
-    public event Action<int, int>? Resized
+    /// <summary>
+    /// When set, <see cref="TryGetWindowPixelSize"/> reports these values;
+    /// otherwise it reports failure, matching a platform/terminal with no
+    /// TIOCGWINSZ-equivalent pixel fields available.
+    /// </summary>
+    public (int Width, int Height)? WindowPixelSize { get; set; }
+
+    public event Action<int, int>? Resized;
+
+    /// <summary>
+    /// Test hook to simulate a terminal resize notification.
+    /// </summary>
+    public void RaiseResized(int width, int height) => Resized?.Invoke(width, height);
+
+    public bool TryGetWindowPixelSize(out int pixelWidth, out int pixelHeight)
     {
-        add { }
-        remove { }
+        if (WindowPixelSize is { } size)
+        {
+            pixelWidth = size.Width;
+            pixelHeight = size.Height;
+            return true;
+        }
+
+        pixelWidth = 0;
+        pixelHeight = 0;
+        return false;
     }
 
     public void EnterRawMode(bool preserveOPost = false)

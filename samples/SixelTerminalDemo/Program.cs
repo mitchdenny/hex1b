@@ -80,6 +80,12 @@ for (var index = 0; index < snapshotExportReplayScenes.Count; index++)
     snapshotExportReplayObservations[index] = await InspectSnapshotExportReplaySceneAsync(snapshotExportReplayScenes[index]);
 }
 
+// Capability discovery (#455) is a wire-protocol probing concern with no
+// visual/raster component, so it has no DemoScreen and only ever runs headless.
+var capabilityDiscoveryObservations = sceneFilter is null
+    ? await CapabilityDiscoveryScenarios.RunAllAsync()
+    : [];
+
 var allScreens = DemoScreens.Build(
     fixtures,
     modelDescriptions,
@@ -125,7 +131,8 @@ if (headless)
         scrollHistoryReflowScenes,
         scrollHistoryReflowObservations,
         snapshotExportReplayScenes,
-        snapshotExportReplayObservations);
+        snapshotExportReplayObservations,
+        capabilityDiscoveryObservations);
     return;
 }
 
@@ -155,7 +162,8 @@ static void WriteHeadlessTranscript(
     IReadOnlyList<RawScrollHistoryReflowScene> scrollHistoryReflowScenes,
     IReadOnlyList<string> scrollHistoryReflowObservations,
     IReadOnlyList<RawSnapshotExportReplayScene> snapshotExportReplayScenes,
-    IReadOnlyList<string> snapshotExportReplayObservations)
+    IReadOnlyList<string> snapshotExportReplayObservations,
+    IReadOnlyList<(string Title, string Observation)> capabilityDiscoveryObservations)
 {
     Console.WriteLine($"Hex1b Sixel demo: {allScreens.Count} numbered screens.");
     Console.WriteLine("Run without --headless to page through them; --screen <number> opens one.");
@@ -201,6 +209,13 @@ static void WriteHeadlessTranscript(
     for (var index = 0; index < snapshotExportReplayScenes.Count; index++)
     {
         Console.WriteLine($"  {snapshotExportReplayScenes[index].Name}: {snapshotExportReplayObservations[index]}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("Capability discovery and query ownership observations (#455):");
+    foreach (var (title, observation) in capabilityDiscoveryObservations)
+    {
+        Console.WriteLine($"  {title}: {observation}");
     }
 }
 

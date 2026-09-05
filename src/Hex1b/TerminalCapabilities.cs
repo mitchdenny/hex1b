@@ -15,7 +15,57 @@ public record TerminalCapabilities
     /// <summary>
     /// Presentation supports Sixel graphics.
     /// </summary>
+    /// <remarks>
+    /// This is the coarse, back-compatible feature flag <c>SixelNode</c> reads to
+    /// decide whether to advertise Sixel to the hosted workload. Adapters that
+    /// participate in the richer discovery model from
+    /// <see href="https://github.com/mitchdenny/hex1b/issues/455">#455</see> should set
+    /// this consistently with <see cref="SixelSupport"/> (true whenever
+    /// <see cref="SixelSupport"/> is <see cref="Sixel.SixelPresentationSupport.Native"/>,
+    /// <see cref="Sixel.SixelPresentationSupport.Translated"/>, or
+    /// <see cref="Sixel.SixelPresentationSupport.Headless"/> — never for
+    /// <see cref="Sixel.SixelPresentationSupport.Unknown"/> or
+    /// <see cref="Sixel.SixelPresentationSupport.None"/>), but the two properties are
+    /// independently settable so existing callers that only set this flag keep working
+    /// unchanged.
+    /// </remarks>
     public bool SupportsSixel { get; init; }
+
+    /// <summary>
+    /// Describes how the effective presentation can render Sixel graphics: unknown,
+    /// confirmed unsupported, natively, via translation to another image protocol, or
+    /// authoritatively in a headless model with no real display.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to <see cref="Sixel.SixelPresentationSupport.Unknown"/> (discovery has
+    /// not run), which is a distinct value from
+    /// <see cref="Sixel.SixelPresentationSupport.None"/> (discovery affirmatively
+    /// concluded there is no support) — this property alone is enough to tell the two
+    /// apart, without also needing an adapter's probe diagnostics.
+    /// </remarks>
+    public Sixel.SixelPresentationSupport SixelSupport { get; init; }
+
+    /// <summary>
+    /// The protocol cell metrics (width/height in pixels, source, reliability) the
+    /// presentation reported or that were derived from other authoritative geometry,
+    /// or <see langword="null"/> when nothing has been discovered.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is deliberately distinct from a documented default: <see langword="null"/>
+    /// means "unknown," never "assumed 10x20." <see cref="Hex1bTerminal"/> only falls
+    /// back to <see cref="Sixel.SixelCellMetrics.Unknown"/>-equivalent estimates (via
+    /// <see cref="Sixel.SixelCellMetrics.FromCapabilities"/>) when this property is
+    /// <see langword="null"/>, and does so at the point a placement is created —
+    /// discovering a real value afterward never rewrites an existing placement's
+    /// already-recorded metrics.
+    /// </para>
+    /// <para>
+    /// See <see href="https://github.com/mitchdenny/hex1b/issues/455">#455</see> for
+    /// the discovery precedence that populates this value.
+    /// </para>
+    /// </remarks>
+    public Sixel.SixelCellMetrics? SixelCellMetrics { get; init; }
     
     /// <summary>
     /// Presentation supports mouse tracking.
