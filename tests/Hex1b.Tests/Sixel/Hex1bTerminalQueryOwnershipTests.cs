@@ -240,6 +240,30 @@ public class Hex1bTerminalQueryOwnershipTests
     }
 
     [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task Da1Query_TranslatedPresentation_NeverAdvertisesParameter4(bool supportsKgp)
+    {
+        // Hex1b does not translate Sixel into another wire protocol (e.g. KGP): a
+        // Translated presentation always resolves to SixelEffectiveRoute.Unsupported
+        // regardless of KGP capability, so DA1 must never declare Sixel for it --
+        // parser/capability support alone is not sufficient grounds to advertise a
+        // route that doesn't actually render anything.
+        var presentation = new FakePresentationAdapter(SixelCapabilities(
+            SixelPresentationSupport.Translated, supportsSixel: false) with
+        {
+            SupportsKgp = supportsKgp,
+        });
+        var (terminal, workload) = CreateTerminal(presentation);
+        await using var t = terminal;
+
+        workload.EnqueueOutput(Da1Query);
+        await workload.WaitForWrittenLengthAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.AreEqual("\x1b[?62c", Encoding.UTF8.GetString(workload.WrittenBytes));
+    }
+
+    [TestMethod]
     public async Task Da1Query_NativeUpstreamPresentation_ReceivesNoSynthesizedReply()
     {
         var presentation = new NativeFakePresentationAdapter(

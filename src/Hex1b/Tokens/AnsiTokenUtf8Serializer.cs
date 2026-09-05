@@ -353,6 +353,10 @@ public static class AnsiTokenUtf8Serializer
                 WriteUtf8(writer, unrec.Sequence);
                 return;
 
+            case SixelSanitizedFrameForwardToken forward:
+                writer.Write(forward.WireBytes.Span);
+                return;
+
             case KgpToken kgp:
                 WriteByte(writer, 0x1b);
                 WriteByte(writer, (byte)'_');

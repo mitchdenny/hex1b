@@ -237,12 +237,12 @@ CUP before writing anything that follows.
 
 | Operation | Selected Hex1b behavior | Unresolved details |
 |---|---|---|
-| Sixel over Sixel | Both placements are retained independently; presentation composites in placement sequence order. Painted pixels from a later placement cover earlier pixels; unpainted/transparent pixels leave earlier placements visible. | Protocol translation into native downstream graphics remains #458; broader cross-terminal visual comparison remains #457. |
+| Sixel over Sixel | Both placements are retained independently; presentation composites in placement sequence order. Painted pixels from a later placement cover earlier pixels; unpainted/transparent pixels leave earlier placements visible. | Native passthrough and managed-raster-sink routing are implemented by #458; translation into a different downstream graphics protocol is an explicit non-goal (see "Sixel-to-image-protocol translation: explicit non-goal" below); broader cross-terminal visual comparison remains #457. |
 | Text over Sixel | Any text-cell write destructively damages the Sixel pixels projected into the overwritten cell. A space, styled background write, combining-cluster update, wide-character leading cell, or wide-character continuation cleanup is still a text write for graphics damage. Destroyed Sixel pixels do not reappear if the text is later erased. | Damage is modeled at bounded cell granularity rather than sub-cell glyph-shape granularity. |
 | ED/EL/ECH/DECERA/DECSERA | Erase graphics in the same clipped cell region that text erasure affects. Selective erase preserves graphics only where the underlying terminal cell is protected. Full ED/RIS remove active placements; partial erases damage only intersecting placement cells. | Implemented; scrolling/reflow projection across the scrollback boundary is implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452) (see below). |
 | Insert/delete characters, columns, and lines | Character/column/line edits damage every overwritten destination or blank-fill cell in their clipped edit region, while Sixel placements themselves do not shift with ordinary text edits unless the existing scroll integration explicitly moves/drops them. | History/reflow projection is implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452). |
 | Scroll-region operations | Move, clip, split into history, or erase placements using the same region semantics as text rows, including partial vertical/horizontal margins under DECSTBM/DECLRMM | Full-fidelity scrolling/reflow projection across the scrollback boundary is implemented by [#452](https://github.com/mitchdenny/hex1b/issues/452); see "Independent Sixel scrolling, history, and reflow (#452)" below |
-| RIS | Clear main and alternate placements, reset Sixel modes, reset the palette, clear saved screen state, and leave previously captured snapshots valid. | Implemented for lifecycle; native downstream redraw protocol remains #458. |
+| RIS | Clear main and alternate placements, reset Sixel modes, reset the palette, clear saved screen state, and leave previously captured snapshots valid. | Implemented for lifecycle and native/managed routing (#458); translation into a different downstream graphics protocol is an explicit non-goal. |
 | DECSTR | Reset modes, including DECSDM and mode 8452; preserve palette, placements, cursor position, and snapshots. | Broader terminal comparison remains #457, but Hex1b's compatibility choice is centralized and deterministic. |
 
 Foot has the clearest reviewed prior art for compositing independent placements.
@@ -602,11 +602,10 @@ read paths over that authoritative state.
 [#455](https://github.com/mitchdenny/hex1b/issues/455) answers a question no
 earlier stage needed to ask: given an effective upstream presentation, can it
 actually turn Sixel bytes into pixels a human can see, and if so, what protocol
-cell size should occupancy math use? This stage adds no raster decoding, no
-Sixel-to-KGP/iTerm2 translation ([#458](https://github.com/mitchdenny/hex1b/issues/458)),
-and no `SixelWidget`/`Surface`-side fallback logic — it only discovers and
-reports, safely and without ever consuming, reordering, or duplicating a byte
-of user input or a terminal's own query response.
+cell size should occupancy math use? This stage adds no raster decoding and no
+`SixelWidget`/`Surface`-side fallback logic — it only discovers and reports,
+safely and without ever consuming, reordering, or duplicating a byte of user
+input or a terminal's own query response.
 
 ### Support vs. parser capability
 
@@ -621,7 +620,7 @@ can the *effective presentation* render those bytes at all?
 | `Unknown` | Discovery has not yet run, timed out, or could not be completed. Nothing is known either way. This is the enum's default value (numeric `0`), so an unconfigured `TerminalCapabilities.SixelSupport` reads as "unknown" rather than as a false claim of "confirmed unsupported." |
 | `None` | Discovery ran and positively determined the effective presentation cannot render Sixel (for example, DA1 replied without declaring parameter 4, or an adapter explicitly declared no support). Distinct from `Unknown` — see "Unknown vs. unsupported" below. |
 | `Native` | A real, Sixel-understanding terminal sits behind the presentation and receives Hex1b's Sixel DCS bytes unmodified (raw passthrough). |
-| `Translated` | Sixel is rendered by converting Hex1b's raster into a different image protocol (KGP, iTerm2) before it reaches the presentation. The enum value exists so the capability model has a home for this once [#458](https://github.com/mitchdenny/hex1b/issues/458) implements the conversion; no translation logic exists yet. |
+| `Translated` | Sixel would be rendered by converting Hex1b's raster into a different image protocol before it reaches the presentation. [#458](https://github.com/mitchdenny/hex1b/issues/458) deliberately implements no such translation (see "Sixel-to-image-protocol translation: explicit non-goal" below): a presentation declaring `Translated` currently always resolves to the same `Unsupported` route as `None`, with a `TranslationUnavailable` diagnostic. The enum value is retained for forward-compatibility — a future translator (e.g. for iTerm2, once [#430](https://github.com/mitchdenny/hex1b/issues/430)/[#433](https://github.com/mitchdenny/hex1b/issues/433) land) could give it a real route without changing this capability model. |
 | `Headless` | There is no real display; `Hex1bTerminal`'s own graphics-state model (from [#451](https://github.com/mitchdenny/hex1b/issues/451)/[#452](https://github.com/mitchdenny/hex1b/issues/452)/[#456](https://github.com/mitchdenny/hex1b/issues/456)) is the sole, authoritative source of truth. |
 
 `TerminalCapabilities.SixelSupport` carries this value; the older
@@ -802,7 +801,7 @@ terminal. Exactly one side must answer each query — never zero, never two:
 | `ConsolePresentationAdapter` (native raw upstream) | The real terminal, directly | Raw bytes flow through to it unmodified; a synthetic Hex1b reply would arrive as an unwanted duplicate in the workload's input. |
 | `HeadlessPresentationAdapter` | `Hex1bTerminal`, synthesized from its own authoritative model | There is no real terminal to answer at all. |
 | `WebSocketPresentationAdapter` (managed browser presentation) | `Hex1bTerminal`, synthesized | The browser side is not an independent terminal emulator that autonomously answers VT queries; Hex1b owns the reply. |
-| A future translated (`Translated`) raster-graphics presentation | `Hex1bTerminal`, synthesized | Same reasoning as WebSocket: the real answering party is Hex1b's own graphics model, translated for display, not an independent terminal emulator. |
+| A `Translated`-declaring raster-graphics presentation | `Hex1bTerminal`, synthesized | Same reasoning as WebSocket: even though no translated route is currently implemented (see "Sixel-to-image-protocol translation: explicit non-goal" below), such a presentation is never an independent terminal emulator that autonomously answers VT queries; Hex1b owns the reply either way. |
 
 This is implemented by a single presentation-adapter property,
 `IHex1bTerminalPresentationAdapter.AnswersProtocolQueriesDirectly` (default
@@ -818,12 +817,14 @@ presentation, `Hex1bTerminal` is the single, deterministic answerer:
 
 - **DA1** (`CSI c`/`CSI 0 c`, recognized without a private-mode prefix per
   `AnsiTokenizer`) replies `\x1b[?62;4c` (VT220-class identity plus Sixel,
-  parameter 4) when `Capabilities.SixelSupport` is `Native`, `Translated`, or
-  `Headless` (or `Capabilities.SupportsSixel` is set), or `\x1b[?62c`
-  otherwise — including for both `Unknown` and `None`, since neither is an
-  affirmative "yes." This reply format is a Hex1b-owned synthetic identity,
-  not verified byte-for-byte against a specific real terminal's own DA1
-  string.
+  parameter 4) when the effective Sixel route ([#458](https://github.com/mitchdenny/hex1b/issues/458),
+  see "Routing and managed presentation" below) can actually render Sixel, or
+  `Capabilities.SupportsSixel` is set directly, or `\x1b[?62c` otherwise —
+  including for `Unknown`, `None`, and `Translated` (which currently never
+  has a rendering route; see "Sixel-to-image-protocol translation: explicit
+  non-goal" below), since none of these is an affirmative "yes." This reply
+  format is a Hex1b-owned synthetic identity, not verified byte-for-byte
+  against a specific real terminal's own DA1 string.
 - **`CSI 18 t`** (report text-area size in characters) replies
   `\x1b[8;{rows};{cols}t` from the terminal's own row/column count.
 - **`CSI 14 t`** (report text-area size in pixels) replies
@@ -874,12 +875,288 @@ Windows unless declared directly via `WithSixelSupport`.
 
 Per the exclusions in [#455](https://github.com/mitchdenny/hex1b/issues/455):
 no changes to raster decoding, no Sixel-to-KGP/iTerm2 translation (the
-`Translated` enum value is a placeholder for
-[#458](https://github.com/mitchdenny/hex1b/issues/458), which alone implements
-it), and no `SixelWidget`/`Surface`-side fallback logic. Broad conformance
+`Translated` enum value is reserved for a possible future translation route —
+[#458](https://github.com/mitchdenny/hex1b/issues/458) deliberately does not
+implement one; see "Sixel-to-image-protocol translation: explicit non-goal"
+below), and no `SixelWidget`/`Surface`-side fallback logic. Broad conformance
 hardening beyond the safe, bounded probing described above is likewise
 deferred; this stage answers "what can the presentation do and how big is a
 cell," not "make every terminal work perfectly."
+
+## Routing and managed presentation (#458)
+
+[#458](https://github.com/mitchdenny/hex1b/issues/458) answers the question
+[#455](https://github.com/mitchdenny/hex1b/issues/455) deliberately left open:
+given an effective `SixelPresentationSupport`, what does `Hex1bTerminal` *do*
+with a Sixel DCS sequence? This stage adds the routing decision itself, a
+protocol-neutral managed raster event stream for non-native presentations, an
+opt-in unsupported-presentation placeholder policy, and an opt-in
+sanitization policy — all built on top of #451/#452/#455's existing
+authoritative placement model without introducing a second decoder or a
+competing event channel. It deliberately does *not* add a translator that
+rewrites Sixel into a different graphics wire protocol (KGP or otherwise);
+see "Sixel-to-image-protocol translation: explicit non-goal" below.
+
+### Routing matrix
+
+`Hex1bTerminal` computes one `SixelEffectiveRoute` per batch from
+`Capabilities.SixelSupport`, `Capabilities.SupportsKgp`, and whether the
+active presentation implements `ISixelRasterPresentationSink`. The route
+governs where the batch's raster events (if any) are delivered; it never
+governs whether native bytes are forwarded — see "Native passthrough is
+unconditional" below.
+
+| `SixelPresentationSupport` | Managed sink attached? | Effective route | What happens |
+|---|---|---|---|
+| `Native` | any | Native | Byte-exact passthrough only. Raster events are still computed (for diagnostics/managed-sink correctness) but are not required for rendering — a real terminal already renders the bytes itself. |
+| `Native` | Yes (`ISixelRasterPresentationSink`) | ManagedRasterSink | The documented dual-delivery case: raw Sixel bytes keep reaching the presentation exactly as `Native` above, and the managed sink additionally observes the same batch as structured events. |
+| `Headless`/`Translated`/`None`/`Unknown` | Yes (`ISixelRasterPresentationSink`) | ManagedRasterSink | The managed sink takes priority over the raw capability value for routing structured events — a presentation that wants events gets them regardless of what `SixelSupport` otherwise reports — but raw Sixel wire bytes are withheld: only `Native` reaches raw bytes, so a non-Native managed sink never receives raw, uninterpretable Sixel DCS bytes it never asked to reparse. `SixelRoutingIntegrationTests.ManagedSink_Headless_NeverReceivesRawSixelWireBytes` and `ManagedSink_Translated_NeverReceivesRawSixelWireBytesAtAnySplitBoundary` are the dedicated regression tests. |
+| `Headless` | No | Headless (no route action) | `Hex1bTerminal`'s own model is the sole source of truth; no output is written and no translation is attempted. Existing snapshot/export APIs from [#456](https://github.com/mitchdenny/hex1b/issues/456) remain the way to inspect this state. |
+| `Translated` | No | Unsupported | Hex1b implements no Sixel-to-image-protocol translator (see "Sixel-to-image-protocol translation: explicit non-goal" below), so this always falls back to Unsupported — identical to `None`/`Unknown` — and a `TranslationUnavailable` diagnostic is raised to distinguish "translation was requested but unavailable" from "translation was never requested." |
+| `None` / `Unknown` | No | Unsupported | The configured `SixelUnsupportedPresentationPolicy` applies (see "Unsupported-presentation policy" below). |
+
+Effective capability reported to a hosted workload (the DA1 reply) is
+unaffected by this stage's route computation directly, but #458 does correct
+a related pre-existing bug in that reply: the reply now consults the actual
+selected route rather than checking raw `SixelSupport` values, so it can
+never over- or under-advertise Sixel relative to what is actually rendered.
+`Da1Query_TranslatedPresentation_NeverAdvertisesParameter4` in
+`Hex1bTerminalQueryOwnershipTests.cs` is the regression test confirming a
+`Translated` presentation never advertises parameter 4, regardless of any
+other capability flag, since no route ever renders it.
+
+A route change (including the terminal's very first batch, and a presentation
+reconnect that changes the effective route) resets only this stage's own
+dedup/visibility bookkeeping (`SixelRasterRouter` internal state) so a
+newly-attached sink starts from a clean, consistent baseline. It never
+rewrites `Hex1bTerminal`'s own authoritative placement history, sequence
+numbers, or already-reported historical metrics — only forward bookkeeping
+is reset.
+
+### Native passthrough is unconditional
+
+Native byte-exact forwarding — every workload byte, unchanged, including
+7-bit/C1 framing, parameter spelling, palette commands, malformed/rejected
+sequences, arbitrary chunk boundaries, and limit-degraded input — is
+forwarded before DCS completion, parsing, allocation, hashing, snapshotting,
+filtering, or translation, exactly as it was before this stage. Internal
+parser/raster failure never mutates or delays it. This holds regardless of
+the computed route: the only thing that changes native output at all is the
+opt-in sanitization policy (below), which is a deliberate, explicit,
+documented departure from this default — never a side effect of routing,
+translation, or degradation.
+
+The dedicated regression coverage for this invariant is
+`SixelRoutingIntegrationTests.NativeRoute_ForwardsBytesExactlyAtEverySplitBoundary`
+(every possible single-split chunk boundary of a Sixel payload produces
+byte-identical output) and
+`SixelRoutingIntegrationTests.NativeRoute_MalformedSixel_ForwardsBytesUnchangedAndUnmutated`
+(a structurally malformed but still DCS-framed sequence — DECGRA with five
+parameters, which the parser marks `SixelParseOutcome.Malformed` without
+aborting the DCS string itself — still forwards unchanged). No dedicated
+benchmark project exists for this specific path today; per this stage's
+validation instructions, deterministic chunk-forwarding tests stand in as the
+measured validation until such benchmark infrastructure exists, rather than
+introducing new benchmark tooling for a single stage.
+
+### Model divergence and degradation
+
+Two distinct, never-silent degradation paths exist, both already anticipated
+by #451/#452's placement model and #455's capability model:
+
+- **Geometry-only downgrade** (`SixelRasterRouteDiagnosticKind.GeometryOnlyDowngrade`):
+  pixel decoding/raster allocation exceeded a bounded resource limit
+  (`SixelPlacement.IsGeometryOnly`), but geometry/cursor parsing remained
+  trustworthy. Native forwarding is unaffected; a managed sink still
+  receives a placement with geometry and anchor but no pixel content, and
+  `Hex1bTerminal.SixelRouteDiagnosticRaised` fires regardless of whether any
+  sink is attached at all, so a host can detect this even in
+  native/headless configurations with no managed presentation.
+- **Desynchronization** (`SixelRasterRouteDiagnosticKind.Desynchronized`):
+  the byte stream framer itself exceeded its bounded retention limit before
+  geometry could be parsed at all (`SixelParseOutcome.LimitDowngraded` at the
+  framer level, distinct from the rasterizer-level geometry-only case above).
+  No placement is created; the terminal recovers at the next valid DCS
+  boundary, and an explicit diagnostic is raised rather than silently
+  dropping the sequence. Following text/cursor state remains synchronized
+  whenever the framer's own boundary recovery permits it — this stage adds no
+  new recovery mechanism beyond what the pre-existing framer already
+  provides, only the explicit diagnostic surface.
+
+`SixelRoutingIntegrationTests.NativeRoute_GeometryOnlyDowngrade_IsObservableViaDiagnosticsWithoutAffectingNativeBytes`
+is the dedicated test for the first case, driving the same
+DECGRA-999999999x999999999 fixture #452's SVG export tests already use for
+`SixelPlacement.IsGeometryOnly`.
+
+### Protocol-neutral managed raster presentation
+
+`Hex1b.Sixel.ISixelRasterPresentationSink` (implemented alongside
+`IHex1bTerminalPresentationAdapter`) is the single, strongly typed extension
+point a managed presentation — for example a WebSocket/delta client — uses to
+receive Sixel graphics without reparsing the wire protocol. Its one method,
+`OnSixelRasterEventsAsync`, delivers an ordered `IReadOnlyList<SixelRasterEvent>`
+per output batch, interleaved with (never ahead of or independent from) the
+same batch's text/cell output — no second, independently-ordered event
+channel is introduced. The event hierarchy (`Hex1b.Sixel.SixelRasterEvent`)
+reuses #456's already-public `SixelData`/`SixelPlacement` types rather than
+inventing a parallel raster representation:
+
+| Event | Raised when |
+|---|---|
+| `SixelRasterContentDefined` | A raster's content (keyed by `SixelData.ContentHash`) becomes reachable from a live placement for the first time this screen lifetime. Content already known to the sink is never retransmitted — deduplication is structural, not a sink-side optimization. |
+| `SixelRasterPlacementUpdated` | A placement is created (`IsNewPlacement: true`) or an existing placement's geometry changes (scrolling, history eviction, reflow, margin clipping). Placement identity across events is `SixelPlacement.Sequence`. |
+| `SixelRasterPlacementDamaged` | Text or another operation destructively damages pixels within a still-live placement's painted region without removing the placement. |
+| `SixelRasterPlacementReleased` | A placement leaves the active screen's live set (scrolled past retained history, erased, screen reset/switch). |
+| `SixelRasterContentReleased` | A raster's content is no longer referenced by any live placement, mirroring the same reachability sweep `SixelData`'s backing store performs. |
+| `SixelRasterScreenTransition` | The active screen changes (`EnteredAlternateScreen`/`ExitedAlternateScreen`). Placements on the screen being left are released; placements already live on the screen being entered are re-announced with fresh `SixelRasterPlacementUpdated` events, since a sink cannot be assumed to retain per-screen state across the switch. |
+| `SixelRasterReset` | A full RIS reset clears all Sixel graphics state. Raised once, instead of individual release events for everything that was live — "everything this sink knew is gone." |
+| `SixelRasterRouteDiagnostic` | Carries one of the diagnostic kinds above, inline in the ordered stream for a managed sink, in addition to the standalone `Hex1bTerminal.SixelRouteDiagnosticRaised` event any host can subscribe to regardless of route. |
+
+`SixelRoutingIntegrationTests.cs` covers ordered content-then-placement
+delivery, content deduplication across a second placement of identical
+raster bytes, release-on-scroll for both the placement and its now-unreferenced
+content, alternate-screen entry/exit release-then-reannounce, a full RIS
+reset, and text-overwrite damage.
+
+### Sixel-to-image-protocol translation: explicit non-goal
+
+An earlier iteration of this stage translated `Translated`-route Sixel raster
+state into Kitty Graphics Protocol (KGP) wire commands automatically whenever
+a presentation declared `SixelPresentationSupport.Translated` and
+`TerminalCapabilities.SupportsKgp`. This was deliberately removed before
+release: rewriting one graphics protocol into a completely different one on
+the wire, with no host opt-in, is a meaningful behavioral and
+security-relevant decision — it changes what bytes an upstream terminal
+actually receives — and Hex1b should not make that decision automatically on
+a host's behalf, nor as a built-in library feature at all.
+
+As a result, `SixelPresentationSupport.Translated` currently always resolves
+to `SixelEffectiveRoute.Unsupported` (see the routing matrix above), with a
+`TranslationUnavailable` diagnostic distinguishing "translation was requested
+but none is available" from "translation was never requested." The
+authoritative Sixel model (`SixelData`/`SixelPlacement`) and the
+protocol-neutral `ISixelRasterPresentationSink` event stream described above
+remain the supported way for any presentation — including one that wants to
+render Sixel content through a different graphics protocol — to consume
+Hex1b's Sixel state without a second decoder. A host application, rather than
+Hex1b itself, is free to build its own translator on top of that sink if it
+wants one. `TranslatedRoute_AlwaysRaisesTranslationUnavailableDiagnostic` in
+`SixelRoutingIntegrationTests.cs` is the regression test covering this for
+both `SupportsKgp: true` and `SupportsKgp: false`.
+
+This non-goal is distinct from, but related to, the iTerm2 deferral below:
+neither exists because implementing either would mean Hex1b silently
+rewriting the graphics wire protocol on a host's behalf.
+
+### Unsupported-presentation policy
+
+When the effective route is `Unsupported`, `Hex1bTerminalOptions.SixelUnsupportedPresentation`
+(`Hex1b.Sixel.SixelUnsupportedPresentationPolicy`) governs what, if anything,
+is written to the presentation in place of a graphic a human on that
+presentation cannot see. `Hex1bTerminal`'s authoritative Sixel model is never
+discarded regardless of this policy — it governs presentation-side
+substitution only:
+
+- **`Suppress`** (default): no substitute output beyond whatever byte-exact
+  passthrough already forwards (which most real terminals/harnesses silently
+  ignore as an unrecognized DCS sequence). Preserves pre-#458 behavior
+  exactly.
+- **`Placeholder`**: writes a short, human-readable diagnostic placeholder
+  (for example `[sixel: 320x200 image not shown — presentation cannot display
+  graphics]`) for each graphic that cannot be rendered, and raises a
+  `PlaceholderApplied` diagnostic, so a user watching an unsupported
+  presentation is not left wondering whether something silently failed.
+
+`UnsupportedRoute_PlaceholderPolicy_WritesDiagnosticPlaceholder` and
+`UnsupportedRoute_SuppressPolicy_WritesNoPlaceholderText` are the dedicated
+tests. `TranslatedRoute_AlwaysRaisesTranslationUnavailableDiagnostic`
+covers the specific case where `SixelSupport.Translated` was requested — a
+distinct diagnostic kind (`TranslationUnavailable`) from "translation was
+never requested," raised alongside whichever
+`SixelUnsupportedPresentationPolicy` applies (Hex1b implements no
+translation target at all; see "Sixel-to-image-protocol translation:
+explicit non-goal" above).
+
+### Sanitization is honestly incompatible with immediate forwarding
+
+`Hex1bTerminalOptions.SixelSanitization` (`Hex1b.Sixel.SixelSanitizationPolicy`)
+is an explicit, opt-in host policy (`Disabled` by default) that can suppress
+malformed, rejected, oversized, or limit-downgraded Sixel data before it
+reaches a native upstream presentation. Whether a sequence should be
+suppressed depends on its final outcome, which is only known once the
+sequence terminates — so this stage designs the tradeoff honestly rather than
+claiming both immediate-forwarding and filtering simultaneously: enabling
+sanitization buffers bytes for the duration of any in-progress DCS string
+(bounded by the same retention limits `SixelCompatibilityPolicy` already
+enforces) and flushes, suppresses, or replaces them once the outcome is
+known. Ordinary text and DCS sequences unrelated to Sixel are never buffered
+or affected by this policy. Each suppression raises an explicit `Suppressed`
+diagnostic naming the reason (`malformed`, `geometry-only downgrade`, and so
+on) — nothing is silently dropped.
+
+`SuppressGeometryOnly` defaults to `false` even when sanitization is
+otherwise enabled: a geometry-only downgrade is a legitimate, non-malformed
+outcome (the rasterizer chose bounded degradation over failure), so a host
+must opt in separately to also suppress it.
+
+`SuppressCancelledOrUnterminated` and `SuppressRetentionLimitExceeded`
+(both default `true` when sanitization is enabled) govern the two outcomes
+that never produce a `DcsToken` at all — framing cancelled mid-string, left
+unterminated, or exceeding the framer's bounded retention limit before
+completion. When either is set to `false`, the affected frame's bounded
+retained bytes (up to `SixelCompatibilityPolicy`'s retention limit,
+introducer/parameters/payload included) are reconstructed into a
+self-contained `ESC P ... ESC \` sequence and forwarded verbatim instead of
+being unconditionally discarded — a dedicated internal token
+(`SixelSanitizedFrameForwardToken`) carries these bytes through the pipeline
+without contributing any Sixel model state, and without being reparsed as
+if it were a `Complete` DCS token (unsafe, since these outcomes were never
+validated as such). This forwarding only ever happens when the effective
+Sixel route allows raw wire bytes to reach the presentation at all (see the
+routing matrix above) — a route that never delivers raw Sixel bytes (for
+example `Headless`, or a non-`Native` `ManagedRasterSink`) still never sees
+these bytes even with the flag set to `false`, since route precedence for
+wire delivery is unconditional.
+
+`Sanitization_SuppressesMalformedGraphic_PreservesOrdinaryText`,
+`Sanitization_Disabled_DefaultPreservesByteExactPassthrough`,
+`Sanitization_GeometryOnlyDefaultNotSuppressed_UnlessOptedIn`,
+`Sanitization_SuppressCancelledOrUnterminatedDefaultTrue_DropsCancelledFrame`,
+`Sanitization_SuppressCancelledOrUnterminatedFalse_ForwardsBoundedBytesAndPreservesText`,
+`Sanitization_SuppressRetentionLimitExceededDefaultTrue_DropsOversizedFrame`, and
+`Sanitization_SuppressRetentionLimitExceededFalse_ForwardsBoundedRetainedBytes`
+are the dedicated tests for, respectively, the suppression behavior itself,
+the disabled-by-default passthrough guarantee, the separate opt-in required
+for geometry-only suppression, and the true/false behavior of each of the
+two previously-inert flags — all confirming unrelated text and DCS framing
+remain unaffected in every case.
+
+### iTerm2 deferral
+
+[#430](https://github.com/mitchdenny/hex1b/issues/430) and
+[#433](https://github.com/mitchdenny/hex1b/issues/433) — the iTerm2 image
+protocol issues — are still open as of this stage. This stage deliberately
+implements no concrete iTerm2 translator and no iTerm2-specific raster
+subsystem. `ISixelRasterPresentationSink` and the `SixelRasterEvent` model are
+already protocol-neutral: a possible future iTerm2 translator, once #430/#433
+establish the shared path, would consume the exact same ordered event stream
+any other consumer of that sink would, not a second decoder or a parallel
+raster model — though as with KGP (see "Sixel-to-image-protocol translation:
+explicit non-goal" above), whether Hex1b itself should ship such a translator
+at all is a separate, still-open question this stage does not answer.
+`SixelPresentationSupport.Translated` currently always falls back to
+`Unsupported` with a `TranslationUnavailable` diagnostic — there is no
+capability flag or code path that attempts iTerm2 (or any other) translation
+yet, by design.
+
+### Explicitly out of scope for this stage
+
+Per the exclusions in [#458](https://github.com/mitchdenny/hex1b/issues/458):
+no `SixelWidget`/`Surface`-side fallback logic, no `SixelEncoder`-side
+optimization work, no translation of arbitrary non-Sixel DCS sequences, no
+Sixel-to-KGP translation (see "Sixel-to-image-protocol translation: explicit
+non-goal" above), and no concrete iTerm2 translation (see "iTerm2 deferral"
+above).
 
 ## Screens, scrollback, resize, and reflow
 
@@ -963,6 +1240,27 @@ pre-existing capability, `ConsolePresentationAdapter`, KGP-probe, WebSocket,
 terminal-query, and Sixel tests continue to pass unmodified, confirming this
 stage adds a parallel discovery/query-ownership path without altering any
 prior-stage behavior.
+`tests/Hex1b.Tests/Sixel/SixelRoutingIntegrationTests.cs` is #458's dedicated
+regression suite, driven end to end through a purpose-built
+`SixelRoutingTestTerminal` harness (distinct from `SixelTestTerminal` because
+it needs a configurable `SixelPresentationSupport`/KGP capability/managed-sink
+participation/sanitization/unsupported-presentation policy, rather than the
+hard-coded native-only configuration existing Sixel tests use). It covers:
+byte-exact native forwarding at every possible chunk-split boundary and for a
+malformed-but-still-framed sequence; the geometry-only downgrade diagnostic
+observable without affecting native bytes; ordered managed-sink delivery
+(content-defined-then-placement-updated), content deduplication across a
+second placement, and release-on-scroll for both placement and content;
+alternate-screen entry/exit release-then-reannounce and a full RIS reset via
+the managed sink; text-overwrite damage;
+`TranslationUnavailable`, `PlaceholderApplied`, and `Suppressed` diagnostics
+for the unsupported/sanitization policies; and the sanitization
+enabled/disabled/geometry-only-opt-in-only behavior described above. The
+consolidated `Da1Query_TranslatedPresentation_NeverAdvertisesParameter4`
+theory test in `Hex1bTerminalQueryOwnershipTests.cs` is described above. All
+pre-existing Sixel/KGP/WebSocket/Hmp1/snapshot tests continue to
+pass unmodified, confirming this stage's routing/sanitization
+logic is additive on top of, not a modification of, prior-stage behavior.
 
 ```bash
 dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
@@ -971,6 +1269,8 @@ dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
   --filter "FullyQualifiedName~Hex1b.Tests.Hmp1.Hmp1Sixel"
 dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
   --filter "FullyQualifiedName~SixelCapabilityDiscoveryTests|FullyQualifiedName~Hex1bTerminalQueryOwnershipTests"
+dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
+  --filter "FullyQualifiedName~SixelRoutingIntegrationTests"
 ```
 
 The terminal-first demo sends independently authored raw Sixel bytes through
@@ -1045,6 +1345,37 @@ authoritative-headless ("parameter 4 present") DA1 replies — demonstrating
 that `Unknown` and `None` are distinct, separately observable capability
 states that nonetheless agree on the workload-facing answer, matching
 `Hex1bTerminalQueryOwnershipTests.cs` exactly.
+
+`samples/SixelTerminalDemo/RoutingTranslationScenarios.cs` adds #458's
+routing/sanitization scenarios. Like capability discovery, this is
+a headless-only concern — every route/policy combination is independent of
+which paged screen (if any) is being viewed — and its five scenarios print
+under "Routing and sanitization observations (#458)". Each
+scenario feeds independently authored raw Sixel bytes (reusing
+`RawSixelFixtures`, never `SixelWidget`/`SixelEncoder`) through a small,
+demo-local `Hex1bTerminal` harness configured for one specific
+`SixelPresentationSupport`/policy combination. They are direct evidence for
+the contract above: a byte fed one at a time into a `Native`-route terminal,
+showing the presentation's captured length grows with every single byte
+(forwarding begins before the DCS terminator even arrives) and the final
+bytes are exactly byte-equal to the original payload; a managed sink
+receiving `SixelRasterContentDefined` before `SixelRasterPlacementUpdated`
+for the first placement, exactly one content-defined event across two
+placements of identical content (deduplication), and a damage event when
+text overwrites the first placement's origin cell; an `Unsupported` route
+with the `Placeholder` policy appending a diagnostic placeholder after the
+unconditionally-forwarded raw bytes (the placeholder is always additive,
+never a substitute for native forwarding) and raising a `PlaceholderApplied`
+diagnostic; opt-in sanitization suppressing a malformed, DCS-framed Sixel
+sequence embedded between two ordinary text fragments while leaving both
+fragments intact and raising a `Suppressed` diagnostic; and a `Translated`
+route's DA1 reply never advertising Sixel support (parameter 4) regardless
+of KGP capability, contrasted against a `Native` route's DA1 reply which
+does, demonstrating that the effective capability reported to a workload
+matches the actual selected route rather than raw parser support — Hex1b
+implements no translation target for `Translated`, so it always behaves
+like `Unsupported` here (see "Sixel-to-image-protocol translation: explicit
+non-goal" above).
 
 The demo presents one subject per screen. Each screen clears the display, resets
 margins, origin mode, and DECSDM so it cannot inherit state from the screen
