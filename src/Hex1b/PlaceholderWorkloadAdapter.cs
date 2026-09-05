@@ -177,13 +177,15 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
             // Drain a queued reset sequence first so it lands ahead of the
             // new child's first bytes. Reset is short — single chunk is fine.
-            CancellationTokenSource swapCts;
+            CancellationToken swapToken;
             IHex1bTerminalWorkloadAdapter active;
             bool emitReset;
             lock (_swapLock)
             {
                 active = _active;
-                swapCts = _swapCts;
+                // SwapTo can dispose this source after we release the lock.
+                // Capture the token while the source still belongs to this child.
+                swapToken = _swapCts.Token;
                 emitReset = _resetPending;
                 _resetPending = false;
             }
@@ -197,7 +199,7 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
                 return ResetSequence;
             }
 
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, swapCts.Token);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, swapToken);
             try
             {
                 var data = await active.ReadOutputAsync(linked.Token).ConfigureAwait(false);
