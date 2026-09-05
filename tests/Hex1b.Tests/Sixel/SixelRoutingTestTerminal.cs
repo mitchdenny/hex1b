@@ -135,6 +135,24 @@ internal sealed class SixelRoutingTestTerminal : IAsyncDisposable
         await Task.Delay(50, cancellationToken);
     }
 
+    /// <summary>
+    /// Mutates the presentation's declared <see cref="Hex1b.Sixel.SixelPresentationSupport"/>
+    /// mid-session (all other capability fields unchanged), simulating a
+    /// post-discovery capability update on the same live connection. Since
+    /// <see cref="Hex1bTerminal.Capabilities"/> reads the presentation's
+    /// <c>Capabilities</c> property live rather than caching it, the effective
+    /// Sixel route is recomputed from this new value starting with the very next
+    /// processed batch.
+    /// </summary>
+    public void SetSixelSupport(SixelPresentationSupport sixelSupport)
+    {
+        _presentation.Capabilities = _presentation.Capabilities with
+        {
+            SixelSupport = sixelSupport,
+            SupportsSixel = sixelSupport == SixelPresentationSupport.Native,
+        };
+    }
+
     public async Task WaitForAsync(
         Func<Hex1bTerminalSnapshot, bool> condition,
         string expectation,
@@ -277,7 +295,13 @@ internal sealed class SixelRoutingTestTerminal : IAsyncDisposable
 
         public int Width { get; } = width;
         public int Height { get; } = height;
-        public TerminalCapabilities Capabilities { get; } = capabilities;
+
+        // Mutable (rather than the init-only field this class started with) so tests
+        // can simulate a mid-session capability change — e.g. a post-discovery
+        // update — and observe the resulting Sixel route change on the very next
+        // batch, since Hex1bTerminal.Capabilities reads this property live rather
+        // than caching it at construction.
+        public TerminalCapabilities Capabilities { get; set; } = capabilities;
 
         public byte[] CapturedBytes
         {

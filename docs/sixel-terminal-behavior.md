@@ -905,7 +905,8 @@ unconditional" below.
 | `SixelPresentationSupport` | Managed sink attached? | Effective route | What happens |
 |---|---|---|---|
 | `Native` | any | Native | Byte-exact passthrough only. Raster events are still computed (for diagnostics/managed-sink correctness) but are not required for rendering — a real terminal already renders the bytes itself. |
-| any | Yes (`ISixelRasterPresentationSink`) | ManagedRasterSink | The managed sink takes priority over the raw capability value: a presentation that wants structured events gets them regardless of what `SixelSupport` otherwise reports. |
+| `Native` | Yes (`ISixelRasterPresentationSink`) | ManagedRasterSink | The documented dual-delivery case: raw Sixel bytes keep reaching the presentation exactly as `Native` above, and the managed sink additionally observes the same batch as structured events. |
+| `Headless`/`Translated`/`None`/`Unknown` | Yes (`ISixelRasterPresentationSink`) | ManagedRasterSink | The managed sink takes priority over the raw capability value for routing structured events — a presentation that wants events gets them regardless of what `SixelSupport` otherwise reports — but raw Sixel wire bytes are withheld: only `Native` reaches raw bytes, so a non-Native managed sink never receives raw, uninterpretable Sixel DCS bytes it never asked to reparse. `SixelRoutingIntegrationTests.ManagedSink_Headless_NeverReceivesRawSixelWireBytes` and `ManagedSink_Translated_NeverReceivesRawSixelWireBytesAtAnySplitBoundary` are the dedicated regression tests. |
 | `Headless` | No | Headless (no route action) | `Hex1bTerminal`'s own model is the sole source of truth; no output is written and no translation is attempted. Existing snapshot/export APIs from [#456](https://github.com/mitchdenny/hex1b/issues/456) remain the way to inspect this state. |
 | `Translated` | No | KgpTranslated (if `SupportsKgp`) or Unsupported (otherwise) | With `SupportsKgp`, the Sixel raster is translated to KGP image/placement operations (see "KGP translation" below). Without it, no translation target exists yet (iTerm2 is deferred — see "iTerm2 deferral" below), so the route falls back to Unsupported and a `TranslationUnavailable` diagnostic is raised. |
 | `None` / `Unknown` | No | Unsupported | The configured `SixelUnsupportedPresentationPolicy` applies (see "Unsupported-presentation policy" below). |
@@ -925,7 +926,15 @@ dedup/visibility bookkeeping (`SixelRasterRouter`/`KgpSixelTranslator`
 internal state) so a newly-attached sink or translator starts from a clean,
 consistent baseline. It never rewrites `Hex1bTerminal`'s own authoritative
 placement history, sequence numbers, or already-reported historical metrics —
-only forward bookkeeping is reset.
+only forward bookkeeping is reset. When the route being left is `KgpTranslated`,
+this reset is preceded by an explicit `KgpSixelTranslator.ReleaseAllAsync` call
+that emits a delete/release wire command for every placement and image the
+translator had transmitted, so a live presentation is never left holding
+stale KGP graphics it can no longer be told about once bookkeeping clears —
+the presentation connection itself is never replaced or reconnected in this
+architecture, only its effective route changes.
+`SixelRoutingIntegrationTests.RouteChangeAwayFromKgpTranslated_ReleasesStalePlacementAndImage`
+is the dedicated regression test.
 
 ### Native passthrough is unconditional
 
@@ -1096,12 +1105,38 @@ on) — nothing is silently dropped.
 otherwise enabled: a geometry-only downgrade is a legitimate, non-malformed
 outcome (the rasterizer chose bounded degradation over failure), so a host
 must opt in separately to also suppress it.
+
+`SuppressCancelledOrUnterminated` and `SuppressRetentionLimitExceeded`
+(both default `true` when sanitization is enabled) govern the two outcomes
+that never produce a `DcsToken` at all — framing cancelled mid-string, left
+unterminated, or exceeding the framer's bounded retention limit before
+completion. When either is set to `false`, the affected frame's bounded
+retained bytes (up to `SixelCompatibilityPolicy`'s retention limit,
+introducer/parameters/payload included) are reconstructed into a
+self-contained `ESC P ... ESC \` sequence and forwarded verbatim instead of
+being unconditionally discarded — a dedicated internal token
+(`SixelSanitizedFrameForwardToken`) carries these bytes through the pipeline
+without contributing any Sixel model state, and without being reparsed as
+if it were a `Complete` DCS token (unsafe, since these outcomes were never
+validated as such). This forwarding only ever happens when the effective
+Sixel route allows raw wire bytes to reach the presentation at all (see the
+routing matrix above) — a route that never delivers raw Sixel bytes (for
+example `Headless` or `KgpTranslated`) still never sees these bytes even
+with the flag set to `false`, since route precedence for wire delivery is
+unconditional.
+
 `Sanitization_SuppressesMalformedGraphic_PreservesOrdinaryText`,
-`Sanitization_Disabled_DefaultPreservesByteExactPassthrough`, and
-`Sanitization_GeometryOnlyDefaultNotSuppressed_UnlessOptedIn` are the
-dedicated tests for, respectively, the suppression behavior itself, the
-disabled-by-default passthrough guarantee, and the separate opt-in required
-for geometry-only suppression.
+`Sanitization_Disabled_DefaultPreservesByteExactPassthrough`,
+`Sanitization_GeometryOnlyDefaultNotSuppressed_UnlessOptedIn`,
+`Sanitization_SuppressCancelledOrUnterminatedDefaultTrue_DropsCancelledFrame`,
+`Sanitization_SuppressCancelledOrUnterminatedFalse_ForwardsBoundedBytesAndPreservesText`,
+`Sanitization_SuppressRetentionLimitExceededDefaultTrue_DropsOversizedFrame`, and
+`Sanitization_SuppressRetentionLimitExceededFalse_ForwardsBoundedRetainedBytes`
+are the dedicated tests for, respectively, the suppression behavior itself,
+the disabled-by-default passthrough guarantee, the separate opt-in required
+for geometry-only suppression, and the true/false behavior of each of the
+two previously-inert flags — all confirming unrelated text and DCS framing
+remain unaffected in every case.
 
 ### iTerm2 deferral
 

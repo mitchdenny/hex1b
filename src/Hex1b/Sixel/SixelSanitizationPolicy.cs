@@ -42,6 +42,11 @@ public sealed record SixelSanitizationPolicy
     /// <summary>
     /// Suppress a Sixel DCS sequence whose framing was cancelled (aborted mid-string)
     /// or left unterminated. Defaults to <see langword="true"/> when <see cref="Enabled"/>.
+    /// When <see langword="false"/>, the sequence's bounded retained bytes (up to the
+    /// framer's retention limit) are forwarded verbatim instead of discarded — these
+    /// outcomes never carry decoded Sixel model state either way, so this only ever
+    /// affects the wire bytes reaching the presentation, never <see cref="Hex1bTerminal"/>'s
+    /// authoritative model.
     /// </summary>
     public bool SuppressCancelledOrUnterminated { get; init; } = true;
 
@@ -55,6 +60,10 @@ public sealed record SixelSanitizationPolicy
     /// Suppress a Sixel DCS sequence whose byte stream exceeded the framer's bounded
     /// retention limit (see <see cref="Hex1b.Sixel.SixelCompatibilityPolicy"/>) before
     /// it could be fully retained. Defaults to <see langword="true"/> when <see cref="Enabled"/>.
+    /// When <see langword="false"/>, the bytes retained up to the limit are forwarded
+    /// verbatim instead of discarded (the excess beyond the limit is never retained in
+    /// the first place, so this is necessarily a bounded, possibly-truncated forward,
+    /// not a guarantee of reproducing every original byte).
     /// </summary>
     public bool SuppressRetentionLimitExceeded { get; init; } = true;
 

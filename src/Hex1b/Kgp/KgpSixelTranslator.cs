@@ -257,7 +257,16 @@ internal sealed class KgpSixelTranslator
         return null;
     }
 
-    private async ValueTask ReleaseAllAsync(IHex1bTerminalPresentationAdapter presentation, CancellationToken ct)
+    /// <summary>
+    /// Releases every currently-tracked placement/image translation the translator
+    /// has emitted, before its bookkeeping is cleared. Used when translation is
+    /// detached while the presentation connection itself remains live — for example
+    /// a route change away from <see cref="Sixel.SixelEffectiveRoute.KgpTranslated"/>
+    /// (see <see cref="Hex1bTerminal.ProcessSixelRoutingAsync"/>) — so a live
+    /// presentation never keeps stale KGP graphics/resources it can no longer be
+    /// told about once bookkeeping resets. A no-op when nothing is currently tracked.
+    /// </summary>
+    internal async ValueTask ReleaseAllAsync(IHex1bTerminalPresentationAdapter presentation, CancellationToken ct)
     {
         foreach (var sequence in _tracked.Keys.ToArray())
         {

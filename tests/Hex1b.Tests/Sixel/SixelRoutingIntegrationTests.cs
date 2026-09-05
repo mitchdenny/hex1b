@@ -33,6 +33,11 @@ public class SixelRoutingIntegrationTests
     // cancelled/unterminated/retention-limit-exceeded framing.
     private const string MalformedGraphic = "\x1bP0;1q\"1;1;1;1;1#1;2;100;0;0#1@\x1b\\";
 
+    // A Sixel-shaped DCS introducer ("...q" final byte) whose payload is cut off by
+    // CAN (0x18) rather than a normal ST terminator — DcsSequenceStatus.Cancelled.
+    // Used unterminated (below) by simply omitting any terminator at all instead.
+    private const string CancelledSixelPrefix = "\x1bP0;1q#1;2;100;0;0";
+
     private static byte[] Bytes(string text) => Encoding.Latin1.GetBytes(text);
 
     // Native passthrough invariants ------------------------------------------------
@@ -138,6 +143,80 @@ public class SixelRoutingIntegrationTests
         var events = terminal.RasterEvents;
         Assert.IsTrue(events.Any(e => e is SixelRasterPlacementReleased));
         Assert.IsTrue(events.Any(e => e is SixelRasterContentReleased));
+    }
+
+    [TestMethod]
+    public async Task ManagedSink_NativeSupport_AlsoForwardsRawBytesAlongsideEvents()
+    {
+        // Positive control for the raw-wire gate: a managed sink whose presentation
+        // also declares Native Sixel support is the documented dual-delivery case
+        // (see ISixelRasterPresentationSink's remarks) — it must keep receiving raw
+        // bytes exactly as before, alongside the structured event stream.
+        var payload = Bytes(SmallRedGraphic);
+        await using var terminal = SixelRoutingTestTerminal.Create(
+            asManagedSink: true,
+            sixelSupport: SixelPresentationSupport.Native);
+
+        await terminal.FeedAsync(payload, cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForEventCountAsync(2, TestContext.Current.CancellationToken);
+        await terminal.WaitForPresentationLengthAsync(payload.Length, TestContext.Current.CancellationToken);
+
+        CollectionAssert.AreEqual(payload, terminal.PresentationBytes);
+        Assert.HasCount(2, terminal.RasterEvents);
+    }
+
+    [TestMethod]
+    public async Task ManagedSink_Headless_NeverReceivesRawSixelWireBytes()
+    {
+        // Regression for the confirmed defect: a managed sink whose presentation
+        // declares Headless (non-Native) support must receive only the structured
+        // raster event stream, never raw Sixel DCS bytes, regardless of the fact that
+        // ComputeRoute selects ManagedRasterSink for any ISixelRasterPresentationSink.
+        await using var terminal = SixelRoutingTestTerminal.Create(
+            asManagedSink: true,
+            sixelSupport: SixelPresentationSupport.Headless);
+
+        await terminal.FeedAsync(
+            Bytes("before" + SmallRedGraphic + "after"),
+            cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForEventCountAsync(2, TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.PresentationText.Contains("after"),
+            "text after the graphic",
+            TestContext.Current.CancellationToken);
+
+        var text = terminal.PresentationText;
+        Assert.Contains("before", text);
+        Assert.Contains("after", text);
+        Assert.DoesNotContain("\x1bP", text);
+        Assert.IsTrue(terminal.RasterEvents.OfType<SixelRasterContentDefined>().Any());
+        Assert.IsTrue(terminal.RasterEvents.OfType<SixelRasterPlacementUpdated>().Any());
+    }
+
+    [TestMethod]
+    public async Task ManagedSink_Translated_NeverReceivesRawSixelWireBytesAtAnySplitBoundary()
+    {
+        // Same regression as the Headless case, but for Translated support and
+        // exercised at every possible chunk split boundary — the gate must hold
+        // regardless of arbitrary workload chunking, not just whole-payload feeds.
+        var payload = Bytes("before" + SmallRedGraphic + "after");
+        for (var split = 1; split < payload.Length; split++)
+        {
+            await using var terminal = SixelRoutingTestTerminal.Create(
+                asManagedSink: true,
+                sixelSupport: SixelPresentationSupport.Translated);
+
+            await terminal.FeedAsync(
+                payload,
+                chunkSizes: [split, payload.Length - split],
+                cancellationToken: TestContext.Current.CancellationToken);
+            await terminal.WaitForAsync(
+                _ => terminal.PresentationText.Contains("after"),
+                "text after the graphic",
+                TestContext.Current.CancellationToken);
+
+            Assert.DoesNotContain("\x1bP", terminal.PresentationText, $"split boundary {split}");
+        }
     }
 
     // KGP translation ------------------------------------------------------------
@@ -352,6 +431,43 @@ public class SixelRoutingIntegrationTests
         Assert.AreEqual(2, CountOccurrences(terminal.PresentationText, "a=p,i="));
     }
 
+    [TestMethod]
+    public async Task RouteChangeAwayFromKgpTranslated_ReleasesStalePlacementAndImage()
+    {
+        // Regression for the confirmed defect: switching the effective route away
+        // from KgpTranslated on the same live presentation must release every
+        // outstanding translated placement/image before bookkeeping resets, so the
+        // presentation is never left with stale KGP graphics it can no longer be
+        // told about.
+        await using var terminal = SixelRoutingTestTerminal.Create(
+            sixelSupport: SixelPresentationSupport.Translated,
+            supportsKgp: true);
+
+        await terminal.FeedAsync(Bytes(SmallRedGraphic), cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.PresentationText.Contains("a=p"),
+            "initial KGP placement",
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains("a=t,f=32", terminal.PresentationText);
+        Assert.DoesNotContain("a=d,d=i,", terminal.PresentationText);
+
+        // The presentation connection itself never changes (see Hex1bTerminal's
+        // readonly _presentation field) — simulate a post-discovery capability
+        // update that moves the effective route away from KgpTranslated entirely.
+        terminal.SetSixelSupport(SixelPresentationSupport.Native);
+
+        await terminal.FeedAsync(Bytes("x"), cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.PresentationText.Contains("a=d,d=i,"),
+            "KGP placement delete on route change",
+            TestContext.Current.CancellationToken);
+
+        var text = terminal.PresentationText;
+        Assert.Contains("\x1b_Ga=d,d=i,", text);
+        Assert.Contains("\x1b_Ga=d,d=I,", text);
+    }
+
     private static int CountOccurrences(string haystack, string needle)
     {
         var count = 0;
@@ -416,5 +532,131 @@ public class SixelRoutingIntegrationTests
         // legitimate, non-malformed outcome, so sanitization leaves it untouched
         // unless a host separately opts in.
         CollectionAssert.AreEqual(payload, terminal.PresentationBytes);
+    }
+
+    [TestMethod]
+    public async Task Sanitization_SuppressCancelledOrUnterminatedDefaultTrue_DropsCancelledFrame()
+    {
+        // Regression for the confirmed defect: enabling sanitization with the
+        // (default) SuppressCancelledOrUnterminated=true must still drop a cancelled
+        // Sixel frame's bytes entirely, preserving legacy/default behavior.
+        var payload = BuildCancelledSixelPayload("before", "after");
+        await using var terminal = SixelRoutingTestTerminal.Create(
+            sixelSupport: SixelPresentationSupport.Native,
+            sanitization: SixelSanitizationPolicy.Enable());
+
+        await terminal.FeedAsync(payload, cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.PresentationText.Contains("after"),
+            "text after the cancelled graphic",
+            TestContext.Current.CancellationToken);
+
+        var text = terminal.PresentationText;
+        Assert.Contains("before", text);
+        Assert.Contains("after", text);
+        Assert.DoesNotContain("\x1bP", text);
+    }
+
+    [TestMethod]
+    public async Task Sanitization_SuppressCancelledOrUnterminatedFalse_ForwardsBoundedBytesAndPreservesText()
+    {
+        // Regression for the confirmed defect: SuppressCancelledOrUnterminated=false
+        // must forward the cancelled frame's bounded retained bytes verbatim instead
+        // of unconditionally discarding them, while leaving surrounding ordinary text
+        // completely unaffected.
+        var payload = BuildCancelledSixelPayload("before", "after");
+        await using var terminal = SixelRoutingTestTerminal.Create(
+            sixelSupport: SixelPresentationSupport.Native,
+            sanitization: SixelSanitizationPolicy.Enable() with { SuppressCancelledOrUnterminated = false });
+
+        await terminal.FeedAsync(payload, cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.PresentationText.Contains("after"),
+            "text after the forwarded cancelled graphic",
+            TestContext.Current.CancellationToken);
+
+        var text = terminal.PresentationText;
+        Assert.Contains("before", text);
+        Assert.Contains("after", text);
+        // The reconstructed forward carries the introducer/payload bytes retained up
+        // to cancellation, wrapped back into a self-contained DCS sequence.
+        Assert.Contains("\x1bP", text);
+        Assert.Contains(CancelledSixelPrefix, text);
+    }
+
+    [TestMethod]
+    public async Task Sanitization_SuppressRetentionLimitExceededDefaultTrue_DropsOversizedFrame()
+    {
+        // Regression for the confirmed defect: enabling sanitization with the
+        // (default) SuppressRetentionLimitExceeded=true must still drop an
+        // oversized Sixel frame's bytes entirely, preserving legacy/default behavior.
+        var payload = BuildOversizedSixelPayload("before", "after");
+        await using var terminal = SixelRoutingTestTerminal.Create(
+            sixelSupport: SixelPresentationSupport.Native,
+            sanitization: SixelSanitizationPolicy.Enable());
+
+        await terminal.FeedAsync(payload, cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.PresentationText.Contains("after"),
+            "text after the oversized graphic",
+            TestContext.Current.CancellationToken);
+
+        var text = terminal.PresentationText;
+        Assert.Contains("before", text);
+        Assert.Contains("after", text);
+        Assert.DoesNotContain("\x1bP", text);
+    }
+
+    [TestMethod]
+    public async Task Sanitization_SuppressRetentionLimitExceededFalse_ForwardsBoundedRetainedBytes()
+    {
+        // Regression for the confirmed defect: SuppressRetentionLimitExceeded=false
+        // must forward the bounded bytes retained up to the framer's retention limit
+        // instead of unconditionally discarding them, while unrelated text remains
+        // unaffected.
+        var payload = BuildOversizedSixelPayload("before", "after");
+        await using var terminal = SixelRoutingTestTerminal.Create(
+            sixelSupport: SixelPresentationSupport.Native,
+            sanitization: SixelSanitizationPolicy.Enable() with { SuppressRetentionLimitExceeded = false });
+
+        await terminal.FeedAsync(payload, cancellationToken: TestContext.Current.CancellationToken);
+        await terminal.WaitForAsync(
+            _ => terminal.PresentationText.Contains("after"),
+            "text after the forwarded oversized graphic",
+            TestContext.Current.CancellationToken);
+
+        var text = terminal.PresentationText;
+        Assert.Contains("before", text);
+        Assert.Contains("after", text);
+        Assert.Contains("\x1bP", text);
+    }
+
+    // Builds "<prefix><Sixel-shaped DCS introducer + partial payload><CAN><suffix>":
+    // CAN (0x18) cancels the DCS mid-stream (DcsSequenceStatus.Cancelled) rather than
+    // terminating it normally, and text resumes immediately afterward.
+    private static byte[] BuildCancelledSixelPayload(string prefix, string suffix)
+    {
+        var bytes = new List<byte>();
+        bytes.AddRange(Bytes(prefix));
+        bytes.AddRange(Bytes(CancelledSixelPrefix));
+        bytes.Add(0x18);
+        bytes.AddRange(Bytes(suffix));
+        return [.. bytes];
+    }
+
+    // Builds "<prefix><Sixel-shaped DCS introducer + payload past the default 1 MiB
+    // retention limit><ST><suffix>": the frame completes normally, but
+    // DcsFrame.RetentionLimitExceeded is set because its content exceeded the
+    // framer's bounded retention buffer (DcsByteStreamParser.DefaultRetentionLimit).
+    private static byte[] BuildOversizedSixelPayload(string prefix, string suffix)
+    {
+        const int oversizedPayloadLength = 1_100_000;
+        var bytes = new List<byte>();
+        bytes.AddRange(Bytes(prefix));
+        bytes.AddRange(Bytes("\x1bP0;1q"));
+        bytes.AddRange(Enumerable.Repeat((byte)'~', oversizedPayloadLength));
+        bytes.AddRange(Bytes("\x1b\\"));
+        bytes.AddRange(Bytes(suffix));
+        return [.. bytes];
     }
 }

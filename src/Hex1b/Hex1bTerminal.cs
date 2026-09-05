@@ -1429,10 +1429,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                 var sixelRoute = Sixel.SixelRasterRouter.ComputeRoute(Capabilities, _presentation);
                 var needsSixelGraphicsImpacts = SixelRoutingNeedsGraphicsImpacts(sixelRoute);
+                var sixelAllowsRawWire = SixelRouteAllowsRawWire(sixelRoute);
                 var rawPresentationPassthrough =
                     _presentationFilters.Count == 0 &&
                     _presentation is not ICellImpactAwarePresentationAdapter &&
-                    !_sixelSanitization.Enabled;
+                    !_sixelSanitization.Enabled &&
+                    sixelAllowsRawWire;
                 var rawProcessingFastPath =
                     _workloadFilters.Count == 0 &&
                     rawPresentationPassthrough &&
@@ -1515,7 +1517,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         var filteredTokens = await NotifyPresentationFiltersOutputAsync(appliedTokens);
                         if (_disposed)
                             continue;
-                        filteredTokens = ApplySixelSanitization(filteredTokens, framedDcs);
+                        filteredTokens = FilterSixelWireTokens(filteredTokens, framedDcs, sixelAllowsRawWire);
                         var filteredBytes = Tokens.AnsiTokenUtf8Serializer.Serialize(filteredTokens);
                         await _presentation.WriteOutputAsync(filteredBytes, ct);
                         _metrics.TerminalOutputBytes.Record(filteredBytes.Length);
@@ -1566,6 +1568,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (frame.Status is DcsSequenceStatus.Cancelled or DcsSequenceStatus.Unterminated ||
                 frame.RetentionLimitExceeded)
             {
+                // These outcomes never produce a DcsToken (there is no valid Sixel
+                // model to attach), but an opt-in sanitization policy that has been
+                // configured to NOT suppress this specific outcome still needs a way
+                // to forward the bounded bytes actually retained — otherwise its
+                // Suppress* = false configuration would be silently ignored.
+                if (frame.Introducer.IsSixel && ShouldForwardSanitizedIncompleteSixelFrame(frame))
+                {
+                    tokens.Add(CreateSanitizedFrameForwardToken(frame));
+                }
                 continue;
             }
 
