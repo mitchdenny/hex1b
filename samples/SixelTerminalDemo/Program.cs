@@ -86,6 +86,13 @@ var capabilityDiscoveryObservations = sceneFilter is null
     ? await CapabilityDiscoveryScenarios.RunAllAsync()
     : [];
 
+// Routing, translation, and sanitization (#458) is also a headless-only,
+// no-real-terminal concern: every route/policy combination is independent of
+// which paged screen (if any) is being viewed.
+var routingTranslationObservations = sceneFilter is null
+    ? await RoutingTranslationScenarios.RunAllAsync()
+    : [];
+
 var allScreens = DemoScreens.Build(
     fixtures,
     modelDescriptions,
@@ -132,7 +139,8 @@ if (headless)
         scrollHistoryReflowObservations,
         snapshotExportReplayScenes,
         snapshotExportReplayObservations,
-        capabilityDiscoveryObservations);
+        capabilityDiscoveryObservations,
+        routingTranslationObservations);
     return;
 }
 
@@ -163,7 +171,8 @@ static void WriteHeadlessTranscript(
     IReadOnlyList<string> scrollHistoryReflowObservations,
     IReadOnlyList<RawSnapshotExportReplayScene> snapshotExportReplayScenes,
     IReadOnlyList<string> snapshotExportReplayObservations,
-    IReadOnlyList<(string Title, string Observation)> capabilityDiscoveryObservations)
+    IReadOnlyList<(string Title, string Observation)> capabilityDiscoveryObservations,
+    IReadOnlyList<(string Title, string Observation)> routingTranslationObservations)
 {
     Console.WriteLine($"Hex1b Sixel demo: {allScreens.Count} numbered screens.");
     Console.WriteLine("Run without --headless to page through them; --screen <number> opens one.");
@@ -214,6 +223,13 @@ static void WriteHeadlessTranscript(
     Console.WriteLine();
     Console.WriteLine("Capability discovery and query ownership observations (#455):");
     foreach (var (title, observation) in capabilityDiscoveryObservations)
+    {
+        Console.WriteLine($"  {title}: {observation}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("Routing, translation, and sanitization observations (#458):");
+    foreach (var (title, observation) in routingTranslationObservations)
     {
         Console.WriteLine($"  {title}: {observation}");
     }

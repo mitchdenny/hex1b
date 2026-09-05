@@ -126,6 +126,22 @@ public sealed class Hex1bTerminalOptions
     public TimeSpan? EscapeSequenceTimeout { get; set; }
 
     /// <summary>
+    /// Opt-in policy for suppressing malformed, rejected, oversized, or
+    /// limit-downgraded Sixel data before it reaches a native upstream presentation.
+    /// Defaults to <see cref="Sixel.SixelSanitizationPolicy.Disabled"/>, preserving
+    /// byte-exact immediate passthrough.
+    /// </summary>
+    public Sixel.SixelSanitizationPolicy SixelSanitization { get; set; } = Sixel.SixelSanitizationPolicy.Disabled;
+
+    /// <summary>
+    /// Policy applied when the effective Sixel route is unsupported — no real
+    /// display, managed raster sink, or translation target is available. Defaults to
+    /// <see cref="Sixel.SixelUnsupportedPresentationPolicy.Suppress"/>, preserving
+    /// today's behavior exactly.
+    /// </summary>
+    public Sixel.SixelUnsupportedPresentationPolicy SixelUnsupportedPresentation { get; set; } = Sixel.SixelUnsupportedPresentationPolicy.Suppress;
+
+    /// <summary>
     /// Validates the options and throws if invalid.
     /// </summary>
     internal void Validate()

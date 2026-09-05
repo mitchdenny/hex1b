@@ -240,6 +240,48 @@ public class Hex1bTerminalQueryOwnershipTests
     }
 
     [TestMethod]
+    public async Task Da1Query_TranslatedPresentationWithKgp_RepliesDeclaringParameter4()
+    {
+        // Stage #458: effective capability reported to the workload must match the
+        // actually selected route, not raw parser support. Translated + KGP selects
+        // SixelEffectiveRoute.KgpTranslated, so Sixel really is renderable end to end
+        // and DA1 must declare it -- this is the exact case the pre-#458 code (which
+        // only ever consulted the legacy SupportsSixel flag) got wrong.
+        var presentation = new FakePresentationAdapter(SixelCapabilities(
+            SixelPresentationSupport.Translated, supportsSixel: false) with
+        {
+            SupportsKgp = true,
+        });
+        var (terminal, workload) = CreateTerminal(presentation);
+        await using var t = terminal;
+
+        workload.EnqueueOutput(Da1Query);
+        await workload.WaitForWrittenLengthAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.AreEqual("\x1b[?62;4c", Encoding.UTF8.GetString(workload.WrittenBytes));
+    }
+
+    [TestMethod]
+    public async Task Da1Query_TranslatedPresentationWithoutKgp_RepliesWithoutParameter4()
+    {
+        // Translated without a supported translation target (KGP) has no route that
+        // can actually render Sixel (SixelEffectiveRoute.Unsupported), so DA1 must
+        // not declare it even though SixelSupport itself says "Translated".
+        var presentation = new FakePresentationAdapter(SixelCapabilities(
+            SixelPresentationSupport.Translated, supportsSixel: false) with
+        {
+            SupportsKgp = false,
+        });
+        var (terminal, workload) = CreateTerminal(presentation);
+        await using var t = terminal;
+
+        workload.EnqueueOutput(Da1Query);
+        await workload.WaitForWrittenLengthAsync(1, TestContext.Current.CancellationToken);
+
+        Assert.AreEqual("\x1b[?62c", Encoding.UTF8.GetString(workload.WrittenBytes));
+    }
+
+    [TestMethod]
     public async Task Da1Query_NativeUpstreamPresentation_ReceivesNoSynthesizedReply()
     {
         var presentation = new NativeFakePresentationAdapter(

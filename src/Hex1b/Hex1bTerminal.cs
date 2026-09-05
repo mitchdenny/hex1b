@@ -374,6 +374,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _dcsByteStreamParser = new DcsByteStreamParser();
         _escapeTimeout = options.EscapeSequenceTimeout ?? TimeSpan.FromMilliseconds(50);
         ResetSixelModes();
+        ConfigureSixelRouting(options);
 
         // Subscribe to presentation events
         _presentation.Resized += OnPresentationResized;
@@ -1426,12 +1427,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
                 try
                 {
+                var sixelRoute = Sixel.SixelRasterRouter.ComputeRoute(Capabilities, _presentation);
+                var needsSixelGraphicsImpacts = SixelRoutingNeedsGraphicsImpacts(sixelRoute);
                 var rawPresentationPassthrough =
                     _presentationFilters.Count == 0 &&
-                    _presentation is not ICellImpactAwarePresentationAdapter;
+                    _presentation is not ICellImpactAwarePresentationAdapter &&
+                    !_sixelSanitization.Enabled;
                 var rawProcessingFastPath =
                     _workloadFilters.Count == 0 &&
-                    rawPresentationPassthrough;
+                    rawPresentationPassthrough &&
+                    !needsSixelGraphicsImpacts;
                 if (rawPresentationPassthrough && !_disposed && _presentation is not null)
                 {
                     // Native/raw presentations own the original workload bytes. Forward each
@@ -1472,10 +1477,22 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 await NotifyWorkloadFiltersOutputAsync(tokens);
                 
                 // Apply tokens to our internal buffer and collect cell impacts
+                var wasAlternateScreenBeforeBatch = _inAlternateScreen;
                 var appliedTokens = ApplyTokensWithImpacts(tokens, framedDcs);
                 if (_disposed)
                     continue;
-                
+
+                if (needsSixelGraphicsImpacts)
+                {
+                    // Route Sixel raster changes to a managed sink, the KGP translator,
+                    // an unsupported-presentation placeholder, and/or diagnostics — all
+                    // driven from the same authoritative appliedTokens this batch just
+                    // produced, never a second independent observation mechanism.
+                    await ProcessSixelRoutingAsync(sixelRoute, appliedTokens, wasAlternateScreenBeforeBatch, ct);
+                    if (_disposed)
+                        continue;
+                }
+
                 // Forward to presentation if present
                 if (_presentation != null)
                 {
@@ -1498,6 +1515,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         var filteredTokens = await NotifyPresentationFiltersOutputAsync(appliedTokens);
                         if (_disposed)
                             continue;
+                        filteredTokens = ApplySixelSanitization(filteredTokens, framedDcs);
                         var filteredBytes = Tokens.AnsiTokenUtf8Serializer.Serialize(filteredTokens);
                         await _presentation.WriteOutputAsync(filteredBytes, ct);
                         _metrics.TerminalOutputBytes.Record(filteredBytes.Length);
@@ -1628,6 +1646,21 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (frame.RetentionLimitExceeded)
         {
             _metrics.TerminalDcsRetentionLimitEvents.Add(1);
+
+            if (frame.Introducer.IsSixel)
+            {
+                // No placement is created for a retention-limit-exceeded Sixel
+                // sequence (see the caller in TokenizeRawWorkloadOutput), so the
+                // authoritative model has nothing further to recover from for this
+                // specific sequence — but following text/cursor state may be
+                // desynchronized until the next valid terminal boundary. Never
+                // silently omit this: surface it explicitly so automation/hosts can
+                // observe it regardless of the effective Sixel route.
+                SixelRouteDiagnosticRaised?.Invoke(new Sixel.SixelRasterRouteDiagnostic(
+                    Sixel.SixelRasterRouteDiagnosticKind.Desynchronized,
+                    $"A Sixel DCS sequence exceeded the bounded retention limit at ({_cursorY},{_cursorX}) before geometry could be parsed; no placement was created and the terminal recovers at the next valid boundary.",
+                    null));
+            }
         }
     }
 
@@ -3539,15 +3572,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_workload == null) return;
         if (_presentation.AnswersProtocolQueriesDirectly) return;
 
-        // Advertise Sixel only for an affirmative, effective support level. Both
-        // SixelPresentationSupport.Unknown (not yet established) and .None
-        // (confirmed unsupported) must not be advertised — see
-        // SixelPresentationSupport's remarks for why those are distinct states that
-        // nonetheless agree here on the workload-facing answer.
-        var sixelSupported = Capabilities.SixelSupport is
-            SixelPresentationSupport.Native or
-            SixelPresentationSupport.Translated or
-            SixelPresentationSupport.Headless
+        // Advertise Sixel only when the actually selected route can render it — not
+        // merely what SixelSupport claims to be able to do (see #458's routing model,
+        // Sixel.SixelEffectiveRoute). SupportsSixel remains the independent,
+        // back-compatible flag documented on TerminalCapabilities: a caller that sets
+        // it directly is still honored even if the finer-grained route disagrees.
+        var sixelSupported =
+            Sixel.SixelRasterRouter.ComputeRoute(Capabilities, _presentation) != Sixel.SixelEffectiveRoute.Unsupported
             || Capabilities.SupportsSixel;
         var response = sixelSupported ? "\x1b[?62;4c" : "\x1b[?62c";
         _ = SendProtocolResponseAsync(Encoding.UTF8.GetBytes(response));
