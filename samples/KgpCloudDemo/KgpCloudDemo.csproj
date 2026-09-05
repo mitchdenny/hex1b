@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <!--
-    Physics, palette, and the workload adapter are shared verbatim with KgpCloudDemo.
+    Physics, palette, and the workload adapter are shared verbatim with SixelCloudDemo.
     The two demos exist to contrast Sixel rasters with KGP placements, which is only
     a fair comparison if everything except the renderer is literally the same code.
   -->
