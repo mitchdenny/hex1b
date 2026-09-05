@@ -16,8 +16,7 @@ namespace Hex1b;
 public sealed class ConsolePresentationAdapter :
     IHex1bTerminalPresentationAdapter,
     ITerminalReflowProvider,
-    IInternalTerminalReflowProvider,
-    INativeUpstreamPresentationAdapter
+    IInternalTerminalReflowProvider
 {
     private const uint KgpProbeImageId = 2147483647u;
     private static readonly byte[] KgpProbeQuery = Encoding.ASCII.GetBytes(
@@ -245,6 +244,14 @@ public sealed class ConsolePresentationAdapter :
 
     /// <inheritdoc />
     public TerminalCapabilities Capabilities => _capabilities;
+
+    /// <summary>
+    /// Always <see langword="true"/>: this adapter connects Hex1b directly to a real
+    /// terminal's raw stdin/stdout, so DA1 and window-operation queries reach that
+    /// terminal untouched and its reply is forwarded back untouched in turn.
+    /// </summary>
+    /// <inheritdoc />
+    public bool AnswersProtocolQueriesDirectly => true;
 
     private static IConsoleDriver CreateConsoleDriver()
     {

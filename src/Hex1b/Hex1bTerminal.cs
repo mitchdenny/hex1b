@@ -3526,16 +3526,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <remarks>
     /// See <see href="https://github.com/mitchdenny/hex1b/issues/455">#455</see> for
     /// the query-ownership model: <see cref="ConsolePresentationAdapter"/> is the
-    /// only <see cref="INativeUpstreamPresentationAdapter"/>, so it is the only
-    /// presentation this method stays silent for — every other presentation
-    /// (headless, WebSocket, future translated adapters) gets a synthesized reply
-    /// here so a single, deterministic answerer always exists and duplicate
-    /// responses from both Hex1b and a real terminal are impossible.
+    /// only presentation whose
+    /// <see cref="IHex1bTerminalPresentationAdapter.AnswersProtocolQueriesDirectly"/>
+    /// is <see langword="true"/>, so it is the only presentation this method stays
+    /// silent for — every other presentation (headless, WebSocket, future translated
+    /// adapters) gets a synthesized reply here so a single, deterministic answerer
+    /// always exists and duplicate responses from both Hex1b and a real terminal are
+    /// impossible.
     /// </remarks>
     private void HandleDeviceAttributesQuery()
     {
         if (_workload == null) return;
-        if (_presentation is INativeUpstreamPresentationAdapter) return;
+        if (_presentation.AnswersProtocolQueriesDirectly) return;
 
         // Advertise Sixel only for an affirmative, effective support level. Both
         // SixelPresentationSupport.Unknown (not yet established) and .None
@@ -3566,7 +3568,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private void HandleWindowOperationQuery(WindowOperationToken windowOp)
     {
         if (_workload == null) return;
-        if (_presentation is INativeUpstreamPresentationAdapter) return;
+        if (_presentation.AnswersProtocolQueriesDirectly) return;
 
         string? response = windowOp.Operation switch
         {

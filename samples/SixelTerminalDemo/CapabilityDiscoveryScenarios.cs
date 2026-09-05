@@ -290,7 +290,7 @@ internal static class CapabilityDiscoveryScenarios
         var results = new List<string>();
 
         // Native (ConsolePresentationAdapter over a fake driver): the adapter
-        // itself implements INativeUpstreamPresentationAdapter, so Hex1bTerminal
+        // itself overrides AnswersProtocolQueriesDirectly to true, so Hex1bTerminal
         // must not synthesize a reply — the (simulated) real terminal already
         // answers over the same raw byte channel.
         {

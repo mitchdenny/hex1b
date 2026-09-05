@@ -12,12 +12,13 @@ namespace Hex1b.Tests.Sixel;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="Hex1bTerminal"/> only stays silent for presentations that implement
-/// <see cref="INativeUpstreamPresentationAdapter"/> (raw upstream passthrough, where a
-/// real terminal already answers these queries itself); every other presentation —
-/// headless, WebSocket, or a hand-written fake — gets a synthesized reply from
-/// <see cref="Hex1bTerminal"/>'s own authoritative model, so exactly one answerer
-/// always exists and duplicate responses are impossible.
+/// <see cref="Hex1bTerminal"/> only stays silent for presentations whose
+/// <see cref="IHex1bTerminalPresentationAdapter.AnswersProtocolQueriesDirectly"/> is
+/// <see langword="true"/> (raw upstream passthrough, where a real terminal already
+/// answers these queries itself); every other presentation — headless, WebSocket, or
+/// a hand-written fake — gets a synthesized reply from <see cref="Hex1bTerminal"/>'s
+/// own authoritative model, so exactly one answerer always exists and duplicate
+/// responses are impossible.
 /// </para>
 /// <para>
 /// These tests intentionally build presentation fakes with hand-picked
@@ -122,9 +123,10 @@ public class Hex1bTerminalQueryOwnershipTests
     }
 
     /// <summary>
-    /// A minimal presentation fake that is NOT a real upstream terminal (does
-    /// not implement <see cref="INativeUpstreamPresentationAdapter"/>), so
-    /// <see cref="Hex1bTerminal"/> must own query answering for it.
+    /// A minimal presentation fake that is NOT a real upstream terminal (leaves
+    /// <see cref="IHex1bTerminalPresentationAdapter.AnswersProtocolQueriesDirectly"/>
+    /// at its default <see langword="false"/>), so <see cref="Hex1bTerminal"/> must
+    /// own query answering for it.
     /// </summary>
     private class FakePresentationAdapter(TerminalCapabilities capabilities) : IHex1bTerminalPresentationAdapter
     {
@@ -151,16 +153,19 @@ public class Hex1bTerminalQueryOwnershipTests
         public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
         public (int Row, int Column) GetCursorPosition() => (0, 0);
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public virtual bool AnswersProtocolQueriesDirectly => false;
     }
 
     /// <summary>
-    /// The same fake, but marked as a native upstream terminal -- Hex1bTerminal
-    /// must stay silent for DA1/window-op queries since a real terminal on the
-    /// other end of this presentation would already answer them.
+    /// The same fake, but with <see cref="AnswersProtocolQueriesDirectly"/>
+    /// overridden to <see langword="true"/> -- Hex1bTerminal must stay silent for
+    /// DA1/window-op queries since a real terminal on the other end of this
+    /// presentation would already answer them.
     /// </summary>
     private sealed class NativeFakePresentationAdapter(TerminalCapabilities capabilities)
-        : FakePresentationAdapter(capabilities), INativeUpstreamPresentationAdapter
+        : FakePresentationAdapter(capabilities)
     {
+        public override bool AnswersProtocolQueriesDirectly => true;
     }
 
     private static (Hex1bTerminal Terminal, QueuedOutputWorkloadAdapter Workload) CreateTerminal(

@@ -78,7 +78,7 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
         SupportsSixel = true,
         // Native describes protocol fidelity: raw Sixel DCS bytes reach the browser
         // client unmodified, with no translation to another image protocol. This
-        // adapter still does not implement INativeUpstreamPresentationAdapter, so
+        // adapter still leaves AnswersProtocolQueriesDirectly at its default false, so
         // Hex1bTerminal (not the browser) remains the query-answering owner for DA1
         // and window operations — a managed WebSocket connection cannot autonomously
         // answer those the way a real terminal emulator's PTY does.

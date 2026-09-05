@@ -804,16 +804,17 @@ terminal. Exactly one side must answer each query — never zero, never two:
 | `WebSocketPresentationAdapter` (managed browser presentation) | `Hex1bTerminal`, synthesized | The browser side is not an independent terminal emulator that autonomously answers VT queries; Hex1b owns the reply. |
 | A future translated (`Translated`) raster-graphics presentation | `Hex1bTerminal`, synthesized | Same reasoning as WebSocket: the real answering party is Hex1b's own graphics model, translated for display, not an independent terminal emulator. |
 
-This is implemented by a single marker interface,
-`INativeUpstreamPresentationAdapter`: a presentation adapter implements it only
-when it connects Hex1b directly to a real, independent terminal emulator whose
-raw stdin/stdout Hex1b merely forwards — currently only
+This is implemented by a single presentation-adapter property,
+`IHex1bTerminalPresentationAdapter.AnswersProtocolQueriesDirectly` (default
+`false`): a presentation adapter overrides it to `true` only when it connects
+Hex1b directly to a real, independent terminal emulator whose raw
+stdin/stdout Hex1b merely forwards — currently only
 `ConsolePresentationAdapter`. `Hex1bTerminal.HandleDeviceAttributesQuery` and
-`HandleWindowOperationQuery` both check `_presentation is
-INativeUpstreamPresentationAdapter` first and return immediately without
-sending anything when it is true, guaranteeing the real terminal's own reply
-is the only one that ever reaches the workload. For every other presentation,
-`Hex1bTerminal` is the single, deterministic answerer:
+`HandleWindowOperationQuery` both check
+`_presentation.AnswersProtocolQueriesDirectly` first and return immediately
+without sending anything when it is true, guaranteeing the real terminal's own
+reply is the only one that ever reaches the workload. For every other
+presentation, `Hex1bTerminal` is the single, deterministic answerer:
 
 - **DA1** (`CSI c`/`CSI 0 c`, recognized without a private-mode prefix per
   `AnsiTokenizer`) replies `\x1b[?62;4c` (VT220-class identity plus Sixel,
@@ -954,7 +955,7 @@ derived-but-not-authoritative metrics.
 dedicated regression suite for `Hex1bTerminal`'s query-ownership model: DA1 and
 `CSI 14/16/18 t` replies (with and without Sixel support declared) for
 non-native presentations, confirmed silence for a native
-(`INativeUpstreamPresentationAdapter`) presentation across all four query
+(`AnswersProtocolQueriesDirectly == true`) presentation across all four query
 types, `HeadlessPresentationAdapter`'s default (no advertisement) versus
 explicitly authoritative (advertises) capability reporting, and
 `WebSocketPresentationAdapter`'s always-native capability declaration. All
