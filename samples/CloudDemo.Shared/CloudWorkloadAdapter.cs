@@ -188,35 +188,36 @@ internal sealed class CloudWorkloadAdapter : IHex1bTerminalWorkloadAdapter
             return Finish();
         }
 
-        int columns;
-        int rows;
+        // Resize and cell-metric replies reset the mote list. Keep the dimensions,
+        // simulation step, and renderer together under the same lock so a reset
+        // cannot invalidate an enumeration or mix geometry from different frames.
         lock (_gate)
         {
-            columns = _columns;
-            rows = _rows;
+            var columns = _columns;
+            var rows = _rows;
+
+            if (columns <= 0 || rows <= 0)
+            {
+                // The terminal has not reported its size yet, so there is nothing
+                // meaningful to paint into.
+                return ReadOnlyMemory<byte>.Empty;
+            }
+
+            // Advance by the time that actually passed rather than the nominal interval,
+            // so a late frame still lands the motes where they belong. A dropped frame
+            // then shows as a longer step instead of the whole cloud lurching.
+            var now = _frameClock.Elapsed;
+            var delta = now - _lastFrameStarted;
+            _lastFrameStarted = now;
+
+            // Clamp so a stall (or a debugger pause) cannot teleport the simulation.
+            var deltaSeconds = Math.Clamp(delta.TotalSeconds, 0.001, MaxFrameDeltaSeconds);
+
+            _cloud.Advance(deltaSeconds);
+            _framesRendered++;
+
+            return _renderer.RenderFrame(_cloud, columns, rows);
         }
-
-        if (columns <= 0 || rows <= 0)
-        {
-            // The terminal has not reported its size yet, so there is nothing
-            // meaningful to paint into.
-            return ReadOnlyMemory<byte>.Empty;
-        }
-
-        // Advance by the time that actually passed rather than the nominal interval,
-        // so a late frame still lands the motes where they belong. A dropped frame
-        // then shows as a longer step instead of the whole cloud lurching.
-        var now = _frameClock.Elapsed;
-        var delta = now - _lastFrameStarted;
-        _lastFrameStarted = now;
-
-        // Clamp so a stall (or a debugger pause) cannot teleport the simulation.
-        var deltaSeconds = Math.Clamp(delta.TotalSeconds, 0.001, MaxFrameDeltaSeconds);
-
-        _cloud.Advance(deltaSeconds);
-        _framesRendered++;
-
-        return _renderer.RenderFrame(_cloud, columns, rows);
     }
 
     public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
