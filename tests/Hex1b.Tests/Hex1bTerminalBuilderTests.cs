@@ -889,79 +889,40 @@ public class Hex1bTerminalBuilderTests
     [TestMethod]
     public async Task Diagnostic_EchoCommand_OutputAppearsInBuffer()
     {
-        // Inline C# delay script that outputs a marker after a delay
-        const string script = """
-            await Task.Delay(100);
-            Console.WriteLine("DIAGNOSTIC_MARKER_12345");
-            """;
-
-        using var workspace = TestWorkspace.Create("diag_echo");
-        var scriptFile = workspace.CreateCSharpProgram("delay-echo.cs", script);
+        // Exercise delayed PTY output without compiling a program inside the output deadline.
+        // Keep the child alive until the terminal has consumed the marker.
+        var (fileName, arguments) = OperatingSystem.IsWindows()
+            ? ("pwsh", new[] { "-NoLogo", "-NoProfile", "-Command", "Start-Sleep -Milliseconds 100; Write-Output 'DIAGNOSTIC_MARKER_12345'; [void][Console]::ReadKey($true)" })
+            : ("bash", new[] { "-lc", "sleep 0.1; printf 'DIAGNOSTIC_MARKER_12345\\n'; IFS= read -rsn1 _" });
         
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithPtyProcess("dotnet", "run", scriptFile.FullName)
+            .WithPtyProcess(fileName, arguments)
             .WithHeadless()
             .WithDimensions(80, 24)
             .Build();
 
-        // Start RunAsync in background - this starts the process
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var runTask = terminal.RunAsync(cts.Token);
-
-        // Poll the screen buffer directly
-        var startTime = DateTime.UtcNow;
-        var timeout = TimeSpan.FromSeconds(5);
-        var foundMarker = false;
-        var diagnosticOutput = new StringBuilder();
-        
-        while (DateTime.UtcNow - startTime < timeout)
+        try
         {
-            var snapshot = terminal.CreateSnapshot();
-            var screenText = snapshot.GetScreenText();
-            
-            diagnosticOutput.AppendLine($"[{DateTime.UtcNow - startTime:ss\\.fff}] Screen: '{screenText.Replace("\n", "\\n").Replace("\r", "\\r")}'");
-            
-            if (screenText.Contains("DIAGNOSTIC_MARKER_12345"))
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("DIAGNOSTIC_MARKER_12345"),
+                    TimeSpan.FromSeconds(30), "delayed PTY output")
+                .Type("q")
+                .Build()
+                .ApplyAsync(terminal, cts.Token);
+
+            Assert.AreEqual(0, await runTask.WaitAsync(TimeSpan.FromSeconds(30), cts.Token));
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            try
             {
-                foundMarker = true;
-                break;
+                await runTask.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
             }
-
-            // Check if process exited
-            if (runTask.IsCompleted)
-            {
-                diagnosticOutput.AppendLine($"[{DateTime.UtcNow - startTime:ss\\.fff}] Process exited with code: {runTask.Result}");
-                // Give one more chance to read output after process exits
-                await Task.Delay(100);
-                snapshot = terminal.CreateSnapshot();
-                screenText = snapshot.GetScreenText();
-                diagnosticOutput.AppendLine($"[{DateTime.UtcNow - startTime:ss\\.fff}] Final screen: '{screenText.Replace("\n", "\\n").Replace("\r", "\\r")}'");
-                if (screenText.Contains("DIAGNOSTIC_MARKER_12345"))
-                {
-                    foundMarker = true;
-                }
-                break;
-            }
-
-            await Task.Delay(50, cts.Token);
+            catch (OperationCanceledException) when (cts.IsCancellationRequested) { }
         }
-
-        TestContext.Current?.WriteLine(diagnosticOutput.ToString());
-
-        // Wait for process to complete
-        var exitCode = 0;
-        if (!runTask.IsCompleted)
-        {
-            cts.Cancel();
-            try { exitCode = await runTask; } catch { }
-        }
-        else
-        {
-            exitCode = await runTask;
-        }
-
-        Assert.IsTrue(foundMarker, $"Expected to find 'DIAGNOSTIC_MARKER_12345' in screen buffer.\n" +
-            $"Diagnostics:\n{diagnosticOutput}");
     }
 
     // === Recording and Optimization Tests ===

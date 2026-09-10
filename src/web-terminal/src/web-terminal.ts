@@ -44,11 +44,14 @@ export class WebTerminal implements WebTerminalHandle {
   #geometry: TerminalGeometry = { columns: 80, rows: 24, cellWidth: 10, cellHeight: 20, mouseTracking: 0 };
   #peer: TerminalPeer = { id: null, primaryId: null, isPrimary: false };
   #connected = false;
+  #closed = false;
+  #readOnly: boolean;
   #disposed = false;
   #hasGeometry = false;
   #resizeTimer: ReturnType<typeof setTimeout> | undefined;
   #lastRequested: string | undefined;
   #compositionTimer: ReturnType<typeof setTimeout> | undefined;
+  #resetComposition: (() => void) | undefined;
   #ready = Promise.withResolvers<WebTerminal>();
   #readyTimer: ReturnType<typeof setTimeout> | undefined;
   #stats: TerminalStats = {};
@@ -98,6 +101,9 @@ export class WebTerminal implements WebTerminalHandle {
 
   private constructor(options: WebTerminalOptions) {
     this.#options = options;
+    if (options.readOnly !== undefined && typeof options.readOnly !== "boolean")
+      throw new TypeError("readOnly must be a boolean");
+    this.#readOnly = options.readOnly ?? false;
     this.#renderer = normalizeRenderer(options.renderer);
     if (options.workerUrl !== undefined && !(options.workerUrl instanceof URL) &&
         (typeof options.workerUrl !== "string" || !options.workerUrl.trim()))
@@ -117,6 +123,7 @@ export class WebTerminal implements WebTerminalHandle {
   get geometry(): TerminalGeometry { return { ...this.#geometry }; }
   get peer(): TerminalPeer { return { ...this.#peer }; }
   get connected() { return this.#connected; }
+  get readOnly(): boolean { return this.#readOnly; }
   /** Current presented workload title; retained on disconnect/dispose. Treat as untrusted text. */
   get title(): string { return this.#title; }
   get progress(): TerminalProgress { return { ...this.#progress }; }
@@ -193,7 +200,7 @@ export class WebTerminal implements WebTerminalHandle {
       element: this.element, overlay: this.#selectionOverlay,
       button: requiredElement(this.#inspection, ".copy-selection", HTMLButtonElement), signal: this.#listeners.signal,
       getState: () => ({ selection: this.selection, viewport: this.viewport, geometry: this.geometry,
-        canvasSize: this.#canvasSize, connected: this.#connected, readOnly: !!this.#options.readOnly }),
+        canvasSize: this.#canvasSize, connected: this.#connected, readOnly: this.#readOnly }),
       runAction: this.runAction.bind(this),
       onSelectionUI: this.#options.onSelectionUI,
       reportError: error => {
@@ -212,7 +219,7 @@ export class WebTerminal implements WebTerminalHandle {
       catch (error) { this.#inspectionError = errorMessage(error); this.#inspectionChanged(); }
     };
     this.#mouse = captureMouse(this.#canvas, command => this.#inputCommand(command), () => this.focus(), {
-      state: () => ({ historical: !this.viewport.following || this.viewport.pending, readOnly: !!this.#options.readOnly,
+      state: () => ({ historical: !this.viewport.following || this.viewport.pending, readOnly: this.#readOnly,
         selection: this.selection }),
       begin: (point, selection) => inspect(() => this.#history.begin(point, selection)),
       extend: point => inspect(() => this.#history.extend(point)),
@@ -271,8 +278,17 @@ export class WebTerminal implements WebTerminalHandle {
     if (message.type === "connected") {
       this.#connected = true;
       this.#input.disabled = !this.#canInput();
-    } else if (message.type === "disconnected") {
-      this.#disconnect();
+    } else if (message.type === "closed") {
+      if (this.#closed) return;
+      this.#closed = true;
+      clearTimeout(this.#readyTimer);
+      try {
+        this.#disconnect();
+        if (!this.#disposed) this.#options.onClose?.(Object.freeze({ ...message.details }));
+      } finally {
+        this.#ready.reject(new Error(`Terminal WebSocket closed (${message.details.code}${
+          message.details.reason ? `: ${message.details.reason}` : ""}) before mounting completed`));
+      }
     } else if (message.type === "status") {
       if (message.level === "error") {
         this.#disconnect();
@@ -361,12 +377,12 @@ export class WebTerminal implements WebTerminalHandle {
 
   #queueResize(includeFixed = false) {
     if (this.#sizing.mode === "fixed" && !includeFixed) return;
-    if (!this.#hasGeometry || !this.#peer.isPrimary || this.#resizeTimer !== undefined || this.#disposed) return;
+    if (!this.#canInput() || !this.#peer.isPrimary || this.#resizeTimer !== undefined || this.#disposed) return;
     // Throttle (rather than debounce) so dragging a primary view updates peers live.
     this.#resizeTimer = setTimeout(() => {
       this.#resizeTimer = undefined;
       const grid = this.#fittedGrid();
-      if (!grid || !this.#peer.isPrimary || !this.#connected) return;
+      if (!grid || !this.#peer.isPrimary || !this.#canInput()) return;
       const key = `${grid.columns}x${grid.rows}`;
       if ((grid.columns === this.#geometry.columns && grid.rows === this.#geometry.rows) || key === this.#lastRequested) return;
       this.resize(grid.columns, grid.rows);
@@ -379,6 +395,8 @@ export class WebTerminal implements WebTerminalHandle {
 
   #send(command: TerminalCommand): void {
     if (!this.#connected || this.#disposed) throw new Error("Terminal view is not connected");
+    if (this.#readOnly && ["input", "paste", "key", "mouse", "resize", "requestPrimary"].includes(command.type))
+      throw new Error("Terminal view does not accept input");
     this.#post({ type: "command", command });
   }
 
@@ -481,21 +499,26 @@ export class WebTerminal implements WebTerminalHandle {
   }
 
   #canInput() {
-    return this.#connected && this.#hasGeometry && !this.#options.readOnly &&
+    return this.#connected && this.#hasGeometry && !this.#readOnly &&
       (this.#peer.id !== null || this.#peer.isPrimary);
   }
 
   get inputContext(): TerminalInputContext {
     return Object.freeze({
       terminal: this, selection: this.selection, viewport: this.viewport,
-      buffer: this.viewport.buffer ?? null, mouseCaptured: this.#geometry.mouseTracking !== 0,
+      buffer: this.viewport.buffer ?? null, mouseCaptured: !this.#readOnly && this.#geometry.mouseTracking !== 0,
       historical: !this.viewport.following || this.viewport.pending,
-      readOnly: !!this.#options.readOnly, connected: this.#connected, peer: this.peer
+      readOnly: this.#readOnly, connected: this.#connected, peer: this.peer
     });
   }
 
   #resolveInput(input: TerminalInput): InputDecision {
-    try { return this.#policy.resolve(Object.freeze(input), this.inputContext); }
+    try {
+      const decision = this.#policy.resolve(Object.freeze(input), this.inputContext);
+      if (this.#readOnly && decision.route === InputRoute.Application)
+        return { route: input.type === "pointer" || input.type === "wheel" ? InputRoute.Continue : InputRoute.Consume };
+      return decision;
+    }
     catch (error) {
       this.#actionFailed(error);
       return { route: InputRoute.Consume };
@@ -543,7 +566,7 @@ export class WebTerminal implements WebTerminalHandle {
         try {
           if (this.selection.active || (this.selection.pending && this.selection.canExtend))
             return await this.copySelection({ clear: true });
-          if (!this.#options.readOnly) return await this.pasteClipboard();
+          if (!this.#readOnly) return await this.pasteClipboard();
           return;
         } finally { this.#clipboardAction = false; }
       default: throw new TypeError(`Unknown terminal action: ${action}`);
@@ -571,6 +594,31 @@ export class WebTerminal implements WebTerminalHandle {
       throw new Error("Terminal input, selection, focus, or buffer changed while reading the clipboard. Paste again.");
     this.paste(text);
     return text;
+  }
+
+  /** Changes per-view input policy without reconnecting; server authorization remains host-owned. */
+  setReadOnly(readOnly: boolean): void {
+    if (typeof readOnly !== "boolean") throw new TypeError("readOnly must be a boolean");
+    if (this.#disposed) throw new Error("Terminal view is disposed");
+    if (this.#readOnly === readOnly) return;
+    const inputFocused = document.activeElement === this.element &&
+      (!this.element.shadowRoot?.activeElement || this.element.shadowRoot.activeElement === this.#input);
+    this.#readOnly = readOnly;
+    this.#inputSerial++;
+    this.#resetComposition?.();
+    if (this.#input) {
+      this.#input.value = "";
+      this.#input.disabled = !this.#canInput();
+    }
+    // Set the policy before cancelling so pending moves and button releases cannot leak.
+    this.#mouse?.cancel();
+    this.#mouse?.refresh();
+    clearTimeout(this.#resizeTimer);
+    this.#resizeTimer = undefined;
+    this.#lastRequested = undefined;
+    this.#queueResize(true);
+    if (inputFocused) this.focus();
+    this.#selectionUI?.refresh();
   }
 
   #forwardInput(input: TerminalInput): void {
@@ -604,6 +652,11 @@ export class WebTerminal implements WebTerminalHandle {
     const options = { signal: this.#listeners.signal };
     let composing = false;
     let compositionCommit: string | null = null;
+    this.#resetComposition = () => {
+      composing = false;
+      compositionCommit = null;
+      clearTimeout(this.#compositionTimer);
+    };
     this.element.addEventListener("keydown", event => {
       if (event.defaultPrevented) return;
       if (event.composedPath().includes(this.#selectionOverlay)) return;
@@ -619,11 +672,13 @@ export class WebTerminal implements WebTerminalHandle {
       input.value = "";
     }, options);
     input.addEventListener("compositionstart", () => {
+      if (!this.#canInput()) return;
       composing = true;
       compositionCommit = null;
       clearTimeout(this.#compositionTimer);
     }, options);
     input.addEventListener("compositionend", event => {
+      if (!composing) return;
       composing = false;
       // Accommodate browsers placing the final input before or after compositionend.
       compositionCommit = typeof event.data === "string" ? event.data : input.value;
@@ -652,6 +707,7 @@ export class WebTerminal implements WebTerminalHandle {
 
   /** Request HMP1 primary explicitly; peer notifications confirm the result. */
   requestPrimary() {
+    if (!this.#canInput()) throw new Error("Terminal view does not accept input");
     if (this.#size.width <= 0 || this.#size.height <= 0) throw new Error("Show the terminal container before taking primary");
     const grid = this.#fittedGrid();
     if (!grid) throw new Error("Show the terminal container before taking primary");
@@ -666,6 +722,7 @@ export class WebTerminal implements WebTerminalHandle {
   /** Request a grid; never reflow locally before the authoritative response. */
   resize(columns: number, rows: number): void {
     const grid = dimensions(columns, rows);
+    if (!this.#canInput()) throw new Error("Terminal view does not accept input");
     if (!this.#peer.isPrimary) throw new Error("Only the primary view can request a terminal resize");
     this.#send({ type: "resize", ...grid });
     this.#lastRequested = `${columns}x${rows}`;
@@ -675,6 +732,7 @@ export class WebTerminal implements WebTerminalHandle {
   setSizing(sizing: TerminalSizing): void {
     const next = normalizeSizing(sizing, this.#sizing.fontSize);
     if (!this.#connected || this.#disposed) throw new Error("Terminal view is not connected");
+    if (this.#readOnly) throw new Error("Terminal view does not accept input");
     if (!this.#peer.isPrimary) throw new Error("Only the primary view can change terminal sizing");
     this.#sizing = next;
     clearTimeout(this.#resizeTimer);

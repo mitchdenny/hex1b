@@ -24,6 +24,8 @@ namespace Hex1b;
 /// </remarks>
 public sealed class Hex1bTerminalOptions
 {
+    internal bool DeferStart { get; set; }
+
     internal Sixel.SixelCompatibilityPolicy SixelPolicy { get; set; } =
         Sixel.SixelCompatibilityPolicy.Default;
 

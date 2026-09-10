@@ -144,8 +144,10 @@ public static class AnsiTokenUtf8Serializer
             case ClearScreenToken clear:
             {
                 WriteEscLeftBracket(writer);
+                if (clear.Selective)
+                    WriteByte(writer, (byte)'?');
                 var clearCode = (int)clear.Mode;
-                if (clearCode != 0)
+                if (clearCode != 0 || clear.Selective)
                     WriteInt(writer, clearCode);
                 WriteByte(writer, (byte)'J');
                 return;
@@ -154,8 +156,10 @@ public static class AnsiTokenUtf8Serializer
             case ClearLineToken clear:
             {
                 WriteEscLeftBracket(writer);
+                if (clear.Selective)
+                    WriteByte(writer, (byte)'?');
                 var clearCode = (int)clear.Mode;
-                if (clearCode != 0)
+                if (clearCode != 0 || clear.Selective)
                     WriteInt(writer, clearCode);
                 WriteByte(writer, (byte)'K');
                 return;
@@ -246,7 +250,7 @@ public static class AnsiTokenUtf8Serializer
 
             case CharacterSetToken cs:
                 WriteByte(writer, 0x1b);
-                WriteByte(writer, (byte)(cs.Target == 0 ? '(' : ')'));
+                WriteByte(writer, (byte)(cs.Target switch { 0 => '(', 1 => ')', 2 => '*', _ => '+' }));
                 WriteByte(writer, (byte)cs.Charset);
                 return;
 

@@ -70,6 +70,7 @@ public sealed class Hwt1PresentationAdapter :
     private int _forceFull = 1;
     private int _reading;
     private int _disposed;
+    private bool _isReadOnly;
     private long _outputBatches;
     private int _width;
     private int _height;
@@ -93,6 +94,28 @@ public sealed class Hwt1PresentationAdapter :
         _width = width;
         _height = height;
         _timeProvider = timeProvider;
+    }
+
+    /// <summary>
+    /// Gets or sets whether this view ignores client commands that modify the producer.
+    /// Defaults to <see langword="false"/>.
+    /// </summary>
+    /// <remarks>
+    /// The host can set this before attachment or change it while the view is connected.
+    /// When enabled, valid input, paste, key, mouse, resize, and requestPrimary messages
+    /// are ignored. Message validation still applies. Acknowledgements, resync, history
+    /// navigation, selection, copying, and output continue normally.
+    /// This setting does not change peer identity, primary ownership, terminal geometry,
+    /// or terminal lifetime. Other views and direct terminal input, including automation,
+    /// are unaffected. The browser client's setReadOnly method is a user-experience
+    /// control only; the host must use this property to enforce read-only access.
+    /// Changes apply when a validated command is checked for dispatch. Enabling read-only
+    /// access does not retract commands already accepted or cancel writes in progress.
+    /// </remarks>
+    public bool IsReadOnly
+    {
+        get => Volatile.Read(ref _isReadOnly);
+        set => Volatile.Write(ref _isReadOnly, value);
     }
 
     /// <summary>
@@ -249,6 +272,8 @@ public sealed class Hwt1PresentationAdapter :
     /// For an HMP1 workload, resize requests require the primary role and take effect
     /// only after producer confirmation. RequestPrimary asks HMP1 for that role;
     /// secondary peers can still send keyboard, mouse, and paste input.
+    /// When <see cref="IsReadOnly"/> is enabled, producer-mutating commands are validated
+    /// but ignored without changing this view's viewport or selection.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The adapter is unattached or a JSON field has the wrong type.</exception>
     /// <exception cref="InvalidDataException">The command, its values, or its size are unsupported.</exception>
@@ -283,6 +308,8 @@ public sealed class Hwt1PresentationAdapter :
             case "resize":
                 var columns = ReadBounded(command, "columns", 20, 300);
                 var rows = ReadBounded(command, "rows", 10, 100);
+                if (IsReadOnly)
+                    break;
                 if (_muxer is not null)
                     await _muxer.ResizeBrowserAsync(_session!, columns, rows, primary: false, linked.Token);
                 else if (Hmp1Workload is { } remote)
@@ -293,6 +320,8 @@ public sealed class Hwt1PresentationAdapter :
             case "requestPrimary":
                 var primaryColumns = ReadBounded(command, "columns", 20, 300);
                 var primaryRows = ReadBounded(command, "rows", 10, 100);
+                if (IsReadOnly)
+                    break;
                 if (_muxer is not null)
                     await _muxer.ResizeBrowserAsync(_session!, primaryColumns, primaryRows, primary: true, linked.Token);
                 else if (Hmp1Workload is { IsConnected: true } candidate)
@@ -305,18 +334,24 @@ public sealed class Hwt1PresentationAdapter :
                 var text = command.GetProperty("text").GetString() ?? throw new InvalidDataException("Missing text.");
                 if (command.GetProperty("type").GetString() == "paste")
                     text = Hwt1Input.EncodePaste(text, terminal);
+                if (IsReadOnly)
+                    break;
                 terminal.ResetBrowserView(_view);
                 InvalidatePresentation();
                 await SendInputAsync(Encoding.UTF8.GetBytes(text), linked.Token);
                 break;
             case "key":
                 var key = Hwt1Input.EncodeKey(command, terminal);
+                if (IsReadOnly)
+                    break;
                 terminal.ResetBrowserView(_view);
                 InvalidatePresentation();
                 await SendInputAsync(Encoding.UTF8.GetBytes(key), linked.Token);
                 break;
             case "mouse":
                 var mouse = Hwt1Input.EncodeMouse(command, terminal);
+                if (IsReadOnly)
+                    break;
                 if (mouse.Length > 0)
                     await SendInputAsync(mouse, linked.Token);
                 break;

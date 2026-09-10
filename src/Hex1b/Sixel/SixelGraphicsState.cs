@@ -88,6 +88,9 @@ internal sealed class SixelGraphicsState
     private SixelScreenGraphicsState? _alternate;
     private bool _alternateActive;
 
+    internal bool HasResidentState =>
+        _main.Images.Count != 0 || (_alternate?.Images.Count ?? 0) != 0;
+
     private SixelScreenGraphicsState Active => _alternateActive ? _alternate! : _main;
 
     internal SixelGraphicsState(

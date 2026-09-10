@@ -1452,7 +1452,11 @@ public sealed class Hex1bTerminalBuilder
     /// </summary>
     /// <returns>A configured <see cref="Hex1bTerminal"/> instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown when no workload has been configured.</exception>
-    public Hex1bTerminal Build()
+    public Hex1bTerminal Build() => BuildCallback is { } build
+        ? build(this)
+        : BuildCore(deferStart: false);
+
+    internal Hex1bTerminal BuildCore(bool deferStart)
     {
         if (_workloadFactory is null && _workloadAdapter is null)
         {
@@ -1509,6 +1513,7 @@ public sealed class Hex1bTerminalBuilder
             Height = _height,
             TimeProvider = _timeProvider ?? TimeProvider.System,
             RunCallback = runCallback,
+            DeferStart = deferStart,
             ScrollbackCapacity = _scrollbackCapacity,
             ScrollbackCallback = _scrollbackCallback,
             Metrics = ResolveMetrics(),
@@ -1541,6 +1546,11 @@ public sealed class Hex1bTerminalBuilder
     // details of the Hex1b assembly.
 
     internal IHex1bTerminalWorkloadAdapter? GetConfiguredWorkloadAdapter() => _workloadAdapter;
+
+    // Allows an owner to validate configured settings before constructing and starting resources.
+    internal Func<Hex1bTerminalBuilder, Hex1bTerminal>? BuildCallback { get; set; }
+
+    internal TimeProvider GetConfiguredTimeProvider() => _timeProvider ?? TimeProvider.System;
 
     internal Func<IHex1bTerminalPresentationAdapter?, Hex1bTerminalBuildContext>? GetConfiguredWorkloadFactory()
         => _workloadFactory;

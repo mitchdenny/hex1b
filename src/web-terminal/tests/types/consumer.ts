@@ -3,7 +3,7 @@ import {
   type WebTerminalOptions, type WebTerminalHandle, type TerminalInput, type InputBinding,
   type TerminalSelection, type TerminalViewport, type SelectionUIEvent, type TerminalStats,
   type TerminalRendererKind, type TerminalRendererPreference, type TerminalProgress,
-  type TerminalShellIntegration
+  type TerminalShellIntegration, type TerminalCloseDetails
 } from "@hex1b/web-terminal";
 
 const container = document.createElement("div");
@@ -55,6 +55,12 @@ const options: WebTerminalOptions = {
     const currentTitle: string = title;
     console.log(currentTitle);
   },
+  onClose(details) {
+    const close: TerminalCloseDetails = details;
+    console.log(close.code, close.reason, close.wasClean);
+    // @ts-expect-error Native close details are immutable.
+    close.code = 1000;
+  },
   onProgressChange(progress) {
     const current: TerminalProgress = progress;
     if (current.state === "normal") console.log(current.percentage);
@@ -92,6 +98,9 @@ const options: WebTerminalOptions = {
 
 const mountedTerminal: WebTerminal = await WebTerminal.mount(container, options);
 const terminal: WebTerminalHandle = mountedTerminal;
+const readOnly: boolean = terminal.readOnly;
+terminal.setReadOnly(!readOnly);
+mountedTerminal.setReadOnly(false);
 const title: string = terminal.title;
 const mountedTitle: string = mountedTerminal.title;
 console.log(title, mountedTitle);
@@ -112,6 +121,10 @@ terminal.refreshSelectionUI();
 terminal.paste(copied + pasted);
 terminal.dispose();
 
+// @ts-expect-error Input policy is changed through the runtime setter.
+terminal.readOnly = true;
+// @ts-expect-error Read-only policy must be a boolean.
+terminal.setReadOnly("true");
 // @ts-expect-error Consumers must use mount to obtain an initialized handle.
 new WebTerminal(options);
 // @ts-expect-error The current title is read-only on the public handle.

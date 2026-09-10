@@ -48,7 +48,7 @@ TerminalRenderer.create = async () => renderer;
 await import("../../dist/terminal-worker.js");
 
 let sequence = Promise.resolve();
-parentPort.on("message", ({ id, action, message, buffer }) => {
+parentPort.on("message", ({ id, action, message, buffer, details }) => {
   sequence = sequence.then(async () => {
     switch (action) {
       case "input": listeners.get("message")({ data: message }); break;
@@ -71,7 +71,10 @@ parentPort.on("message", ({ id, action, message, buffer }) => {
         break;
       case "disconnect":
         socket.readyState = 3;
-        socket.listeners.get("close")({ code: 1000, reason: "test disconnect" });
+        socket.listeners.get("close")({ code: 1000, reason: "test disconnect", wasClean: true, ...details });
+        break;
+      case "socketError":
+        socket.listeners.get("error")?.({});
         break;
     }
     await nextTurn();

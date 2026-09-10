@@ -406,7 +406,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Auto-start I/O pumps when no runCallback is set.
         // When a runCallback is provided (builder pattern), the workload may not be ready
         // (e.g., PTY process not started yet), so we defer starting pumps to RunAsync().
-        if (_runCallback == null)
+        if (_runCallback == null && !options.DeferStart)
         {
             Start();
         }
@@ -536,7 +536,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Starts the terminal's I/O pump loops.
     /// Called automatically when a presentation adapter is provided.
     /// </summary>
-    private void Start()
+    internal void Start()
     {
         // Enter raw mode on presentation if present (enables proper input capture)
         if (_presentation != null)
@@ -586,41 +586,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         try
         {
-            // Enter raw mode on presentation
-            if (_presentation != null)
-            {
-                await _presentation.EnterRawModeAsync(ct);
-            }
-
-            // Start I/O pumps
-            Start();
-            
-            // Notify lifecycle-aware presentation adapters that the terminal has started
-            if (_presentation is ITerminalLifecycleAwarePresentationAdapter startedAdapter)
-            {
-                startedAdapter.TerminalStarted();
-            }
-
-            var runTask = RunWorkloadAsync(ct);
-
-            await Task.WhenAny(runTask, _pumpFaultTcs.Task);
-            if (_pumpFaultTcs.Task.IsCompleted)
-            {
-                var (pumpName, error) = await _pumpFaultTcs.Task;
-                throw new InvalidOperationException($"The {pumpName} failed.", error);
-            }
-
-            var exitCode = await runTask;
-             
-            // Notify lifecycle-aware adapters (for example TerminalWidgetHandle)
-            // so embedded terminal UIs can surface the final exit state and swap
-            // back to their fallback/not-running content.
-            if (_presentation is ITerminalLifecycleAwarePresentationAdapter completedAdapter)
-            {
-                completedAdapter.TerminalCompleted(exitCode);
-            }
-
-            return exitCode;
+            return await RunWorkloadAsync(ct);
         }
         finally
         {
@@ -642,18 +608,73 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private async Task<int> RunWorkloadAsync(CancellationToken ct)
+    // Owners that capture the final state can defer pump shutdown until disposal.
+    internal async Task<int> RunWorkloadAsync(CancellationToken ct)
     {
-        var exitCode = _runCallback != null
-            ? await _runCallback(ct)
-            : await WaitForWorkloadDisconnectWithExitCodeAsync(ct);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ct.ThrowIfCancellationRequested();
+        using var workloadCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        if (_presentation != null)
+            await _presentation.EnterRawModeAsync(ct);
+
+        // Subscribe before starting pumps so an immediately disconnecting adapter is observed.
+        var runTask = _runCallback is null
+            ? WaitForWorkloadDisconnectWithExitCodeAsync(workloadCancellation.Token)
+            : null;
+        try
+        {
+            Start();
+            if (_presentation is ITerminalLifecycleAwarePresentationAdapter startedAdapter)
+                startedAdapter.TerminalStarted();
+        }
+        catch
+        {
+            if (runTask is not null)
+            {
+                await workloadCancellation.CancelAsync();
+                try
+                {
+                    await runTask;
+                }
+                catch (OperationCanceledException) when (workloadCancellation.IsCancellationRequested) { }
+            }
+            throw;
+        }
+        runTask ??= _runCallback!(workloadCancellation.Token);
+        runTask = DrainWorkloadOutputAsync(runTask, workloadCancellation.Token);
+
+        await Task.WhenAny(runTask, _pumpFaultTcs.Task);
+        if (_pumpFaultTcs.Task.IsCompleted)
+        {
+            var (pumpName, error) = await _pumpFaultTcs.Task;
+            var failure = new InvalidOperationException($"The {pumpName} failed.", error);
+            await workloadCancellation.CancelAsync();
+            try
+            {
+                await runTask;
+            }
+            catch (OperationCanceledException) when (workloadCancellation.IsCancellationRequested) { }
+            catch (Exception cleanupError)
+            {
+                throw new AggregateException(failure, cleanupError);
+            }
+            throw failure;
+        }
+
+        var exitCode = await runTask;
+        if (_presentation is ITerminalLifecycleAwarePresentationAdapter completedAdapter)
+            completedAdapter.TerminalCompleted(exitCode);
+        return exitCode;
+    }
+
+    private async Task<int> DrainWorkloadOutputAsync(Task<int> runTask, CancellationToken ct)
+    {
+        var exitCode = await runTask;
 
         // Process exit drains stdout/stderr into the adapter's channel, not into
         // the terminal. Finish applying and presenting those bytes before shutdown.
         if (_workload is StandardProcessWorkloadAdapter && _outputProcessingTask is not null)
-        {
             await _outputProcessingTask.WaitAsync(ct);
-        }
 
         return exitCode;
     }
@@ -2490,6 +2511,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _scrollBottom = newHeight - 1;
             
             _pendingWrap = false;
+            PublishCaptureResizeUnsafe();
             deferNotification = _deferHmp1ReplayCallbacks;
         }
         if (!deferNotification)
@@ -2956,6 +2978,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (_disposed)
                 return;
 
+            using var application = new CaptureApplication(this);
             foreach (var token in tokens)
             {
                 if (_disposed)
@@ -2965,12 +2988,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 int cursorYBefore = _cursorY;
                 if (!ApplyToken(token, null, framedDcs))
                 {
+                    if (_captures is not null)
+                        FailCapturesUnsafe(new InvalidOperationException("Output application was interrupted during capture."));
                     RestoreValidCursorAfterAbortedScroll(cursorXBefore, cursorYBefore);
                     break;
                 }
             }
 
             RefreshKgpAnimationTimerUnsafe();
+            PublishCaptureOutputUnsafe(tokens, framedDcs);
         }
         PresentationInvalidated?.Invoke();
     }
@@ -2995,6 +3021,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (_disposed)
                 return [];
 
+            using var application = new CaptureApplication(this);
             var result = new List<AppliedToken>(tokens.Count);
             
             foreach (var token in tokens)
@@ -3020,6 +3047,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 if (!applied)
                 {
+                    if (_captures is not null)
+                        FailCapturesUnsafe(new InvalidOperationException("Output application was interrupted during capture."));
                     RestoreValidCursorAfterAbortedScroll(cursorXBefore, cursorYBefore);
                     break;
                 }
@@ -3035,6 +3064,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
 
             RefreshKgpAnimationTimerUnsafe();
+            if (_captures is not null)
+                PublishCaptureOutputUnsafe(result.Select(item => item.Token).ToArray(), framedDcs);
             PresentationInvalidated?.Invoke();
             return result;
         }
@@ -7316,6 +7347,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 return false;
 
             _disposed = true;
+            EndCapturesUnsafe();
             SetSynchronizedOutputMode(false);
             _synchronizedOutputTimer?.Dispose();
             if (!RestoreMainScreenBuffer())

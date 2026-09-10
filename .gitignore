@@ -187,6 +187,11 @@ DocProject/Help/html
 # Click-Once directory
 publish/
 
+# Vendored VHS fixtures, not generated publish output.
+!/tests/Hex1b.Tests/TestData/Tape/upstream/examples/publish/
+/tests/Hex1b.Tests/TestData/Tape/upstream/examples/publish/*
+!/tests/Hex1b.Tests/TestData/Tape/upstream/examples/publish/*.tape
+
 # Publish Web Output
 *.[Pp]ublish.xml
 *.azurePubxml

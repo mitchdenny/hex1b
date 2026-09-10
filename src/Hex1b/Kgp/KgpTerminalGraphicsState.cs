@@ -116,6 +116,11 @@ internal sealed class KgpTerminalGraphicsState
     private ScreenState? _alternate;
     private bool _alternateActive;
 
+    internal bool HasResidentState =>
+        _main.ImageStore.ImageCount != 0 || _main.ImageStore.GetPendingTransmission() is not null ||
+        (_alternate is { } alternate &&
+            (alternate.ImageStore.ImageCount != 0 || alternate.ImageStore.GetPendingTransmission() is not null));
+
     internal KgpTerminalGraphicsState(
         long retainedBytesPerScreen = 320L * 1024 * 1024)
         : this(new TerminalGraphicsRetainedBudgetSet(retainedBytesPerScreen))

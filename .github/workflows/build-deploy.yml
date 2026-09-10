@@ -512,9 +512,12 @@ jobs:
   publish-pr:
     runs-on: ubuntu-latest
     needs: [version, build-pr]
+    # Review-only PRs can opt out without skipping build, test, or pack checks.
+    # Keep this marker in the PR body: <!-- hex1b:skip-preview-publish -->
     if: >-
       needs.version.outputs.kind == 'pr' &&
       github.event_name == 'pull_request' &&
+      !contains(github.event.pull_request.body, '<!-- hex1b:skip-preview-publish -->') &&
       github.repository == 'mitchdenny/hex1b' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.login != 'dependabot[bot]' &&

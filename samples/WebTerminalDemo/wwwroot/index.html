@@ -77,6 +77,11 @@
     button, select, input { font: inherit; min-height: 34px; border: 1px solid var(--cp-border-strong); border-radius: .625rem; padding: 6px 10px; background: var(--cp-bg-elevated); color: var(--cp-text); }
     input[type=number] { width: 68px; }
     #instances { min-width: 180px; max-width: 340px; }
+    .tape-controls { display: flex; flex: 1 0 100%; flex-wrap: wrap; align-items: end; gap: 8px; border-top: 1px solid var(--cp-border); padding-top: 8px; }
+    #tapes { min-width: 180px; max-width: 340px; }
+    #tape-status { flex: 1 1 260px; align-self: center; margin: 0; font-size: 12px; color: var(--cp-text-muted); white-space: pre-line; overflow-wrap: anywhere; }
+    #tape-status[data-level=error] { color: var(--cp-danger); }
+    #tape-status[data-level=ready] { color: var(--cp-success); }
     button { cursor: pointer; }
     button:hover { background: var(--cp-accent-soft); }
     button.primary { background: var(--cp-accent); color: var(--cp-accent-fg); border-color: var(--cp-accent); }
@@ -96,6 +101,9 @@
     .view-role { flex: none; font-size: 11px; color: var(--cp-text-muted); }
     .terminal-window[data-primary=true] .view-role { color: var(--cp-accent); font-weight: 600; }
     .view-tools { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 4px; overflow: hidden; padding: 4px 6px; border-bottom: 1px solid var(--cp-border); }
+    .view-failures { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 6px; padding: 4px 6px; border-bottom: 1px solid var(--cp-border); }
+    .view-failures label { display: flex; flex: 1; min-width: 0; align-items: center; font-size: 11px; }
+    .view-failure { flex: 1; min-width: 0; height: 26px; min-height: 26px; padding: 2px 4px; font-size: 11px; border-radius: 6px; }
     .terminal-window button { font-size: 11px; min-height: 26px; padding: 3px 6px; border-radius: 6px; flex: none; }
     .view-grid { font: 11px Consolas, "Courier New", Courier, monospace; white-space: nowrap; margin-left: auto; color: var(--cp-text-muted); }
     .view-activity { display: flex; flex: 0 0 24px; align-items: center; gap: 8px; padding: 0 8px; font-size: 11px; color: var(--cp-text-muted); overflow: hidden; white-space: nowrap; }
@@ -104,7 +112,16 @@
     [data-progress=error] .activity-progress { accent-color: var(--cp-danger); }
     [data-shell-phase=executing] .shell-status { color: var(--cp-accent); }
     [data-connected=false] .view-activity { visibility: hidden; }
+    .terminal-stage { display: flex; position: relative; flex: 1 1 0; min-width: 0; min-height: 0; }
     .terminal-mount { flex: 1 1 0; min-width: 0; min-height: 0; contain: size; overflow: hidden; }
+    .closed-overlay { position: absolute; inset: 0; z-index: 1; display: flex; overflow: auto; padding: 12px; background: var(--cp-overlay); }
+    .closed-overlay[hidden] { display: none; }
+    .closed-card { margin: auto; width: 100%; max-width: 480px; padding: 16px; border: 1px solid var(--cp-border-strong); border-radius: 12px; background: var(--cp-surface); box-shadow: var(--cp-shadow); overflow-wrap: anywhere; }
+    .closed-title { margin: 0 0 8px; font-size: 20px; line-height: 1.2; }
+    .closed-summary { margin: 0 0 12px; color: var(--cp-text-muted); font-size: 13px; }
+    .closed-detail { margin: 0 0 16px; white-space: pre-wrap; font: 11px/1.6 Consolas, "Courier New", Courier, monospace; color: var(--cp-text-soft); }
+    .closed-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .closed-actions .reconnect-view { background: var(--cp-accent); border-color: var(--cp-accent); color: var(--cp-accent-fg); }
     .view-footer { display: flex; flex: 0 0 24px; min-width: 0; align-items: center; gap: 4px; padding: 0 24px 0 8px; border-top: 1px solid var(--cp-border); }
     .view-status { flex: 1; min-width: 0; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cp-text-muted); }
     .view-footer button, .view-footer select { flex: none; height: 20px; min-height: 20px; padding: 0 2px; border-radius: 4px; font-size: 10px; }
@@ -172,6 +189,14 @@
           <option value="hmp1">HMP1 relay → HWT1</option>
         </select>
       </label>
+      <label>New view failure
+        <select id="failure">
+          <option value="">None</option>
+          <option value="before-frame-close">Close before first frame</option>
+          <option value="before-frame-abort">Drop before first frame</option>
+          <option value="reject-upgrade">Reject WebSocket upgrade</option>
+        </select>
+      </label>
       <button id="create" class="primary">New terminal</button>
       <div class="instance-controls">
         <label>Existing terminal <select id="instances"></select></label>
@@ -181,6 +206,12 @@
         <label>Batch <input id="batch" type="number" min="1" max="1000" value="20" disabled></label>
         <button id="apply-rate" disabled>Apply</button>
         <button id="pause" disabled aria-pressed="false">Pause</button>
+      </div>
+      <div class="tape-controls" role="group" aria-label="Existing terminal tape playback">
+        <label>Scenario tape <select id="tapes" disabled></select></label>
+        <button id="play-tape" disabled title="Send this tape's input to the selected existing terminal">Play tape</button>
+        <button id="stop-tape" disabled title="Cancel automation without stopping the terminal or undoing input">Stop tape</button>
+        <p id="tape-status" role="status">Choose an existing terminal to play a tape.</p>
       </div>
     </section>
     <p id="status" role="status" aria-live="polite">Create a terminal or attach to an existing instance.</p>
@@ -203,6 +234,7 @@
       </dl>
       <p id="warnings" role="status"></p>
       <p>Click a view to type; mouse input, IME, paste, Tab, and Ctrl+C reach the workload. Browser tab, address, and zoom shortcuts stay browser-owned. All writable views can send input; primary controls resizing only. Closing the primary retains the grid and leaves primary unassigned until “Take primary”.</p>
+      <p>Scenario tapes play in the selected existing terminal and appear in every attached view. Shell tapes require an idle prompt; avoid manual input while they run. Stop tape cancels automation only: already-sent input is not undone, and running shell commands are not interrupted.</p>
       <p>Wheel to inspect text history. Drag to select characters; double-click and drag for words, triple-click and drag for logical lines, or Option/Alt-drag for a rectangle. Shift-click extends a selection. When an app captures the mouse, hold Shift to begin local selection or scroll history. A held selection drag keeps its local ownership even after Shift is released.</p>
       <p>Use Copy, Cmd+C, or Ctrl+Shift+C for plain text. Ctrl+C always reaches the app. Copy preserves your selection and scroll position; typing or pasting clears selection and returns to live. Historical graphics are deferred; live Sixel and Kitty graphics remain available. Expired selections and clipboard failures appear in the view.</p>
       <p>This is still a renderer spike: rich accessibility and ligature shaping are deferred. HWT1 is internal to the paired first-party server/client, not a third-party wire contract. Direct views share producer rendering and history. HMP1 relay views each have a separate terminal replica with live-state replay and history accumulated since attachment, not the producer's earlier scrollback. Each view owns its scroll position, selection, worker, and GPU cache. Renderer CPU time is not GPU execution time.</p>

@@ -705,6 +705,64 @@ public class Hwt1Hmp1IntegrationTests
     }
 
     [TestMethod]
+    public async Task IsReadOnly_RemotePrimary_GatesCommandsWithoutChangingAuthorityOrDirectInput()
+    {
+        var (serverStream, clientStream) = CreateStreams();
+        await using var server = serverStream;
+        await using var client = new Hmp1WorkloadAdapter(new Hmp1ClientOptions
+        {
+            StreamFactory = _ => Task.FromResult(clientStream)
+        });
+        await HandshakeAsync(server, client, 20, 10, "viewer", "viewer",
+            Encoding.UTF8.GetBytes("\x1b[?1;2004;1003;1006h"));
+        await using var view = new Hwt1PresentationAdapter(20, 10) { IsReadOnly = true };
+        await using var mirror = Hex1bTerminal.CreateBuilder().WithWorkload(client).WithPresentation(view).Build();
+        var baseline = await ReadUntilAsync(view, m => PeerId(m) == "viewer");
+        Assert.IsTrue(baseline.GetProperty("peer").GetProperty("isPrimary").GetBoolean());
+
+        foreach (var json in new[]
+        {
+            """{"type":"input","text":"blocked"}""",
+            """{"type":"paste","text":"blocked"}""",
+            """{"type":"key","key":"ArrowUp"}""",
+            """{"type":"mouse","action":"down","button":"left","x":1,"y":2}""",
+            """{"type":"resize","columns":40,"rows":12}""",
+            """{"type":"requestPrimary","columns":50,"rows":15}"""
+        })
+            await view.HandleMessageAsync(Encoding.UTF8.GetBytes(json));
+        await mirror.SendInputAsync("direct"u8.ToArray(), TestContext.Current.CancellationToken);
+        var input = await Hmp1Protocol.ReadFrameAsync(server, TestContext.Current.CancellationToken)
+            .AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.AreEqual(Hmp1FrameType.Input, input!.Value.Type);
+        Assert.AreEqual("direct", Encoding.UTF8.GetString(input.Value.Payload.Span));
+        Assert.IsTrue(client.IsPrimary);
+        Assert.AreEqual("viewer", client.PrimaryPeerId);
+        Assert.AreEqual(20, mirror.Width);
+        Assert.AreEqual(10, mirror.Height);
+
+        view.IsReadOnly = false;
+        await view.HandleMessageAsync("""{"type":"resize","columns":40,"rows":12}"""u8.ToArray());
+        var resize = await Hmp1Protocol.ReadFrameAsync(server, TestContext.Current.CancellationToken)
+            .AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.AreEqual(Hmp1FrameType.Resize, resize!.Value.Type);
+        Assert.AreEqual((40, 12), Hmp1Protocol.ParseResize(resize.Value.Payload));
+        await view.HandleMessageAsync("""{"type":"requestPrimary","columns":50,"rows":15}"""u8.ToArray());
+        var claim = await Hmp1Protocol.ReadFrameAsync(server, TestContext.Current.CancellationToken)
+            .AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.AreEqual(Hmp1FrameType.RequestPrimary, claim!.Value.Type);
+
+        view.IsReadOnly = true;
+        await Hmp1Protocol.WriteResizeAsync(server, 40, 12, TestContext.Current.CancellationToken);
+        var resized = await ReadUntilAsync(view, m => m.GetProperty("columns").GetInt32() == 40);
+        Assert.IsTrue(resized.GetProperty("peer").GetProperty("isPrimary").GetBoolean());
+        await Hmp1Protocol.WriteRoleChangeAsync(server, "native", 40, 12, "RequestPrimary",
+            TestContext.Current.CancellationToken);
+        var secondary = await ReadUntilAsync(view, m => PrimaryId(m) == "native");
+        Assert.AreEqual("viewer", PeerId(secondary));
+        Assert.IsFalse(secondary.GetProperty("peer").GetProperty("isPrimary").GetBoolean());
+    }
+
+    [TestMethod]
     public async Task ResizeAndPrimaryRequests_WaitForProducerConfirmation_IgnoreSecondaryResize()
     {
         var (serverStream, clientStream) = CreateStreams();

@@ -45,6 +45,45 @@ with your privileges. Do not put this sample behind a reverse proxy or expose
 it to other users.** Closing a view does not stop its terminal: use **End terminal**
 to terminate the shared workload explicitly.
 
+## Play a scenario tape
+
+Create an **Interactive shell** terminal, or select one under **Existing terminal**.
+At an idle shell prompt, choose a **Scenario tape** and click **Play tape**. The
+picker follows the existing terminal's scene, not the **Scene** selector used to
+create new terminals. The initial catalog includes command typing, line editing
+and history, and (on Unix) ANSI colors using `printf`. Generated text/graphics
+scenes do not currently have tapes.
+
+Playback uses [`TapePlayer`](../../docs/tape.md) against the existing server-side
+producer. It does not start a new shell, reset the screen, or change the terminal
+size. Every attached view sees the same output; playback does not require primary
+ownership or even an attached view. Avoid manual input while a tape is running.
+The bundled tapes recognize common prompt endings; custom prompts may require
+adjusting their `Wait` expressions.
+
+Only one tape can run per terminal. The controls show running, completed,
+cancelled, or failed status, including source locations for playback errors.
+**Stop tape** cancels automation but does not undo input, send Ctrl+C, or interrupt
+a shell command. If cancellation leaves a partially typed line, clear it yourself
+before replaying. Closing views leaves playback running; ending the terminal,
+workload exit, or server shutdown cancels and drains it before disposing the
+producer. A run is limited to two minutes.
+
+Tapes live in `Tapes/<scene>/<id>.tape` and are registered in
+`DemoTapeCatalog.cs` with names, descriptions, and scene/platform restrictions.
+They are parsed at startup and copied to build/publish output. Add a file and a
+catalog entry, then restart the sample to offer another tape. The HTTP API accepts
+catalog IDs only, not arbitrary paths or uploaded scripts. The catalog's parser
+removes `Source` and `Output` from its syntax dictionary, so tapes containing
+those commands fail parsing. This integration does not create recording files.
+
+`GET /api/terminals` includes each instance's `tapes` catalog and latest
+`tapePlayback` status. `POST /api/terminals/{id}/tape` with
+`{"tapeId":"hello"}` starts playback; `DELETE` on the same route requests
+cancellation. Both return 202 when accepted and require the same-origin `Origin`
+header. Unknown scene/tape combinations return 400, missing terminals return 404,
+and overlapping starts or cancellation without an active tape return 409.
+
 ### Optional focused checks
 
 From the repository root:
@@ -85,7 +124,9 @@ origin:
 | `fonts.browser.js` | Real font-rendered borders at five raster scales, Nerd Font symbols, delayed worker font readiness, per-view font selection, and font-load failure cleanup. |
 | `sizing.browser.js` | Auto font-size controls, fixed-grid presets, keyboard selection, resize authority, and retained sizing policy across primary handoff. |
 | `floating.browser.js` | Real workers/WebSockets/HMP1, dragging, primary-only resize, takeover, detach/reattach, and independent instances. |
+| `lifecycle.browser.js` | Closure overlays, native close details before/after mounting, rejected upgrades, local initialization failures, explicit reconnect, per-view isolation, and owner completion through direct/relay transports. |
 | `input.browser.js` | Real POSIX shell input, Backspace, history, paste, MouseTest, thumbnail coordinates, and window-chrome focus. Build `samples/MouseTest` in Release first. |
+| `tapes.browser.js` | Scene-filtered tapes in an existing shell, shared-view output, retained identity/geometry, overlap rejection, cancellation, visible failures, and shutdown cleanup. |
 | `hyperlinks.browser.js` | Real OSC 8 output through HWT1 and the worker, Ctrl/Cmd activation, safe new tabs, selection/capture isolation, read-only thumbnails, destination updates, and scrollback. |
 | `history.browser.js` | Shared producer history, independent viewports, character/word/logical-line/block selection, held/released wheel scrolling, clipboard intent, capture override, read-only inspection, and eviction. Clipboard writes are intercepted rather than changing the user's clipboard. |
 | `bindings.browser.js` | Per-view input overrides, named actions, Windows-style right-click copy/paste, clipboard failures/races, capture ownership, and native text/paste/IME paths. Clipboard access is mocked. |
@@ -134,7 +175,8 @@ broad HMP graphics/performance stability or a browser/device compatibility matri
 - **Resync** refreshes that view's current-state baseline.
 - **Close view** detaches one view. Closing the primary preserves the last grid
   and leaves primary unassigned; a remaining view must explicitly take primary.
-- **End terminal** deletes the shared producer and ends all attached views.
+- **End terminal** deletes the shared producer and ends all attached views,
+  leaving each window's reason overlay visible until **Close view**.
 
 Instances persist with zero views until End terminal, workload exit, or server
 shutdown. Retention is process-local, not durable storage or automatic reconnect.
@@ -148,6 +190,57 @@ existing instance without claiming primary, or creates a mixed instance if the
 registry is empty. A supported `?scene=...` selects a newly created workload.
 `?empty=1` suppresses automatic view creation/attachment for browser checks;
 the normal controls remain available.
+
+### Closed views and failure demonstrations
+
+A closed view stays in its floating window with an overlay covering the terminal.
+It summarizes the outcome and displays the native WebSocket code, reason, and
+closing-handshake status supplied by `WebTerminalOptions.onClose`, including
+closure before mounting finishes. Local initialization failures have an overlay
+too, but no invented WebSocket status. Reasons are displayed as text, never HTML.
+The terminal and its input/resize/takeover controls are disabled; the window can
+still be moved, resized, or closed. The worker and renderer are disposed rather
+than retained behind the overlay; final-screen preservation is not part of this
+demonstration.
+
+Each window has a **Failure** picker and **Trigger** button. These affect only
+that connection, not its producer, other viewers, or scenario tapes:
+
+| Condition | Browser observation |
+|---|---|
+| Graceful close | Code 1000 with `Demo: graceful view closure`. |
+| Abrupt connection loss | Code 1006, no received close reason, incomplete handshake. |
+| Policy violation | Code 1008 with `Demo: policy violation`. |
+| Server error | Code 1011 with `Demo: server failure`. |
+
+Use **New view failure** before **Attach view**, **Thumbnail**, or **New terminal**
+to close or drop the connection before its first HWT frame, or reject its HTTP
+WebSocket upgrade with 503. Browsers report rejected upgrades as 1006 without
+exposing the HTTP response or a native reason; the overlay deliberately does
+not claim it can distinguish that from other connection failures. These modes
+work with both **Direct HWT1** and **HMP1 relay**.
+
+There is no automatic reconnect. **Reconnect view** creates a fresh connection
+inside the same window, retaining its transport but using the current font,
+scale, and renderer settings. It bypasses the new-view failure picker and does
+not take primary. A clean 1000 closure is not proof of producer completion.
+To demonstrate actual completion, choose **End terminal**, or type `exit` in an
+interactive shell. The sample sends application close code **4000** with the
+owner-stop or workload-exit reason; these overlays disable reconnect. Workload
+failures instead report 1011 with their sample-host failure reason.
+
+Code 4000 is a **WebTerminalDemo-only host convention**, not an HWT protocol
+meaning or library reconnect policy. Production hosts define their own
+completion and retry policy around the public close callback.
+
+The demo control endpoint is
+`POST /api/terminals/{id}/views/{viewId}/failure` with
+`{"mode":"close"}`, `"abort"`, `"policy"`, or `"server-error"`. The view GUID
+comes from the `/ws` connection's optional `view` query parameter. The optional
+`failure` query accepts `before-frame-close`, `before-frame-abort`, or
+`reject-upgrade`; omitted/empty means normal attachment. The controls inherit
+the sample's loopback and same-origin restrictions and are not public HWT
+messages or production fault-injection APIs.
 
 **New view renderer** chooses Auto (prefer WebGPU), WebGPU, or WebGL2 for newly
 opened views. `?renderer=webgl2` selects WebGL2 on initial load; `auto` and

@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Logging;
+
 namespace WebTerminalDemo;
 
-internal sealed class TerminalRegistry(ILogger logger, CancellationToken applicationStopping) : IAsyncDisposable
+internal sealed class TerminalRegistry(DemoTapeCatalog tapeCatalog, ILogger logger, CancellationToken applicationStopping) : IAsyncDisposable
 {
     private readonly object _gate = new();
     private readonly Dictionary<string, TerminalInstance> _instances = [];
@@ -20,14 +22,14 @@ internal sealed class TerminalRegistry(ILogger logger, CancellationToken applica
             ObjectDisposedException.ThrowIf(_disposed || applicationStopping.IsCancellationRequested, this);
             if (_instances.Count >= 4)
                 return null;
-            var instance = new TerminalInstance(request, logger, applicationStopping, OnCompleted);
+            var instance = new TerminalInstance(request, tapeCatalog, logger, applicationStopping, OnCompleted);
             _instances.Add(instance.Id, instance);
             instance.Start();
             return instance.GetInfo();
         }
     }
 
-    public (TerminalView? View, int Status) TryOpenView(string id)
+    public (TerminalView? View, int Status) TryOpenView(string id, string? viewId = null)
     {
         lock (_gate)
         {
@@ -35,12 +37,18 @@ internal sealed class TerminalRegistry(ILogger logger, CancellationToken applica
                 return (null, 404);
             if (_viewCount >= 8)
                 return (null, 429);
-            var view = instance.TryOpenView(OnViewClosed);
+            var (view, status) = instance.TryOpenView(viewId, OnViewClosed);
             if (view is null)
-                return (null, 404);
+                return (null, status);
             _viewCount++;
             return (view, 200);
         }
+    }
+
+    public int RequestViewFailure(string id, string viewId, BrowserCloseRequest failure)
+    {
+        lock (_gate)
+            return !_instances.TryGetValue(id, out var instance) ? 404 : instance.RequestViewFailure(viewId, failure);
     }
 
     public int UpdateControls(string id, TerminalControlsRequest request)
@@ -59,6 +67,20 @@ internal sealed class TerminalRegistry(ILogger logger, CancellationToken applica
             return false;
         await instance.StopAsync();
         return true;
+    }
+
+    public int StartTape(string id, string tapeId)
+    {
+        lock (_gate)
+            return !_instances.TryGetValue(id, out var instance) || instance.IsStopping
+                ? 404 : instance.StartTape(tapeId);
+    }
+
+    public int CancelTape(string id)
+    {
+        lock (_gate)
+            return !_instances.TryGetValue(id, out var instance) || instance.IsStopping
+                ? 404 : instance.CancelTape();
     }
 
     private void OnViewClosed()
