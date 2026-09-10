@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using Hex1b.Tests.TestHelpers;
 
@@ -50,6 +51,27 @@ public class WindowsPtyDisposeTests
         File.WriteAllText(shimPath, string.Empty);
 
         Assert.IsTrue(WindowsPtyShimLocator.TryResolveFromBaseDirectory(baseDirectory, explicitPath: null, out var resolvedPath));
+        Assert.AreEqual(shimPath, resolvedPath, ignoreCase: true);
+    }
+
+    [TestMethod]
+    public void WindowsPtyShimLocator_WithTrailingSampleOutputPath_ResolvesRepositoryBuildShim()
+    {
+        using var workspace = TestWorkspace.Create("pty_shim_locator_repository");
+        var repositoryRoot = workspace.GetPath("repo");
+        var baseDirectory = Path.Combine(
+            repositoryRoot, "samples", "WebTerminalDemo", "bin", "Debug", "net10.0") +
+            Path.DirectorySeparatorChar;
+        var rid = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "win-arm64" : "win-x64";
+        var shimDirectory = Path.Combine(
+            repositoryRoot, "src", "Hex1b", "obj", "windows-pty-shim", rid, "native");
+        Directory.CreateDirectory(baseDirectory);
+        Directory.CreateDirectory(shimDirectory);
+        var shimPath = Path.Combine(shimDirectory, "hex1bpty.exe");
+        File.WriteAllText(shimPath, string.Empty);
+
+        Assert.IsTrue(WindowsPtyShimLocator.TryResolveFromBaseDirectory(
+            baseDirectory, explicitPath: null, out var resolvedPath));
         Assert.AreEqual(shimPath, resolvedPath, ignoreCase: true);
     }
 

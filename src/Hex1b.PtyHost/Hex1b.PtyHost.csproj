@@ -13,6 +13,8 @@
     <IsAotCompatible>true</IsAotCompatible>
     <InvariantGlobalization>true</InvariantGlobalization>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <ConptyRequiresx64Host Condition="'$(RuntimeIdentifier)' == 'win-x64'">true</ConptyRequiresx64Host>
+    <ConptyRequiresARM64Host Condition="'$(RuntimeIdentifier)' == 'win-x64' or '$(RuntimeIdentifier)' == 'win-arm64'">true</ConptyRequiresARM64Host>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(PublishAot)' == 'true'">
@@ -28,6 +30,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.Console.ConPTY" Version="1.24.260710001" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
     <PackageReference Include="System.CommandLine" Version="2.0.2" />
   </ItemGroup>

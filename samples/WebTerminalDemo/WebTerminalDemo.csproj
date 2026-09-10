@@ -10,6 +10,41 @@
     <None Remove="Tapes/**/*.tape" />
     <Content Include="Tapes/**/*.tape" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <PropertyGroup>
+    <WindowsPtyShimRid Condition="'$(RuntimeIdentifier)' == 'win-x64' or '$(RuntimeIdentifier)' == 'win-arm64'">$(RuntimeIdentifier)</WindowsPtyShimRid>
+    <WindowsPtyShimRid Condition="'$(WindowsPtyShimRid)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">win-arm64</WindowsPtyShimRid>
+    <WindowsPtyShimRid Condition="'$(WindowsPtyShimRid)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">win-x64</WindowsPtyShimRid>
+  </PropertyGroup>
+  <Target Name="CopyWindowsPtyShim"
+          AfterTargets="Build"
+          Condition="'$(WindowsPtyShimRid)' != '' and (Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty.exe') or Exists('../../src/Hex1b/runtimes/$(WindowsPtyShimRid)/native/hex1bpty.exe'))">
+    <ItemGroup>
+      <WindowsPtyShimFiles Include="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/**/*.*"
+                           Exclude="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/**/*.pdb"
+                           Condition="Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty.exe')" />
+      <WindowsPtyShimFiles Include="../../src/Hex1b/runtimes/$(WindowsPtyShimRid)/native/**/*.*"
+                           Exclude="../../src/Hex1b/runtimes/$(WindowsPtyShimRid)/native/**/*.pdb"
+                           Condition="!Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty.exe')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WindowsPtyShimFiles)"
+          DestinationFiles="@(WindowsPtyShimFiles->'$(TargetDir)runtimes\$(WindowsPtyShimRid)\native\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CopyWindowsPtyShimToPublish"
+          AfterTargets="Publish"
+          Condition="'$(WindowsPtyShimRid)' != '' and (Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty.exe') or Exists('../../src/Hex1b/runtimes/$(WindowsPtyShimRid)/native/hex1bpty.exe'))">
+    <ItemGroup>
+      <WindowsPtyShimPublishFiles Include="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/**/*.*"
+                                  Exclude="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/**/*.pdb"
+                                  Condition="Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty.exe')" />
+      <WindowsPtyShimPublishFiles Include="../../src/Hex1b/runtimes/$(WindowsPtyShimRid)/native/**/*.*"
+                                  Exclude="../../src/Hex1b/runtimes/$(WindowsPtyShimRid)/native/**/*.pdb"
+                                  Condition="!Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty.exe')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WindowsPtyShimPublishFiles)"
+          DestinationFiles="@(WindowsPtyShimPublishFiles->'$(PublishDir)runtimes\$(WindowsPtyShimRid)\native\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
   <Target Name="BuildWebTerminalFrontend" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true'">
     <Error Condition="!Exists('$(MSBuildProjectDirectory)/../../src/web-terminal/node_modules/typescript/bin/tsc')"
            Text="Restore the web terminal package first: npm ci --prefix src/web-terminal (from the repository root)." />

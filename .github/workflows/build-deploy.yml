@@ -306,7 +306,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: pty-host-windows-x64
-          path: artifacts/pty-host/win-x64/hex1bpty.exe
+          path: artifacts/pty-host/win-x64/
 
   build-pty-host-windows-arm64:
     runs-on: windows-11-arm
@@ -327,7 +327,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: pty-host-windows-arm64
-          path: artifacts/pty-host/win-arm64/hex1bpty.exe
+          path: artifacts/pty-host/win-arm64/
 
   build-pr:
     runs-on: ubuntu-latest
@@ -384,7 +384,7 @@ jobs:
       - name: Verify native libraries
         run: |
           echo "Native libraries downloaded:"
-          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" \) | xargs ls -la
+          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" -o -name "conpty.dll" -o -name "OpenConsole.exe" \) | xargs ls -la
 
       - name: Build and pack Hex1b (PR version for GH Packages)
         env:
@@ -410,62 +410,8 @@ jobs:
         run: |
           dotnet pack src/Hex1b.Tool/Hex1b.Tool.csproj -c Release -p:PackageVersion=${{ needs.version.outputs.version }} -p:UseHex1bPackageReference=true -p:Hex1bPackageVersion=${{ needs.version.outputs.version }} --configfile "${{ steps.tool_pack_restore.outputs.config_path }}" --no-restore -o ./artifacts
 
-      - name: Verify package contents
-        run: |
-          echo "Hex1b package contents:"
-          unzip -l ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
-          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
-          if [ -n "$unexpected_windows_assets" ]; then
-            echo ""
-            echo "Unexpected Windows PTY payload detected:"
-            echo "$unexpected_windows_assets"
-            exit 1
-          fi
-          # The Hex1b.Analyzers project is repo-only and must never ship inside the Hex1b NuGet
-          # package. Fail the build if the analyzer dll, an analyzers/ folder, or anything else
-          # carrying the analyzer name leaks into the package.
-          analyzer_leak=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -iE '(^|/)Hex1b\.Analyzers(\.|/)|^analyzers/' || true)
-          if [ -n "$analyzer_leak" ]; then
-            echo ""
-            echo "Hex1b.Analyzers leaked into the Hex1b NuGet package:"
-            echo "$analyzer_leak"
-            exit 1
-          fi
-          echo ""
-          echo "Hex1b.McpServer package contents:"
-          unzip -l ./artifacts/Hex1b.McpServer.${{ needs.version.outputs.version }}.nupkg | head -30
-          echo ""
-          echo "Hex1b.Tool package contents:"
-          unzip -l ./artifacts/Hex1b.Tool.${{ needs.version.outputs.version }}.nupkg | grep -E "tools|DotnetToolSettings|hex1bpty|hex1binterop" || echo "No tool settings found in Hex1b.Tool package!"
-          tool_package_contents=$(unzip -Z1 ./artifacts/Hex1b.Tool.${{ needs.version.outputs.version }}.nupkg)
-          expected_tool_assets=(
-            "tools/net10.0/any/runtimes/linux-x64/native/libhex1binterop.so"
-            "tools/net10.0/any/runtimes/linux-arm64/native/libhex1binterop.so"
-            "tools/net10.0/any/runtimes/osx-x64/native/libhex1binterop.dylib"
-            "tools/net10.0/any/runtimes/osx-arm64/native/libhex1binterop.dylib"
-            "tools/net10.0/any/runtimes/win-x64/native/hex1bpty.exe"
-            "tools/net10.0/any/runtimes/win-arm64/native/hex1bpty.exe"
-          )
-          missing_tool_assets=()
-          for asset in "${expected_tool_assets[@]}"; do
-            if ! grep -Fxq "$asset" <<<"$tool_package_contents"; then
-              missing_tool_assets+=("$asset")
-            fi
-          done
-          if [ ${#missing_tool_assets[@]} -gt 0 ]; then
-            echo ""
-            echo "Hex1b.Tool is missing required native assets:"
-            printf '  %s\n' "${missing_tool_assets[@]}"
-            exit 1
-          fi
-          unexpected_tool_root_native=$(printf '%s\n' "$tool_package_contents" | grep -E '^tools/.*/any/libhex1binterop\.(so|dylib)$' || true)
-          if [ -n "$unexpected_tool_root_native" ]; then
-            echo ""
-            echo "Hex1b.Tool should not carry host-specific native libraries at the tool root:"
-            echo "$unexpected_tool_root_native"
-            exit 1
-          fi
-          printf '%s\n' "${expected_tool_assets[@]}"
+      - name: Extract and verify NuGet package contents
+        run: bash .github/scripts/assert-nuget-contents.sh ./artifacts "${{ needs.version.outputs.version }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
@@ -528,7 +474,7 @@ jobs:
       - name: Verify native libraries
         run: |
           echo "Native libraries downloaded:"
-          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" \) | xargs ls -la
+          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" -o -name "conpty.dll" -o -name "OpenConsole.exe" \) | xargs ls -la
 
       - name: Build and pack Hex1b (release version for NuGet.org)
         env:
@@ -554,62 +500,8 @@ jobs:
         run: |
           dotnet pack src/Hex1b.Tool/Hex1b.Tool.csproj -c Release -p:PackageVersion=${{ needs.version.outputs.version }} -p:UseHex1bPackageReference=true -p:Hex1bPackageVersion=${{ needs.version.outputs.version }} --configfile "${{ steps.tool_pack_restore.outputs.config_path }}" --no-restore -o ./artifacts
 
-      - name: Verify package contents
-        run: |
-          echo "Hex1b package contents:"
-          unzip -l ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
-          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
-          if [ -n "$unexpected_windows_assets" ]; then
-            echo ""
-            echo "Unexpected Windows PTY payload detected:"
-            echo "$unexpected_windows_assets"
-            exit 1
-          fi
-          # The Hex1b.Analyzers project is repo-only and must never ship inside the Hex1b NuGet
-          # package. Fail the build if the analyzer dll, an analyzers/ folder, or anything else
-          # carrying the analyzer name leaks into the package.
-          analyzer_leak=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -iE '(^|/)Hex1b\.Analyzers(\.|/)|^analyzers/' || true)
-          if [ -n "$analyzer_leak" ]; then
-            echo ""
-            echo "Hex1b.Analyzers leaked into the Hex1b NuGet package:"
-            echo "$analyzer_leak"
-            exit 1
-          fi
-          echo ""
-          echo "Hex1b.McpServer package contents:"
-          unzip -l ./artifacts/Hex1b.McpServer.${{ needs.version.outputs.version }}.nupkg | head -30
-          echo ""
-          echo "Hex1b.Tool package contents:"
-          unzip -l ./artifacts/Hex1b.Tool.${{ needs.version.outputs.version }}.nupkg | grep -E "tools|DotnetToolSettings|hex1bpty|hex1binterop" || echo "No tool settings found in Hex1b.Tool package!"
-          tool_package_contents=$(unzip -Z1 ./artifacts/Hex1b.Tool.${{ needs.version.outputs.version }}.nupkg)
-          expected_tool_assets=(
-            "tools/net10.0/any/runtimes/linux-x64/native/libhex1binterop.so"
-            "tools/net10.0/any/runtimes/linux-arm64/native/libhex1binterop.so"
-            "tools/net10.0/any/runtimes/osx-x64/native/libhex1binterop.dylib"
-            "tools/net10.0/any/runtimes/osx-arm64/native/libhex1binterop.dylib"
-            "tools/net10.0/any/runtimes/win-x64/native/hex1bpty.exe"
-            "tools/net10.0/any/runtimes/win-arm64/native/hex1bpty.exe"
-          )
-          missing_tool_assets=()
-          for asset in "${expected_tool_assets[@]}"; do
-            if ! grep -Fxq "$asset" <<<"$tool_package_contents"; then
-              missing_tool_assets+=("$asset")
-            fi
-          done
-          if [ ${#missing_tool_assets[@]} -gt 0 ]; then
-            echo ""
-            echo "Hex1b.Tool is missing required native assets:"
-            printf '  %s\n' "${missing_tool_assets[@]}"
-            exit 1
-          fi
-          unexpected_tool_root_native=$(printf '%s\n' "$tool_package_contents" | grep -E '^tools/.*/any/libhex1binterop\.(so|dylib)$' || true)
-          if [ -n "$unexpected_tool_root_native" ]; then
-            echo ""
-            echo "Hex1b.Tool should not carry host-specific native libraries at the tool root:"
-            echo "$unexpected_tool_root_native"
-            exit 1
-          fi
-          printf '%s\n' "${expected_tool_assets[@]}"
+      - name: Extract and verify NuGet package contents
+        run: bash .github/scripts/assert-nuget-contents.sh ./artifacts "${{ needs.version.outputs.version }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
