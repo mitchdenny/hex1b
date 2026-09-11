@@ -1,0 +1,79 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Intentional Sixel API breaks in 0.166.0 against the 0.165.0 baseline:
+  #465 replaces per-cell Sixel ownership with independent graphics state;
+  #481 validates SixelWidget input at construction instead of exposing an init setter.
+  https://learn.microsoft.com/dotnet/fundamentals/apicompat/diagnostic-ids
+-->
+<Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>F:Hex1b.CellAttributes.Sixel</Target>
+    <Left>lib/net8.0/Hex1b.dll</Left>
+    <Right>lib/net8.0/Hex1b.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Hex1b.TerminalCell.#ctor(System.String,System.Nullable{Hex1b.Theming.Hex1bColor},System.Nullable{Hex1b.Theming.Hex1bColor},Hex1b.CellAttributes,System.Int64,System.DateTimeOffset,Hex1b.TrackedObject{Hex1b.SixelData},Hex1b.TrackedObject{Hex1b.HyperlinkData},System.Nullable{Hex1b.Theming.Hex1bColor},Hex1b.UnderlineStyle)</Target>
+    <Left>lib/net8.0/Hex1b.dll</Left>
+    <Right>lib/net8.0/Hex1b.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Hex1b.TerminalCell.Deconstruct(System.String@,System.Nullable{Hex1b.Theming.Hex1bColor}@,System.Nullable{Hex1b.Theming.Hex1bColor}@,Hex1b.CellAttributes@,System.Int64@,System.DateTimeOffset@,Hex1b.TrackedObject{Hex1b.SixelData}@,Hex1b.TrackedObject{Hex1b.HyperlinkData}@,System.Nullable{Hex1b.Theming.Hex1bColor}@,Hex1b.UnderlineStyle@)</Target>
+    <Left>lib/net8.0/Hex1b.dll</Left>
+    <Right>lib/net8.0/Hex1b.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Hex1b.TerminalCell.get_HasSixelData</Target>
+    <Left>lib/net8.0/Hex1b.dll</Left>
+    <Right>lib/net8.0/Hex1b.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Hex1b.TerminalCell.get_IsSixel</Target>
+    <Left>lib/net8.0/Hex1b.dll</Left>
+    <Right>lib/net8.0/Hex1b.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Hex1b.TerminalCell.get_SixelData</Target>
+    <Left>lib/net8.0/Hex1b.dll</Left>
+    <Right>lib/net8.0/Hex1b.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Hex1b.TerminalCell.get_TrackedSixel</Target>
+    <Left>lib/net8.0/Hex1b.dll</Left>
+    <Right>lib/net8.0/Hex1b.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Hex1b.TerminalCell.set_TrackedSixel(Hex1b.TrackedObject{Hex1b.SixelData})</Target>
+    <Left>lib/net8.0/Hex1b.dll</Left>
+    <Right>lib/net8.0/Hex1b.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Hex1b.Widgets.SixelWidget.Deconstruct(System.String@,Hex1b.Widgets.Hex1bWidget@,System.Nullable{System.Int32}@,System.Nullable{System.Int32}@)</Target>
+    <Left>lib/net8.0/Hex1b.dll</Left>
+    <Right>lib/net8.0/Hex1b.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:Hex1b.Widgets.SixelWidget.set_ImageData(System.String)</Target>
+    <Left>lib/net8.0/Hex1b.dll</Left>
+    <Right>lib/net8.0/Hex1b.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+</Suppressions>

@@ -48,6 +48,10 @@ If a short SHA is entirely numeric and starts with zero, the shared action
 prefixes that identifier with `g` to satisfy npm's SemVer rules. This
 normalization applies to both npm and NuGet, not just one distribution.
 
+A stable release tags the exact commit built from `release/X.Y`, not the
+current tip of `main`. Publishing uses the `production` environment, so its
+required-reviewer approval also applies to beta packages.
+
 The dedicated `build-web-terminal` job uses Node.js 24 to install dependencies,
 stamp both package manifests using
 `npm version "$PACKAGE_VERSION" --no-git-tag-version --allow-same-version --ignore-scripts`,

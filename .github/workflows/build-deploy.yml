@@ -883,6 +883,7 @@ jobs:
 
           # Attach both distributions from the same versioned build.
           gh release create "v${PACKAGE_VERSION}" \
+            --target "${{ github.sha }}" \
             --title "v${PACKAGE_VERSION}" \
             --notes-file artifacts/release_notes.md \
             ./artifacts/*.nupkg ./artifacts/npm/*.tgz

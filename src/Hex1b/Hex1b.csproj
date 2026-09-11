@@ -47,20 +47,19 @@
       the first stable release ships the baseline element is absent, so we only
       get intra-package framework-compat checks; once it appears, breaking-API
       changes against the published baseline surface as build errors locally
-      and in CI. To deliberately ship a breaking change, comment the element
-      out for the spike and let the bot restore it on the next release.
+      and in CI. Deliberate breaking changes require member-level baseline
+      suppressions; keep package validation enabled.
     -->
-    <!--
-      Deliberately disabled for this change: removes the public
-      CellAttributes.Sixel / TerminalCell.TrackedSixel per-cell Sixel
-      ownership surface (see issue #451) in favor of independent
-      SixelGraphicsState. The bot will restore this on the next release.
-    -->
-    <!-- <EnablePackageValidation>true</EnablePackageValidation> -->
+    <EnablePackageValidation>true</EnablePackageValidation>
     <!-- BEGIN: bot-managed baseline -->
     <PackageValidationBaselineVersion>0.165.0</PackageValidationBaselineVersion>
     <!-- END: bot-managed baseline -->
   </PropertyGroup>
+
+  <!-- Retire the accepted 0.166 Sixel breaks when the stable baseline advances. -->
+  <ItemGroup Condition="'$(PackageValidationBaselineVersion)' == '0.165.0'">
+    <ApiCompatSuppressionFile Include="CompatibilitySuppressions/0.165.0.xml" />
+  </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Hex1b.Tests" />
