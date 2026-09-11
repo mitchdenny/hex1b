@@ -18,8 +18,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="../KittySearch/GifDecoder.cs" Link="GifDecoder.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="../../src/Hex1b.Website/wwwroot/images/*.jpeg" Link="images/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../src/Hex1b.Website/wwwroot/images/*.png" Link="images/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../KittySearch/data/gifs/candidate-0357.gif" Link="images/cat-fight.gif" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../KittySearch/data/ATTRIBUTION.txt" Link="images/TGIF-ATTRIBUTION.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

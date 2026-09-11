@@ -334,7 +334,11 @@ internal class KgpPlacementTracker
             a.ClipY == b.ClipY &&
             a.ClipW == b.ClipW &&
             a.ClipH == b.ClipH &&
-            a.Data.ZIndex == b.Data.ZIndex;
+            a.Data.ZIndex == b.Data.ZIndex &&
+            a.Data.UsesNativeSize == b.Data.UsesNativeSize &&
+            (!a.Data.UsesNativeSize ||
+             (a.Data.CellOffsetX == b.Data.CellOffsetX &&
+              a.Data.CellOffsetY == b.Data.CellOffsetY));
     }
 
 }

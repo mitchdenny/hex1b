@@ -404,7 +404,7 @@ public sealed class Hex1bTerminalInputSequenceBuilder
     // Helpers
     // ========================================
 
-    private static string GetDefaultTextForKey(Hex1bKey key, Hex1bModifiers modifiers)
+    internal static string GetDefaultTextForKey(Hex1bKey key, Hex1bModifiers modifiers)
     {
         var isShift = (modifiers & Hex1bModifiers.Shift) != 0;
         var isControl = (modifiers & Hex1bModifiers.Control) != 0;

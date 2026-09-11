@@ -14,8 +14,13 @@ switch (benchmarkType)
     case "rendering":
         BenchmarkSwitcher.FromTypes([typeof(RenderingModeBenchmarks)]).Run(bdnArgs);
         break;
+    case "sixel":
+        BenchmarkSwitcher.FromTypes([typeof(SixelHardeningBenchmarks)]).Run(bdnArgs);
+        break;
     case "all":
     default:
-        BenchmarkSwitcher.FromTypes([typeof(SurfaceBenchmarks), typeof(RenderingModeBenchmarks)]).Run(bdnArgs);
+        BenchmarkSwitcher.FromTypes(
+            [typeof(SurfaceBenchmarks), typeof(RenderingModeBenchmarks), typeof(SixelHardeningBenchmarks)])
+            .Run(bdnArgs);
         break;
 }

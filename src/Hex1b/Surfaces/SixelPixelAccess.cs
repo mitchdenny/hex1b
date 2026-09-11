@@ -18,17 +18,18 @@ public readonly struct SixelPixelAccess
     private readonly SixelPixelBuffer _buffer;
     private readonly int _offsetX;
     private readonly int _offsetY;
-    private readonly CellMetrics _metrics;
+    private readonly int _pixelWidth;
+    private readonly int _pixelHeight;
 
     /// <summary>
     /// Gets the width of this cell's pixel region.
     /// </summary>
-    public int PixelWidth => _metrics.PixelWidth;
+    public int PixelWidth => _pixelWidth;
 
     /// <summary>
     /// Gets the height of this cell's pixel region.
     /// </summary>
-    public int PixelHeight => _metrics.PixelHeight;
+    public int PixelHeight => _pixelHeight;
 
     /// <summary>
     /// Gets whether this accessor has valid pixel data.
@@ -36,11 +37,22 @@ public readonly struct SixelPixelAccess
     public bool IsValid => _buffer is not null;
 
     internal SixelPixelAccess(SixelPixelBuffer buffer, int offsetX, int offsetY, CellMetrics metrics)
+        : this(buffer, offsetX, offsetY, metrics.PixelWidth, metrics.PixelHeight)
+    {
+    }
+
+    internal SixelPixelAccess(
+        SixelPixelBuffer buffer,
+        int offsetX,
+        int offsetY,
+        int pixelWidth,
+        int pixelHeight)
     {
         _buffer = buffer;
         _offsetX = offsetX;
         _offsetY = offsetY;
-        _metrics = metrics;
+        _pixelWidth = pixelWidth;
+        _pixelHeight = pixelHeight;
     }
 
     /// <summary>

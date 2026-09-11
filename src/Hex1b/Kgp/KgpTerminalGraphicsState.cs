@@ -86,7 +86,12 @@ internal sealed class KgpTerminalGraphicsState
 
     private sealed class ScreenState
     {
-        internal KgpImageStore ImageStore { get; } = new();
+        internal ScreenState(TerminalGraphicsRetainedBudget retainedBudget)
+        {
+            ImageStore = new KgpImageStore(retainedBudget);
+        }
+
+        internal KgpImageStore ImageStore { get; }
         internal List<KgpPlacement> Placements { get; } = [];
         internal List<KgpVirtualPlacement> VirtualPlacements { get; } = [];
         internal Dictionary<long, List<HistoryPlacement>> HistoryPlacements { get; } = [];
@@ -106,9 +111,27 @@ internal sealed class KgpTerminalGraphicsState
         }
     }
 
-    private readonly ScreenState _main = new();
+    private readonly TerminalGraphicsRetainedBudgetSet _retainedBudgets;
+    private readonly ScreenState _main;
     private ScreenState? _alternate;
     private bool _alternateActive;
+
+    internal bool HasResidentState =>
+        _main.ImageStore.ImageCount != 0 || _main.ImageStore.GetPendingTransmission() is not null ||
+        (_alternate is { } alternate &&
+            (alternate.ImageStore.ImageCount != 0 || alternate.ImageStore.GetPendingTransmission() is not null));
+
+    internal KgpTerminalGraphicsState(
+        long retainedBytesPerScreen = 320L * 1024 * 1024)
+        : this(new TerminalGraphicsRetainedBudgetSet(retainedBytesPerScreen))
+    {
+    }
+
+    internal KgpTerminalGraphicsState(TerminalGraphicsRetainedBudgetSet retainedBudgets)
+    {
+        _retainedBudgets = retainedBudgets;
+        _main = new ScreenState(retainedBudgets.Main);
+    }
 
     private ScreenState Active
         => _alternateActive
@@ -554,11 +577,11 @@ internal sealed class KgpTerminalGraphicsState
         if (_alternateActive)
         {
             _alternate!.Clear();
-            _alternate = new ScreenState();
+            _alternate = new ScreenState(_retainedBudgets.Alternate);
             return;
         }
 
-        _alternate = new ScreenState();
+        _alternate = new ScreenState(_retainedBudgets.Alternate);
         _alternateActive = true;
     }
 
@@ -1120,7 +1143,8 @@ internal sealed class KgpTerminalGraphicsState
             int width,
             int height,
             int cellPixelWidth,
-            int cellPixelHeight)
+            int cellPixelHeight,
+            bool includeAllImages = false)
     {
         var active = Active;
         ReconcileImageReferences(active);
@@ -1130,7 +1154,8 @@ internal sealed class KgpTerminalGraphicsState
         var snapshotEnd = checked(historyCount + height);
         var captured = active.ImageStore.CaptureSnapshot(
             [],
-            GetRetainedImageIds(active));
+            GetRetainedImageIds(active),
+            includeAllImages);
         IReadOnlyDictionary<uint, KgpImageData> virtualImages = captured.Images;
         if (active.VirtualPlacements.Count > 0)
         {
@@ -1339,6 +1364,9 @@ internal sealed class KgpTerminalGraphicsState
                 ? result
                 : left.SourceX.CompareTo(right.SourceX);
         });
+
+        if (includeAllImages)
+            return (snapshotPlacements, captured.Images);
 
         var snapshotImages = new Dictionary<uint, KgpImageData>();
         foreach (var placement in snapshotPlacements)

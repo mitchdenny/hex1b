@@ -114,7 +114,6 @@ internal sealed class ScrollbackBuffer
         // AddRef tracked objects in the new row
         for (int i = 0; i < cells.Length; i++)
         {
-            cells[i].TrackedSixel?.AddRef();
             cells[i].TrackedHyperlink?.AddRef();
         }
 
@@ -177,6 +176,14 @@ internal sealed class ScrollbackBuffer
         return result;
     }
 
+    internal ScrollbackEntry GetEntryAt(int index)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, _count);
+        var slot = ((_count == Capacity ? _head : 0) + index) % Capacity;
+        return new ScrollbackEntry(_rowIds[slot], _rows[slot]);
+    }
+
     /// <summary>
     /// Removes all rows from the buffer, releasing tracked object references.
     /// </summary>
@@ -226,7 +233,6 @@ internal sealed class ScrollbackBuffer
             var row = rows[rowIndex];
             for (var cellIndex = 0; cellIndex < row.Cells.Length; cellIndex++)
             {
-                row.Cells[cellIndex].TrackedSixel?.AddRef();
                 row.Cells[cellIndex].TrackedHyperlink?.AddRef();
             }
 
@@ -253,7 +259,6 @@ internal sealed class ScrollbackBuffer
 
         for (int i = 0; i < row.Cells.Length; i++)
         {
-            row.Cells[i].TrackedSixel?.Release();
             row.Cells[i].TrackedHyperlink?.Release();
         }
     }

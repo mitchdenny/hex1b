@@ -100,6 +100,37 @@ public class KgpPlacementTrackerTests
     }
 
     [TestMethod]
+    public void GenerateCommands_NativeSizingOrOffsetsChange_ReplacesPlacement()
+    {
+        var tracker = new KgpPlacementTracker();
+        var hash = SHA256.HashData(KgpTestHelper.CreatePixelData(3, 3));
+        var scaled = new KgpCellData(null, 1, 1, 1, 3, 3, hash, clipW: 3, clipH: 3);
+        var native = new KgpCellData(null, 1, 1, 1, 3, 3, hash, clipW: 3, clipH: 3)
+        {
+            UsesNativeSize = true
+        };
+        var offset = new KgpCellData(null, 1, 1, 1, 3, 3, hash, clipW: 3, clipH: 3, cellOffsetX: 1)
+        {
+            UsesNativeSize = true
+        };
+        var surface = new Surface(4, 4, DefaultMetrics);
+        surface[0, 0] = new SurfaceCell(" ", null, null, Kgp: Track(scaled));
+        tracker.GenerateCommands(surface);
+
+        surface[0, 0] = new SurfaceCell(" ", null, null, Kgp: Track(native));
+        var (nativeCommands, _) = tracker.GenerateCommands(surface);
+        var nativePayload = TestSeq.Single(nativeCommands.OfType<UnrecognizedSequenceToken>()).Sequence;
+        Assert.Contains("a=p", nativePayload);
+        Assert.DoesNotContain(",c=", nativePayload);
+        Assert.DoesNotContain(",r=", nativePayload);
+
+        surface[0, 0] = new SurfaceCell(" ", null, null, Kgp: Track(offset));
+        var (offsetCommands, _) = tracker.GenerateCommands(surface);
+        var offsetPayload = TestSeq.Single(offsetCommands.OfType<UnrecognizedSequenceToken>()).Sequence;
+        Assert.Contains(",X=1", offsetPayload);
+    }
+
+    [TestMethod]
     public void AnimationFrame_ChunkedPayload_RepeatsFrameAction()
     {
         const uint imageId = 42;

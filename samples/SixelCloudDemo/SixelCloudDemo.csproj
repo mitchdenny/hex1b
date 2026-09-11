@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Hex1b/Hex1b.csproj" />
+  </ItemGroup>
+
+  <!--
+    Physics, palette, and the workload adapter are shared verbatim with KgpCloudDemo.
+    The two demos exist to contrast Sixel rasters with KGP placements, which is only
+    a fair comparison if everything except the renderer is literally the same code.
+  -->
+  <ItemGroup>
+    <Compile Include="../CloudDemo.Shared/CloudPalette.cs" Link="CloudPalette.cs" />
+    <Compile Include="../CloudDemo.Shared/ICloudRenderer.cs" Link="ICloudRenderer.cs" />
+    <Compile Include="../CloudDemo.Shared/DustCloud.cs" Link="DustCloud.cs" />
+    <Compile Include="../CloudDemo.Shared/MoteCursorOrder.cs" Link="MoteCursorOrder.cs" />
+    <Compile Include="../CloudDemo.Shared/CloudWorkloadAdapter.cs" Link="CloudWorkloadAdapter.cs" />
+  </ItemGroup>
+
+</Project>

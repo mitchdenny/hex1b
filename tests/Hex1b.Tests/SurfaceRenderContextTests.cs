@@ -1,7 +1,11 @@
+#pragma warning disable HEX1B_SIXEL // Testing experimental Sixel API
+
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Sixel;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
+using Hex1b.Tokens;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -57,6 +61,233 @@ public class SurfaceRenderContextTests
         Assert.AreEqual("r", surface[12, 5].Character);
         Assert.AreEqual("l", surface[13, 5].Character);
         Assert.AreEqual("d", surface[14, 5].Character);
+    }
+
+    #endregion
+
+    #region Sixel Writing
+
+    [TestMethod]
+    public void WriteSixel_StructuredPixels_StoresTrackedContentAndMetrics()
+    {
+        var surface = new Surface(10, 5, new CellMetrics(8, 16));
+        var context = new SurfaceRenderContext(surface)
+        {
+            CellMetrics = new CellMetrics(8, 16)
+        };
+        context.SetCapabilities(new TerminalCapabilities
+        {
+            SixelSupport = SixelPresentationSupport.Native,
+            SixelCellMetrics = new SixelCellMetrics(
+                8,
+                16,
+                SixelCellMetricsSource.Direct,
+                SixelCellMetricsReliability.Authoritative)
+        });
+        var pixels = CreateSolidPixels(17, 17);
+
+        context.SetCursorPosition(2, 1);
+        context.WriteSixel(pixels, 3, 2);
+
+        var sixel = surface[2, 1].Sixel;
+        Assert.IsNotNull(sixel);
+        Assert.StartsWith("\x1bP", sixel.Data.Payload);
+        Assert.EndsWith("\x1b\\", sixel.Data.Payload);
+        Assert.AreEqual(3, sixel.Data.WidthInCells);
+        Assert.AreEqual(2, sixel.Data.HeightInCells);
+        Assert.AreEqual(24, sixel.Data.PixelWidth);
+        Assert.AreEqual(32, sixel.Data.PixelHeight);
+        Assert.AreEqual(8d, sixel.Data.CellMetrics.Width);
+        Assert.AreEqual(1, context.TrackedObjectStore.SixelCount);
+    }
+
+    [TestMethod]
+    public void WriteSixel_PreEncodedBody_IsFramedExactlyOnce()
+    {
+        var surface = new Surface(10, 5);
+        var context = new SurfaceRenderContext(surface);
+        const string body = "#0;2;100;0;0#0~~~~~~";
+
+        context.WriteSixel(body, 1, 1);
+
+        Assert.AreEqual($"\x1bPq{body}\x1b\\", surface[0, 0].Sixel!.Data.Payload);
+    }
+
+    [TestMethod]
+    public void WriteSixel_EightBitFraming_SerializesCanonicalSevenBitBytes()
+    {
+        var surface = new Surface(10, 5, new CellMetrics(10, 20));
+        var context = CreateSixelContext(surface, 10, 20);
+        var pixels = new SixelPixelBuffer(10, 20);
+        pixels[0, 0] = Rgba32.FromRgb(255, 0, 0);
+        var sevenBit = SixelEncoder.Encode(pixels);
+        var eightBit = $"\x90{sevenBit[2..^2]}\x9c";
+
+        context.WriteSixel(eightBit, 1, 1);
+
+        var tokens = SurfaceComparer.ToTokens(SurfaceComparer.CreateFullDiff(surface), surface);
+        var bytes = System.Text.Encoding.UTF8.GetBytes(AnsiTokenSerializer.Serialize(tokens));
+        Assert.AreEqual(0x1b, bytes.First(value => value == 0x1b));
+        Assert.IsTrue(bytes.AsSpan().IndexOf([(byte)0x1b, (byte)'P']) >= 0);
+        Assert.IsTrue(bytes.AsSpan().IndexOf([(byte)0x1b, (byte)'\\']) >= 0);
+        Assert.IsFalse(bytes.Contains((byte)0xc2));
+    }
+
+    [TestMethod]
+    public void WriteSixel_PreEncodedPayloadWithDifferentSpan_Throws()
+    {
+        var surface = new Surface(10, 5, new CellMetrics(10, 20));
+        var context = CreateSixelContext(surface, 10, 20);
+        var pixels = new SixelPixelBuffer(20, 20);
+        pixels[0, 0] = Rgba32.FromRgb(255, 0, 0);
+        var payload = SixelEncoder.Encode(pixels);
+
+        Assert.Throws<ArgumentException>(() => context.WriteSixel(payload, 3, 1));
+        Assert.IsFalse(surface.HasSixels);
+    }
+
+    [TestMethod]
+    public void WriteSixel_ReplacingImage_ReleasesPreviousTrackedReference()
+    {
+        var surface = new Surface(10, 5);
+        var context = new SurfaceRenderContext(surface);
+
+        context.WriteSixel(CreateSolidPixels(10, 20, Rgba32.FromRgb(255, 0, 0)), 1, 1);
+        context.SetCursorPosition(0, 0);
+        context.WriteSixel(CreateSolidPixels(10, 20, Rgba32.FromRgb(0, 0, 255)), 1, 1);
+
+        Assert.AreEqual(1, context.TrackedObjectStore.SixelCount);
+    }
+
+    [TestMethod]
+    public void Write_AfterSixel_PreservesAnchorForOcclusion()
+    {
+        var surface = new Surface(10, 5);
+        var context = new SurfaceRenderContext(surface);
+
+        context.WriteSixel(CreateSolidPixels(20, 20), 2, 1);
+        context.SetCursorPosition(0, 0);
+        context.Write("X");
+
+        Assert.AreEqual("X", surface[0, 0].Character);
+        Assert.IsNotNull(surface[0, 0].Sixel);
+    }
+
+    [TestMethod]
+    public void RenderChild_SixelCacheHit_RetainsOneReferencePerSurface()
+    {
+        var surface = new Surface(10, 5);
+        var context = CreateSixelContext(surface);
+        var node = CreateSixelNode(new Rect(0, 0, 2, 1));
+
+        context.RenderChild(node);
+
+        var tracked = node.CachedSurface![0, 0].Sixel!;
+        Assert.AreEqual(2, tracked.RefCount);
+        Assert.AreEqual(1, context.TrackedObjectStore.SixelCount);
+
+        surface.ClearAndReleaseTrackedObjects();
+        node.ClearDirty();
+        context.ResetCacheStats();
+        context.RenderChild(node);
+
+        Assert.AreEqual(1, context.CacheHits);
+        Assert.AreEqual(2, tracked.RefCount);
+        surface.ClearAndReleaseTrackedObjects();
+        Assert.AreEqual(1, tracked.RefCount);
+    }
+
+    [TestMethod]
+    public void RenderChild_SixelResizeWithoutPool_ReleasesRetiredCacheReference()
+    {
+        var surface = new Surface(10, 5);
+        var context = CreateSixelContext(surface);
+        var node = CreateSixelNode(new Rect(0, 0, 2, 1));
+
+        context.RenderChild(node);
+        var retired = node.CachedSurface![0, 0].Sixel!;
+        surface.ClearAndReleaseTrackedObjects();
+        Assert.AreEqual(1, retired.RefCount);
+
+        node.Arrange(new Rect(0, 0, 3, 1));
+        context.RenderChild(node);
+
+        Assert.AreEqual(0, retired.RefCount);
+        Assert.AreEqual(1, context.TrackedObjectStore.SixelCount);
+        Assert.AreNotSame(retired, node.CachedSurface![0, 0].Sixel);
+    }
+
+    [TestMethod]
+    public void RenderChild_SixelWithoutCaching_ReleasesWithOwningSurface()
+    {
+        var surface = new Surface(10, 5);
+        var context = CreateSixelContext(surface);
+        context.CachingEnabled = false;
+        var node = CreateSixelNode(new Rect(0, 0, 2, 1));
+
+        context.RenderChild(node);
+        var tracked = surface[0, 0].Sixel!;
+        Assert.AreEqual(1, tracked.RefCount);
+
+        surface.ClearAndReleaseTrackedObjects();
+
+        Assert.AreEqual(0, tracked.RefCount);
+        Assert.AreEqual(0, context.TrackedObjectStore.SixelCount);
+    }
+
+    private static SixelPixelBuffer CreateSolidPixels(
+        int width,
+        int height,
+        Rgba32? color = null)
+    {
+        var buffer = new SixelPixelBuffer(width, height);
+        var fill = color ?? Rgba32.FromRgb(0, 180, 255);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                buffer[x, y] = fill;
+            }
+        }
+
+        return buffer;
+    }
+
+    private static SurfaceRenderContext CreateSixelContext(Surface surface)
+        => CreateSixelContext(surface, 10, 20);
+
+    private static SurfaceRenderContext CreateSixelContext(
+        Surface surface,
+        double sixelCellWidth,
+        double sixelCellHeight)
+    {
+        var capabilities = new TerminalCapabilities
+        {
+            SupportsSixel = true,
+            SixelSupport = SixelPresentationSupport.Headless,
+            SixelCellMetrics = new SixelCellMetrics(
+                sixelCellWidth,
+                sixelCellHeight,
+                SixelCellMetricsSource.Direct,
+                SixelCellMetricsReliability.Authoritative)
+        };
+        var context = new SurfaceRenderContext(surface);
+        context.SetCapabilities(capabilities);
+        return context;
+    }
+
+    private static SixelNode CreateSixelNode(Rect bounds)
+    {
+        var capabilities = new TerminalCapabilities
+        {
+            SupportsSixel = true,
+            SixelSupport = SixelPresentationSupport.Headless
+        };
+        var node = new SixelNode();
+        node.SetPixels(CreateSolidPixels(20, 20));
+        node.SetTerminalCapabilities(capabilities);
+        node.Arrange(bounds);
+        return node;
     }
 
     #endregion

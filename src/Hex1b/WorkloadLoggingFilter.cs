@@ -127,6 +127,8 @@ public sealed class WorkloadLoggingFilter : IHex1bTerminalWorkloadFilter, IAsync
             SpecialKeyToken sk => $"SpecialKey({sk.KeyCode})",
             ControlCharacterToken cc => $"Ctrl(0x{(int)cc.Character:X2})",
             DeviceStatusReportToken dsr => $"DSR({dsr.Type})",
+            DeviceAttributesQueryToken => "DA1()",
+            WindowOperationToken win => $"WinOp({win.Operation})",
             _ => token.GetType().Name
         };
     }

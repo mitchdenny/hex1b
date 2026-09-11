@@ -130,6 +130,7 @@ Hex1b follows a widget/node separation pattern:
 The `samples/` directory contains example applications demonstrating various features:
 
 - **Cancellation** - Master-detail contact editor with save/cancel functionality
+- **[RemoteTerminalAuthDemo](./samples/RemoteTerminalAuthDemo/README.md)** - Connects a client to a bearer-protected remote terminal server
 
 ### Running Samples with Aspire
 
@@ -192,8 +193,10 @@ Full documentation lives at **[hex1b.dev](https://hex1b.dev)**. Highlights:
   embedded terminal widget.
 - [API Reference](https://hex1b.dev/reference/) — generated namespace docs.
 
-In-repo design / architecture notes (not on the website):
+In-repo guides and architecture notes (not on the website):
 
+- [`docs/tape.md`](./docs/tape.md) — VHS Tape parsing, terminal automation,
+  and asciicast / golden-text capture.
 - [`docs/terminal.md`](./docs/terminal.md) — Presentation/workload adapter
   architecture.
 - [`docs/child-process-arch.md`](./docs/child-process-arch.md) — Child
@@ -218,4 +221,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Spectre.Console](https://spectreconsole.net/) - Beautiful console output
 - [Terminal.Gui](https://github.com/gui-cs/Terminal.Gui) - Cross-platform terminal UI toolkit
 - [Aspire](https://aspire.dev/) - Cloud-ready stack for .NET
-

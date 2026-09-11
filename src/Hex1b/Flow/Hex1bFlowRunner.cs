@@ -1097,6 +1097,7 @@ internal sealed class Hex1bFlowRunner
         // misbehaving widget can't allocate an unbounded surface.
         var measureMax = Math.Max(maxHeight * 10, maxHeight);
         var constraints = new Constraints(0, width, 0, measureMax);
+        node.SetTerminalCapabilities(_parentAdapter.Capabilities);
         var measured = node.Measure(constraints);
         var height = Math.Max(1, Math.Min(measured.Height, measureMax));
 

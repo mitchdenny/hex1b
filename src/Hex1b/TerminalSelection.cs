@@ -193,6 +193,10 @@ public sealed class TerminalSelection
     /// <param name="bufferWidth">The width of the buffer (columns per row).</param>
     /// <returns>The selected text, or null if no selection is active.</returns>
     public string? ExtractText(Func<int, int, TerminalCell?> getCell, int bufferWidth)
+        => ExtractText(getCell, bufferWidth, null);
+
+    internal string? ExtractText(Func<int, int, TerminalCell?> getCell, int bufferWidth,
+        Func<int, int>? getRowWidth)
     {
         if (!IsSelecting) return null;
 
@@ -201,8 +205,8 @@ public sealed class TerminalSelection
 
         return Mode switch
         {
-            SelectionMode.Character => ExtractCharacterText(getCell, bufferWidth, start, end),
-            SelectionMode.Line => ExtractLineText(getCell, bufferWidth, start.Row, end.Row),
+            SelectionMode.Character => ExtractCharacterText(getCell, bufferWidth, start, end, getRowWidth),
+            SelectionMode.Line => ExtractLineText(getCell, bufferWidth, start.Row, end.Row, getRowWidth),
             SelectionMode.Block => ExtractBlockText(getCell, start, end),
             _ => null
         };
@@ -210,20 +214,21 @@ public sealed class TerminalSelection
 
     private static string ExtractCharacterText(
         Func<int, int, TerminalCell?> getCell, int bufferWidth,
-        BufferPosition start, BufferPosition end)
+        BufferPosition start, BufferPosition end, Func<int, int>? getRowWidth)
     {
         var sb = new System.Text.StringBuilder();
 
         for (int row = start.Row; row <= end.Row; row++)
         {
+            var rowWidth = getRowWidth?.Invoke(row) ?? bufferWidth;
             int startCol = row == start.Row ? start.Column : 0;
-            int endCol = row == end.Row ? end.Column : bufferWidth - 1;
+            int endCol = row == end.Row ? end.Column : rowWidth - 1;
 
             // Check for soft wrap on the last cell of this row
             bool isSoftWrapped = false;
             if (row < end.Row)
             {
-                var lastCell = getCell(row, bufferWidth - 1);
+                var lastCell = getCell(row, rowWidth - 1);
                 isSoftWrapped = lastCell?.IsSoftWrap ?? false;
             }
 
@@ -241,20 +246,21 @@ public sealed class TerminalSelection
 
     private static string ExtractLineText(
         Func<int, int, TerminalCell?> getCell, int bufferWidth,
-        int startRow, int endRow)
+        int startRow, int endRow, Func<int, int>? getRowWidth)
     {
         var sb = new System.Text.StringBuilder();
 
         for (int row = startRow; row <= endRow; row++)
         {
+            var rowWidth = getRowWidth?.Invoke(row) ?? bufferWidth;
             bool isSoftWrapped = false;
             if (row < endRow)
             {
-                var lastCell = getCell(row, bufferWidth - 1);
+                var lastCell = getCell(row, rowWidth - 1);
                 isSoftWrapped = lastCell?.IsSoftWrap ?? false;
             }
 
-            AppendRowSegment(sb, getCell, row, 0, bufferWidth - 1, trimTrailing: !isSoftWrapped);
+            AppendRowSegment(sb, getCell, row, 0, rowWidth - 1, trimTrailing: !isSoftWrapped);
 
             if (row < endRow && !isSoftWrapped)
             {

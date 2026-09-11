@@ -1187,9 +1187,9 @@ public class TreeIntegrationTests
     [TestMethod]
     public async Task Tree_AsyncExpansion_ShowsChildrenAfterLoad()
     {
-        var loadCompleted = new TaskCompletionSource<bool>();
-        var loadStarted = new TaskCompletionSource<bool>();
-        var childrenReturned = 0;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var releaseLoad = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var loadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
@@ -1203,84 +1203,136 @@ public class TreeIntegrationTests
                 v.Tree(
                     new TreeItemWidget("Parent").Icon("📁")
                         .OnExpanding(async e => {
-                            loadStarted.TrySetResult(true);
-                            await Task.Delay(100); // Short delay for test
-                            var children = new[] {
+                            loadStarted.TrySetResult();
+                            await releaseLoad.Task.WaitAsync(e.Context.CancellationToken);
+                            return [
                                 new TreeItemWidget("Child1").Icon("📄"),
                                 new TreeItemWidget("Child2").Icon("📄")
-                            };
-                            childrenReturned = children.Length;
-                            loadCompleted.TrySetResult(true);
-                            return children;
+                            ];
                         })
                 ).FillHeight()
             ])),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-
-        // Wait for initial render with Parent visible
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Parent"), TimeSpan.FromSeconds(5), "tree to render")
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        // Verify initial state - Parent should be collapsed (▶)
-        var initialSnapshot = terminal.CreateSnapshot();
-        var initialText = initialSnapshot.GetScreenText();
-        
-        // Check if there's a focus indicator and collapsed indicator
-        Assert.IsTrue(initialSnapshot.ContainsText("▶") || initialSnapshot.ContainsText("Parent"), $"Initial screen should show Parent. Screen:\n{initialText}");
-
-        // Press Tab to ensure tree has focus, then Right arrow to expand
-        await new Hex1bTerminalInputSequenceBuilder()
-            .Key(Hex1bKey.Tab) // Ensure focus
-            .Wait(TimeSpan.FromMilliseconds(100))
-            .Key(Hex1bKey.RightArrow)
-            .Wait(TimeSpan.FromMilliseconds(100))
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        // Check if load was even triggered
-        var loadTriggered = await Task.WhenAny(
-            loadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)),
-            Task.Delay(TimeSpan.FromSeconds(5))
-        ) == loadStarted.Task;
-        
-        // If not triggered, capture what the screen looks like now
-        if (!loadTriggered)
+        var runTask = app.RunAsync(cancellation.Token);
+        try
         {
-            var debugSnapshot = terminal.CreateSnapshot();
-            var debugText = debugSnapshot.GetScreenText();
-            Assert.Fail($"OnExpanding handler was not called after Tab+RightArrow. Screen:\n{debugText}");
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText(CollapsedIndicator) && IsFocused(s, "Parent"),
+                    TimeSpan.FromSeconds(5), "collapsed parent to receive focus")
+                .Right()
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+            await loadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            using var loadingSnapshot = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("Parent") && SpinnerStyle.Dots.Frames.Any(s.ContainsText),
+                    TimeSpan.FromSeconds(5), "loading spinner before children are released")
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            Assert.IsFalse(loadingSnapshot.ContainsText("Child1"));
+            Assert.IsFalse(loadingSnapshot.ContainsText("Child2"));
+
+            releaseLoad.TrySetResult();
+            using var finalSnapshot = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText(ExpandedIndicator)
+                    && s.ContainsText("Child1") && s.ContainsText("Child2"),
+                    TimeSpan.FromSeconds(5), "expanded parent and both loaded children")
+                .Capture("async_expansion_loaded")
+                .Build()
+                .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+            var finalText = finalSnapshot.GetScreenText();
+            Assert.IsTrue(finalSnapshot.ContainsText(ExpandedIndicator), $"Parent should show expanded indicator. Screen:\n{finalText}");
+            Assert.IsTrue(finalSnapshot.ContainsText("Child1"), $"Child1 should be visible after expansion. Screen:\n{finalText}");
+            Assert.IsTrue(finalSnapshot.ContainsText("Child2"), $"Child2 should be visible after expansion. Screen:\n{finalText}");
         }
+        finally
+        {
+            cancellation.Cancel();
+            await runTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        }
+    }
 
-        // Wait for async load to complete
-        await loadCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        
-        // Give time for render to update - wait longer for async
-        await Task.Delay(500);
+    [TestMethod]
+    public async Task Tree_AsyncExpansion_CompletesAfterReconcile_RendersExpandedIndicator()
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var releaseLoad = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var expansionCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        TreeNode? treeNode = null;
+        var completionPlaced = false;
 
-        // Capture final state
-        var finalSnapshot = terminal.CreateSnapshot();
-        var finalText = finalSnapshot.GetScreenText();
-        
-        // Exit app
-        await new Hex1bTerminalInputSequenceBuilder()
-            .Ctrl().Key(Hex1bKey.C)
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        var tree = new TreeWidget([
+            new TreeItemWidget("Parent").OnExpanding(async e =>
+            {
+                await releaseLoad.Task.WaitAsync(e.Context.CancellationToken);
+                return [new TreeItemWidget("Child1"), new TreeItemWidget("Child2")];
+            })
+        ]).FillHeight().InputBindings(bindings =>
+        {
+            bindings.Key(Hex1bKey.RightArrow).Action(async context =>
+            {
+                treeNode = TestSeq.IsType<TreeNode>(context.FocusedNode);
+                var item = TestSeq.Single(treeNode.Items);
+                var trackedContext = new InputBindingActionContext(
+                    new FocusRing(),
+                    cancellationToken: context.CancellationToken,
+                    invalidate: () =>
+                    {
+                        context.Invalidate();
+                        // Observe the real completion wakeup, after the flattened view is rebuilt.
+                        if (!item.IsLoading && item.IsExpanded)
+                            expansionCompleted.TrySetResult();
+                    });
+                await treeNode.ToggleExpandAsync(item, trackedContext);
+            });
+        });
+        var observer = new TestWidget().OnReconcile(_ =>
+        {
+            if (completionPlaced || treeNode?.Items[0].LoadingSpinnerNode == null)
+                return;
 
-        await runTask;
+            // Finish loading after the spinner is reconciled but before this frame renders.
+            // Do not request another render: only expansion's own wakeup may drive recovery.
+            completionPlaced = true;
+            releaseLoad.TrySetResult();
+            expansionCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellation.Token)
+                .GetAwaiter().GetResult();
+            Assert.IsFalse(treeNode.Items[0].IsLoading);
+            Assert.AreEqual(3, treeNode.FlattenedItems.Count);
+            Assert.IsNotNull(treeNode.Items[0].LoadingSpinnerNode);
+        });
 
-        // Debug info
-        Assert.IsTrue(childrenReturned == 2, $"Handler should have returned 2 children, got {childrenReturned}");
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(
+                options => options.EnableRescue = false,
+                _ => _ => new VStackWidget([tree, observer]))
+            .WithHeadless()
+            .WithDimensions(60, 20)
+            .Build();
 
-        // Verify children are now visible
-        Assert.IsTrue(finalSnapshot.ContainsText("▼"), $"Parent should show expanded indicator. Screen:\n{finalText}");
-        Assert.IsTrue(finalSnapshot.ContainsText("Child1"), $"Child1 should be visible after expansion. Screen:\n{finalText}");
-        Assert.IsTrue(finalSnapshot.ContainsText("Child2"), $"Child2 should be visible after expansion. Screen:\n{finalText}");
+        var runTask = Task.Run(() => terminal.RunAsync(cancellation.Token), cancellation.Token);
+        try
+        {
+            using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText(CollapsedIndicator) && IsFocused(s, "Parent"),
+                    TimeSpan.FromSeconds(5), "collapsed parent to receive focus")
+                .Right()
+                .WaitUntil(s => s.ContainsText(ExpandedIndicator)
+                    && s.ContainsText("Child1") && s.ContainsText("Child2"),
+                    TimeSpan.FromSeconds(5), "expanded parent and both children after completion during reconciliation")
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+            Assert.IsTrue(completionPlaced, "Loading must complete between reconciliation and rendering.");
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await runTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        }
     }
 
     [TestMethod]

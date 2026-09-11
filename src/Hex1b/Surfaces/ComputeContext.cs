@@ -151,13 +151,7 @@ public readonly ref struct ComputeContext
         if (pixels is null)
             return default;
 
-        // Calculate pixel offset for this cell within the sixel
-        var cellOffsetX = X - anchorX;
-        var cellOffsetY = Y - anchorY;
-        var pixelOffsetX = cellOffsetX * CellMetrics.PixelWidth;
-        var pixelOffsetY = cellOffsetY * CellMetrics.PixelHeight;
-
-        return new SixelPixelAccess(pixels, pixelOffsetX, pixelOffsetY, CellMetrics);
+        return CreateSixelPixelAccess(pixels, sixelData, X - anchorX, Y - anchorY);
     }
 
     /// <summary>
@@ -180,12 +174,26 @@ public readonly ref struct ComputeContext
         if (pixels is null)
             return default;
 
-        var cellOffsetX = x - anchorX;
-        var cellOffsetY = y - anchorY;
-        var pixelOffsetX = cellOffsetX * CellMetrics.PixelWidth;
-        var pixelOffsetY = cellOffsetY * CellMetrics.PixelHeight;
+        return CreateSixelPixelAccess(pixels, sixelData, x - anchorX, y - anchorY);
+    }
 
-        return new SixelPixelAccess(pixels, pixelOffsetX, pixelOffsetY, CellMetrics);
+    private static SixelPixelAccess CreateSixelPixelAccess(
+        SixelPixelBuffer pixels,
+        SixelData sixelData,
+        int cellOffsetX,
+        int cellOffsetY)
+    {
+        var metrics = sixelData.CellMetrics;
+        var pixelLeft = Math.Min(pixels.Width, metrics.GetPixelForColumnBoundary(cellOffsetX));
+        var pixelTop = Math.Min(pixels.Height, metrics.GetPixelForRowBoundary(cellOffsetY));
+        var pixelRight = Math.Min(pixels.Width, metrics.GetPixelForColumnBoundary(cellOffsetX + 1));
+        var pixelBottom = Math.Min(pixels.Height, metrics.GetPixelForRowBoundary(cellOffsetY + 1));
+        return new SixelPixelAccess(
+            pixels,
+            pixelLeft,
+            pixelTop,
+            Math.Max(0, pixelRight - pixelLeft),
+            Math.Max(0, pixelBottom - pixelTop));
     }
 
     /// <summary>

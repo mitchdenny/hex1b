@@ -61,6 +61,19 @@ internal static class KgpOcclusionSolver
             // Convert visible rects to KGP fragments with clip coordinates
             foreach (var rect in visibleRects)
             {
+                if (image.Data.UsesNativeSize)
+                {
+                    var clipped = image.Data.ClipNativeToCells(
+                        rect.X - imageRect.X, rect.Y - imageRect.Y, rect.Width, rect.Height);
+                    if (clipped is not null)
+                    {
+                        fragments.Add(new KgpFragment(
+                            clipped.ImageId, rect.X, rect.Y, rect.Width, rect.Height,
+                            clipped.ClipX, clipped.ClipY, clipped.ClipW, clipped.ClipH, clipped));
+                    }
+                    continue;
+                }
+
                 var fragment = CreateFragment(image, imageRect, rect);
                 fragments.Add(fragment);
             }

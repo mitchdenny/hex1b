@@ -72,6 +72,42 @@ public sealed class Hex1bMetrics : IDisposable
     /// <summary>ANSI tokens parsed from workload output per pump cycle.</summary>
     public Histogram<int> TerminalOutputTokens { get; }
 
+    /// <summary>Bytes observed inside each DCS sequence, excluding its introducer and terminator.</summary>
+    public Histogram<long> TerminalDcsBytes { get; }
+
+    /// <summary>Completed DCS framing outcomes (tagged by <c>kind</c>).</summary>
+    public Counter<long> TerminalDcsDispatches { get; }
+
+    /// <summary>DCS sequences cancelled by CAN or SUB.</summary>
+    public Counter<long> TerminalDcsCancellations { get; }
+
+    /// <summary>Malformed DCS introducers recovered at a control-string boundary.</summary>
+    public Counter<long> TerminalDcsMalformedRecoveries { get; }
+
+    /// <summary>DCS sequences whose retained-content limit was exceeded.</summary>
+    public Counter<long> TerminalDcsRetentionLimitEvents { get; }
+
+    /// <summary>Time spent forwarding one raw workload chunk to a native presentation.</summary>
+    public Histogram<double> TerminalRawPassthroughDuration { get; }
+
+    /// <summary>Time spent applying one accepted Sixel sequence to the authoritative model.</summary>
+    public Histogram<double> TerminalSixelProcessingDuration { get; }
+
+    /// <summary>Sixel parser/model outcomes (tagged by <c>outcome</c>).</summary>
+    public Counter<long> TerminalSixelOutcomes { get; }
+
+    /// <summary>Sixel resource lifecycle operations (tagged by <c>action</c> and optional <c>reason</c>).</summary>
+    public Counter<long> TerminalSixelResources { get; }
+
+    /// <summary>Sixel resource-limit events (tagged by <c>limit</c>).</summary>
+    public Counter<long> TerminalSixelLimitEvents { get; }
+
+    /// <summary>Internal HMP1 Sixel reconnect-replay duration.</summary>
+    public Histogram<double> Hmp1SixelReplayDuration { get; }
+
+    /// <summary>Internal HMP1 Sixel reconnect-replay outcomes.</summary>
+    public Counter<long> Hmp1SixelReplayOutcomes { get; }
+
     // --- Terminal input pump ---
 
     /// <summary>Raw bytes read from presentation adapter per read.</summary>
@@ -158,6 +194,18 @@ public sealed class Hex1bMetrics : IDisposable
         // Terminal output pump
         TerminalOutputBytes = Meter.CreateHistogram<int>("hex1b.terminal.output.bytes", "By", "Bytes written to presentation per write");
         TerminalOutputTokens = Meter.CreateHistogram<int>("hex1b.terminal.output.tokens", "{token}", "ANSI tokens from workload output per pump cycle");
+        TerminalDcsBytes = Meter.CreateHistogram<long>("hex1b.terminal.dcs.bytes", "By", "Bytes in each DCS sequence");
+        TerminalDcsDispatches = Meter.CreateCounter<long>("hex1b.terminal.dcs.dispatches", "{sequence}", "DCS framing outcomes");
+        TerminalDcsCancellations = Meter.CreateCounter<long>("hex1b.terminal.dcs.cancellations", "{sequence}", "DCS sequences cancelled by CAN or SUB");
+        TerminalDcsMalformedRecoveries = Meter.CreateCounter<long>("hex1b.terminal.dcs.malformed_recoveries", "{sequence}", "Malformed DCS introducers recovered");
+        TerminalDcsRetentionLimitEvents = Meter.CreateCounter<long>("hex1b.terminal.dcs.retention_limit", "{sequence}", "DCS retained-content limit events");
+        TerminalRawPassthroughDuration = Meter.CreateHistogram<double>("hex1b.terminal.raw_passthrough.duration", "ms", "Raw workload-to-presentation write duration");
+        TerminalSixelProcessingDuration = Meter.CreateHistogram<double>("hex1b.terminal.sixel.processing.duration", "ms", "Authoritative Sixel model processing duration");
+        TerminalSixelOutcomes = Meter.CreateCounter<long>("hex1b.terminal.sixel.outcomes", "{sequence}", "Sixel parser/model outcomes");
+        TerminalSixelResources = Meter.CreateCounter<long>("hex1b.terminal.sixel.resources", "{operation}", "Sixel image and placement lifecycle operations");
+        TerminalSixelLimitEvents = Meter.CreateCounter<long>("hex1b.terminal.sixel.limit", "{event}", "Sixel resource-limit events");
+        Hmp1SixelReplayDuration = Meter.CreateHistogram<double>("hex1b.hmp1.sixel.replay.duration", "ms", "Internal HMP1 Sixel reconnect-replay duration");
+        Hmp1SixelReplayOutcomes = Meter.CreateCounter<long>("hex1b.hmp1.sixel.replay.outcomes", "{replay}", "Internal HMP1 Sixel reconnect-replay outcomes");
 
         // Terminal input pump
         TerminalInputBytes = Meter.CreateHistogram<int>("hex1b.terminal.input.bytes", "By", "Raw bytes from presentation per read");

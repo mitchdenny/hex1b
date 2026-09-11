@@ -68,6 +68,9 @@ public sealed class KgpPlacement
 
     internal bool IsRelative => ParentGraphId.HasValue;
 
+    // Cell occupancy is not a scaling request when both c and r were omitted.
+    internal bool UsesNativeSize { get; }
+
     /// <summary>
     /// Creates a new KGP placement anchored at the specified cell position.
     /// </summary>
@@ -179,7 +182,8 @@ public sealed class KgpPlacement
         long? parentGraphId,
         int parentOffsetHorizontal,
         int parentOffsetVertical,
-        bool isImageAddressable)
+        bool isImageAddressable,
+        bool usesNativeSize = false)
     {
         ImageId = imageId;
         PlacementId = placementId;
@@ -200,6 +204,7 @@ public sealed class KgpPlacement
         ParentOffsetHorizontal = parentOffsetHorizontal;
         ParentOffsetVertical = parentOffsetVertical;
         IsImageAddressable = isImageAddressable;
+        UsesNativeSize = usesNativeSize;
     }
 
     /// <summary>
@@ -243,7 +248,8 @@ public sealed class KgpPlacement
             ParentGraphId,
             ParentOffsetHorizontal,
             ParentOffsetVertical,
-            IsImageAddressable);
+            IsImageAddressable,
+            UsesNativeSize);
 
     internal KgpPlacement WithImageAddressability(bool isImageAddressable)
         => new(
@@ -265,7 +271,8 @@ public sealed class KgpPlacement
             ParentGraphId,
             ParentOffsetHorizontal,
             ParentOffsetVertical,
-            isImageAddressable);
+            isImageAddressable,
+            UsesNativeSize);
 
     internal KgpPlacement WithPosition(int row, int column)
         => new(
@@ -287,7 +294,8 @@ public sealed class KgpPlacement
             ParentGraphId,
             ParentOffsetHorizontal,
             ParentOffsetVertical,
-            IsImageAddressable);
+            IsImageAddressable,
+            UsesNativeSize);
 
     internal KgpPlacement WithGraphIdentity(
         long graphId,
@@ -313,7 +321,55 @@ public sealed class KgpPlacement
             parentGraphId,
             parentOffsetHorizontal,
             parentOffsetVertical,
-            IsImageAddressable);
+            IsImageAddressable,
+            UsesNativeSize);
+
+    internal KgpPlacement WithNativeSize(
+        KgpImageData image,
+        int cellPixelWidth,
+        int cellPixelHeight)
+        => new(
+            ImageId,
+            PlacementId,
+            Row,
+            Column,
+            GetNativeCellSpan(image.Width, SourceX, SourceWidth,
+                CellOffsetX, cellPixelWidth, DisplayColumns),
+            GetNativeCellSpan(image.Height, SourceY, SourceHeight,
+                CellOffsetY, cellPixelHeight, DisplayRows),
+            SourceX,
+            SourceY,
+            SourceWidth,
+            SourceHeight,
+            ZIndex,
+            CellOffsetX,
+            CellOffsetY,
+            RenderGeometry,
+            GraphId,
+            ParentGraphId,
+            ParentOffsetHorizontal,
+            ParentOffsetVertical,
+            IsImageAddressable,
+            usesNativeSize: true);
+
+    private static uint GetNativeCellSpan(
+        uint imageSize,
+        uint sourceOffset,
+        uint sourceSize,
+        uint cellOffset,
+        int cellPixelSize,
+        uint fallback)
+    {
+        if (cellPixelSize <= 0 ||
+            !TryNormalizeSourceAxis(imageSize, sourceOffset, sourceSize,
+                out _, out var pixels))
+        {
+            return fallback;
+        }
+
+        return (uint)Math.Min(uint.MaxValue,
+            DivideCeiling((ulong)pixels + cellOffset, (ulong)cellPixelSize));
+    }
 
     internal KgpPlacement? ClipToCellRectangle(
         KgpImageData image,
@@ -351,6 +407,7 @@ public sealed class KgpPlacement
                 DisplayColumns,
                 cellPixelWidth,
                 CellOffsetX,
+                UsesNativeSize,
                 out var clippedSourceX,
                 out var clippedSourceWidth) ||
             !TryClipSourceAxis(
@@ -362,6 +419,7 @@ public sealed class KgpPlacement
                 DisplayRows,
                 cellPixelHeight,
                 CellOffsetY,
+                UsesNativeSize,
                 out var clippedSourceY,
                 out var clippedSourceHeight))
         {
@@ -387,7 +445,8 @@ public sealed class KgpPlacement
             ParentGraphId,
             ParentOffsetHorizontal,
             ParentOffsetVertical,
-            IsImageAddressable);
+            IsImageAddressable,
+            UsesNativeSize);
     }
 
     internal KgpPlacement? ClipRows(
@@ -419,6 +478,7 @@ public sealed class KgpPlacement
                 DisplayRows,
                 cellPixelHeight,
                 CellOffsetY,
+                UsesNativeSize,
                 out var clippedSourceY,
                 out var clippedSourceHeight))
         {
@@ -444,7 +504,8 @@ public sealed class KgpPlacement
             ParentGraphId,
             ParentOffsetHorizontal,
             ParentOffsetVertical,
-            IsImageAddressable);
+            IsImageAddressable,
+            UsesNativeSize);
     }
 
     internal KgpPlacement Clone()
@@ -500,6 +561,7 @@ public sealed class KgpPlacement
         uint totalCells,
         int cellPixelSize,
         uint cellOffset,
+        bool usesNativeSize,
         out uint clippedOffset,
         out uint clippedSize)
     {
@@ -526,6 +588,7 @@ public sealed class KgpPlacement
                 totalCells,
                 cellPixelSize,
                 cellOffset,
+                usesNativeSize,
                 out var projectedOffset,
                 out var projectedSize))
         {
@@ -546,6 +609,7 @@ public sealed class KgpPlacement
         uint totalCells,
         int cellPixelSize,
         uint cellOffset,
+        bool usesNativeSize,
         out uint sourceOffset,
         out uint projectedSize)
     {
@@ -570,7 +634,7 @@ public sealed class KgpPlacement
             if (cellOffset >= fullSize)
                 return false;
 
-            destinationSize = fullSize - cellOffset;
+            destinationSize = usesNativeSize ? sourceSize : fullSize - cellOffset;
             destinationStart = ProjectCellBoundary(firstCell, cellSize, cellOffset, destinationSize);
             destinationEnd = ProjectCellBoundary(
                 checked(firstCell + retainedCells),

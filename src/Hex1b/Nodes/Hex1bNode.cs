@@ -57,6 +57,35 @@ public abstract class Hex1bNode
     internal int MetricChildIndex { get; set; }
 
     private string? _cachedMetricPath;
+    private TerminalCapabilities _terminalCapabilities = TerminalCapabilities.Minimal;
+
+    /// <summary>
+    /// Gets the terminal capabilities used for layout and input-tree decisions.
+    /// </summary>
+    protected TerminalCapabilities TerminalCapabilities => _terminalCapabilities;
+
+    internal void SetTerminalCapabilities(TerminalCapabilities capabilities)
+    {
+        ArgumentNullException.ThrowIfNull(capabilities);
+
+        if (_terminalCapabilities != capabilities)
+        {
+            _terminalCapabilities = capabilities;
+            OnTerminalCapabilitiesChanged();
+        }
+
+        foreach (var child in GetChildren())
+        {
+            child.SetTerminalCapabilities(capabilities);
+        }
+    }
+
+    /// <summary>
+    /// Called when terminal capabilities change.
+    /// </summary>
+    protected virtual void OnTerminalCapabilitiesChanged()
+    {
+    }
 
     /// <summary>
     /// Gets the hierarchical metric path for this node, composed from ancestor MetricName values.

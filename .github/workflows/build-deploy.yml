@@ -16,7 +16,7 @@ on:
         type: boolean
         default: false
 
-# Serialize publishes per branch so that NuGet pushes and tag/GH-release
+# Serialize publishes per branch so that npm/NuGet pushes and tag/GH-release
 # creation happen in commit order. PR builds get their own per-PR group so
 # concurrent PRs do not block each other.
 concurrency:
@@ -49,9 +49,69 @@ jobs:
         with:
           release-flag: ${{ github.event_name == 'workflow_dispatch' && inputs.release || 'false' }}
 
+  build-web-terminal:
+    runs-on: ubuntu-latest
+    needs: version
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Install web terminal dependencies
+        working-directory: src/web-terminal
+        run: npm ci --registry=https://registry.npmjs.org
+
+      - name: Stamp the shared package version
+        working-directory: src/web-terminal
+        env:
+          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
+        run: npm version "$PACKAGE_VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
+
+      - name: Install web terminal sample dependencies
+        run: npm ci --prefix samples/WebTerminalDemo --registry=https://registry.npmjs.org
+
+      # The consumer build compiles the library, then checks the playground
+      # types and copies its assets. Test and pack that same library build.
+      - name: Build web terminal and sample consumer
+        run: npm run build --prefix samples/WebTerminalDemo
+
+      - name: Test web terminal
+        working-directory: src/web-terminal
+        run: npm test
+
+      - name: Pack the tested web terminal
+        working-directory: src/web-terminal
+        run: |
+          mkdir -p ../../artifacts/npm
+          npm pack --ignore-scripts --pack-destination ../../artifacts/npm --registry=https://registry.npmjs.org
+
+      - name: Verify npm artifact identity
+        env:
+          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
+          PACKAGE_KIND: ${{ needs.version.outputs.kind }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/publish-web-terminal.mjs --verify
+
+      - name: Upload npm artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: npm-web-terminal
+          path: artifacts/npm/*.tgz
+          if-no-files-found: error
+
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    needs: build-web-terminal
     strategy:
       fail-fast: false
       matrix:
@@ -124,7 +184,7 @@ jobs:
         if: runner.os == 'Linux'
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Generate API reference docs
         if: runner.os == 'Linux'
@@ -140,7 +200,7 @@ jobs:
           aspire do build-content
 
       - name: Publish test results
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: success() || failure()
         with:
           name: Test Results (${{ runner.os }})
@@ -148,14 +208,14 @@ jobs:
           reporter: dotnet-trx
 
       - name: Upload test results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: success() || failure()
         with:
           name: test-results-${{ runner.os }}
           path: ./TestResults/
 
       - name: Upload SVG attachments
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: success() || failure()
         with:
           name: svg-attachments-${{ runner.os }}
@@ -174,7 +234,7 @@ jobs:
         run: make
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native/libhex1binterop.so
@@ -190,7 +250,7 @@ jobs:
         run: make
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: native-linux-arm64
           path: src/Hex1b/runtimes/linux-arm64/native/libhex1binterop.so
@@ -206,7 +266,7 @@ jobs:
         run: make TARGET_ARCH=x86_64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: native-osx-x64
           path: src/Hex1b/runtimes/osx-x64/native/libhex1binterop.dylib
@@ -222,7 +282,7 @@ jobs:
         run: make
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native/libhex1binterop.dylib
@@ -243,10 +303,10 @@ jobs:
         run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-x64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-x64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: pty-host-windows-x64
-          path: artifacts/pty-host/win-x64/hex1bpty.exe
+          path: artifacts/pty-host/win-x64/
 
   build-pty-host-windows-arm64:
     runs-on: windows-11-arm
@@ -264,14 +324,14 @@ jobs:
         run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-arm64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-arm64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: pty-host-windows-arm64
-          path: artifacts/pty-host/win-arm64/hex1bpty.exe
+          path: artifacts/pty-host/win-arm64/
 
   build-pr:
     runs-on: ubuntu-latest
-    needs: [version, test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
+    needs: [version, build-web-terminal, test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
     if: needs.version.outputs.kind == 'pr'
     permissions:
       contents: read
@@ -286,37 +346,37 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Download native library - linux-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native
 
       - name: Download native library - linux-arm64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-linux-arm64
           path: src/Hex1b/runtimes/linux-arm64/native
 
       - name: Download native library - osx-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-osx-x64
           path: src/Hex1b/runtimes/osx-x64/native
 
       - name: Download native library - osx-arm64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native
 
       - name: Download PTY shim - win-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: pty-host-windows-x64
           path: src/Hex1b/runtimes/win-x64/native
 
       - name: Download PTY shim - win-arm64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: pty-host-windows-arm64
           path: src/Hex1b/runtimes/win-arm64/native
@@ -324,7 +384,7 @@ jobs:
       - name: Verify native libraries
         run: |
           echo "Native libraries downloaded:"
-          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" \) | xargs ls -la
+          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" -o -name "conpty.dll" -o -name "OpenConsole.exe" \) | xargs ls -la
 
       - name: Build and pack Hex1b (PR version for GH Packages)
         env:
@@ -350,72 +410,18 @@ jobs:
         run: |
           dotnet pack src/Hex1b.Tool/Hex1b.Tool.csproj -c Release -p:PackageVersion=${{ needs.version.outputs.version }} -p:UseHex1bPackageReference=true -p:Hex1bPackageVersion=${{ needs.version.outputs.version }} --configfile "${{ steps.tool_pack_restore.outputs.config_path }}" --no-restore -o ./artifacts
 
-      - name: Verify package contents
-        run: |
-          echo "Hex1b package contents:"
-          unzip -l ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
-          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
-          if [ -n "$unexpected_windows_assets" ]; then
-            echo ""
-            echo "Unexpected Windows PTY payload detected:"
-            echo "$unexpected_windows_assets"
-            exit 1
-          fi
-          # The Hex1b.Analyzers project is repo-only and must never ship inside the Hex1b NuGet
-          # package. Fail the build if the analyzer dll, an analyzers/ folder, or anything else
-          # carrying the analyzer name leaks into the package.
-          analyzer_leak=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -iE '(^|/)Hex1b\.Analyzers(\.|/)|^analyzers/' || true)
-          if [ -n "$analyzer_leak" ]; then
-            echo ""
-            echo "Hex1b.Analyzers leaked into the Hex1b NuGet package:"
-            echo "$analyzer_leak"
-            exit 1
-          fi
-          echo ""
-          echo "Hex1b.McpServer package contents:"
-          unzip -l ./artifacts/Hex1b.McpServer.${{ needs.version.outputs.version }}.nupkg | head -30
-          echo ""
-          echo "Hex1b.Tool package contents:"
-          unzip -l ./artifacts/Hex1b.Tool.${{ needs.version.outputs.version }}.nupkg | grep -E "tools|DotnetToolSettings|hex1bpty|hex1binterop" || echo "No tool settings found in Hex1b.Tool package!"
-          tool_package_contents=$(unzip -Z1 ./artifacts/Hex1b.Tool.${{ needs.version.outputs.version }}.nupkg)
-          expected_tool_assets=(
-            "tools/net10.0/any/runtimes/linux-x64/native/libhex1binterop.so"
-            "tools/net10.0/any/runtimes/linux-arm64/native/libhex1binterop.so"
-            "tools/net10.0/any/runtimes/osx-x64/native/libhex1binterop.dylib"
-            "tools/net10.0/any/runtimes/osx-arm64/native/libhex1binterop.dylib"
-            "tools/net10.0/any/runtimes/win-x64/native/hex1bpty.exe"
-            "tools/net10.0/any/runtimes/win-arm64/native/hex1bpty.exe"
-          )
-          missing_tool_assets=()
-          for asset in "${expected_tool_assets[@]}"; do
-            if ! grep -Fxq "$asset" <<<"$tool_package_contents"; then
-              missing_tool_assets+=("$asset")
-            fi
-          done
-          if [ ${#missing_tool_assets[@]} -gt 0 ]; then
-            echo ""
-            echo "Hex1b.Tool is missing required native assets:"
-            printf '  %s\n' "${missing_tool_assets[@]}"
-            exit 1
-          fi
-          unexpected_tool_root_native=$(printf '%s\n' "$tool_package_contents" | grep -E '^tools/.*/any/libhex1binterop\.(so|dylib)$' || true)
-          if [ -n "$unexpected_tool_root_native" ]; then
-            echo ""
-            echo "Hex1b.Tool should not carry host-specific native libraries at the tool root:"
-            echo "$unexpected_tool_root_native"
-            exit 1
-          fi
-          printf '%s\n' "${expected_tool_assets[@]}"
+      - name: Extract and verify NuGet package contents
+        run: bash .github/scripts/assert-nuget-contents.sh ./artifacts "${{ needs.version.outputs.version }}"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: nuget-packages-pr
           path: ./artifacts/*.nupkg
 
   build-release:
     runs-on: ubuntu-latest
-    needs: [version, test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
+    needs: [version, build-web-terminal, test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
     if: needs.version.outputs.kind != 'pr'
     permissions:
       contents: read
@@ -430,37 +436,37 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Download native library - linux-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native
 
       - name: Download native library - linux-arm64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-linux-arm64
           path: src/Hex1b/runtimes/linux-arm64/native
 
       - name: Download native library - osx-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-osx-x64
           path: src/Hex1b/runtimes/osx-x64/native
 
       - name: Download native library - osx-arm64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native
 
       - name: Download PTY shim - win-x64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: pty-host-windows-x64
           path: src/Hex1b/runtimes/win-x64/native
 
       - name: Download PTY shim - win-arm64
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: pty-host-windows-arm64
           path: src/Hex1b/runtimes/win-arm64/native
@@ -468,7 +474,7 @@ jobs:
       - name: Verify native libraries
         run: |
           echo "Native libraries downloaded:"
-          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" \) | xargs ls -la
+          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" -o -name "conpty.dll" -o -name "OpenConsole.exe" \) | xargs ls -la
 
       - name: Build and pack Hex1b (release version for NuGet.org)
         env:
@@ -494,65 +500,11 @@ jobs:
         run: |
           dotnet pack src/Hex1b.Tool/Hex1b.Tool.csproj -c Release -p:PackageVersion=${{ needs.version.outputs.version }} -p:UseHex1bPackageReference=true -p:Hex1bPackageVersion=${{ needs.version.outputs.version }} --configfile "${{ steps.tool_pack_restore.outputs.config_path }}" --no-restore -o ./artifacts
 
-      - name: Verify package contents
-        run: |
-          echo "Hex1b package contents:"
-          unzip -l ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
-          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
-          if [ -n "$unexpected_windows_assets" ]; then
-            echo ""
-            echo "Unexpected Windows PTY payload detected:"
-            echo "$unexpected_windows_assets"
-            exit 1
-          fi
-          # The Hex1b.Analyzers project is repo-only and must never ship inside the Hex1b NuGet
-          # package. Fail the build if the analyzer dll, an analyzers/ folder, or anything else
-          # carrying the analyzer name leaks into the package.
-          analyzer_leak=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -iE '(^|/)Hex1b\.Analyzers(\.|/)|^analyzers/' || true)
-          if [ -n "$analyzer_leak" ]; then
-            echo ""
-            echo "Hex1b.Analyzers leaked into the Hex1b NuGet package:"
-            echo "$analyzer_leak"
-            exit 1
-          fi
-          echo ""
-          echo "Hex1b.McpServer package contents:"
-          unzip -l ./artifacts/Hex1b.McpServer.${{ needs.version.outputs.version }}.nupkg | head -30
-          echo ""
-          echo "Hex1b.Tool package contents:"
-          unzip -l ./artifacts/Hex1b.Tool.${{ needs.version.outputs.version }}.nupkg | grep -E "tools|DotnetToolSettings|hex1bpty|hex1binterop" || echo "No tool settings found in Hex1b.Tool package!"
-          tool_package_contents=$(unzip -Z1 ./artifacts/Hex1b.Tool.${{ needs.version.outputs.version }}.nupkg)
-          expected_tool_assets=(
-            "tools/net10.0/any/runtimes/linux-x64/native/libhex1binterop.so"
-            "tools/net10.0/any/runtimes/linux-arm64/native/libhex1binterop.so"
-            "tools/net10.0/any/runtimes/osx-x64/native/libhex1binterop.dylib"
-            "tools/net10.0/any/runtimes/osx-arm64/native/libhex1binterop.dylib"
-            "tools/net10.0/any/runtimes/win-x64/native/hex1bpty.exe"
-            "tools/net10.0/any/runtimes/win-arm64/native/hex1bpty.exe"
-          )
-          missing_tool_assets=()
-          for asset in "${expected_tool_assets[@]}"; do
-            if ! grep -Fxq "$asset" <<<"$tool_package_contents"; then
-              missing_tool_assets+=("$asset")
-            fi
-          done
-          if [ ${#missing_tool_assets[@]} -gt 0 ]; then
-            echo ""
-            echo "Hex1b.Tool is missing required native assets:"
-            printf '  %s\n' "${missing_tool_assets[@]}"
-            exit 1
-          fi
-          unexpected_tool_root_native=$(printf '%s\n' "$tool_package_contents" | grep -E '^tools/.*/any/libhex1binterop\.(so|dylib)$' || true)
-          if [ -n "$unexpected_tool_root_native" ]; then
-            echo ""
-            echo "Hex1b.Tool should not carry host-specific native libraries at the tool root:"
-            echo "$unexpected_tool_root_native"
-            exit 1
-          fi
-          printf '%s\n' "${expected_tool_assets[@]}"
+      - name: Extract and verify NuGet package contents
+        run: bash .github/scripts/assert-nuget-contents.sh ./artifacts "${{ needs.version.outputs.version }}"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: nuget-packages-release
           path: ./artifacts/*.nupkg
@@ -560,7 +512,17 @@ jobs:
   publish-pr:
     runs-on: ubuntu-latest
     needs: [version, build-pr]
-    if: needs.version.outputs.kind == 'pr'
+    # Review-only PRs can opt out without skipping build, test, or pack checks.
+    # Keep this marker in the PR body: <!-- hex1b:skip-preview-publish -->
+    if: >-
+      needs.version.outputs.kind == 'pr' &&
+      github.event_name == 'pull_request' &&
+      !contains(github.event.pull_request.body, '<!-- hex1b:skip-preview-publish -->') &&
+      github.repository == 'mitchdenny/hex1b' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.actor != 'dependabot[bot]' &&
+      github.triggering_actor != 'dependabot[bot]'
     permissions:
       contents: read
       packages: write
@@ -569,9 +531,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Download artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: nuget-packages-pr
           path: ./artifacts
@@ -585,7 +549,8 @@ jobs:
         run: |
           dotnet nuget push ./artifacts/*.nupkg \
             --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
-            --api-key ${{ secrets.GITHUB_TOKEN }}
+            --api-key ${{ secrets.GITHUB_TOKEN }} \
+            --skip-duplicate
 
       - name: Post package info to PR
         env:
@@ -611,10 +576,10 @@ jobs:
           done
 
           # Create comment body
-          cat > /tmp/pr_comment.md << EOF
+          cat > artifacts/pr_comment.md << EOF
           ## 📦 PR Packages Published
 
-          Preview packages for this PR have been published to GitHub Packages.
+          NuGet preview packages for this PR have been published to GitHub Packages.
 
           ### Package Version
           \`${PACKAGE_VERSION}\`
@@ -628,6 +593,20 @@ jobs:
           | Hex1b.Tool | CLI tool for terminal management and diagnostics |
 
           ### Usage Examples
+
+          **Browser client (downloadable workflow artifact):**
+
+          The npm package is not published to a registry for PRs. Download the
+          \`npm-web-terminal\` artifact from [this workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}),
+          or use the GitHub CLI:
+
+          \`\`\`bash
+          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --name npm-web-terminal --dir artifacts/npm
+          npm install ./artifacts/npm/hex1b-web-terminal-${PACKAGE_VERSION}.tgz --save-exact
+          \`\`\`
+
+          Use this tarball alongside the matching Hex1b NuGet packages.
+          See the [publishing guide](https://github.com/mitchdenny/hex1b/blob/${{ github.event.pull_request.head.sha }}/docs/web-terminal-publishing.md).
 
           **Hex1b - PackageReference (csproj):**
           \`\`\`xml
@@ -703,17 +682,17 @@ jobs:
           EOF
 
           # Strip leading spaces
-          sed -i 's/^          //' /tmp/pr_comment.md
+          sed -i 's/^          //' artifacts/pr_comment.md
 
           # Post comment to PR
           gh pr comment ${{ github.event.pull_request.number }} \
-            --body-file /tmp/pr_comment.md \
+            --body-file artifacts/pr_comment.md \
             --repo ${{ github.repository }}
 
   publish-release:
     runs-on: ubuntu-latest
     needs: [version, build-release]
-    if: needs.version.outputs.kind != 'pr'
+    if: needs.version.outputs.kind != 'pr' && github.repository == 'mitchdenny/hex1b'
     environment: production
     permissions:
       contents: write
@@ -725,10 +704,36 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Download artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: nuget-packages-release
           path: ./artifacts
+
+      - name: Download npm artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: npm-web-terminal
+          path: artifacts/npm
+
+      - name: Setup Node.js for npm trusted publishing
+        if: vars.NPM_PUBLISH_ENABLED == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Verify npm supports trusted publishing
+        if: vars.NPM_PUBLISH_ENABLED == 'true'
+        run: |
+          node --input-type=module -e '
+            import { execFileSync } from "node:child_process";
+            const version = execFileSync("npm", ["--version"], { encoding: "utf8" }).trim();
+            const [major, minor, patch] = version.split(".").map(Number);
+            if (!(major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1))))) {
+              throw new Error(`npm >= 11.5.1 is required for trusted publishing; found ${version}`);
+            }
+            console.log(`Using npm ${version} for trusted publishing`);
+          '
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -742,7 +747,7 @@ jobs:
           set -euo pipefail
           # If a final vX.Y.Z release for this same base shipped while this
           # beta was in flight, do not publish the now-stale beta.
-          git fetch --tags --quiet 2>/dev/null || true
+          git fetch --tags --quiet
           BASE="${{ needs.version.outputs.base }}"
           if git rev-parse -q --verify "refs/tags/v${BASE}" >/dev/null; then
             echo "Tag v${BASE} already exists; skipping stale beta publish."
@@ -750,6 +755,15 @@ jobs:
           else
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
+
+      # Publish npm first: a failed npm push must not leave NuGet published
+      # while preventing the GitHub release on a retry. Reuse the built tarball.
+      - name: Publish to npmjs with trusted publishing
+        if: vars.NPM_PUBLISH_ENABLED == 'true' && steps.stale-check.outputs.skip != 'true'
+        env:
+          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
+          PACKAGE_KIND: ${{ needs.version.outputs.kind }}
+        run: node .github/scripts/publish-web-terminal.mjs
 
       - name: Check if packages exist on NuGet.org
         id: check-package
@@ -825,7 +839,7 @@ jobs:
           PACKAGE_VERSION: ${{ needs.version.outputs.version }}
         run: |
           # Create release notes
-          cat > /tmp/release_notes.md << EOF
+          cat > artifacts/release_notes.md << EOF
           ## Hex1b v${PACKAGE_VERSION}
 
           ### Packages
@@ -858,16 +872,21 @@ jobs:
           - 🔧 [Hex1b.McpServer on NuGet](https://www.nuget.org/packages/Hex1b.McpServer/${PACKAGE_VERSION})
           - 🛠️ [Hex1b.Tool on NuGet](https://www.nuget.org/packages/Hex1b.Tool/${PACKAGE_VERSION})
           - 📖 [Documentation](https://hex1b.dev)
+          - 🌐 [Web terminal package and publishing guide](https://github.com/mitchdenny/hex1b/blob/main/docs/web-terminal-publishing.md)
+
+          When npm publishing is enabled, \`@hex1b/web-terminal\` uses this same
+          version on npmjs. It is an experimental HWT1 client paired with Hex1b.
 
           ---
           *Released from commit ${{ github.sha }}*
           EOF
 
-          # Create the GitHub release with all nupkg files attached
+          # Attach both distributions from the same versioned build.
           gh release create "v${PACKAGE_VERSION}" \
+            --target "${{ github.sha }}" \
             --title "v${PACKAGE_VERSION}" \
-            --notes-file /tmp/release_notes.md \
-            ./artifacts/*.nupkg
+            --notes-file artifacts/release_notes.md \
+            ./artifacts/*.nupkg ./artifacts/npm/*.tgz
 
       - name: Dispatch baseline-bump workflow
         # The release above is created via GITHUB_TOKEN, so the resulting
@@ -922,7 +941,7 @@ jobs:
           aspire --version
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}

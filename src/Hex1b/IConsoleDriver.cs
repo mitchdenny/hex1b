@@ -74,4 +74,21 @@ internal interface IConsoleDriver : IDisposable
     /// Raised when terminal is resized.
     /// </summary>
     event Action<int, int>? Resized;
+
+    /// <summary>
+    /// Attempts to read the terminal window's pixel size directly from the
+    /// operating system (for example, via <c>TIOCGWINSZ</c> on Unix), bypassing
+    /// any escape-sequence query/response round trip.
+    /// </summary>
+    /// <param name="pixelWidth">The window width in pixels, when the call succeeds.</param>
+    /// <param name="pixelHeight">The window height in pixels, when the call succeeds.</param>
+    /// <returns>
+    /// <see langword="true"/> when the platform exposes this information and both
+    /// values are nonzero; <see langword="false"/> otherwise (including on
+    /// platforms, such as Windows, with no equivalent OS-level facility). A
+    /// <see langword="false"/> result never distinguishes "not supported on this
+    /// platform" from "supported but currently zero" — callers should treat both
+    /// the same way: fall through to the next discovery source.
+    /// </returns>
+    bool TryGetWindowPixelSize(out int pixelWidth, out int pixelHeight);
 }

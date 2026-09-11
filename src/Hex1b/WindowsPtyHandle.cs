@@ -11,8 +11,8 @@ namespace Hex1b;
 /// </summary>
 /// <remarks>
 /// Requires Windows 10 version 1809 (build 17763) or later.
-/// Uses the Windows Pseudo Console (ConPTY) API to create a pseudo-terminal
-/// that can host console applications like pwsh.exe, cmd.exe, etc.
+/// Uses the redistributable Windows Pseudo Console (ConPTY) API to create a
+/// pseudo-terminal that can host console applications like pwsh.exe, cmd.exe, etc.
 /// 
 /// I/O is handled via background threads that perform blocking reads/writes
 /// on the synchronous pipe handles, bridged to async consumers via Channels.
@@ -86,7 +86,7 @@ internal sealed class WindowsPtyHandle : IPtyHandle
     
     // === P/Invoke Functions ===
     
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [DllImport("conpty.dll", EntryPoint = "ConptyCreatePseudoConsole", SetLastError = true)]
     private static extern int CreatePseudoConsole(
         COORD size,
         SafeFileHandle hInput,
@@ -94,10 +94,10 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         uint dwFlags,
         out IntPtr phPC);
     
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [DllImport("conpty.dll", EntryPoint = "ConptyResizePseudoConsole", SetLastError = true)]
     private static extern int ResizePseudoConsole(IntPtr hPC, COORD size);
     
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [DllImport("conpty.dll", EntryPoint = "ConptyClosePseudoConsole", SetLastError = true)]
     private static extern void ClosePseudoConsole(IntPtr hPC);
     
     [DllImport("kernel32.dll", SetLastError = true)]

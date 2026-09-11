@@ -92,6 +92,16 @@ public sealed class KgpCellData
 
     internal string? AnimationControlPayload { get; }
 
+    internal bool UsesNativeSize { get; init; }
+
+    internal Surfaces.CellMetrics NativeCellMetrics { get; init; }
+
+    private byte[]? _trackingHash;
+
+    internal byte[] TrackingHash => !UsesNativeSize ? ContentHash : _trackingHash ??=
+        SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{Convert.ToHexString(ContentHash)}:{WidthInCells}:{HeightInCells}:{NativeCellMetrics.PixelWidth}:{NativeCellMetrics.PixelHeight}:{BuildPlacementPayload()}"));
+
     /// <summary>
     /// Creates a new KGP cell data instance with structured placement data.
     /// </summary>
@@ -138,7 +148,9 @@ public sealed class KgpCellData
     {
         var sb = new StringBuilder();
         sb.Append("\x1b_G");
-        sb.Append($"a=p,i={ImageId},c={WidthInCells},r={HeightInCells}");
+        sb.Append($"a=p,i={ImageId}");
+        if (!UsesNativeSize)
+            sb.Append($",c={WidthInCells},r={HeightInCells}");
         if (placementId > 0) sb.Append($",p={placementId}");
         if (ClipX > 0) sb.Append($",x={ClipX}");
         if (ClipY > 0) sb.Append($",y={ClipY}");
@@ -156,6 +168,14 @@ public sealed class KgpCellData
     /// The transmit payload is preserved (image only needs to be sent once).
     /// </summary>
     internal KgpCellData WithClip(int clipX, int clipY, int clipW, int clipH, int newWidthInCells, int newHeightInCells)
+        => WithClip(
+            clipX, clipY, clipW, clipH, newWidthInCells, newHeightInCells,
+            clipX == ClipX ? CellOffsetX : 0,
+            clipY == ClipY ? CellOffsetY : 0);
+
+    private KgpCellData WithClip(
+        int clipX, int clipY, int clipW, int clipH,
+        int newWidthInCells, int newHeightInCells, uint cellOffsetX, uint cellOffsetY)
     {
         return new KgpCellData(
             TransmitPayload,
@@ -170,10 +190,40 @@ public sealed class KgpCellData
             clipW,
             clipH,
             ZIndex,
-            clipX == ClipX ? CellOffsetX : 0,
-            clipY == ClipY ? CellOffsetY : 0,
+            cellOffsetX,
+            cellOffsetY,
             AnimationFramePayloads,
-            AnimationControlPayload);
+            AnimationControlPayload)
+        {
+            UsesNativeSize = UsesNativeSize,
+            NativeCellMetrics = NativeCellMetrics
+        };
+    }
+
+    internal KgpCellData? ClipNativeToCells(int left, int top, int width, int height)
+    {
+        var pixelWidth = Math.Max(1, NativeCellMetrics.PixelWidth);
+        var pixelHeight = Math.Max(1, NativeCellMetrics.PixelHeight);
+        var sourceWidth = Math.Max(0L, (long)SourcePixelWidth - ClipX);
+        var sourceHeight = Math.Max(0L, (long)SourcePixelHeight - ClipY);
+        if (ClipW > 0)
+            sourceWidth = Math.Min(sourceWidth, ClipW);
+        if (ClipH > 0)
+            sourceHeight = Math.Min(sourceHeight, ClipH);
+
+        var startX = Math.Clamp((long)left * pixelWidth - CellOffsetX, 0, sourceWidth);
+        var startY = Math.Clamp((long)top * pixelHeight - CellOffsetY, 0, sourceHeight);
+        var endX = Math.Clamp(((long)left + width) * pixelWidth - CellOffsetX, 0, sourceWidth);
+        var endY = Math.Clamp(((long)top + height) * pixelHeight - CellOffsetY, 0, sourceHeight);
+        if (endX <= startX || endY <= startY)
+            return null;
+
+        return WithClip(
+            checked(ClipX + (int)startX), checked(ClipY + (int)startY),
+            checked((int)(endX - startX)), checked((int)(endY - startY)),
+            width, height,
+            checked((uint)Math.Max(0, CellOffsetX - (long)left * pixelWidth)),
+            checked((uint)Math.Max(0, CellOffsetY - (long)top * pixelHeight)));
     }
 
     /// <summary>

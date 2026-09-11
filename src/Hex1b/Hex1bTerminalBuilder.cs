@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.WebSockets;
 using Hex1b.Automation;
 using Hex1b.Widgets;
 
@@ -53,6 +54,7 @@ public sealed class Hex1bTerminalBuilder
     private Action<ScrollbackRowEventArgs>? _scrollbackCallback;
     private Reflow.ITerminalReflowProvider? _reflowStrategy;
     private bool _reflowEnabled;
+    private readonly Hex1bTerminalGraphicsOptions _graphicsOptions = new();
 
     /// <summary>
     /// Creates a new terminal builder.
@@ -720,27 +722,47 @@ public sealed class Hex1bTerminalBuilder
     /// </code>
     /// </example>
     public Hex1bTerminalBuilder WithRemoteTerminal(Uri uri)
+        => WithRemoteTerminal(uri, static _ => { });
+
+    /// <summary>
+    /// Configures the terminal to connect to a remote terminal host over WebSocket
+    /// with custom WebSocket and HTTP request options.
+    /// </summary>
+    /// <param name="uri">
+    /// WebSocket URI of the remote host's attach endpoint.
+    /// </param>
+    /// <param name="configureOptions">
+    /// An action that configures the WebSocket and its opening HTTP request.
+    /// </param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="uri"/> or <paramref name="configureOptions"/> is <see langword="null"/>.
+    /// </exception>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithRemoteTerminal(
+    ///         new Uri("wss://example.com/ws/attach"),
+    ///         options => options.ConfigureRequest(request =>
+    ///             request.Headers.Authorization =
+    ///                 new System.Net.Http.Headers.AuthenticationHeaderValue(
+    ///                     "Bearer", "token")))
+    ///     .Build();
+    ///
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithRemoteTerminal(
+        Uri uri,
+        Action<RemoteTerminalOptions> configureOptions)
     {
         ArgumentNullException.ThrowIfNull(uri);
+        ArgumentNullException.ThrowIfNull(configureOptions);
 
         SetWorkloadFactory(_ =>
         {
-            var adapter = new RemoteTerminalWorkloadAdapter(uri);
-
-            Func<CancellationToken, Task<int>> runCallback = async ct =>
-            {
-                await adapter.ConnectAsync(ct);
-
-                // Wait for the remote terminal to disconnect
-                var tcs = new TaskCompletionSource<int>();
-                adapter.Disconnected += () => tcs.TrySetResult(0);
-
-                using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
-
-                return await tcs.Task;
-            };
-
-            return new Hex1bTerminalBuildContext(adapter, runCallback);
+            var adapter = new RemoteTerminalWorkloadAdapter(uri, configureOptions);
+            return CreateRemoteTerminalBuildContext(adapter);
         });
 
         return this;
@@ -758,6 +780,9 @@ public sealed class Hex1bTerminalBuilder
     /// remote state (dimensions, leadership) or sending shutdown commands.
     /// </param>
     /// <returns>This builder instance for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="uri"/> is <see langword="null"/>.
+    /// </exception>
     /// <example>
     /// <code>
     /// await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -769,30 +794,75 @@ public sealed class Hex1bTerminalBuilder
     /// </code>
     /// </example>
     public Hex1bTerminalBuilder WithRemoteTerminal(Uri uri, out RemoteTerminalWorkloadAdapter adapter)
+        => WithRemoteTerminal(uri, static _ => { }, out adapter);
+
+    /// <summary>
+    /// Configures the terminal to connect to a remote terminal host over WebSocket
+    /// with custom WebSocket and HTTP request options, providing access to the adapter
+    /// for advanced control.
+    /// </summary>
+    /// <param name="uri">
+    /// WebSocket URI of the remote host's attach endpoint.
+    /// </param>
+    /// <param name="configureOptions">
+    /// An action that configures the WebSocket and its opening HTTP request.
+    /// </param>
+    /// <param name="adapter">
+    /// When this method returns, contains the adapter instance for querying
+    /// remote state (dimensions, leadership) or sending shutdown commands.
+    /// </param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="uri"/> or <paramref name="configureOptions"/> is <see langword="null"/>.
+    /// </exception>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithRemoteTerminal(
+    ///         new Uri("wss://example.com/ws/attach"),
+    ///         options => options.ConfigureRequest(request =>
+    ///             request.Headers.Authorization =
+    ///                 new System.Net.Http.Headers.AuthenticationHeaderValue(
+    ///                     "Bearer", "token")),
+    ///         out var remote)
+    ///     .Build();
+    ///
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithRemoteTerminal(
+        Uri uri,
+        Action<RemoteTerminalOptions> configureOptions,
+        out RemoteTerminalWorkloadAdapter adapter)
     {
         ArgumentNullException.ThrowIfNull(uri);
+        ArgumentNullException.ThrowIfNull(configureOptions);
 
-        var remoteAdapter = new RemoteTerminalWorkloadAdapter(uri);
+        var remoteAdapter = new RemoteTerminalWorkloadAdapter(uri, configureOptions);
         adapter = remoteAdapter;
 
-        SetWorkloadFactory(_ =>
-        {
-            Func<CancellationToken, Task<int>> runCallback = async ct =>
-            {
-                await remoteAdapter.ConnectAsync(ct);
-
-                var tcs = new TaskCompletionSource<int>();
-                remoteAdapter.Disconnected += () => tcs.TrySetResult(0);
-
-                using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
-
-                return await tcs.Task;
-            };
-
-            return new Hex1bTerminalBuildContext(remoteAdapter, runCallback);
-        });
+        SetWorkloadFactory(_ => CreateRemoteTerminalBuildContext(remoteAdapter));
 
         return this;
+    }
+
+    private static Hex1bTerminalBuildContext CreateRemoteTerminalBuildContext(
+        RemoteTerminalWorkloadAdapter adapter)
+    {
+        Func<CancellationToken, Task<int>> runCallback = async ct =>
+        {
+            await adapter.ConnectAsync(ct);
+
+            // Wait for the remote terminal to disconnect
+            var tcs = new TaskCompletionSource<int>();
+            adapter.Disconnected += () => tcs.TrySetResult(0);
+
+            using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
+
+            return await tcs.Task;
+        };
+
+        return new Hex1bTerminalBuildContext(adapter, runCallback);
     }
 
     /// <summary>
@@ -1282,6 +1352,44 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
+    /// Configures resource limits for terminal graphics.
+    /// </summary>
+    /// <param name="configure">
+    /// A callback that configures the terminal's per-image and per-screen
+    /// graphics limits.
+    /// </param>
+    /// <returns>This builder for chaining.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="configure"/> is <see langword="null"/>.
+    /// </exception>
+    /// <remarks>
+    /// Main and alternate screens receive independent retained-resource budgets.
+    /// Invalid values are rejected when <see cref="Build"/> constructs the
+    /// terminal.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithPtyProcess("bash")
+    ///     .WithGraphics(options =>
+    ///     {
+    ///         options.MaximumRetainedBytesPerScreen = 64L * 1024 * 1024;
+    ///         options.MaximumPlacementsPerScreen = 512;
+    ///     })
+    ///     .Build();
+    ///
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithGraphics(
+        Action<Hex1bTerminalGraphicsOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        configure(_graphicsOptions);
+        return this;
+    }
+
+    /// <summary>
     /// Enables terminal reflow with automatic strategy detection based on the running
     /// terminal emulator (via <c>TERM_PROGRAM</c>, <c>WT_SESSION</c>, etc.).
     /// </summary>
@@ -1344,7 +1452,11 @@ public sealed class Hex1bTerminalBuilder
     /// </summary>
     /// <returns>A configured <see cref="Hex1bTerminal"/> instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown when no workload has been configured.</exception>
-    public Hex1bTerminal Build()
+    public Hex1bTerminal Build() => BuildCallback is { } build
+        ? build(this)
+        : BuildCore(deferStart: false);
+
+    internal Hex1bTerminal BuildCore(bool deferStart)
     {
         if (_workloadFactory is null && _workloadAdapter is null)
         {
@@ -1401,9 +1513,11 @@ public sealed class Hex1bTerminalBuilder
             Height = _height,
             TimeProvider = _timeProvider ?? TimeProvider.System,
             RunCallback = runCallback,
+            DeferStart = deferStart,
             ScrollbackCapacity = _scrollbackCapacity,
             ScrollbackCallback = _scrollbackCallback,
-            Metrics = ResolveMetrics()
+            Metrics = ResolveMetrics(),
+            Graphics = _graphicsOptions.Clone(),
         };
         
         foreach (var filter in _workloadFilters)
@@ -1432,6 +1546,11 @@ public sealed class Hex1bTerminalBuilder
     // details of the Hex1b assembly.
 
     internal IHex1bTerminalWorkloadAdapter? GetConfiguredWorkloadAdapter() => _workloadAdapter;
+
+    // Allows an owner to validate configured settings before constructing and starting resources.
+    internal Func<Hex1bTerminalBuilder, Hex1bTerminal>? BuildCallback { get; set; }
+
+    internal TimeProvider GetConfiguredTimeProvider() => _timeProvider ?? TimeProvider.System;
 
     internal Func<IHex1bTerminalPresentationAdapter?, Hex1bTerminalBuildContext>? GetConfiguredWorkloadFactory()
         => _workloadFactory;

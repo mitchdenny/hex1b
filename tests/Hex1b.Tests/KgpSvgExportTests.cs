@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
@@ -245,6 +246,56 @@ public class KgpSvgExportTests
         Assert.IsTrue(snapshot.KgpPlacements.Count > 0, "Snapshot should capture KGP placements");
         Assert.IsTrue(snapshot.KgpImages.Count > 0, "Snapshot should capture KGP image data");
         Assert.IsTrue(snapshot.KgpImages.ContainsKey(42), "Snapshot should contain the transmitted image ID");
+    }
+
+    [TestMethod]
+    [DataRow(false, false, false)]
+    [DataRow(false, true, false)]
+    [DataRow(false, true, true)]
+    [DataRow(true, false, false)]
+    [DataRow(true, true, false)]
+    [DataRow(true, true, true)]
+    public void SvgExport_NativeSprite_UsesPixelBounds(bool png, bool crop, bool customMetrics)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 12, 8);
+        var pixels = png
+            ? Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAMAAAADCAYAAABWKLW/AAAAEUlEQVR4nGP4z8DwH4YZcHIAXdcR79xPMRAAAAAASUVORK5CYII=")
+            : KgpTestHelper.CreatePixelData(3, 3);
+        var cropControls = crop ? ",x=1,y=1,w=2,h=2" : "";
+        Send(terminal, "\x1b[3;5H" + KgpTestHelper.BuildCommand(
+            $"a=T,f={(png ? 100 : 32)},s=3,v=3,i=7,X=9,Y=19,C=1,q=2{cropControls}",
+            pixels));
+        using var snapshot = terminal.CreateSnapshot();
+        var options = customMetrics
+            ? new TerminalSvgOptions { CellWidth = 15, CellHeight = 30 }
+            : null;
+
+        var svg = XDocument.Parse(snapshot.ToSvg(options));
+
+        XNamespace ns = "http://www.w3.org/2000/svg";
+        var image = TestSeq.Single(svg.Descendants()
+            .Where(element => (string?)element.Attribute("data-image-id") == "7"));
+        var scale = customMetrics ? 1.5 : 1;
+        var destinationX = 49 * scale;
+        var destinationY = 59 * scale;
+        var destinationSize = (crop ? 2 : 3) * scale;
+        Assert.AreEqual(png ? "use" : "image", image.Name.LocalName);
+        Assert.AreEqual(png && crop ? destinationX - scale : destinationX, (double)image.Attribute("x")!);
+        Assert.AreEqual(png && crop ? destinationY - scale : destinationY, (double)image.Attribute("y")!);
+        Assert.AreEqual(png ? 3 * scale : destinationSize, (double)image.Attribute("width")!);
+        Assert.AreEqual(png ? 3 * scale : destinationSize, (double)image.Attribute("height")!);
+        if (png && crop)
+        {
+            var clip = TestSeq.Single(svg.Descendants(ns + "clipPath")
+                .Where(element => ((string?)element.Attribute("id"))?.StartsWith("kgp-png-clip-") == true));
+            var bounds = TestSeq.Single(clip.Elements(ns + "rect"));
+            Assert.AreEqual(destinationX, (double)bounds.Attribute("x")!);
+            Assert.AreEqual(destinationY, (double)bounds.Attribute("y")!);
+            Assert.AreEqual(destinationSize, (double)bounds.Attribute("width")!);
+            Assert.AreEqual(destinationSize, (double)bounds.Attribute("height")!);
+        }
     }
 
     private static int CountOccurrences(string text, string pattern)

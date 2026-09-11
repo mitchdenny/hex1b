@@ -20,6 +20,36 @@ public class KgpOcclusionSolverTests
     }
 
     [TestMethod]
+    public void ComputeFragments_NativeSpriteOccluded_ClipsPixelsWithoutScaling()
+    {
+        var registry = new KgpImageRegistry();
+        var data = new KgpCellData(null, 1, 2, 2, 3, 3, new byte[32],
+            clipW: 3, clipH: 3, cellOffsetX: 8, cellOffsetY: 18)
+        {
+            UsesNativeSize = true,
+            NativeCellMetrics = new(10, 20)
+        };
+        registry.RegisterImage(data, 0, 0);
+        registry.PushLayer();
+        registry.RegisterOccluder(0, 0, 1, 2);
+
+        var fragment = TestSeq.Single(KgpOcclusionSolver.ComputeFragments(registry));
+
+        Assert.AreEqual(1, fragment.AbsoluteX);
+        Assert.AreEqual(1, fragment.CellWidth);
+        Assert.AreEqual(2, fragment.CellHeight);
+        Assert.AreEqual(2, fragment.ClipX);
+        Assert.AreEqual(0, fragment.ClipY);
+        Assert.AreEqual(1, fragment.ClipW);
+        Assert.AreEqual(3, fragment.ClipH);
+        Assert.IsTrue(fragment.Data.UsesNativeSize);
+        Assert.AreEqual(0u, fragment.Data.CellOffsetX);
+        Assert.AreEqual(18u, fragment.Data.CellOffsetY);
+        Assert.DoesNotContain(",c=", fragment.Data.BuildPlacementPayload());
+        Assert.DoesNotContain(",r=", fragment.Data.BuildPlacementPayload());
+    }
+
+    [TestMethod]
     public void NoOccluders_ReturnsFullImage()
     {
         var registry = new KgpImageRegistry();

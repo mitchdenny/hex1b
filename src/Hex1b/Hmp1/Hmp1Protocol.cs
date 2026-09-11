@@ -85,7 +85,8 @@ internal static class Hmp1Protocol
         var type = (Hmp1FrameType)header[0];
         var length = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(1));
 
-        if (length < 0 || length > MaxPayloadSize)
+        if (length < 0 || length > MaxPayloadSize ||
+            (type == Hmp1FrameType.ActivityState && length > Hmp1ActivityState.MaxPayloadSize))
             throw new InvalidOperationException($"Invalid frame payload length: {length}");
 
         ReadOnlyMemory<byte> payload;
@@ -103,6 +104,21 @@ internal static class Hmp1Protocol
         }
 
         return new Hmp1Frame(type, payload);
+    }
+
+    internal static ValueTask WriteActivityStateAsync(
+        Stream stream, Hmp1ActivityState state, CancellationToken ct = default)
+        => WriteFrameAsync(stream, Hmp1FrameType.ActivityState,
+            JsonSerializer.SerializeToUtf8Bytes(state, Hmp1JsonContext.Default.Hmp1ActivityState), ct);
+
+    internal static async ValueTask<Hmp1ActivityState> ReadActivityStateAsync(
+        Stream stream, CancellationToken ct)
+    {
+        var frame = await ReadFrameAsync(stream, ct).ConfigureAwait(false)
+            ?? throw new InvalidDataException("Server closed connection before ActivityState checkpoint.");
+        if (frame.Type != Hmp1FrameType.ActivityState)
+            throw new InvalidDataException($"Expected ActivityState checkpoint, got {frame.Type}.");
+        return Hmp1ActivityState.Parse(frame.Payload);
     }
 
     /// <summary>

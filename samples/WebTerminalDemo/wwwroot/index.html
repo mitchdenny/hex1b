@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebTerminalDemo</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("scoutTheme");
+      const theme =
+        param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --cp-bg: #f7f4ef;
+      --cp-bg-elevated: #fcfbf8;
+      --cp-surface: #ffffff;
+      --cp-surface-soft: #f5f5f5;
+      --cp-border: #dedede;
+      --cp-border-strong: #919191;
+      --cp-text: #242424;
+      --cp-text-muted: #5c5c5c;
+      --cp-text-soft: #6f6f6f;
+      --cp-accent: #b11f4b;
+      --cp-accent-hover: #9a1a41;
+      --cp-accent-soft: rgba(177, 31, 75, 0.08);
+      --cp-accent-fg: #ffffff;
+      --cp-success: #16a34a;
+      --cp-danger: #dc2626;
+      --cp-warning: #f59e0b;
+      --cp-link: #0078d4;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+      --cp-overlay: rgba(255, 255, 255, 0.8);
+      --cp-panel: rgba(255, 255, 255, 0.86);
+      --cp-panel-strong: rgba(255, 255, 255, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.55);
+      --cp-highlight: rgba(177, 31, 75, 0.12);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --cp-bg: #3d3b3a;
+      --cp-bg-elevated: #343231;
+      --cp-surface: #292929;
+      --cp-surface-soft: #2e2e2e;
+      --cp-border: #474747;
+      --cp-border-strong: #5f5f5f;
+      --cp-text: #dedede;
+      --cp-text-muted: #919191;
+      --cp-text-soft: #b0b0b0;
+      --cp-accent: #fd8ea1;
+      --cp-accent-hover: #fb7b91;
+      --cp-accent-soft: rgba(253, 142, 161, 0.14);
+      --cp-accent-fg: #1a1a1a;
+      --cp-success: #4ade80;
+      --cp-danger: #f87171;
+      --cp-warning: #fbbf24;
+      --cp-link: #4da6ff;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+      --cp-overlay: rgba(41, 41, 41, 0.88);
+      --cp-panel: rgba(41, 41, 41, 0.72);
+      --cp-panel-strong: rgba(41, 41, 41, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.04);
+      --cp-highlight: rgba(253, 142, 161, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 16px; background: var(--cp-bg); color: var(--cp-text); font: 14px/1.5 "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif; }
+    main { height: calc(100dvh - 32px); display: flex; flex-direction: column; gap: 12px; }
+    h1 { margin: 0; font-size: 24px; letter-spacing: -.5px; }
+    header p { margin: 0; color: var(--cp-text-muted); }
+    .panel { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; padding: 12px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+    .instance-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; border-left: 1px solid var(--cp-border); padding-left: 12px; }
+    label { display: grid; gap: 4px; color: var(--cp-text-muted); font-size: 13px; }
+    button, select, input { font: inherit; min-height: 34px; border: 1px solid var(--cp-border-strong); border-radius: .625rem; padding: 6px 10px; background: var(--cp-bg-elevated); color: var(--cp-text); }
+    input[type=number] { width: 68px; }
+    #instances { min-width: 180px; max-width: 340px; }
+    .tape-controls { display: flex; flex: 1 0 100%; flex-wrap: wrap; align-items: end; gap: 8px; border-top: 1px solid var(--cp-border); padding-top: 8px; }
+    #tapes { min-width: 180px; max-width: 340px; }
+    #tape-status { flex: 1 1 260px; align-self: center; margin: 0; font-size: 12px; color: var(--cp-text-muted); white-space: pre-line; overflow-wrap: anywhere; }
+    #tape-status[data-level=error] { color: var(--cp-danger); }
+    #tape-status[data-level=ready] { color: var(--cp-success); }
+    button { cursor: pointer; }
+    button:hover { background: var(--cp-accent-soft); }
+    button.primary { background: var(--cp-accent); color: var(--cp-accent-fg); border-color: var(--cp-accent); }
+    button.primary:hover { background: var(--cp-accent-hover); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    :focus-visible { outline: 2px solid var(--cp-accent); outline-offset: 3px; }
+    #status { margin: 0; color: var(--cp-text-muted); font-size: 12px; }
+    [data-level=error] { color: var(--cp-danger); }
+    #status[data-level=ready] { color: var(--cp-success); }
+    #warnings { color: var(--cp-warning); white-space: pre-wrap; margin: 8px 0; }
+    #workspace { position: relative; overflow: auto; flex: 1; min-height: 320px; background: var(--cp-bg-elevated); border: 1px solid var(--cp-border); border-radius: 16px; }
+    #workspace.empty::before { content: "Create a terminal or attach a view above. Closing a view keeps its terminal running."; display: block; padding: 32px; color: var(--cp-text-muted); }
+    .terminal-window { position: absolute; display: flex; flex-direction: column; min-width: 240px; min-height: 180px; overflow: hidden; border: 1px solid var(--cp-border-strong); border-radius: .625rem; background: var(--cp-surface); }
+    .terminal-window.selected { border-color: var(--cp-accent); }
+    .view-titlebar { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 8px; padding: 4px 8px; background: var(--cp-surface-soft); cursor: grab; touch-action: none; user-select: none; }
+    .view-title { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 600; }
+    .view-role { flex: none; font-size: 11px; color: var(--cp-text-muted); }
+    .terminal-window[data-primary=true] .view-role { color: var(--cp-accent); font-weight: 600; }
+    .view-tools { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 4px; overflow: hidden; padding: 4px 6px; border-bottom: 1px solid var(--cp-border); }
+    .view-failures { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 6px; padding: 4px 6px; border-bottom: 1px solid var(--cp-border); }
+    .view-failures label { display: flex; flex: 1; min-width: 0; align-items: center; font-size: 11px; }
+    .view-failure { flex: 1; min-width: 0; height: 26px; min-height: 26px; padding: 2px 4px; font-size: 11px; border-radius: 6px; }
+    .terminal-window button { font-size: 11px; min-height: 26px; padding: 3px 6px; border-radius: 6px; flex: none; }
+    .view-grid { font: 11px Consolas, "Courier New", Courier, monospace; white-space: nowrap; margin-left: auto; color: var(--cp-text-muted); }
+    .view-activity { display: flex; flex: 0 0 24px; align-items: center; gap: 8px; padding: 0 8px; font-size: 11px; color: var(--cp-text-muted); overflow: hidden; white-space: nowrap; }
+    .activity-progress { width: 80px; height: 8px; flex: none; accent-color: var(--cp-accent); }
+    [data-progress=warning] .activity-progress { accent-color: var(--cp-warning); }
+    [data-progress=error] .activity-progress { accent-color: var(--cp-danger); }
+    [data-shell-phase=executing] .shell-status { color: var(--cp-accent); }
+    [data-connected=false] .view-activity { visibility: hidden; }
+    .terminal-stage { display: flex; position: relative; flex: 1 1 0; min-width: 0; min-height: 0; }
+    .terminal-mount { flex: 1 1 0; min-width: 0; min-height: 0; contain: size; overflow: hidden; }
+    .closed-overlay { position: absolute; inset: 0; z-index: 1; display: flex; overflow: auto; padding: 12px; background: var(--cp-overlay); }
+    .closed-overlay[hidden] { display: none; }
+    .closed-card { margin: auto; width: 100%; max-width: 480px; padding: 16px; border: 1px solid var(--cp-border-strong); border-radius: 12px; background: var(--cp-surface); box-shadow: var(--cp-shadow); overflow-wrap: anywhere; }
+    .closed-title { margin: 0 0 8px; font-size: 20px; line-height: 1.2; }
+    .closed-summary { margin: 0 0 12px; color: var(--cp-text-muted); font-size: 13px; }
+    .closed-detail { margin: 0 0 16px; white-space: pre-wrap; font: 11px/1.6 Consolas, "Courier New", Courier, monospace; color: var(--cp-text-soft); }
+    .closed-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .closed-actions .reconnect-view { background: var(--cp-accent); border-color: var(--cp-accent); color: var(--cp-accent-fg); }
+    .view-footer { display: flex; flex: 0 0 24px; min-width: 0; align-items: center; gap: 4px; padding: 0 24px 0 8px; border-top: 1px solid var(--cp-border); }
+    .view-status { flex: 1; min-width: 0; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cp-text-muted); }
+    .view-footer button, .view-footer select { flex: none; height: 20px; min-height: 20px; padding: 0 2px; border-radius: 4px; font-size: 10px; }
+    .view-footer button { width: 20px; }
+    .view-resolution { width: 96px; }
+    .font-size { flex: none; min-width: 28px; text-align: center; font: 10px Consolas, "Courier New", Courier, monospace; color: var(--cp-text-muted); }
+    .view-status[data-level=error] { color: var(--cp-danger); }
+    .resize-handle { position: absolute; right: 3px; bottom: 3px; width: 16px; height: 16px; border-right: 3px solid var(--cp-border-strong); border-bottom: 3px solid var(--cp-border-strong); cursor: se-resize; touch-action: none; }
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-top: 12px; }
+    dt { font-size: 12px; color: var(--cp-text-muted); }
+    dd { font: 15px/1.7 Consolas, "Courier New", Courier, monospace; margin: 0; }
+    details { color: var(--cp-text-muted); max-height: 40vh; overflow: auto; flex: none; }
+    summary { cursor: pointer; }
+    #screen-mirror { overflow: auto; max-height: 200px; white-space: pre; font: 12px/1.4 Consolas, "Courier New", Courier, monospace; }
+    @media (max-width: 640px) { body { padding: 8px; } main { height: calc(100dvh - 16px); } .instance-controls { border-left: 0; padding-left: 0; } }
+  </style>
+  <script type="importmap">
+    { "imports": { "@hex1b/web-terminal": "./web-terminal/index.js" } }
+  </script>
+  <script type="module" src="./playground/main.js"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>WebTerminalDemo</h1>
+      <p>HMP1 shared terminals · HWT1 GPU-rendered views · primary-owned geometry</p>
+    </header>
+    <section class="panel controls" aria-label="Terminal controls">
+      <label>Scene
+        <select id="scene">
+          <option value="mixed">Mixed text + graphics</option>
+          <option value="text">Text throughput</option>
+          <option value="sixel">Sixel graphics</option>
+          <option value="kgp">Kitty graphics</option>
+          <option value="animation">Graphics animation</option>
+          <option value="activity">Progress and shell activity</option>
+          <option value="shell">Interactive shell</option>
+        </select>
+      </label>
+      <label>New view maximum scale
+        <select id="scale">
+          <option value="auto">Device DPR (max 3×)</option>
+          <option value="1">1×</option>
+          <option value="1.5">1.5×</option>
+          <option value="2">2×</option>
+          <option value="3">3×</option>
+        </select>
+      </label>
+      <label>New view font
+        <select id="font">
+          <option value="cascadia">Cascadia Mono NF</option>
+          <option value="monospace">System monospace</option>
+        </select>
+      </label>
+      <label>New view renderer
+        <select id="renderer">
+          <option value="auto">Auto (prefer WebGPU)</option>
+          <option value="webgpu">WebGPU</option>
+          <option value="webgl2">WebGL2</option>
+        </select>
+      </label>
+      <label>New view transport
+        <select id="transport">
+          <option value="direct">Direct HWT1</option>
+          <option value="hmp1">HMP1 relay → HWT1</option>
+        </select>
+      </label>
+      <label>New view failure
+        <select id="failure">
+          <option value="">None</option>
+          <option value="before-frame-close">Close before first frame</option>
+          <option value="before-frame-abort">Drop before first frame</option>
+          <option value="reject-upgrade">Reject WebSocket upgrade</option>
+        </select>
+      </label>
+      <button id="create" class="primary">New terminal</button>
+      <div class="instance-controls">
+        <label>Existing terminal <select id="instances"></select></label>
+        <button id="attach" disabled>Attach view</button>
+        <button id="terminate" disabled>End terminal</button>
+        <label>Rate / s <input id="rate" type="number" min="1" max="120" value="30" disabled></label>
+        <label>Batch <input id="batch" type="number" min="1" max="1000" value="20" disabled></label>
+        <button id="apply-rate" disabled>Apply</button>
+        <button id="pause" disabled aria-pressed="false">Pause</button>
+      </div>
+      <div class="tape-controls" role="group" aria-label="Existing terminal tape playback">
+        <label>Scenario tape <select id="tapes" disabled></select></label>
+        <button id="play-tape" disabled title="Send this tape's input to the selected existing terminal">Play tape</button>
+        <button id="stop-tape" disabled title="Cancel automation without stopping the terminal or undoing input">Stop tape</button>
+        <p id="tape-status" role="status">Choose an existing terminal to play a tape.</p>
+      </div>
+    </section>
+    <p id="status" role="status" aria-live="polite">Create a terminal or attach to an existing instance.</p>
+    <section id="workspace" class="empty" aria-label="Floating terminal views"></section>
+    <details class="panel">
+      <summary>Selected view: <span id="selected-view">none</span> — metrics and text mirror</summary>
+      <dl class="metrics">
+        <div><dt>Renderer</dt><dd id="metric-renderer">Initializing</dd></div>
+        <div><dt>Transport</dt><dd id="metric-transport">Direct HWT1</dd></div>
+        <div><dt>Presented frames / s</dt><dd id="metric-fps">0</dd></div>
+        <div><dt>Received KB / s</dt><dd id="metric-received">0</dd></div>
+        <div><dt>Mirror workload MB / s</dt><dd id="metric-workload">0</dd></div>
+        <div><dt>Snapshot + projection ms</dt><dd id="metric-projection">0</dd></div>
+        <div><dt>Renderer CPU ms</dt><dd id="metric-cpu">0</dd></div>
+        <div><dt>Cells in last frame</dt><dd id="metric-cells">0</dd></div>
+        <div><dt>Images / texture MiB</dt><dd id="metric-images">0 / 0</dd></div>
+        <div><dt>Atlas glyphs / MiB</dt><dd id="metric-atlas">0 / 0</dd></div>
+        <div><dt>Image uploads MiB total</dt><dd id="metric-uploads">0</dd></div>
+        <div><dt>Revision / full frames</dt><dd id="metric-revision">0 / 0</dd></div>
+      </dl>
+      <p id="warnings" role="status"></p>
+      <p>Click a view to type; mouse input, IME, paste, Tab, and Ctrl+C reach the workload. Browser tab, address, and zoom shortcuts stay browser-owned. All writable views can send input; primary controls resizing only. Closing the primary retains the grid and leaves primary unassigned until “Take primary”.</p>
+      <p>Scenario tapes play in the selected existing terminal and appear in every attached view. Shell tapes require an idle prompt; avoid manual input while they run. Stop tape cancels automation only: already-sent input is not undone, and running shell commands are not interrupted.</p>
+      <p>Wheel to inspect text history. Drag to select characters; double-click and drag for words, triple-click and drag for logical lines, or Option/Alt-drag for a rectangle. Shift-click extends a selection. When an app captures the mouse, hold Shift to begin local selection or scroll history. A held selection drag keeps its local ownership even after Shift is released.</p>
+      <p>Use Copy, Cmd+C, or Ctrl+Shift+C for plain text. Ctrl+C always reaches the app. Copy preserves your selection and scroll position; typing or pasting clears selection and returns to live. Historical graphics are deferred; live Sixel and Kitty graphics remain available. Expired selections and clipboard failures appear in the view.</p>
+      <p>This is still a renderer spike: rich accessibility and ligature shaping are deferred. HWT1 is internal to the paired first-party server/client, not a third-party wire contract. Direct views share producer rendering and history. HMP1 relay views each have a separate terminal replica with live-state replay and history accumulated since attachment, not the producer's earlier scrollback. Each view owns its scroll position, selection, worker, and GPU cache. Renderer CPU time is not GPU execution time.</p>
+      <pre id="screen-mirror" aria-label="Latest terminal text" tabindex="0"></pre>
+    </details>
+  </main>
+</body>
+</html>

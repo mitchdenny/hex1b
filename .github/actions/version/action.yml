@@ -1,6 +1,6 @@
 name: 'Generate Version'
 description: >-
-  Computes the Hex1b NuGet package version for the current build based on
+  Computes the shared Hex1b NuGet/npm package version for the current build based on
   branch context, event type, and an optional release flag. Emits:
     - kind:    one of "alpha" | "beta" | "release" | "pr"
     - base:    the bare X.Y.Z the package will ship as (or would ship as)
@@ -17,7 +17,7 @@ inputs:
 
 outputs:
   version:
-    description: 'Full version string to pass as HEX1B_VERSION / PackageVersion'
+    description: 'Full version string for HEX1B_VERSION, NuGet PackageVersion, and npm version'
     value: ${{ steps.compute.outputs.version }}
   kind:
     description: 'alpha | beta | release | pr'
@@ -50,6 +50,11 @@ runs:
         git fetch origin --quiet 2>/dev/null || true
 
         SHORT_SHA="${GIT_SHA:0:7}"
+        # npm rejects numeric prerelease identifiers with leading zeroes.
+        # Normalize here so npm and NuGet still receive exactly the same version.
+        if [[ "$SHORT_SHA" =~ ^0[0-9]+$ ]]; then
+          SHORT_SHA="g${SHORT_SHA}"
+        fi
 
         # ----- helpers -------------------------------------------------------
         highest_release_branch_minor() {

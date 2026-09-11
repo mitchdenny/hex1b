@@ -1,200 +1,122 @@
+#pragma warning disable HEX1B_SIXEL // The gallery demonstrates the experimental Sixel API.
+
 using Hex1b;
-using Hex1b.Layout;
+using Hex1b.Surfaces;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Logging;
 
 namespace Hex1b.Website.Examples;
 
 /// <summary>
-/// An example demonstrating Sixel graphics support with fallback for terminals
-/// that don't support Sixel.
+/// Demonstrates structured Sixel pixels, explicit sizing, fallback content,
+/// and image replacement through the normal widget pipeline.
 /// </summary>
-public class SixelExample : Hex1bExample
+public class SixelExample(ILogger<SixelExample> logger) : Hex1bExample
 {
-    private readonly ILogger<SixelExample> _logger;
-    private readonly IWebHostEnvironment _environment;
-
-    public SixelExample(ILogger<SixelExample> logger, IWebHostEnvironment environment)
-    {
-        _logger = logger;
-        _environment = environment;
-    }
+    private readonly ILogger<SixelExample> _logger = logger;
 
     public override string Id => "sixel";
     public override string Title => "Sixel Graphics";
-    public override string Description => "Sixel image rendering with automatic fallback for unsupported terminals.";
-
-    /// <summary>
-    /// Represents a sample image for the gallery.
-    /// </summary>
-    private class SampleImage
-    {
-        public required string Id { get; init; }
-        public required string Name { get; init; }
-        public required string Description { get; init; }
-        public required string FilePath { get; init; }
-        public string? CachedSixelData { get; set; }
-        public int CachedWidth { get; set; }
-        public int CachedHeight { get; set; }
-    }
-
-    /// <summary>
-    /// State for the Sixel exhibit.
-    /// </summary>
-    private class SixelState
-    {
-        public int SelectedImageIndex { get; set; }
-        public List<SampleImage> Images { get; } = [];
-        public IReadOnlyList<string> ImageItems { get; set; } = [];
-        
-        public SampleImage? SelectedImage => 
-            SelectedImageIndex >= 0 && SelectedImageIndex < Images.Count 
-                ? Images[SelectedImageIndex] 
-                : null;
-    }
+    public override string Description => "Structured Sixel rendering with terminal-aware sizing and fallback content.";
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
-        _logger.LogInformation("Creating widget builder for Sixel example");
+        _logger.LogInformation("Creating Sixel widget example");
 
-        var state = new SixelState();
-        var imagesPath = Path.Combine(_environment.WebRootPath, "images");
-        
-        // Add real images from wwwroot/images
-        if (Directory.Exists(imagesPath))
+        var images = new[]
         {
-            var imageFiles = Directory.GetFiles(imagesPath, "*.*")
-                .Where(f => f.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ||
-                           f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
-                           f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
-                           f.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
-                           f.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
-                           f.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            foreach (var filePath in imageFiles)
-            {
-                var fileName = Path.GetFileNameWithoutExtension(filePath);
-                state.Images.Add(new SampleImage
-                {
-                    Id = fileName.ToLowerInvariant(),
-                    Name = char.ToUpper(fileName[0]) + fileName[1..],
-                    Description = $"Image: {Path.GetFileName(filePath)}",
-                    FilePath = filePath
-                });
-            }
-        }
-
-        // If no images found, add a placeholder
-        if (state.Images.Count == 0)
-        {
-            _logger.LogWarning("No images found in {Path}", imagesPath);
-        }
-
-        state.ImageItems = state.Images
-            .Select(img => img.Name)
-            .ToList();
+            CreateGradient(240, 120, Rgba32.FromRgb(20, 90, 220), Rgba32.FromRgb(255, 80, 70)),
+            CreateCheckerboard(240, 120, 20),
+            CreateRings(240, 120)
+        };
+        var selectedImage = 0;
 
         return () =>
         {
-            var ctx = new RootContext();
-            var selectedImage = state.SelectedImage;
-
-            // Calculate available space for the image
-            // Right panel gets about 60% of 80 cols = ~48 cols, minus borders = ~44 cols
-            // Height is typically 24 rows minus headers = ~18 rows
-            const int imageWidthCells = 44;
-            const int imageHeightCells = 16;
-
-            // Get or generate sixel data for the selected image
-            string sixelData = "";
-            if (selectedImage != null)
-            {
-                // Check if we need to regenerate (size changed or first time)
-                if (selectedImage.CachedSixelData == null ||
-                    selectedImage.CachedWidth != imageWidthCells ||
-                    selectedImage.CachedHeight != imageHeightCells)
-                {
-                    try
-                    {
-                        _logger.LogInformation("Encoding {Image} at {W}x{H} cells", 
-                            selectedImage.Name, imageWidthCells, imageHeightCells);
-                        
-                        sixelData = SixelEncoder.EncodeFromFile(
-                            selectedImage.FilePath,
-                            imageWidthCells,
-                            imageHeightCells);
-                        
-                        // Cache the result
-                        selectedImage.CachedSixelData = sixelData;
-                        selectedImage.CachedWidth = imageWidthCells;
-                        selectedImage.CachedHeight = imageHeightCells;
-                        
-                        _logger.LogInformation("Encoded {Image}: {Len} bytes", 
-                            selectedImage.Name, sixelData.Length);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to encode {Image}", selectedImage.Name);
-                        sixelData = "";
-                    }
-                }
-                else
-                {
-                    sixelData = selectedImage.CachedSixelData;
-                }
-            }
-
-            var widget = ctx.HSplitter(
-                // Left panel: Image list
-                ctx.Layout(leftPanel => [
-                    leftPanel.Text("═══ Images ═══"),
-                    leftPanel.Text(""),
-                    leftPanel.List(state.ImageItems).OnSelectionChanged(e => state.SelectedImageIndex = e.SelectedIndex),
-                    leftPanel.Text(""),
-                    leftPanel.Text("Use ↑↓ to select"),
-                    leftPanel.Text("Tab to switch panels")
-                ]),
-                // Right panel: Image viewer
-                ctx.Layout(rightPanel => selectedImage != null
-                    ? [
-                        rightPanel.Text($"═══ {selectedImage.Name} ═══"),
-                        rightPanel.Text(""),
-                        rightPanel.Text(selectedImage.Description),
-                        rightPanel.Text(""),
-                        string.IsNullOrEmpty(sixelData)
-                            ? rightPanel.Text("[Failed to load image]")
-                            : rightPanel.Sixel(
-                                sixelData,
-                                rightPanel.VStack(fallback => [
-                                    fallback.Text("┌─────────────────────────────────┐"),
-                                    fallback.Text("│  Sixel graphics not supported   │"),
-                                    fallback.Text("│  in this terminal.              │"),
-                                    fallback.Text("│                                 │"),
-                                    fallback.Text("│  Try using a Sixel-capable      │"),
-                                    fallback.Text("│  terminal like:                 │"),
-                                    fallback.Text("│  • xterm -ti vt340              │"),
-                                    fallback.Text("│  • mlterm                       │"),
-                                    fallback.Text("│  • foot                         │"),
-                                    fallback.Text("│  • WezTerm                      │"),
-                                    fallback.Text("└─────────────────────────────────┘"),
-                                ]),
-                                width: imageWidthCells,
-                                height: imageHeightCells)
-                      ]
-                    : [
-                        rightPanel.Text("═══ No Image Selected ═══"),
-                        rightPanel.Text(""),
-                        rightPanel.Text("Select an image from the list"),
-                        rightPanel.Text(""),
-                        state.Images.Count == 0
-                            ? rightPanel.Text("No images found in wwwroot/images/")
-                            : rightPanel.Text($"Found {state.Images.Count} image(s)")
-                      ]),
-                leftWidth: 25
-            );
-
-            return widget;
+            var context = new RootContext();
+            return context.VStack(root =>
+            [
+                root.Text("SixelWidget uses structured RGBA pixels."),
+                root.Text("Select an image to exercise replacement without ghost pixels."),
+                root.Picker(["Gradient", "Checkerboard", "Rings"], selectedImage)
+                    .OnSelectionChanged(e => selectedImage = e.SelectedIndex)
+                    .ContentHeight(),
+                root.Border(
+                        root.Sixel(
+                                images[selectedImage],
+                                fallback => fallback.VStack(column =>
+                                [
+                                    column.Text("Sixel graphics are unavailable."),
+                                    column.Text("The fallback participates in normal layout and focus.")
+                                ]))
+                            .Width(36)
+                            .Height(12))
+                    .Title("Structured pixels - 36x12 cells")
+                    .FixedWidth(38)
+                    .FixedHeight(14)
+            ]);
         };
     }
+
+    private static SixelPixelBuffer CreateGradient(int width, int height, Rgba32 start, Rgba32 end)
+    {
+        var pixels = new SixelPixelBuffer(width, height);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var amount = (double)(x + y) / (width + height - 2);
+                pixels[x, y] = new Rgba32(
+                    Lerp(start.R, end.R, amount),
+                    Lerp(start.G, end.G, amount),
+                    Lerp(start.B, end.B, amount),
+                    255);
+            }
+        }
+
+        return pixels;
+    }
+
+    private static SixelPixelBuffer CreateCheckerboard(int width, int height, int squareSize)
+    {
+        var pixels = new SixelPixelBuffer(width, height);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                pixels[x, y] = ((x / squareSize) + (y / squareSize)) % 2 == 0
+                    ? Rgba32.FromRgb(255, 200, 40)
+                    : Rgba32.FromRgb(70, 20, 130);
+            }
+        }
+
+        return pixels;
+    }
+
+    private static SixelPixelBuffer CreateRings(int width, int height)
+    {
+        var pixels = new SixelPixelBuffer(width, height);
+        var centerX = (width - 1) / 2d;
+        var centerY = (height - 1) / 2d;
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var distance = Math.Sqrt(
+                    Math.Pow((x - centerX) / width, 2) +
+                    Math.Pow((y - centerY) / height, 2));
+                var wave = (Math.Sin(distance * 90) + 1) / 2;
+                pixels[x, y] = new Rgba32(
+                    (byte)(20 + wave * 40),
+                    (byte)(90 + wave * 150),
+                    (byte)(120 + wave * 135),
+                    255);
+            }
+        }
+
+        return pixels;
+    }
+
+    private static byte Lerp(byte start, byte end, double amount)
+        => (byte)Math.Round(start + ((end - start) * amount));
 }

@@ -1,3 +1,4 @@
+#pragma warning disable HEX1B_SIXEL // Internal Sixel presentation integration.
 using Hex1b.Input;
 using Hex1b.Tokens;
 using Hex1b.Automation;
@@ -93,6 +94,11 @@ public sealed class TerminalWidgetHandle :
     
     // Reference to the owning terminal for forwarding input
     private Hex1bTerminal? _terminal;
+    private Hex1bTerminal? _activityTerminal;
+    private Action<TerminalActivityState>? _activityChangedHandler;
+    private TerminalActivityState _activityState = TerminalActivityState.Default;
+    private int _activitySubscriptionVersion;
+    private bool _ignoreDetachedActivityOutput;
     
     // Terminal lifecycle state
     private TerminalState _state = TerminalState.NotStarted;
@@ -245,12 +251,46 @@ public sealed class TerminalWidgetHandle :
     /// <summary>
     /// Gets the current window title set by OSC 0 or OSC 2 sequences from the child process.
     /// </summary>
+    /// <remarks>Empty means no title. Uses the same control-free, 4096 UTF-16 code-unit
+    /// normalization as <see cref="Hex1bTerminal.WindowTitle"/>. Render as untrusted text.</remarks>
     public string WindowTitle => _windowTitle;
 
     /// <summary>
     /// Gets the current icon name set by OSC 0 or OSC 1 sequences from the child process.
     /// </summary>
+    /// <remarks>Uses the same text normalization and length bound as <see cref="WindowTitle"/>.</remarks>
     public string IconName => _iconName;
+
+    /// <summary>Gets the current progress reported by the child workload.</summary>
+    /// <remarks>
+    /// Remains live while copy mode freezes displayed cells. Process exit and disconnect
+    /// retain the last report; <see cref="Reset"/> returns it to hidden progress.
+    /// </remarks>
+    public TerminalProgress Progress
+    {
+        get { lock (_bufferLock) return _activityState.Progress; }
+    }
+
+    /// <summary>Gets the current shell phase and latest reported command result.</summary>
+    /// <remarks>
+    /// Remains live in copy mode and is independent of <see cref="State"/> and
+    /// <see cref="ExitCode"/>, which describe the terminal process, not shell commands.
+    /// </remarks>
+    public TerminalShellIntegration ShellIntegration
+    {
+        get { lock (_bufferLock) return _activityState.ShellIntegration; }
+    }
+
+    /// <summary>Occurs when reported progress changes to a distinct value.</summary>
+    /// <remarks>Subscribing does not emit a baseline; read <see cref="Progress"/>.</remarks>
+    public event Action<TerminalProgress>? ProgressChanged;
+
+    /// <summary>Occurs when the reported shell phase or latest result changes.</summary>
+    /// <remarks>
+    /// Subscribing does not emit a baseline; read <see cref="ShellIntegration"/>.
+    /// This describes current state, not a history of command executions.
+    /// </remarks>
+    public event Action<TerminalShellIntegration>? ShellIntegrationChanged;
     
     /// <summary>
     /// Event raised when the terminal state changes.
@@ -276,7 +316,40 @@ public sealed class TerminalWidgetHandle :
     /// <inheritdoc />
     void ITerminalLifecycleAwarePresentationAdapter.TerminalCreated(Hex1bTerminal terminal)
     {
-        _terminal = terminal;
+        Hex1bTerminal? previousTerminal;
+        Action<TerminalActivityState>? previousHandler;
+        Action<TerminalActivityState> handler;
+        lock (_bufferLock)
+        {
+            if (_disposed)
+                return;
+            previousTerminal = _activityTerminal;
+            previousHandler = _activityChangedHandler;
+            _terminal = terminal;
+            _activityTerminal = terminal;
+            _ignoreDetachedActivityOutput = false;
+            var version = ++_activitySubscriptionVersion;
+            handler = activity =>
+            {
+                lock (_bufferLock)
+                {
+                    if (!_disposed && version == _activitySubscriptionVersion)
+                        SetActivityState(activity);
+                }
+            };
+            _activityChangedHandler = handler;
+        }
+
+        if (previousHandler is not null)
+            previousTerminal?.UnsubscribeActivityStateChanged(previousHandler);
+        // Subscribe and capture the baseline under the terminal's lock, without
+        // taking that lock while holding the handle's buffer lock.
+        terminal.SubscribeActivityStateChanged(handler);
+        bool detached;
+        lock (_bufferLock)
+            detached = _disposed || _activityChangedHandler != handler;
+        if (detached)
+            terminal.UnsubscribeActivityStateChanged(handler);
     }
 
     void IHex1bTerminalPresentationAdapter.InvalidatePresentation()
@@ -311,16 +384,70 @@ public sealed class TerminalWidgetHandle :
     /// <summary>
     /// Resets the terminal state to NotStarted. Used when restarting a terminal.
     /// </summary>
+    /// <remarks>
+    /// Clears activity and queued copy-mode output, and disconnects the previous terminal.
+    /// A newly attached terminal supplies the next session's activity.
+    /// </remarks>
     public void Reset()
     {
+        Hex1bTerminal? previousTerminal;
+        Action<TerminalActivityState>? previousHandler;
+        TerminalActivityState previousActivity;
+        bool wasInCopyMode;
+        StopDragScrollTimer();
         lock (_bufferLock)
         {
+            if (_disposed)
+                return;
+            previousTerminal = _activityTerminal;
+            previousHandler = _activityChangedHandler;
+            previousActivity = _activityState;
+            wasInCopyMode = _inCopyMode;
+            _ignoreDetachedActivityOutput |= previousTerminal is not null;
+            _activityTerminal = null;
+            _activityChangedHandler = null;
+            _terminal = null;
+            _activitySubscriptionVersion++;
             _state = TerminalState.NotStarted;
             _exitCode = null;
+            _inCopyMode = false;
+            _selection = null;
+            _outputQueue = null;
+            _scrollbackOffset = 0;
+            UpdateCopyModeState();
+            _activityState = TerminalActivityState.Default;
             ClearBuffer();
         }
+        if (previousHandler is not null)
+            previousTerminal?.UnsubscribeActivityStateChanged(previousHandler);
+        NotifyActivityStateChanged(previousActivity, TerminalActivityState.Default);
+        if (wasInCopyMode)
+            CopyModeChanged?.Invoke(false);
         StateChanged?.Invoke(_state);
         OutputReceived?.Invoke();
+    }
+
+    private void SetActivityState(TerminalActivityState activity)
+    {
+        var previous = _activityState;
+        if (previous == activity)
+            return;
+        _activityState = activity;
+        NotifyActivityStateChanged(previous, activity);
+    }
+
+    private void NotifyActivityStateChanged(TerminalActivityState previous, TerminalActivityState activity)
+    {
+        if (_disposed || previous == activity)
+            return;
+        if (previous.Progress != activity.Progress)
+            ProgressChanged?.Invoke(activity.Progress);
+        if (_disposed)
+            return;
+        if (previous.ShellIntegration != activity.ShellIntegration)
+            ShellIntegrationChanged?.Invoke(activity.ShellIntegration);
+        if (!_disposed)
+            OutputReceived?.Invoke();
     }
     
     /// <summary>
@@ -430,6 +557,7 @@ public sealed class TerminalWidgetHandle :
     /// </summary>
     private void SetWindowTitle(string title)
     {
+        title = TerminalTitle.Normalize(title);
         if (_windowTitle != title)
         {
             _windowTitle = title;
@@ -442,6 +570,7 @@ public sealed class TerminalWidgetHandle :
     /// </summary>
     private void SetIconName(string name)
     {
+        name = TerminalTitle.Normalize(name);
         if (_iconName != name)
         {
             _iconName = name;
@@ -542,19 +671,24 @@ public sealed class TerminalWidgetHandle :
         }
     }
 
-    internal Hex1bTerminalSnapshot? CreateSnapshot(
-        int scrollbackLines,
-        ScrollbackWidth scrollbackWidth = ScrollbackWidth.CurrentTerminal)
-        => _terminal?.CreateSnapshot(scrollbackLines, scrollbackWidth);
+    internal bool TryCaptureRenderFrame(int scrollbackOffset, out TerminalWidgetRenderFrame? frame)
+    {
+        frame = _terminal?.CaptureTerminalWidgetFrame(scrollbackOffset);
+        return _terminal is null || frame is not null;
+    }
 
     internal void UpdateHostCapabilities(TerminalCapabilities hostCapabilities)
     {
         ArgumentNullException.ThrowIfNull(hostCapabilities);
 
         var current = Volatile.Read(ref _capabilities);
+        var supportsSixel = Nodes.SixelNode.IsSixelSupported(hostCapabilities);
         var updated = current with
         {
             SupportsKgp = hostCapabilities.SupportsKgp,
+            SupportsSixel = supportsSixel,
+            SixelSupport = supportsSixel ? Sixel.SixelPresentationSupport.Headless : Sixel.SixelPresentationSupport.None,
+            SixelCellMetrics = hostCapabilities.SixelCellMetrics,
             CellPixelWidth = hostCapabilities.CellPixelWidth,
             ActualCellPixelWidth = hostCapabilities.ActualCellPixelWidth,
             CellPixelHeight = hostCapabilities.CellPixelHeight,
@@ -646,6 +780,16 @@ public sealed class TerminalWidgetHandle :
         
         lock (_bufferLock)
         {
+            if (_disposed)
+                return ValueTask.CompletedTask;
+            // Attached terminals publish the authoritative pair directly, including
+            // replay checkpoints. Standalone handles reduce activity once on arrival,
+            // never again when queued cells are drained after copy mode.
+            if (_activityTerminal is null && !_ignoreDetachedActivityOutput)
+            {
+                foreach (var applied in appliedTokens)
+                    SetActivityState(_activityState.Apply(applied.Token));
+            }
             if (_inCopyMode && _outputQueue != null)
             {
                 // Queue output for later application — buffer is frozen during copy mode.
@@ -674,14 +818,15 @@ public sealed class TerminalWidgetHandle :
     private void ApplyTokensToBuffer(IReadOnlyList<AppliedToken> appliedTokens)
     {
         int maxY = -1;
-        var hasKgpChanges = false;
+        var hasPresentationChanges = false;
         lock (_bufferLock)
         {
             foreach (var applied in appliedTokens)
             {
-                if (applied.Token is KgpToken)
+                if (applied.Token is KgpToken or SoftResetToken or
+                    PrivateModeToken { Mode: 2026, Enable: false } || applied.HasGraphicsImpacts)
                 {
-                    hasKgpChanges = true;
+                    hasPresentationChanges = true;
                 }
 
                 // Check for mode changes from the child process
@@ -718,9 +863,9 @@ public sealed class TerminalWidgetHandle :
             }
         }
         
-        // KGP state lives in the owning terminal rather than this cell buffer,
-        // but changes still require the bound TerminalNode to render a new frame.
-        if (maxY >= 0 || hasKgpChanges)
+        // Graphics and synchronized-output completion can change the presented frame
+        // without changing any cells, including an end marker in a separate read.
+        if (maxY >= 0 || hasPresentationChanges)
         {
             OutputReceived?.Invoke();
         }
@@ -821,6 +966,9 @@ public sealed class TerminalWidgetHandle :
     /// </summary>
     public void EnterCopyMode()
     {
+        // Activity observers run under the terminal lock, so never acquire that
+        // lock while holding the handle's buffer lock.
+        int scrollbackCount = ScrollbackCount;
         lock (_bufferLock)
         {
             if (_inCopyMode) return;
@@ -829,7 +977,6 @@ public sealed class TerminalWidgetHandle :
             _outputQueue = new List<IReadOnlyList<AppliedToken>>();
             
             // Position cursor at the terminal's current cursor position in virtual coordinates
-            int scrollbackCount = ScrollbackCount;
             var initialPosition = new BufferPosition(scrollbackCount + _cursorY, _cursorX);
             _selection = new TerminalSelection(initialPosition);
         }
@@ -881,6 +1028,7 @@ public sealed class TerminalWidgetHandle :
     public string? CopySelection()
     {
         string? text;
+        var scrollbackRows = _terminal?.GetScrollbackRows(int.MaxValue) ?? [];
         
         lock (_bufferLock)
         {
@@ -890,7 +1038,9 @@ public sealed class TerminalWidgetHandle :
             }
             else
             {
-                text = _selection.ExtractText(GetVirtualCellUnlocked, _width);
+                text = _selection.ExtractText(
+                    (row, column) => GetVirtualCellUnlocked(row, column, scrollbackRows.Length, scrollbackRows),
+                    _width);
             }
         }
         
@@ -1207,24 +1357,27 @@ public sealed class TerminalWidgetHandle :
     /// <returns>The cell at that position, or null if out of bounds.</returns>
     public TerminalCell? GetVirtualCell(int virtualRow, int column)
     {
+        var terminal = _terminal;
+        var scrollbackCount = terminal?.ScrollbackCount ?? 0;
+        var rows = virtualRow >= 0 && virtualRow < scrollbackCount
+            ? terminal?.GetScrollbackRows(scrollbackCount) ?? []
+            : [];
         lock (_bufferLock)
         {
-            return GetVirtualCellUnlocked(virtualRow, column);
+            return GetVirtualCellUnlocked(virtualRow, column, scrollbackCount, rows);
         }
     }
     
-    private TerminalCell? GetVirtualCellUnlocked(int virtualRow, int column)
+    private TerminalCell? GetVirtualCellUnlocked(
+        int virtualRow, int column, int scrollbackCount, ScrollbackRow[] rows)
     {
-        int scrollbackCount = ScrollbackCount;
-        
         if (virtualRow < 0) return null;
         if (column < 0 || column >= _width) return null;
         
         if (virtualRow < scrollbackCount)
         {
             // Scrollback region
-            var rows = _terminal?.GetScrollbackRows(scrollbackCount);
-            if (rows == null || virtualRow >= rows.Length) return null;
+            if (virtualRow >= rows.Length) return null;
             var cells = rows[virtualRow].Cells;
             if (column >= cells.Length) return TerminalCell.Empty;
             return cells[column];
@@ -1246,8 +1399,21 @@ public sealed class TerminalWidgetHandle :
     /// <inheritdoc />
     public ValueTask DisposeAsync()
     {
-        if (_disposed) return ValueTask.CompletedTask;
-        _disposed = true;
+        Hex1bTerminal? previousTerminal;
+        Action<TerminalActivityState>? previousHandler;
+        lock (_bufferLock)
+        {
+            if (_disposed) return ValueTask.CompletedTask;
+            _disposed = true;
+            previousTerminal = _activityTerminal;
+            previousHandler = _activityChangedHandler;
+            _activityTerminal = null;
+            _activityChangedHandler = null;
+            _activitySubscriptionVersion++;
+            _outputQueue = null;
+        }
+        if (previousHandler is not null)
+            previousTerminal?.UnsubscribeActivityStateChanged(previousHandler);
         
         StopDragScrollTimer();
         Disconnected?.Invoke();

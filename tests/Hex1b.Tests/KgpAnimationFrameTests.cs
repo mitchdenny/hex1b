@@ -1231,6 +1231,30 @@ public class KgpAnimationFrameTests
     }
 
     [TestMethod]
+    public void AnimationPlayback_FiniteFinalPass_ContinuesAfterPlaybackRefresh()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, timeProvider: timeProvider);
+        StoreBaseImage(terminal, 1, 1, 1, KgpFormat.Rgba32, [1, 0, 0, 255]);
+        SendKgp(terminal, FrameCommand("f=32,s=1,v=1,i=1,z=30,q=2", [2, 0, 0, 255]));
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=p,i=1,C=1,q=2"));
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=a,i=1,r=1,z=20,s=3,v=2,q=2"));
+        timeProvider.Advance(TimeSpan.FromMilliseconds(20));
+        timeProvider.Advance(TimeSpan.FromMilliseconds(30));
+        Assert.AreEqual(1u, GetImage(terminal, 1).AnimationState!.CompletedLoops);
+        Assert.AreEqual(1, GetImage(terminal, 1).CurrentFrameNumber);
+
+        terminal.RefreshKgpAnimationPlayback(0);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(20));
+
+        Assert.AreEqual(2, GetImage(terminal, 1).CurrentFrameNumber);
+        TestSeq.AreEqual(new byte[] { 2, 0, 0, 255 }, GetImage(terminal, 1).CurrentFrameData);
+        timeProvider.Advance(TimeSpan.FromSeconds(1));
+        Assert.AreEqual(2, GetImage(terminal, 1).CurrentFrameNumber);
+    }
+
+    [TestMethod]
     public void AnimationPlayback_LoadingMode_NewFrameResumesFromParkedTail()
     {
         var timeProvider = new FakeTimeProvider();

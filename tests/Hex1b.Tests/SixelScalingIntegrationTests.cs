@@ -2,6 +2,8 @@
 
 using System.Text;
 using Hex1b.Input;
+using Hex1b.Sixel;
+using Hex1b.Surfaces;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -26,6 +28,12 @@ public class SixelScalingIntegrationTests
             SupportsAlternateScreen = true,
             SupportsBracketedPaste = true,
             SupportsSixel = true,
+            SixelSupport = SixelPresentationSupport.Headless,
+            SixelCellMetrics = new SixelCellMetrics(
+                cellPixelWidth,
+                cellPixelHeight,
+                SixelCellMetricsSource.Direct,
+                SixelCellMetricsReliability.Authoritative),
             CellPixelWidth = cellPixelWidth,
             CellPixelHeight = cellPixelHeight
         };
@@ -40,7 +48,7 @@ public class SixelScalingIntegrationTests
         { 12, 24, "large" }     // Large font
     };
 
-    [TestMethod, Ignore("Sixel is experimental and tracking in Surface mode differs from Legacy mode")]
+    [TestMethod]
     [DynamicData(nameof(CellDimensions))]
     public async Task SmpteColorBars_RendersCorrectlyAtScale(int cellWidth, int cellHeight, string scaleName)
     {
@@ -48,7 +56,7 @@ public class SixelScalingIntegrationTests
         const int imageWidth = 70;
         const int imageHeight = 30;
         var pixels = TestPatternGenerator.GenerateSmpteColorBars(imageWidth, imageHeight);
-        var sixelPayload = TestPatternGenerator.ConvertToSixel(pixels, imageWidth, imageHeight);
+        var pixelBuffer = CreatePixelBuffer(pixels, imageWidth, imageHeight);
         
         // Calculate expected cell dimensions for the image
         var expectedCellsWide = (imageWidth + cellWidth - 1) / cellWidth;
@@ -84,10 +92,8 @@ public class SixelScalingIntegrationTests
                         ),
                         // The sixel image with fallback
                         new SixelWidget(
-                            sixelPayload,
-                            new TextBlockWidget($"[{expectedCellsWide}x{expectedCellsTall}]"),
-                            expectedCellsWide,
-                            expectedCellsTall)
+                            pixelBuffer,
+                            new TextBlockWidget($"[{expectedCellsWide}x{expectedCellsTall}]"))
                     ])
                 ])
             ),
@@ -117,7 +123,7 @@ public class SixelScalingIntegrationTests
         TestCaptureHelper.AttachSvg($"sixel-smpte-{scaleName}-reference.svg", refSvg);
     }
 
-    [TestMethod, Ignore("Sixel is experimental and tracking in Surface mode differs from Legacy mode")]
+    [TestMethod]
     [DynamicData(nameof(CellDimensions))]
     public async Task Checkerboard_RendersCorrectlyAtScale(int cellWidth, int cellHeight, string scaleName)
     {
@@ -126,7 +132,7 @@ public class SixelScalingIntegrationTests
         const int imageHeight = 48;
         const int squareSize = 8;
         var pixels = TestPatternGenerator.GenerateCheckerboard(imageWidth, imageHeight, squareSize);
-        var sixelPayload = TestPatternGenerator.ConvertToSixel(pixels, imageWidth, imageHeight);
+        var pixelBuffer = CreatePixelBuffer(pixels, imageWidth, imageHeight);
         
         // Calculate expected cell dimensions
         var expectedCellsWide = (imageWidth + cellWidth - 1) / cellWidth;
@@ -157,10 +163,8 @@ public class SixelScalingIntegrationTests
                                 .ToArray<Hex1bWidget>()
                         ),
                         new SixelWidget(
-                            sixelPayload,
-                            new TextBlockWidget($"[{expectedCellsWide}x{expectedCellsTall}]"),
-                            expectedCellsWide,
-                            expectedCellsTall)
+                            pixelBuffer,
+                            new TextBlockWidget($"[{expectedCellsWide}x{expectedCellsTall}]"))
                     ])
                 ])
             ),
@@ -198,6 +202,22 @@ public class SixelScalingIntegrationTests
             sb.Append((col % 10).ToString());
         }
         return sb.ToString();
+    }
+
+    private static SixelPixelBuffer CreatePixelBuffer(byte[] rgba, int width, int height)
+    {
+        var pixels = new Rgba32[width * height];
+        for (var i = 0; i < pixels.Length; i++)
+        {
+            var offset = i * 4;
+            pixels[i] = new Rgba32(
+                rgba[offset],
+                rgba[offset + 1],
+                rgba[offset + 2],
+                rgba[offset + 3]);
+        }
+
+        return new SixelPixelBuffer(width, height, pixels);
     }
 
     /// <summary>

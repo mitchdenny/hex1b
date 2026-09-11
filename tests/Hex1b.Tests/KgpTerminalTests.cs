@@ -16,13 +16,16 @@ public class KgpTerminalTests
     private static Hex1bTerminal CreateTerminal(
         IHex1bTerminalWorkloadAdapter workload,
         int width = 80,
-        int height = 24)
+        int height = 24,
+        Action<Hex1bTerminalGraphicsOptions>? configureGraphics = null)
     {
-        return Hex1bTerminal.CreateBuilder()
+        var builder = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload)
             .WithHeadless(KgpCapabilities)
-            .WithDimensions(width, height)
-            .Build();
+            .WithDimensions(width, height);
+        if (configureGraphics is not null)
+            builder.WithGraphics(configureGraphics);
+        return builder.Build();
     }
 
     private static void SendKgp(Hex1bTerminal terminal, string escapeSequence)
@@ -60,6 +63,44 @@ public class KgpTerminalTests
         Assert.AreEqual(2u, image.Width);
         Assert.AreEqual(2u, image.Height);
         Assert.AreEqual(KgpFormat.Rgba32, image.Format);
+    }
+
+    [TestMethod]
+    public void RetainedByteLimit_AppliesToMainAlternateAndRecreatedStores()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(
+            workload,
+            configureGraphics: options =>
+                options.MaximumRetainedBytesPerScreen = 4);
+
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(1, 1, 1, fillByte: 0x11));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(2, 1, 1, fillByte: 0x22));
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(1));
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(2));
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049h"));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(3, 1, 1, fillByte: 0x33));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(4, 1, 1, fillByte: 0x44));
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(3));
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(4));
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049l"));
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(2));
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049h"));
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(5, 1, 1, fillByte: 0x55));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(6, 1, 1, fillByte: 0x66));
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(5));
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(6));
+
+        terminal.ApplyTokens([RisToken.Instance]);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(7, 1, 1, fillByte: 0x77));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(8, 1, 1, fillByte: 0x88));
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(7));
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(8));
     }
 
     [TestMethod]

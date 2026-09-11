@@ -48,11 +48,15 @@ public static class AnsiTokenSerializer
             DeleteLinesToken dl => dl.Count == 1 ? "\x1b[M" : $"\x1b[{dl.Count}M",
             InsertCharacterToken ich => ich.Count == 1 ? "\x1b[@" : $"\x1b[{ich.Count}@",
             DeleteCharacterToken dch => dch.Count == 1 ? "\x1b[P" : $"\x1b[{dch.Count}P",
+            InsertColumnsToken ic => ic.Count == 1 ? "\x1b['}" : "\x1b[" + ic.Count + "'}",
+            DeleteColumnsToken dc => dc.Count == 1 ? "\x1b['~" : $"\x1b[{dc.Count}'~",
             EraseCharacterToken ech => ech.Count == 1 ? "\x1b[X" : $"\x1b[{ech.Count}X",
+            RectangularEraseToken rect => SerializeRectangularErase(rect),
             RepeatCharacterToken rep => rep.Count == 1 ? "\x1b[b" : $"\x1b[{rep.Count}b",
-            IndexToken => "\x1bD",
+            IndexToken => "\u001bD",
+            SoftResetToken => "\x1b[!p",
             ReverseIndexToken => "\x1bM",
-            CharacterSetToken cs => $"\x1b{(cs.Target == 0 ? '(' : ')')}{cs.Charset}",
+            CharacterSetToken cs => $"\x1b{(cs.Target switch { 0 => '(', 1 => ')', 2 => '*', _ => '+' })}{cs.Charset}",
             KeypadModeToken kp => kp.Application ? "\x1b=" : "\x1b>",
             LeftRightMarginToken lrm => SerializeLeftRightMargin(lrm),
             SaveCursorToken save => save.UseDec ? "\x1b" + "7" : "\x1b[s",
@@ -67,6 +71,8 @@ public static class AnsiTokenSerializer
             UnrecognizedSequenceToken unrec => unrec.Sequence,
             KgpToken kgp => SerializeKgp(kgp),
             DeviceStatusReportToken dsr => $"\x1b[{dsr.Type}n",
+            DeviceAttributesQueryToken => "\x1b[c",
+            WindowOperationToken win => $"\x1b[{win.Operation}t",
             _ => throw new ArgumentException($"Unknown token type: {token.GetType().Name}", nameof(token))
         };
     }
@@ -154,6 +160,8 @@ public static class AnsiTokenSerializer
     {
         // ESC [ n J
         var code = (int)token.Mode;
+        if (token.Selective)
+            return $"\x1b[?{code}J";
         return code == 0 ? "\x1b[J" : $"\x1b[{code}J";
     }
 
@@ -161,6 +169,8 @@ public static class AnsiTokenSerializer
     {
         // ESC [ n K
         var code = (int)token.Mode;
+        if (token.Selective)
+            return $"\x1b[?{code}K";
         return code == 0 ? "\x1b[K" : $"\x1b[{code}K";
     }
 
@@ -171,6 +181,12 @@ public static class AnsiTokenSerializer
         if (token.Top == 1 && token.Bottom == 0)
             return "\x1b[r";
         return $"\x1b[{token.Top};{token.Bottom}r";
+    }
+
+    private static string SerializeRectangularErase(RectangularEraseToken token)
+    {
+        var final = token.Selective ? '{' : 'z';
+        return $"\x1b[{token.Top};{token.Left};{token.Bottom};{token.Right}${final}";
     }
 
     private static string SerializePrivateMode(PrivateModeToken token)

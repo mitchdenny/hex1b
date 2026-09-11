@@ -70,7 +70,7 @@ internal static class WindowsPtyShimLocator
             yield return Path.Combine(appBaseDirectory, "runtimes", fallbackRid!, "native", ShimExecutableName);
         }
 
-        var current = appBaseDirectory;
+        var current = Path.TrimEndingDirectorySeparator(appBaseDirectory);
         for (var depth = 0; depth < 6 && !string.IsNullOrWhiteSpace(current); depth++)
         {
             yield return Path.Combine(current, "src", "Hex1b", "obj", "windows-pty-shim", primaryRid, "native", ShimExecutableName);

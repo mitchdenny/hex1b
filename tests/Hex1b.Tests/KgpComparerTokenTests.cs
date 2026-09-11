@@ -42,6 +42,29 @@ public class KgpComparerTokenTests
     #region ToTokens KGP Emission
 
     [TestMethod]
+    public void ToTokens_ScaledPlacementBecomesNative_EmitsUnscaledPlacement()
+    {
+        var previous = new Surface(4, 4, DefaultMetrics);
+        var current = new Surface(4, 4, DefaultMetrics);
+        var hash = SHA256.HashData(KgpTestHelper.CreatePixelData(3, 3));
+        var scaled = new KgpCellData(null, 1, 1, 1, 3, 3, hash, clipW: 3, clipH: 3);
+        var native = new KgpCellData(null, 1, 1, 1, 3, 3, hash, clipW: 3, clipH: 3)
+        {
+            UsesNativeSize = true,
+            NativeCellMetrics = DefaultMetrics
+        };
+        previous[0, 0] = new SurfaceCell(" ", null, null, Kgp: Track(scaled));
+        current[0, 0] = new SurfaceCell(" ", null, null, Kgp: Track(native));
+
+        var tokens = SurfaceComparer.ToTokens(SurfaceComparer.Compare(previous, current), current);
+
+        var placement = TestSeq.Single(tokens.OfType<UnrecognizedSequenceToken>()).Sequence;
+        Assert.Contains("a=p", placement);
+        Assert.DoesNotContain(",c=", placement);
+        Assert.DoesNotContain(",r=", placement);
+    }
+
+    [TestMethod]
     public void ToTokens_NewKgpImage_EmitsSequence()
     {
         var prev = new Surface(10, 5, DefaultMetrics);

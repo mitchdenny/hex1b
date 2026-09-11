@@ -106,10 +106,15 @@ public class GutterProviderTests
         node.Render(context);
 
         // Line numbers should appear: " 1 abc", " 2 def", " 3 ghi"
-        var pattern = new CellPatternSearcher().Find("1 abc");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(2), "line numbers rendered")
+            .WaitUntil(
+                s => s.GetCell(1, 0).Character == "1"
+                    && s.GetCell(3, 0).Character == "a"
+                    && s.GetCell(1, 1).Character == "2"
+                    && s.GetCell(3, 1).Character == "d"
+                    && s.GetCell(1, 2).Character == "3"
+                    && s.GetCell(3, 2).Character == "g",
+                TimeSpan.FromSeconds(2), "all numbered lines rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -170,10 +175,13 @@ public class GutterProviderTests
         node.Render(context);
 
         // Provider renders '*' at column 0, content starts at column 1
-        var pattern = new CellPatternSearcher().Find("*abc");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(2), "custom gutter rendered")
+            .WaitUntil(
+                s => s.GetCell(0, 0).Character == "*"
+                    && s.GetCell(1, 0).Character == "a"
+                    && s.GetCell(0, 1).Character == "*"
+                    && s.GetCell(1, 1).Character == "d",
+                TimeSpan.FromSeconds(2), "all custom gutter lines rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

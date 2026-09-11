@@ -224,6 +224,8 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
             // Compose child widgets
             
             // 1. Expand indicator (or spinner when loading)
+            var wasShowingSpinner = node.LoadingSpinnerNode != null;
+            var previousIndicator = node.ExpandIndicatorNode?.Icon;
             if (node.IsLoading)
             {
                 // Loading: show spinner instead of expand indicator
@@ -246,6 +248,15 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
                 // Leaf node: no indicator
                 node.LoadingSpinnerNode = null;
                 node.ExpandIndicatorNode = null;
+            }
+
+            // TreeNode renders these composed nodes itself, outside GetChildren().
+            // Async completion can occur after reconciliation, so its dirty flag may
+            // already have been cleared by a frame that still showed the spinner.
+            if (wasShowingSpinner != (node.LoadingSpinnerNode != null) ||
+                previousIndicator != node.ExpandIndicatorNode?.Icon)
+            {
+                parentTree.MarkDirty();
             }
 
             // Recursively reconcile children FIRST

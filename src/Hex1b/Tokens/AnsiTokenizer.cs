@@ -7,12 +7,24 @@ namespace Hex1b.Tokens;
 /// </summary>
 public static class AnsiTokenizer
 {
+    private static readonly TokenizerOptions s_defaultOptions = new();
+    private static readonly TokenizerOptions s_withoutDcsOptions = new()
+    {
+        RecognizeDcs = false,
+    };
+
     /// <summary>
     /// Tokenizes the given text into a list of ANSI tokens.
     /// </summary>
     /// <param name="text">The text to tokenize, which may contain ANSI escape sequences.</param>
     /// <returns>A read-only list of tokens representing the parsed text.</returns>
-    public static IReadOnlyList<AnsiToken> Tokenize(string text)
+    public static IReadOnlyList<AnsiToken> Tokenize(string text) =>
+        Tokenize(text, s_defaultOptions);
+
+    internal static IReadOnlyList<AnsiToken> TokenizeWithoutDcs(string text) =>
+        Tokenize(text, s_withoutDcsOptions);
+
+    private static IReadOnlyList<AnsiToken> Tokenize(string text, TokenizerOptions options)
     {
         if (string.IsNullOrEmpty(text))
             return [];
@@ -59,7 +71,8 @@ public static class AnsiTokenizer
                 i += apcConsumed;
             }
             // Check for DCS sequence (ESC P or 0x90) - Sixel starts with ESC P q
-            else if (TryParseDcsSequence(text, i, out var dcsConsumed, out var dcsPayload))
+            else if (options.RecognizeDcs &&
+                TryParseDcsSequence(text, i, out var dcsConsumed, out var dcsPayload))
             {
                 FlushTextToken(text, ref textStart, i, tokens);
                 tokens.Add(new DcsToken(dcsPayload));
@@ -260,8 +273,9 @@ public static class AnsiTokenizer
         if (isPrivateMode)
             end++;
 
-        // Read parameters until we hit a final byte (CSI final bytes are 0x40-0x7E: @ through ~)
-        while (end < text.Length && !char.IsLetter(text[end]) && text[end] != '~' && text[end] != '@')
+        // Read parameters/intermediates until we hit a CSI final byte (0x40-0x7E).
+        // Parameter bytes are 0x30-0x3F and intermediate bytes are 0x20-0x2F.
+        while (end < text.Length && (text[end] < '\x40' || text[end] > '\x7e'))
         {
             end++;
         }
@@ -475,6 +489,20 @@ public static class AnsiTokenizer
                 tokens.Add(new DeleteLinesToken(ParseMoveCount(parameters)));
                 break;
                 
+            case 'p':
+                // CSI ! p = DECSTR (Soft Terminal Reset). Other 'p' finals (DECSCL,
+                // DECRQM, xterm pointer modes) stay unrecognized so raw passthrough
+                // keeps forwarding them unchanged.
+                if (!isPrivateMode && parameters == "!")
+                {
+                    tokens.Add(SoftResetToken.Instance);
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+
             case 'P':
                 // CSI 1;m P = F1 with modifiers (xterm); otherwise CSI Ps P = Delete Character (DCH)
                 if (TryParseFunctionKeyWithModifier(parameters, out var pMod))
@@ -538,8 +566,82 @@ public static class AnsiTokenizer
                 break;
                 
             case '~':
-                // Special key sequence (ESC [ n ~ or ESC [ n ; m ~)
-                ParseSpecialKey(parameters, tokens);
+                if (parameters.Contains('\''))
+                {
+                    // DECDC - Delete Columns: CSI Ps ' ~
+                    tokens.Add(new DeleteColumnsToken(ParseMoveCountAllowZero(parameters.Replace("'", ""))));
+                }
+                else
+                {
+                    // Special key sequence (ESC [ n ~ or ESC [ n ; m ~)
+                    ParseSpecialKey(parameters, tokens);
+                }
+                break;
+
+            case '}':
+                if (parameters.Contains('\''))
+                {
+                    // DECIC - Insert Columns: CSI Ps ' }
+                    tokens.Add(new InsertColumnsToken(ParseMoveCountAllowZero(parameters.Replace("'", ""))));
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+
+            case 'z':
+                if (parameters.Contains('$'))
+                {
+                    // DECERA - Erase Rectangular Area: CSI Pt;Pl;Pb;Pr $ z
+                    tokens.Add(ParseRectangularErase(parameters, selective: false));
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+
+            case '{':
+                if (parameters.Contains('$'))
+                {
+                    // DECSERA - Selective Erase Rectangular Area: CSI Pt;Pl;Pb;Pr $ {
+                    tokens.Add(ParseRectangularErase(parameters, selective: true));
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+
+            case 'c':
+                // Primary Device Attributes (DA1): CSI c or CSI 0 c. The query carries
+                // no parameter prefix; CSI > c (Secondary DA) and other prefixed
+                // variants are deliberately left unrecognized — only Primary DA drives
+                // Sixel support discovery (#455).
+                if (!isPrivateMode && (parameters.Length == 0 || parameters == "0"))
+                {
+                    tokens.Add(new DeviceAttributesQueryToken());
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+
+            case 't':
+                // XTWINOPS window operation: CSI Ps t. Only the report operations
+                // relevant to Sixel cell-metrics discovery are modeled (#455); all
+                // other window operations stay unrecognized.
+                if (!isPrivateMode && int.TryParse(parameters, out var winOp) &&
+                    winOp is 14 or 16 or 18)
+                {
+                    tokens.Add(new WindowOperationToken(winOp));
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
                 break;
 
             default:
@@ -549,6 +651,27 @@ public static class AnsiTokenizer
         }
 
         return end + 1;
+    }
+
+    private static RectangularEraseToken ParseRectangularErase(string parameters, bool selective)
+    {
+        var normalized = parameters.Replace("$", "");
+        var parts = normalized.Split(';');
+        var top = ParseRectCoordinate(parts, 0, 1);
+        var left = ParseRectCoordinate(parts, 1, 1);
+        var bottom = ParseRectCoordinate(parts, 2, top);
+        var right = ParseRectCoordinate(parts, 3, left);
+        return new RectangularEraseToken(top, left, bottom, right, selective);
+    }
+
+    private static int ParseRectCoordinate(string[] parts, int index, int defaultValue)
+    {
+        if (index >= parts.Length || string.IsNullOrEmpty(parts[index]))
+            return defaultValue;
+
+        return int.TryParse(parts[index], out var value) && value > 0
+            ? value
+            : defaultValue;
     }
     
     private static int ParseSgrMouseSequence(string text, int start, List<AnsiToken> tokens)
@@ -901,7 +1024,22 @@ public static class AnsiTokenizer
 
         command = oscData[..firstSemicolon];
 
+        // Title commands have one text payload; semicolons are literal title text,
+        // unlike OSC 8's separate hyperlink parameters.
+        if (command is "0" or "1" or "2" or "22" or "23")
+        {
+            payload = oscData[(firstSemicolon + 1)..];
+            return true;
+        }
+
         var secondSemicolon = oscData.IndexOf(';', firstSemicolon + 1);
+        if (command == "133" && secondSemicolon == firstSemicolon + 1)
+        {
+            // Keep an empty marker invalid, including after filtered-output serialization.
+            // Otherwise 133;;A and 133;A collapse to the same token.
+            payload = oscData[(firstSemicolon + 1)..];
+            return true;
+        }
         if (secondSemicolon < 0)
         {
             // Only one semicolon - rest is payload
@@ -1027,5 +1165,10 @@ public static class AnsiTokenizer
             return (string)enumerator.Current;
         }
         return text[index].ToString();
+    }
+
+    private sealed class TokenizerOptions
+    {
+        public bool RecognizeDcs { get; init; } = true;
     }
 }

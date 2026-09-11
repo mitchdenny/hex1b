@@ -1,3 +1,4 @@
+using System.Text;
 using Hex1b.Input;
 
 namespace Hex1b.Automation;
@@ -12,11 +13,13 @@ public sealed record TextInputStep(string Text, TimeSpan DelayBetweenKeys) : Tes
         Hex1bTerminalInputSequenceOptions options,
         CancellationToken ct)
     {
-        foreach (var c in Text)
+        foreach (var rune in Text.EnumerateRunes())
         {
             ct.ThrowIfCancellationRequested();
             
-            var evt = CharToKeyEvent(c);
+            var evt = rune.IsBmp
+                ? CharToKeyEvent((char)rune.Value)
+                : new Hex1bKeyEvent(Hex1bKey.None, rune.ToString(), Hex1bModifiers.None);
             await terminal.SendEventAsync(evt, ct);
             
             if (DelayBetweenKeys > TimeSpan.Zero)
@@ -33,7 +36,7 @@ public sealed record TextInputStep(string Text, TimeSpan DelayBetweenKeys) : Tes
         }
     }
 
-    private static Hex1bKeyEvent CharToKeyEvent(char c)
+    internal static Hex1bKeyEvent CharToKeyEvent(char c)
     {
         var (key, modifiers) = c switch
         {

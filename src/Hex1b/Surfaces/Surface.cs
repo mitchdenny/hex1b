@@ -589,6 +589,12 @@ public sealed class Surface : ISurfaceSource
             kgpOverrides = BuildKgpCompositeOverrides(source, offsetX, offsetY, clipRect);
         }
 
+        Dictionary<(int X, int Y), SurfaceCell>? sixelOverrides = null;
+        if (source.HasSixels)
+        {
+            sixelOverrides = BuildSixelCompositeOverrides(source, offsetX, offsetY, clipRect);
+        }
+
         for (var destY = destStartY; destY < destEndY; destY++)
         {
             var srcY = destY - offsetY;
@@ -597,9 +603,21 @@ public sealed class Surface : ISurfaceSource
             for (var destX = destStartX; destX < destEndX; destX++)
             {
                 var srcX = destX - offsetX;
-                var srcCell = kgpOverrides != null && kgpOverrides.TryGetValue((destX, destY), out var overrideCell)
-                    ? overrideCell
-                    : source.GetCell(srcX, srcY);
+                var srcCell = source.GetCell(srcX, srcY);
+                if (kgpOverrides != null && kgpOverrides.TryGetValue((destX, destY), out var kgpOverride))
+                {
+                    srcCell = srcCell == SurfaceCells.Empty
+                        ? kgpOverride
+                        : srcCell with { Kgp = kgpOverride.Kgp };
+                }
+                var transfersSixelOverride = false;
+                if (sixelOverrides != null &&
+                    sixelOverrides.TryGetValue((destX, destY), out var sixelOverride))
+                {
+                    // Each protocol clips independently, but may reanchor to the same cell.
+                    srcCell = sixelOverride with { Kgp = srcCell.Kgp };
+                    transfersSixelOverride = true;
+                }
                 
                 // Skip cells that are exactly the initial empty state - these are unwritten cells
                 // that should not overwrite anything. We compare the full cell struct, not just
@@ -611,18 +629,35 @@ public sealed class Surface : ISurfaceSource
                     continue;
                 }
                 
+                var index = destRowStart + destX;
+                var oldCell = _cells[index];
+
+                if ((oldCell.IsSixelUnderlay || oldCell.HasSixel) && !srcCell.IsSixelUnderlay)
+                {
+                    var occludesSixel = IsSixelOccluder(srcCell);
+                    if (!occludesSixel && srcCell.HasTransparentBackground)
+                    {
+                        occludesSixel = oldCell.OccludesSixel;
+                    }
+
+                    srcCell = srcCell with
+                    {
+                        IsSixelUnderlay = true,
+                        OccludesSixel = occludesSixel
+                    };
+
+                    // Keep the anchor reachable while higher-layer content covers it.
+                    if (oldCell.HasSixel && !srcCell.HasSixel)
+                    {
+                        srcCell = srcCell with { Sixel = oldCell.Sixel };
+                    }
+                }
+
                 // Handle partial transparency (has content but transparent background)
                 if (srcCell.HasTransparentBackground)
                 {
                     // Blend with existing cell's background
-                    var destCell = _cells[destRowStart + destX];
-                    srcCell = srcCell with { Background = destCell.Background };
-                }
-                
-                // Clip sixels that would extend beyond destination bounds
-                if (srcCell.HasSixel && srcCell.Sixel?.Data is not null)
-                {
-                    srcCell = ClipSixelCell(srcCell, destX, destY);
+                    srcCell = srcCell with { Background = oldCell.Background };
                 }
                 
                 // Clip KGP images that would extend beyond destination bounds
@@ -631,10 +666,7 @@ public sealed class Surface : ISurfaceSource
                     srcCell = ClipKgpCell(srcCell, destX, destY);
                 }
 
-                var index = destRowStart + destX;
-                
                 // Track sixel count changes
-                var oldCell = _cells[index];
                 if (oldCell.HasSixel && !srcCell.HasSixel)
                     _sixelCount--;
                 else if (!oldCell.HasSixel && srcCell.HasSixel)
@@ -646,10 +678,108 @@ public sealed class Surface : ISurfaceSource
                 else if (!oldCell.HasKgp && srcCell.HasKgp)
                     _kgpCount++;
 
+                if (!ReferenceEquals(oldCell.Sixel, srcCell.Sixel))
+                {
+                    // Normal composites retain the source reference for the
+                    // destination surface. A clipped override is created solely
+                    // for this destination, so its initial reference transfers.
+                    if (!transfersSixelOverride)
+                        srcCell.Sixel?.AddRef();
+                    oldCell.Sixel?.Release();
+                }
+
                 SetCellInternal(index, srcCell);
                 ExpandContentBounds(destX, destY);
             }
         }
+    }
+
+    private Dictionary<(int X, int Y), SurfaceCell> BuildSixelCompositeOverrides(
+        ISurfaceSource source,
+        int offsetX,
+        int offsetY,
+        Rect clipRect)
+    {
+        var overrides = new Dictionary<(int X, int Y), SurfaceCell>();
+
+        for (var srcY = 0; srcY < source.Height; srcY++)
+        {
+            for (var srcX = 0; srcX < source.Width; srcX++)
+            {
+                var anchorCell = source.GetCell(srcX, srcY);
+                if (!anchorCell.HasSixel || anchorCell.Sixel?.Data is not SixelData sixelData)
+                {
+                    continue;
+                }
+
+                var destAnchorX = offsetX + srcX;
+                var destAnchorY = offsetY + srcY;
+                var visibleLeft = Math.Max(0, Math.Max(destAnchorX, clipRect.X));
+                var visibleTop = Math.Max(0, Math.Max(destAnchorY, clipRect.Y));
+                var visibleRight = Math.Min(Width, Math.Min(destAnchorX + sixelData.WidthInCells, clipRect.Right));
+                var visibleBottom = Math.Min(Height, Math.Min(destAnchorY + sixelData.HeightInCells, clipRect.Bottom));
+
+                if (visibleLeft >= visibleRight || visibleTop >= visibleBottom)
+                {
+                    continue;
+                }
+
+                if (visibleLeft == destAnchorX &&
+                    visibleTop == destAnchorY &&
+                    visibleRight == destAnchorX + sixelData.WidthInCells &&
+                    visibleBottom == destAnchorY + sixelData.HeightInCells)
+                {
+                    continue;
+                }
+
+                var extent = sixelData.GetRenderedPixelExtent();
+                var metrics = sixelData.CellMetrics;
+                var leftCells = visibleLeft - destAnchorX;
+                var topCells = visibleTop - destAnchorY;
+                var rightCells = visibleRight - destAnchorX;
+                var bottomCells = visibleBottom - destAnchorY;
+                var pixelLeft = Math.Min(extent.Width, metrics.GetPixelForColumnBoundary(leftCells));
+                var pixelTop = Math.Min(extent.Height, metrics.GetPixelForRowBoundary(topCells));
+                var pixelRight = Math.Min(extent.Width, metrics.GetPixelForColumnBoundary(rightCells));
+                var pixelBottom = Math.Min(extent.Height, metrics.GetPixelForRowBoundary(bottomCells));
+                var pixelRegion = new PixelRect(
+                    pixelLeft,
+                    pixelTop,
+                    Math.Max(0, pixelRight - pixelLeft),
+                    Math.Max(0, pixelBottom - pixelTop));
+
+                var fragment = new SixelFragment(sixelData, visibleLeft, visibleTop, pixelRegion);
+                var payload = fragment.GetPayload();
+                if (payload is null)
+                {
+                    continue;
+                }
+
+                var parseResult = Hex1b.Sixel.SixelParser.ParsePayload(payload);
+                var clippedData = new SixelData(
+                    payload,
+                    visibleRight - visibleLeft,
+                    visibleBottom - visibleTop,
+                    SixelData.ComputeHash(
+                        payload,
+                        rasterIdentity: null,
+                        visibleRight - visibleLeft,
+                        visibleBottom - visibleTop,
+                        sixelData.CellMetrics),
+                    pixelRegion.Width,
+                    pixelRegion.Height,
+                    parseResult,
+                    cellMetrics: sixelData.CellMetrics);
+                var tracked = new TrackedObject<SixelData>(clippedData, _ => { });
+                var visibleSourceCell = source.GetCell(visibleLeft - offsetX, visibleTop - offsetY);
+                var overrideCell = visibleSourceCell == SurfaceCells.Empty
+                    ? new SurfaceCell(" ", null, null, Sixel: tracked)
+                    : visibleSourceCell with { Sixel = tracked };
+                overrides[(visibleLeft, visibleTop)] = overrideCell with { IsSixelUnderlay = true };
+            }
+        }
+
+        return overrides;
     }
 
     private Dictionary<(int X, int Y), SurfaceCell> BuildKgpCompositeOverrides(
@@ -685,6 +815,20 @@ public sealed class Surface : ISurfaceSource
                 if (visibleLeft == destAnchorX && visibleTop == destAnchorY)
                     continue;
 
+                if (kgpData.UsesNativeSize)
+                {
+                    var nativeClip = kgpData.ClipNativeToCells(
+                        visibleLeft - destAnchorX, visibleTop - destAnchorY,
+                        visibleRight - visibleLeft, visibleBottom - visibleTop);
+                    if (nativeClip is not null)
+                    {
+                        overrides[(visibleLeft, visibleTop)] = new SurfaceCell(
+                            " ", null, null,
+                            Kgp: new TrackedObject<KgpCellData>(nativeClip, _ => { }));
+                    }
+                    continue;
+                }
+
                 var effectiveClipW = kgpData.ClipW > 0 ? kgpData.ClipW : (int)kgpData.SourcePixelWidth;
                 var effectiveClipH = kgpData.ClipH > 0 ? kgpData.ClipH : (int)kgpData.SourcePixelHeight;
                 var leftClippedCells = visibleLeft - destAnchorX;
@@ -717,74 +861,6 @@ public sealed class Surface : ISurfaceSource
     }
 
     /// <summary>
-    /// Clips a sixel cell so it doesn't extend beyond the surface bounds.
-    /// </summary>
-    private SurfaceCell ClipSixelCell(SurfaceCell cell, int destX, int destY)
-    {
-        var sixelData = cell.Sixel!.Data;
-        var sixelWidth = sixelData.WidthInCells;
-        var sixelHeight = sixelData.HeightInCells;
-        
-        // Check if sixel extends beyond bounds
-        var extendsRight = destX + sixelWidth > Width;
-        var extendsDown = destY + sixelHeight > Height;
-        
-        if (!extendsRight && !extendsDown)
-        {
-            // Sixel fits entirely, no clipping needed
-            return cell;
-        }
-        
-        // Calculate the visible portion in cells
-        var visibleCellWidth = Math.Min(sixelWidth, Width - destX);
-        var visibleCellHeight = Math.Min(sixelHeight, Height - destY);
-        
-        if (visibleCellWidth <= 0 || visibleCellHeight <= 0)
-        {
-            // Completely outside, return cell without sixel
-            return cell with { Sixel = null };
-        }
-        
-        // Calculate visible portion in pixels
-        var visiblePixelWidth = visibleCellWidth * CellMetrics.PixelWidth;
-        var visiblePixelHeight = visibleCellHeight * CellMetrics.PixelHeight;
-        
-        // Clamp to actual sixel pixel dimensions
-        visiblePixelWidth = Math.Min(visiblePixelWidth, sixelData.PixelWidth);
-        visiblePixelHeight = Math.Min(visiblePixelHeight, sixelData.PixelHeight);
-        
-        // Create a fragment for the visible portion
-        var fragment = new SixelFragment(
-            sixelData,
-            destX, destY,
-            new PixelRect(0, 0, visiblePixelWidth, visiblePixelHeight));
-        
-        // Get the clipped payload
-        var clippedPayload = fragment.GetPayload();
-        if (clippedPayload is null)
-        {
-            // Decoding/re-encoding failed, return without sixel
-            return cell with { Sixel = null };
-        }
-        
-        // Create new SixelData with the clipped payload
-        var clippedSixelData = new SixelData(
-            clippedPayload,
-            visibleCellWidth,
-            visibleCellHeight,
-            sixelData.ContentHash, // Reuse hash for now (not strictly correct but avoids re-hashing)
-            visiblePixelWidth,
-            visiblePixelHeight);
-        
-        // Create a new TrackedObject for the clipped sixel
-        // Note: This doesn't go through the store for deduplication since it's a derived clip.
-        // Use no-op callback since clipped sixels aren't tracked in the store.
-        var clippedTracked = new TrackedObject<SixelData>(clippedSixelData, _ => { });
-        
-        return cell with { Sixel = clippedTracked };
-    }
-
-    /// <summary>
     /// Clips a KGP cell so it doesn't extend beyond the surface bounds.
     /// Unlike sixel clipping (which re-encodes pixels), KGP clipping adjusts
     /// the source rectangle placement parameters — a pure metadata operation.
@@ -808,6 +884,17 @@ public sealed class Surface : ISurfaceSource
         
         if (visibleCellWidth <= 0 || visibleCellHeight <= 0)
             return cell with { Kgp = null };
+
+        if (kgpData.UsesNativeSize)
+        {
+            var nativeClip = kgpData.ClipNativeToCells(0, 0, visibleCellWidth, visibleCellHeight);
+            return cell with
+            {
+                Kgp = nativeClip is null
+                    ? null
+                    : new TrackedObject<KgpCellData>(nativeClip, _ => { })
+            };
+        }
         
         // Calculate pixel clip rect from cell dimensions
         var sourceWidth = kgpData.SourcePixelWidth > 0 ? (int)kgpData.SourcePixelWidth : kgpWidth * CellMetrics.PixelWidth;
@@ -826,6 +913,10 @@ public sealed class Surface : ISurfaceSource
         var clippedTracked = new TrackedObject<KgpCellData>(clippedData, _ => { });
         return cell with { Kgp = clippedTracked };
     }
+
+    private static bool IsSixelOccluder(SurfaceCell cell)
+        => cell.Character != SurfaceCells.UnwrittenMarker
+            && (cell.Character != " " || cell.Background is not null);
 
     /// <summary>
     /// Gets a read-only span over all cells in row-major order.
@@ -891,6 +982,7 @@ public sealed class Surface : ISurfaceSource
     private static bool IsCellComplex(in SurfaceCell cell)
     {
         if (cell.DisplayWidth != 1) return true;
+        if (cell.IsSixelUnderlay || cell.OccludesSixel) return true;
         if (cell.UnderlineStyle != UnderlineStyle.None) return true;
         if (cell.UnderlineColor.HasValue) return true;
         if (cell.Sixel is not null) return true;

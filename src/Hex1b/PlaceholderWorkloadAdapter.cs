@@ -30,7 +30,7 @@ namespace Hex1b;
 /// is also invoked so it discards diff state.
 /// </para>
 /// </remarks>
-internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
+internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1TerminalOutputSource
 {
     // Hard-reset sequence prepended to each swapped-in child's first frame.
     //   ESC c            - RIS, full reset (modes, attrs, scroll regions, alt-screen)
@@ -104,6 +104,10 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
     /// <summary>The currently-active child (test hook).</summary>
     internal IHex1bTerminalWorkloadAdapter ActiveChild => Volatile.Read(ref _active);
+    Hmp1WorkloadAdapter? IHmp1TerminalOutputSource.Hmp1Workload =>
+        (ActiveChild as IHmp1TerminalOutputSource)?.Hmp1Workload;
+    ValueTask<Hmp1WorkloadOutput> IHmp1TerminalOutputSource.ReadTerminalOutputAsync(CancellationToken cancellationToken)
+        => ReadOutputItemAsync(preserveState: true, cancellationToken);
 
     /// <summary>
     /// Replace the primary workload with a freshly-built instance. Used by
@@ -170,6 +174,9 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     public event Action? Disconnected;
 
     public async ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+        => (await ReadOutputItemAsync(preserveState: false, ct).ConfigureAwait(false)).Bytes;
+
+    private async ValueTask<Hmp1WorkloadOutput> ReadOutputItemAsync(bool preserveState, CancellationToken ct)
     {
         while (true)
         {
@@ -177,13 +184,15 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
             // Drain a queued reset sequence first so it lands ahead of the
             // new child's first bytes. Reset is short — single chunk is fine.
-            CancellationTokenSource swapCts;
+            CancellationToken swapToken;
             IHex1bTerminalWorkloadAdapter active;
             bool emitReset;
             lock (_swapLock)
             {
                 active = _active;
-                swapCts = _swapCts;
+                // SwapTo can dispose this source after we release the lock.
+                // Capture the token while the source still belongs to this child.
+                swapToken = _swapCts.Token;
                 emitReset = _resetPending;
                 _resetPending = false;
             }
@@ -194,13 +203,24 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
                 {
                     repaintable.RequestFullRepaint();
                 }
-                return ResetSequence;
+                // A remote child's reset belongs to its first compound replay. A
+                // standalone RIS would publish fictitious default activity before
+                // the authoritative checkpoint and lose replay control at a relay.
+                if (!preserveState || active is not IHmp1TerminalOutputSource)
+                {
+                    var state = preserveState && _primary is IHmp1TerminalOutputSource
+                        ? new Hmp1TerminalState(null, null, _lastWidth, _lastHeight, false)
+                        : null;
+                    return new(ResetSequence, State: state);
+                }
             }
 
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, swapCts.Token);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, swapToken);
             try
             {
-                var data = await active.ReadOutputAsync(linked.Token).ConfigureAwait(false);
+                var output = preserveState && active is IHmp1TerminalOutputSource source
+                    ? await source.ReadTerminalOutputAsync(linked.Token).ConfigureAwait(false)
+                    : new Hmp1WorkloadOutput(await active.ReadOutputAsync(linked.Token).ConfigureAwait(false));
 
                 // If a swap happened while we were awaiting, drop these bytes
                 // — they belong to the now-inactive child and would mix into
@@ -210,7 +230,7 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
                     continue;
                 }
 
-                if (data.IsEmpty)
+                if (output.Bytes.IsEmpty && output.State is null && output.AnimationState is null && !output.IsStateSync)
                 {
                     // EOF on the active child. If that's the primary and the
                     // resume policy allows it, fall back to the placeholder
@@ -223,10 +243,17 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
                     }
 
                     Disconnected?.Invoke();
-                    return ReadOnlyMemory<byte>.Empty;
+                    return default;
                 }
 
-                return data;
+                if (emitReset)
+                {
+                    var combined = new byte[ResetSequence.Length + output.Bytes.Length];
+                    ResetSequence.Span.CopyTo(combined);
+                    output.Bytes.Span.CopyTo(combined.AsSpan(ResetSequence.Length));
+                    output = output with { Bytes = combined };
+                }
+                return output;
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {

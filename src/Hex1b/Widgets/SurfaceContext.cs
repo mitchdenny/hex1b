@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Hex1b.Sixel;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
 
@@ -162,12 +163,21 @@ public class SurfaceLayerContext
     /// <returns>A tracked sixel object, or null if sixel creation is not available.</returns>
     public TrackedObject<SixelData>? CreateSixel(SixelPixelBuffer buffer)
     {
+        ArgumentNullException.ThrowIfNull(buffer);
         if (_store is null)
             return null;
-            
+
+        var metrics = Capabilities.SixelCellMetrics ?? SixelCellMetrics.FromCapabilities(Capabilities);
         var payload = SixelEncoder.Encode(buffer);
-        var (cellWidth, cellHeight) = CellMetrics.PixelToCellSpan(buffer.Width, buffer.Height);
-        return _store.GetOrCreateSixel(payload, cellWidth, cellHeight);
+        var parseResult = SixelParser.ParsePayload(payload);
+        var cellWidth = metrics.ColumnsFor(buffer.Width);
+        var cellHeight = metrics.RowsFor(buffer.Height);
+        return _store.GetOrCreateSixel(
+            payload,
+            cellWidth,
+            cellHeight,
+            parseResult,
+            cellMetrics: metrics);
     }
     
     /// <summary>
@@ -177,12 +187,30 @@ public class SurfaceLayerContext
     /// <param name="widthInCells">Width in terminal cells.</param>
     /// <param name="heightInCells">Height in terminal cells.</param>
     /// <returns>A tracked sixel object, or null if sixel creation is not available.</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="payload"/> is malformed, incomplete, or
+    /// does not naturally occupy the requested cell span.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="widthInCells"/> or <paramref name="heightInCells"/> is not positive.
+    /// </exception>
     public TrackedObject<SixelData>? CreateSixel(string payload, int widthInCells, int heightInCells)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(widthInCells);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(heightInCells);
         if (_store is null)
             return null;
-            
-        return _store.GetOrCreateSixel(payload, widthInCells, heightInCells);
+
+        var normalized = SixelPayload.NormalizeAndValidate(payload, nameof(payload));
+        var parseResult = SixelParser.ParsePayload(normalized);
+        var metrics = Capabilities.SixelCellMetrics ?? SixelCellMetrics.FromCapabilities(Capabilities);
+        SixelPayload.ValidateCellSpan(parseResult, metrics, widthInCells, heightInCells, nameof(payload));
+        return _store.GetOrCreateSixel(
+            normalized,
+            widthInCells,
+            heightInCells,
+            parseResult,
+            cellMetrics: metrics);
     }
 
     /// <summary>

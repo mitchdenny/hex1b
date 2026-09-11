@@ -1,6 +1,7 @@
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
+using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
 
@@ -11,6 +12,20 @@ namespace Hex1b.Tests;
 [TestClass]
 public class TerminalAnsiRenderingTests
 {
+    [TestMethod]
+    public void ToAnsi_HyperlinkedSnapshot_PreservesPublicExportFormat()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithHeadless().WithDimensions(20, 10).Build();
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b]8;;https://example.com\x1b\\LINK\x1b]8;;\x1b\\"));
+        using var snapshot = terminal.CreateSnapshot();
+
+        Assert.IsFalse(snapshot.ToAnsi().Contains("\x1b]8;", StringComparison.Ordinal));
+        Assert.IsFalse(((IHex1bTerminalRegion)snapshot).ToAnsi().Contains("\x1b]8;", StringComparison.Ordinal));
+    }
+
     [TestMethod]
     public async Task RenderFullSnapshot_ProducesAnsi()
     {

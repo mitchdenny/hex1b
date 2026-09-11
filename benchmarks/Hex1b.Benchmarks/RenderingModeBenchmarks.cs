@@ -106,7 +106,7 @@ public class RenderingModeBenchmarks
                         Children =
                         [
                             new TextBlockNode { Text = "Application Title" },
-                            new ListNode { Items = ["Item 1", "Item 2", "Item 3", "Item 4", "Item 5"], SelectedIndex = 2 },
+                            new ListNode { Items = ["Item 1", "Item 2", "Item 3", "Item 4", "Item 5"], FocusedIndex = 2 },
                             new HStackNode
                             {
                                 Children =

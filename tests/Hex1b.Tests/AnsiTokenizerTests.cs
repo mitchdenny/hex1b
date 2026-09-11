@@ -100,6 +100,50 @@ public class AnsiTokenizerTests
 
     #endregion
 
+    #region Reset and DEC Editing Tests
+
+    [TestMethod]
+    public void Tokenize_RisEscapeC_ReturnsRisToken()
+    {
+        var result = AnsiTokenizer.Tokenize("\x1b" + "c");
+
+        TestSeq.IsType<RisToken>(TestSeq.Single(result));
+    }
+
+    [TestMethod]
+    public void Tokenize_Decera_ReturnsRectangularEraseToken()
+    {
+        var result = AnsiTokenizer.Tokenize("\x1b[2;3;4;5$z");
+
+        var token = TestSeq.IsType<RectangularEraseToken>(TestSeq.Single(result));
+        Assert.AreEqual(2, token.Top);
+        Assert.AreEqual(3, token.Left);
+        Assert.AreEqual(4, token.Bottom);
+        Assert.AreEqual(5, token.Right);
+        Assert.IsFalse(token.Selective);
+    }
+
+    [TestMethod]
+    public void Tokenize_Decsera_ReturnsSelectiveRectangularEraseToken()
+    {
+        var result = AnsiTokenizer.Tokenize("\x1b[2;3;4;5${");
+
+        var token = TestSeq.IsType<RectangularEraseToken>(TestSeq.Single(result));
+        Assert.IsTrue(token.Selective);
+    }
+
+    [TestMethod]
+    public void Tokenize_DecicAndDecdc_ReturnColumnEditTokens()
+    {
+        var insert = TestSeq.IsType<InsertColumnsToken>(TestSeq.Single(AnsiTokenizer.Tokenize("\x1b[2'}")));
+        var delete = TestSeq.IsType<DeleteColumnsToken>(TestSeq.Single(AnsiTokenizer.Tokenize("\x1b[3'~")));
+
+        Assert.AreEqual(2, insert.Count);
+        Assert.AreEqual(3, delete.Count);
+    }
+
+    #endregion
+
     #region SGR Token Tests
 
     [TestMethod]

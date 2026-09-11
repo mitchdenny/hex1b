@@ -144,8 +144,10 @@ public static class AnsiTokenUtf8Serializer
             case ClearScreenToken clear:
             {
                 WriteEscLeftBracket(writer);
+                if (clear.Selective)
+                    WriteByte(writer, (byte)'?');
                 var clearCode = (int)clear.Mode;
-                if (clearCode != 0)
+                if (clearCode != 0 || clear.Selective)
                     WriteInt(writer, clearCode);
                 WriteByte(writer, (byte)'J');
                 return;
@@ -154,8 +156,10 @@ public static class AnsiTokenUtf8Serializer
             case ClearLineToken clear:
             {
                 WriteEscLeftBracket(writer);
+                if (clear.Selective)
+                    WriteByte(writer, (byte)'?');
                 var clearCode = (int)clear.Mode;
-                if (clearCode != 0)
+                if (clearCode != 0 || clear.Selective)
                     WriteInt(writer, clearCode);
                 WriteByte(writer, (byte)'K');
                 return;
@@ -238,9 +242,15 @@ public static class AnsiTokenUtf8Serializer
                 WriteByte(writer, (byte)'M');
                 return;
 
+            case SoftResetToken:
+                WriteEscLeftBracket(writer);
+                WriteByte(writer, (byte)'!');
+                WriteByte(writer, (byte)'p');
+                return;
+
             case CharacterSetToken cs:
                 WriteByte(writer, 0x1b);
-                WriteByte(writer, (byte)(cs.Target == 0 ? '(' : ')'));
+                WriteByte(writer, (byte)(cs.Target switch { 0 => '(', 1 => ')', 2 => '*', _ => '+' }));
                 WriteByte(writer, (byte)cs.Charset);
                 return;
 
@@ -303,7 +313,14 @@ public static class AnsiTokenUtf8Serializer
             case DcsToken dcs:
                 WriteByte(writer, 0x1b);
                 WriteByte(writer, (byte)'P');
-                WriteUtf8(writer, dcs.Payload);
+                if (dcs.TryGetMatchingRawPayload(out var rawPayload))
+                {
+                    writer.Write(rawPayload.Span);
+                }
+                else
+                {
+                    WriteUtf8(writer, dcs.Payload);
+                }
                 WriteByte(writer, 0x1b);
                 WriteByte(writer, (byte)'\\');
                 return;
@@ -358,6 +375,17 @@ public static class AnsiTokenUtf8Serializer
                 WriteEscLeftBracket(writer);
                 WriteInt(writer, dsr.Type);
                 WriteByte(writer, (byte)'n');
+                return;
+
+            case DeviceAttributesQueryToken:
+                WriteEscLeftBracket(writer);
+                WriteByte(writer, (byte)'c');
+                return;
+
+            case WindowOperationToken win:
+                WriteEscLeftBracket(writer);
+                WriteInt(writer, win.Operation);
+                WriteByte(writer, (byte)'t');
                 return;
 
             default:

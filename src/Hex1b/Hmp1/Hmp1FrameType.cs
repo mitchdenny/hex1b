@@ -83,5 +83,13 @@ internal enum Hmp1FrameType : byte
     /// a friendly name and a default role hint.
     /// Payload: JSON <see cref="ClientHelloPayload"/>.
     /// </summary>
-    ClientHello = 0x0B
+    ClientHello = 0x0B,
+
+    // Server → Client. One-time playback checkpoint following a KGP state replay.
+    // Standard KGP commands carry the pixels/gaps; this restores loop progress and
+    // elapsed frame time that cannot be represented by those commands.
+    KgpAnimationState = 0x0C,
+
+    // Server → Client. Mandatory authoritative activity baseline immediately after StateSync.
+    ActivityState = 0x0D
 }

@@ -294,6 +294,70 @@ var result = await TestHelpers.CreateTerminalAndRunScenario(
 
 ---
 
+## Network Test Fixtures
+
+Let the server reserve its listening port atomically. Random port selection and
+probing a free port before closing the probe both allow collisions under parallel
+execution. For Kestrel fixtures, configure
+`options.Listen(IPAddress.Loopback, 0)`, await `app.StartAsync()`, then derive client
+URIs from `TestSeq.Single(app.Urls)`. For example:
+
+```csharp
+var wsUri = new UriBuilder(TestSeq.Single(app.Urls))
+{
+    Scheme = "ws",
+    Path = "/ws/attach"
+}.Uri;
+```
+
+Keep the application owned by the fixture before awaiting startup so cleanup can
+dispose it even if startup fails. Cover independently reachable concurrent servers
+and listener release; see `RemoteTerminalWorkloadAdapterTests`. Do not mask port
+collisions with sleeps, retries, or disabled parallelism.
+
+## Scheduler Progress Under Load
+
+For starvation regressions, keep the producer active while asserting input, timer,
+or shutdown progress. A finite output burst followed by `app.Invalidate()` can
+hide a lost wakeup. Use `TestWidget.OnRender` to place events at a known frame:
+
+```csharp
+var observer = new TestWidget().OnRender(args =>
+{
+    app.Invalidate(); // Renew on every frame, including while input is pending.
+    if (args.RenderCount == 3)
+        workload.SendKey(Hex1bKey.A);
+});
+```
+
+This fragment assumes captured `app` and `workload` references. Pair it with
+changing visible content so frames actually render, a bounded completion signal,
+and cancellation in `finally`. See `Hex1bAppSchedulingTests` for full examples.
+Check input ordering with coalescing both enabled and disabled. For exact cadence,
+use the app's internal `FrameTimeProvider` with a fake clock, wait for timer
+registration before advancing it, and assert both the requested delay and elapsed
+virtual time. A fixed wall-clock tolerance around `Task.Delay` is not portable
+across CI runners. Keep real-time full-stack tests alongside deterministic pacing
+coverage rather than widening timing tolerances.
+For nested output races, gate later child redraws: their extra notifications can
+mask a lost first-frame notification. These controlled cases supplement, rather
+than prove, responsiveness under arbitrary real-world load.
+
+## Process Output Completion
+
+Process exit and terminal output consumption are separate events. For a controlled
+regression, start a `StandardProcessWorkloadAdapter` and await its exit before
+constructing a terminal with an already-completed run callback. Gate the first
+presentation write with a `TaskCompletionSource`: `RunAsync` and lifecycle
+completion must remain pending until the gate is released and both stdout and
+stderr reach the snapshot. See `StandardProcessOutputTests` for raw and filtered
+output, cancellation, and pump-failure cases. Keep ordinary `WithProcess` tests
+alongside this ordering test; do not keep a one-shot child alive or wait for visible
+output before awaiting `RunAsync` in a drain regression, since that hides the race.
+For echo/transport tests, use an already-available executable (`cmd /d /c echo` on
+Windows, `/bin/echo` on Unix). Runtime-compiling a temporary C# program with
+`dotnet run` puts SDK startup and compilation inside the output deadline.
+
 ## Widget Test Dimensions
 
 When writing tests for widgets, consider all the **dimensions** that affect behavior. Each widget should have tests covering these scenarios:

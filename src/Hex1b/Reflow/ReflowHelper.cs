@@ -563,7 +563,6 @@ internal static class ReflowHelper
             && cell.Foreground is null
             && cell.Background is null
             && (cell.Attributes & ~CellAttributes.SoftWrap) == CellAttributes.None
-            && cell.TrackedSixel is null
             && cell.TrackedHyperlink is null;
     }
 

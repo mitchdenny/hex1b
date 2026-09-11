@@ -40,6 +40,16 @@ public readonly record struct SurfaceCell(
     Hex1bColor? UnderlineColor = null)
 {
     /// <summary>
+    /// Marks cells occupied by a Sixel placement, including non-anchor cells.
+    /// </summary>
+    internal bool IsSixelUnderlay { get; init; }
+
+    /// <summary>
+    /// Marks content composited above a Sixel placement that must occlude it.
+    /// </summary>
+    internal bool OccludesSixel { get; init; }
+
+    /// <summary>
     /// Gets whether this cell is a continuation of a previous wide character.
     /// Continuation cells should not be rendered directly - the wide character in the previous cell covers this position.
     /// </summary>

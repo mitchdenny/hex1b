@@ -21,6 +21,31 @@
     <ProjectReference Include="..\..\src\Hex1b\Hex1b.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="../../samples/CloudDemo.Shared/CloudPalette.cs" Link="Samples/CloudPalette.cs" />
+    <Compile Include="../../samples/CloudDemo.Shared/DustCloud.cs" Link="Samples/DustCloud.cs" />
+    <Compile Include="../../samples/CloudDemo.Shared/ICloudRenderer.cs" Link="Samples/ICloudRenderer.cs" />
+    <Compile Include="../../samples/CloudDemo.Shared/MoteCursorOrder.cs" Link="Samples/MoteCursorOrder.cs" />
+    <Compile Include="../../samples/SixelCloudDemo/SixelCloudRenderer.cs" Link="Samples/SixelCloudRenderer.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/Hmp1BrowserView.cs" Link="Samples/Hmp1BrowserView.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/DuplexPipeStream.cs" Link="Samples/DuplexPipeStream.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/BrowserCloseRequest.cs" Link="Samples/BrowserCloseRequest.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/BrowserSession.cs" Link="Samples/BrowserSession.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/InitialViewFailure.cs" Link="Samples/InitialViewFailure.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/TerminalView.cs" Link="Samples/TerminalView.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/TerminalInstance.cs" Link="Samples/TerminalInstance.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/TerminalRegistry.cs" Link="Samples/TerminalRegistry.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/CreateTerminalRequest.cs" Link="Samples/CreateTerminalRequest.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/TerminalInstanceInfo.cs" Link="Samples/TerminalInstanceInfo.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/TerminalControlsRequest.cs" Link="Samples/TerminalControlsRequest.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/DemoWorkload.cs" Link="Samples/DemoWorkload.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/DemoTape.cs" Link="Samples/DemoTape.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/DemoTapeInfo.cs" Link="Samples/DemoTapeInfo.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/DemoTapeCatalog.cs" Link="Samples/DemoTapeCatalog.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/TerminalTapePlayback.cs" Link="Samples/TerminalTapePlayback.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/TerminalTapeStatus.cs" Link="Samples/TerminalTapeStatus.cs" />
+  </ItemGroup>
+
   <Target Name="CopyNativeLibraryLinux" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Linux')) and Exists('../../src/Hex1b/Terminal/runtimes/linux-x64/native/libhex1binterop.so')">
     <Copy SourceFiles="../../src/Hex1b/Terminal/runtimes/linux-x64/native/libhex1binterop.so" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
   </Target>
@@ -58,6 +83,11 @@
 
   <ItemGroup>
     <EmbeddedResource Include="TestData\ReflowFixtures.json" />
+    <EmbeddedResource Include="TestData\Sixel\*.sixel" />
+    <EmbeddedResource Include="TestData\Sixel\Conformance\*.json" />
+    <EmbeddedResource Include="TestData\Tape\**\*">
+      <LogicalName>TapeConformance/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

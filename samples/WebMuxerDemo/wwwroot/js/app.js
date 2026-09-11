@@ -204,7 +204,7 @@ function ensureTerminal() {
     pixelLimit: 4 * 1024 * 1024,
     storageLimit: 64,
     showPlaceholder: true,
-    sixelSupport: false,
+    sixelSupport: true,
     iipSupport: false,
     kittySupport: true,
     kittySizeLimit: 8 * 1024 * 1024,

@@ -1,52 +1,43 @@
 using System.Diagnostics.CodeAnalysis;
 using Hex1b.Layout;
-using Hex1b.Widgets;
+using Hex1b.Sixel;
+using Hex1b.Surfaces;
 
 namespace Hex1b.Nodes;
 
 /// <summary>
-/// A node that renders Sixel graphics if the terminal supports it,
-/// otherwise falls back to rendering a fallback node.
-/// 
-/// Sixel support detection is done by querying the terminal with DA1 (Primary Device Attributes)
-/// escape sequence. If the response includes ";4" (graphics capability), Sixel is supported.
-/// The query is sent on first render and times out after 1 second.
+/// Renders Sixel graphics when the effective presentation supports them,
+/// otherwise renders a fallback node.
 /// </summary>
 [Experimental("HEX1B_SIXEL", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/sixel.md")]
 public sealed class SixelNode : Hex1bNode
 {
+    private string? _imageData;
+    private SixelPixelBuffer? _pixels;
+    private SixelExtent _pixelExtent;
+    private int? _requestedWidth;
+    private int? _requestedHeight;
+
     /// <summary>
-    /// The Sixel-encoded image data to render.
+    /// Gets or sets validated pre-encoded Sixel data.
     /// </summary>
-    private string _imageData = "";
-    public string ImageData 
-    { 
-        get => _imageData; 
-        set
-        {
-            if (_imageData != value)
-            {
-                _imageData = value;
-                // Mark parent dirty to force full re-render of the container
-                // This is a sledgehammer fix for Sixel ghost pixels when switching images
-                Parent?.MarkDirty();
-                MarkDirty();
-            }
-        }
+    public string ImageData
+    {
+        get => _imageData ?? string.Empty;
+        set => SetEncodedImage(value);
     }
 
     /// <summary>
-    /// The fallback node to render if Sixel is not supported.
+    /// Gets or sets the fallback node rendered when Sixel is unavailable.
     /// </summary>
     public Hex1bNode? Fallback { get; set; }
 
     /// <summary>
-    /// Requested width in character cells. If null, uses natural image width.
+    /// Gets or sets the requested width in terminal cells.
     /// </summary>
-    private int? _requestedWidth;
-    public int? RequestedWidth 
-    { 
-        get => _requestedWidth; 
+    public int? RequestedWidth
+    {
+        get => _requestedWidth;
         set
         {
             if (_requestedWidth != value)
@@ -58,12 +49,11 @@ public sealed class SixelNode : Hex1bNode
     }
 
     /// <summary>
-    /// Requested height in character cells. If null, uses natural image height.
+    /// Gets or sets the requested height in terminal cells.
     /// </summary>
-    private int? _requestedHeight;
-    public int? RequestedHeight 
-    { 
-        get => _requestedHeight; 
+    public int? RequestedHeight
+    {
+        get => _requestedHeight;
         set
         {
             if (_requestedHeight != value)
@@ -74,45 +64,64 @@ public sealed class SixelNode : Hex1bNode
         }
     }
 
-    /// <summary>
-    /// Start of Sixel data (DCS - Device Control String).
-    /// Format: DCS q [sixel data] ST
-    /// Using minimal DCS header (parameters default to 0 anyway).
-    /// </summary>
-    private const string SixelStart = "\x1bPq";
-
-    /// <summary>
-    /// End of Sixel data (ST - String Terminator).
-    /// </summary>
-    private const string SixelEnd = "\x1b\\";
-
-    protected override Size MeasureCore(Constraints constraints)
+    internal void SetPixels(SixelPixelBuffer pixels)
     {
-        // During measure, we don't know if Sixel is supported yet
-        // Measure both and take the larger to ensure we have enough space
-        var fallbackSize = Fallback?.Measure(constraints) ?? Size.Zero;
-        
-        var sixelWidth = RequestedWidth ?? 40;
-        var sixelHeight = RequestedHeight ?? 20;
-        var sixelSize = constraints.Constrain(new Size(sixelWidth, sixelHeight));
-        
-        // Return the larger of the two to accommodate either rendering mode
-        return new Size(
-            Math.Max(fallbackSize.Width, sixelSize.Width),
-            Math.Max(fallbackSize.Height, sixelSize.Height));
+        ArgumentNullException.ThrowIfNull(pixels);
+        if (ReferenceEquals(_pixels, pixels) && _imageData is null)
+        {
+            return;
+        }
+
+        _pixels = pixels;
+        _imageData = null;
+        _pixelExtent = new SixelExtent(pixels.Width, pixels.Height);
+        MarkDirty();
     }
 
+    internal void SetEncodedImage(string imageData)
+    {
+        var normalized = SixelPayload.NormalizeAndValidate(imageData, nameof(imageData));
+        if (_imageData == normalized && _pixels is null)
+        {
+            return;
+        }
+
+        var parsed = SixelParser.ParsePayload(normalized);
+        _pixels = null;
+        _imageData = normalized;
+        _pixelExtent = parsed.LogicalCanvasExtent;
+        MarkDirty();
+    }
+
+    /// <inheritdoc />
+    protected override Size MeasureCore(Constraints constraints)
+    {
+        if (!IsSixelSupported(TerminalCapabilities))
+        {
+            return Fallback?.Measure(constraints) ?? Size.Zero;
+        }
+
+        var metrics = TerminalCapabilities.SixelCellMetrics
+            ?? SixelCellMetrics.FromCapabilities(TerminalCapabilities);
+        var width = RequestedWidth ?? metrics.ColumnsFor(_pixelExtent.Width);
+        var height = RequestedHeight ?? metrics.RowsFor(_pixelExtent.Height);
+        return constraints.Constrain(new Size(width, height));
+    }
+
+    /// <inheritdoc />
     protected override void ArrangeCore(Rect bounds)
     {
         base.ArrangeCore(bounds);
-        Fallback?.Arrange(bounds);
+        if (!IsSixelSupported(TerminalCapabilities))
+        {
+            Fallback?.Arrange(bounds);
+        }
     }
 
+    /// <inheritdoc />
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
-        // SixelNode itself isn't focusable, but fallback might be
-        // We return fallback focusables always since we don't know capabilities at this point
-        if (Fallback != null)
+        if (!IsSixelSupported(TerminalCapabilities) && Fallback is not null)
         {
             foreach (var focusable in Fallback.GetFocusableNodes())
             {
@@ -121,12 +130,10 @@ public sealed class SixelNode : Hex1bNode
         }
     }
 
+    /// <inheritdoc />
     public override void Render(Hex1bRenderContext context)
     {
-        // Use capabilities from the render context (flows from presentation → terminal → workload → app)
-        var sixelSupported = context.Capabilities.SupportsSixel;
-
-        if (sixelSupported)
+        if (IsSixelSupported(context.Capabilities))
         {
             RenderSixel(context);
         }
@@ -138,55 +145,57 @@ public sealed class SixelNode : Hex1bNode
 
     private void RenderSixel(Hex1bRenderContext context)
     {
-        if (string.IsNullOrEmpty(ImageData))
+        if (_pixels is null && _imageData is null)
         {
             context.SetCursorPosition(Bounds.X, Bounds.Y);
             context.Write("[No image data]");
             return;
         }
 
-        // Position cursor at the image location
-        context.SetCursorPosition(Bounds.X, Bounds.Y);
-
-        // Check if data already has a DCS header
-        // Use explicit character comparison instead of StartsWith to avoid escape char issues
-        var startsWithEscP = ImageData.Length >= 2 && ImageData[0] == '\x1b' && ImageData[1] == 'P';
-        var startsWithDCS = ImageData.Length >= 1 && ImageData[0] == '\x90';
-        var hasHeader = startsWithEscP || startsWithDCS;
-        
-        if (hasHeader)
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
         {
-            // Already has DCS header
-            context.Write(ImageData);
+            return;
+        }
+
+        context.SetCursorPosition(Bounds.X, Bounds.Y);
+        if (_pixels is not null)
+        {
+            context.WriteSixel(_pixels, Bounds.Width, Bounds.Height);
         }
         else
         {
-            // Wrap in Sixel sequence - write as a single string so parser can detect it
-            context.Write($"{SixelStart}{ImageData}{SixelEnd}");
+            context.WriteSixel(_imageData!, Bounds.Width, Bounds.Height);
         }
     }
 
     private void RenderFallback(Hex1bRenderContext context)
     {
-        if (Fallback != null)
+        if (Fallback is not null)
         {
-            // Use RenderChild for automatic caching support
             context.RenderChild(Fallback);
+            return;
         }
-        else
+
+        context.SetCursorPosition(Bounds.X, Bounds.Y);
+        context.Write("[Sixel not supported]");
+    }
+
+    /// <inheritdoc />
+    public override IEnumerable<Hex1bNode> GetChildren()
+    {
+        if (Fallback is not null)
         {
-            // No fallback provided - show a placeholder
-            context.SetCursorPosition(Bounds.X, Bounds.Y);
-            context.Write("[Sixel not supported]");
+            yield return Fallback;
         }
     }
 
-    /// <summary>
-    /// Gets the direct children of this container for input routing.
-    /// Always returns fallback as a potential child - actual rendering depends on capabilities.
-    /// </summary>
-    public override IEnumerable<Hex1bNode> GetChildren()
-    {
-        if (Fallback != null) yield return Fallback;
-    }
+    internal override IEnumerable<Hex1bNode> GetInputChildren()
+        => IsSixelSupported(TerminalCapabilities) || Fallback is null ? [] : [Fallback];
+
+    /// <inheritdoc />
+    protected override void OnTerminalCapabilitiesChanged() => MarkDirty();
+
+    internal static bool IsSixelSupported(TerminalCapabilities capabilities)
+        => capabilities.SixelSupport is SixelPresentationSupport.Native or SixelPresentationSupport.Headless
+            || capabilities.SixelSupport == SixelPresentationSupport.Unknown && capabilities.SupportsSixel;
 }

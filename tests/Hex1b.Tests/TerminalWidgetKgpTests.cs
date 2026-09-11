@@ -5,6 +5,7 @@ using Hex1b.Nodes;
 using Hex1b.Surfaces;
 using Hex1b.Tokens;
 using Hex1b.Widgets;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Hex1b.Tests;
 
@@ -19,6 +20,154 @@ public class TerminalWidgetKgpTests
         CellPixelWidth = 10,
         CellPixelHeight = 20,
     };
+
+    [TestMethod]
+    public async Task Render_SynchronizedChildRedraw_RetainsCompleteImageUntilEndMarker()
+    {
+        var clock = new FakeTimeProvider();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithDimensions(8, 4).WithTimeProvider(clock)
+            .WithTerminalWidget(out var handle).Build();
+        var node = CreateNode(handle, new Rect(0, 0, 8, 4));
+        node.Render(CreateContext(12, 8, out _));
+        await handle.WriteOutputWithImpactsAsync(terminal.ApplyTokensWithImpacts(AnsiTokenizer.Tokenize(
+            "\x1b[2;2H" + KgpTestHelper.BuildCommand("a=T,f=32,s=1,v=1,i=1,C=1,q=2", [255, 0, 0, 255]))));
+        var initialContext = CreateContext(12, 8, out var initialRegistry);
+        node.Render(initialContext);
+        var initial = TestSeq.Single(initialRegistry.Images).Data.TransmitPayload;
+
+        await handle.WriteOutputWithImpactsAsync(terminal.ApplyTokensWithImpacts(AnsiTokenizer.Tokenize(
+            "\x1b[?2026h\x1b[H\x1b[2J\x1b_Ga=d,d=A,q=2\x1b\\")));
+        var erasedContext = CreateContext(12, 8, out var erasedRegistry);
+        node.Render(erasedContext);
+        Assert.AreEqual(initial, TestSeq.Single(erasedRegistry.Images).Data.TransmitPayload,
+            "An outer redraw must not expose the child's erased graphics.");
+
+        await handle.WriteOutputWithImpactsAsync(terminal.ApplyTokensWithImpacts(AnsiTokenizer.Tokenize(
+            "\x1b[2;2H" + KgpTestHelper.BuildCommand("a=T,f=32,s=1,v=1,i=2,C=1,q=2", [0, 255, 0, 255]))));
+        node.Arrange(new Rect(3, 2, 8, 4));
+        var partialContext = CreateContext(12, 8, out var partialRegistry);
+        node.Render(partialContext);
+        var retained = TestSeq.Single(partialRegistry.Images);
+        Assert.AreEqual(initial, retained.Data.TransmitPayload);
+        Assert.AreEqual(4, retained.AbsoluteX);
+        Assert.AreEqual(3, retained.AbsoluteY);
+
+        var notifications = 0;
+        handle.OutputReceived += () => notifications++;
+        await handle.WriteOutputWithImpactsAsync(terminal.ApplyTokensWithImpacts(
+            AnsiTokenizer.Tokenize("\x1b[?2026l")));
+        Assert.IsGreaterThan(0, notifications, "An end-only chunk must request an outer redraw.");
+        var completeContext = CreateContext(12, 8, out var completeRegistry);
+        node.Render(completeContext);
+        Assert.AreNotEqual(initial, TestSeq.Single(completeRegistry.Images).Data.TransmitPayload);
+    }
+
+    [TestMethod]
+    public async Task Render_SynchronizedTextAndCursor_RetainsOneCompleteFrame()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithDimensions(8, 4).WithTimeProvider(new FakeTimeProvider())
+            .WithTerminalWidget(out var handle).Build();
+        var node = CreateNode(handle, new Rect(0, 0, 8, 4));
+        await handle.WriteOutputWithImpactsAsync(terminal.ApplyTokensWithImpacts(
+            [.. AnsiTokenizer.Tokenize("OLD\x1b[3;4H\x1b[?25h"), CursorShapeToken.SteadyBar]));
+        node.Render(CreateContext(8, 4, out _));
+        var cursor = node.RenderedCursor;
+        Assert.AreEqual((3, 2, CursorShape.SteadyBar, true), cursor);
+
+        await handle.WriteOutputWithImpactsAsync(terminal.ApplyTokensWithImpacts(
+            [.. AnsiTokenizer.Tokenize("\x1b[?2026h\x1b[H\x1b[2JNEW\x1b[?25l"), CursorShapeToken.BlinkingBlock]));
+        var pendingContext = CreateContext(8, 4, out _);
+        node.Render(pendingContext);
+        Assert.AreEqual("O", pendingContext.Surface[0, 0].Character);
+        Assert.AreEqual(cursor, node.RenderedCursor);
+
+        await handle.WriteOutputWithImpactsAsync(terminal.ApplyTokensWithImpacts(
+            AnsiTokenizer.Tokenize("\x1b[?2026l")));
+        var completeContext = CreateContext(8, 4, out _);
+        node.Render(completeContext);
+        Assert.AreEqual("N", completeContext.Surface[0, 0].Character);
+        Assert.AreEqual((3, 0, CursorShape.BlinkingBlock, false), node.RenderedCursor);
+    }
+
+    [TestMethod]
+    public async Task Render_FirstAttachmentDuringSynchronizedUpdate_DoesNotExposePartialState()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithDimensions(8, 4).WithTimeProvider(new FakeTimeProvider())
+            .WithTerminalWidget(out var handle).Build();
+        await handle.WriteOutputWithImpactsAsync(terminal.ApplyTokensWithImpacts(
+            AnsiTokenizer.Tokenize("\x1b[?2026hPARTIAL")));
+        var node = CreateNode(handle, new Rect(0, 0, 8, 4));
+        var pendingContext = CreateContext(8, 4, out _);
+        node.Render(pendingContext);
+        Assert.AreNotEqual("P", pendingContext.Surface[0, 0].Character);
+        Assert.IsFalse(node.RenderedCursor.Visible);
+
+        await handle.WriteOutputWithImpactsAsync(terminal.ApplyTokensWithImpacts(
+            AnsiTokenizer.Tokenize("\x1b[HCOMPLETE\x1b[?2026l")));
+        var completeContext = CreateContext(8, 4, out _);
+        node.Render(completeContext);
+        Assert.AreEqual("C", completeContext.Surface[0, 0].Character);
+    }
+
+    [TestMethod]
+    public async Task Render_ReplacedHandle_DoesNotRetainPreviousTerminalsFrame()
+    {
+        using var firstWorkload = new Hex1bAppWorkloadAdapter();
+        using var firstTerminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(firstWorkload).WithDimensions(8, 4)
+            .WithTerminalWidget(out var firstHandle).Build();
+        using var secondWorkload = new Hex1bAppWorkloadAdapter();
+        using var secondTerminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(secondWorkload).WithDimensions(8, 4).WithTimeProvider(new FakeTimeProvider())
+            .WithTerminalWidget(out var secondHandle).Build();
+        await firstHandle.WriteOutputWithImpactsAsync(firstTerminal.ApplyTokensWithImpacts(
+            AnsiTokenizer.Tokenize("OLD")));
+        await secondHandle.WriteOutputWithImpactsAsync(secondTerminal.ApplyTokensWithImpacts(
+            AnsiTokenizer.Tokenize("\x1b[?2026hNEW")));
+        var node = CreateNode(firstHandle, new Rect(0, 0, 8, 4));
+        node.Render(CreateContext(8, 4, out _));
+        node.Unbind();
+        node.Handle = secondHandle;
+        node.Bind();
+
+        var context = CreateContext(8, 4, out _);
+        node.Render(context);
+        Assert.AreNotEqual("O", context.Surface[0, 0].Character);
+        Assert.AreNotEqual("N", context.Surface[0, 0].Character);
+        Assert.IsFalse(node.RenderedCursor.Visible);
+    }
+
+    [TestMethod]
+    public async Task Render_UnterminatedChildRedraw_WatchdogReleasesRetainedImage()
+    {
+        var clock = new FakeTimeProvider();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithDimensions(8, 4).WithTimeProvider(clock)
+            .WithTerminalWidget(out var handle).Build();
+        var node = CreateNode(handle, new Rect(0, 0, 8, 4));
+        node.Render(CreateContext(8, 4, out _));
+        await handle.WriteOutputWithImpactsAsync(terminal.ApplyTokensWithImpacts(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=T,f=32,s=1,v=1,i=1,C=1,q=2", [255, 0, 0, 255]))));
+        node.Render(CreateContext(8, 4, out _));
+        await handle.WriteOutputWithImpactsAsync(terminal.ApplyTokensWithImpacts(AnsiTokenizer.Tokenize(
+            "\x1b[?2026h\x1b_Ga=d,d=A,q=2\x1b\\")));
+        var pendingContext = CreateContext(8, 4, out var pendingRegistry);
+        node.Render(pendingContext);
+        Assert.HasCount(1, pendingRegistry.Images);
+
+        clock.Advance(TimeSpan.FromSeconds(1));
+
+        var expiredContext = CreateContext(8, 4, out var expiredRegistry);
+        node.Render(expiredContext);
+        Assert.IsEmpty(expiredRegistry.Images);
+    }
 
     [TestMethod]
     public void Render_KgpCapableParent_PropagatesCapabilitiesAndCellMetrics()
@@ -158,6 +307,94 @@ public class TerminalWidgetKgpTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Render_NativeSprite_EmitsNativePlacementWithOffsetsAndCrop(bool crop)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithDimensions(6, 4)
+            .WithTerminalWidget(out var handle)
+            .Build();
+        var node = CreateNode(handle, new Rect(3, 2, 6, 4));
+        var context = CreateContext(12, 8, out var registry);
+        node.Render(context);
+        var cropControls = crop ? ",x=1,y=1,w=2,h=2" : "";
+        var applied = terminal.ApplyTokensWithImpacts(AnsiTokenizer.Tokenize(
+            "\x1b[2;3H" + KgpTestHelper.BuildCommand(
+                $"a=T,f=32,s=3,v=3,i=77,X=9,Y=19,C=1,q=2{cropControls}",
+                KgpTestHelper.CreatePixelData(3, 3))));
+        await handle.WriteOutputWithImpactsAsync(applied);
+
+        node.Render(context);
+
+        var entry = TestSeq.Single(registry.Images);
+        Assert.AreEqual(5, entry.AbsoluteX);
+        Assert.AreEqual(3, entry.AbsoluteY);
+        Assert.IsTrue(entry.Data.UsesNativeSize);
+        Assert.AreEqual(2, entry.Data.WidthInCells);
+        Assert.AreEqual(2, entry.Data.HeightInCells);
+        var tracker = new KgpPlacementTracker();
+        var (before, after) = tracker.GenerateCommands(KgpOcclusionSolver.ComputeFragments(registry));
+        var emitted = before.Concat(after).ToList();
+        var placementPayload = TestSeq.Single(emitted
+            .OfType<UnrecognizedSequenceToken>()
+            .Where(token => token.Sequence.Contains("a=p"))).Sequence;
+        Assert.DoesNotContain(",c=", placementPayload);
+        Assert.DoesNotContain(",r=", placementPayload);
+        Assert.Contains(",X=9", placementPayload);
+        Assert.Contains(",Y=19", placementPayload);
+        Assert.Contains(crop ? ",w=2,h=2" : ",w=3,h=3", placementPayload);
+        if (crop)
+            Assert.Contains(",x=1,y=1", placementPayload);
+
+        using var viewerWorkload = new Hex1bAppWorkloadAdapter();
+        using var viewer = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(viewerWorkload)
+            .WithHeadless(KgpCapabilities)
+            .WithDimensions(12, 8)
+            .Build();
+        viewer.ApplyTokens(AnsiTokenizer.Tokenize(AnsiTokenSerializer.Serialize(emitted)));
+        using var snapshot = viewer.CreateSnapshot();
+        var placement = TestSeq.Single(snapshot.KgpPlacements);
+        Assert.IsTrue(placement.UsesNativeSize);
+        Assert.AreEqual(5, placement.Column);
+        Assert.AreEqual(3, placement.Row);
+        Assert.AreEqual(2u, placement.DisplayColumns);
+        Assert.AreEqual(2u, placement.DisplayRows);
+        Assert.AreEqual(crop ? 2u : 3u, placement.SourceWidth);
+        Assert.AreEqual(crop ? 2u : 3u, placement.SourceHeight);
+        Assert.AreEqual(9u, placement.CellOffsetX);
+        Assert.AreEqual(19u, placement.CellOffsetY);
+    }
+
+    [TestMethod]
+    public void RegisterKgp_NativePlacementsWithoutRegistry_PreservesDistinctOffsets()
+    {
+        var image = new KgpImageData(91, 0, KgpTestHelper.CreatePixelData(3, 3),
+            3, 3, KgpFormat.Rgba32);
+        var surface = new Surface(10, 5, new CellMetrics(10, 20));
+        var context = new SurfaceRenderContext(surface)
+        {
+            CellMetrics = new CellMetrics(10, 20)
+        };
+        context.SetCapabilities(KgpCapabilities);
+        context.RegisterKgp(image, new KgpPlacement(91, 1, 0, 0, 1, 1,
+            sourceWidth: 3, sourceHeight: 3));
+        context.RegisterKgp(image, new KgpPlacement(91, 2, 0, 2, 1, 1, cellOffsetX: 1)
+            .WithNativeSize(image, 10, 20));
+        context.RegisterKgp(image, new KgpPlacement(91, 3, 0, 4, 1, 1, cellOffsetX: 2)
+            .WithNativeSize(image, 10, 20));
+
+        Assert.IsFalse(surface[0, 0].Kgp!.Data.UsesNativeSize);
+        Assert.IsTrue(surface[2, 0].Kgp!.Data.UsesNativeSize);
+        Assert.IsTrue(surface[4, 0].Kgp!.Data.UsesNativeSize);
+        Assert.AreEqual(1u, surface[2, 0].Kgp!.Data.CellOffsetX);
+        Assert.AreEqual(2u, surface[4, 0].Kgp!.Data.CellOffsetX);
+    }
+
+    [TestMethod]
     public async Task NestedHex1bApp_KgpImage_RendersInOuterTerminal()
     {
         var imageBytes = KgpTestHelper.CreatePixelData(4, 4, fillByte: 0x5A);
@@ -227,6 +464,107 @@ public class TerminalWidgetKgpTests
         innerApp!.RequestStop();
         outerApp!.RequestStop();
         await Task.WhenAll(innerRunTask, outerRunTask);
+    }
+
+    [TestMethod]
+    [DataRow(16)]
+    [DataRow(1000)] // Exercise a follow-up frame deferred by a slow frame-rate limit.
+    public async Task Render_ChildKgpOutputDuringParentFrame_RendersWithoutFurtherInput(int frameRateLimitMs)
+    {
+        var imageBytes = KgpTestHelper.CreatePixelData(4, 4, fillByte: 0x5A);
+        var releaseInnerBuilds = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var innerBuilds = 0;
+        Hex1bApp? innerApp = null;
+        await using var innerTerminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(
+                options => options.EnableRescue = false,
+                (Func<Hex1bApp, Func<RootContext, Task<Hex1bWidget>>>)(app =>
+                {
+                    innerApp = app;
+                    return async context =>
+                    {
+                        // Only one child frame may wake the parent; a later startup
+                        // redraw would mask a lost notification from the first frame.
+                        if (++innerBuilds > 1)
+                            await releaseInnerBuilds.Task.WaitAsync(context.CancellationToken);
+                        return new KgpImageWidget(
+                            imageBytes, 4, 4, new TextBlockWidget("[inner fallback]"))
+                            .Width(4).Height(2);
+                    };
+                }))
+            .WithDimensions(8, 4)
+            .WithTerminalWidget(out var handle)
+            .Build();
+        Task? innerRunTask = null;
+        var outputDelivered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var afterChild = new TestWidget().OnRender(args =>
+        {
+            if (args.RenderCount != 2)
+                return;
+
+            // Hold the parent after its child snapshot until the real inner app finishes
+            // a synchronized KGP frame. Subscribe after TerminalNode so its wakeup is queued.
+            handle.OutputReceived += () =>
+            {
+                if (handle.TryCaptureRenderFrame(0, out var frame) && frame?.KgpPlacements.Count == 1)
+                    outputDelivered.TrySetResult();
+            };
+            innerRunTask = innerTerminal.RunAsync(TestContext.Current.CancellationToken);
+            outputDelivered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)
+                .GetAwaiter().GetResult();
+            var childNode = TestSeq.Single(args.Node.Parent!.GetChildren().OfType<TerminalNode>());
+            Assert.IsTrue(childNode.HasPendingOutput, "The parent has not rendered the child's completed frame.");
+        });
+        var builds = 0;
+        Hex1bApp? outerApp = null;
+        await using var outerTerminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(
+                options =>
+                {
+                    options.FrameRateLimitMs = frameRateLimitMs;
+                    options.EnableRescue = false;
+                },
+                app =>
+                {
+                    outerApp = app;
+                    return _ => new VStackWidget([
+                        new TextBlockWidget($"Host {++builds}"),
+                        new TerminalWidget(handle)
+                            .Width(SizeHint.Fixed(8))
+                            .Height(SizeHint.Fixed(4)),
+                        afterChild,
+                    ]);
+                })
+            .WithHeadless(KgpCapabilities)
+            .WithDimensions(12, 8)
+            .Build();
+
+        var runTask = outerTerminal.RunAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            await outputDelivered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            using var childSnapshot = innerTerminal.CreateSnapshot();
+            Assert.HasCount(1, childSnapshot.KgpPlacements);
+            using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(
+                    current => current.KgpPlacements.Count == 1,
+                    TimeSpan.FromSeconds(5),
+                    "child KGP output arriving during the parent frame was rendered")
+                .Build()
+                .ApplyAsync(outerTerminal, TestContext.Current.CancellationToken);
+
+            var placement = TestSeq.Single(snapshot.KgpPlacements);
+            CollectionAssert.AreEqual(imageBytes, snapshot.KgpImages[placement.ImageId].Data);
+            Assert.AreEqual(1, placement.Row);
+            Assert.AreEqual(0, placement.Column);
+        }
+        finally
+        {
+            innerApp?.RequestStop();
+            releaseInnerBuilds.TrySetResult();
+            outerApp!.RequestStop();
+            await Task.WhenAll(runTask, innerRunTask ?? Task.CompletedTask);
+        }
     }
 
     [TestMethod]

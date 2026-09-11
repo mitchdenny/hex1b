@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using System.Buffers.Binary;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Sixel;
+using Hex1b.Surfaces;
 using Hex1b.Theming;
 
 namespace Hex1b;
@@ -65,6 +67,67 @@ public class Hex1bRenderContext
     public virtual void Write(string text) => _adapter?.Write(text);
     public virtual void Clear() => _adapter?.Clear();
     public virtual void SetCursorPosition(int left, int top) => _adapter?.SetCursorPosition(left, top);
+
+    /// <summary>
+    /// Writes structured pixels as a native Sixel sequence at the current cursor position.
+    /// The pixels are resampled to the requested cell span using the active Sixel protocol metrics.
+    /// Surface-backed contexts override this operation to retain structured Sixel content.
+    /// </summary>
+    /// <param name="pixels">The pixels to encode.</param>
+    /// <param name="cellWidth">The occupied width in terminal cells.</param>
+    /// <param name="cellHeight">The occupied height in terminal cells.</param>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="pixels"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="cellWidth"/> or <paramref name="cellHeight"/> is not positive.
+    /// </exception>
+    [System.Diagnostics.CodeAnalysis.Experimental("HEX1B_SIXEL", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/sixel.md")]
+    public virtual void WriteSixel(SixelPixelBuffer pixels, int cellWidth, int cellHeight)
+    {
+        ArgumentNullException.ThrowIfNull(pixels);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellHeight);
+
+        var metrics = Capabilities.SixelCellMetrics ?? SixelCellMetrics.FromCapabilities(Capabilities);
+        var resized = pixels.Resize(
+            metrics.GetPixelWidthForColumns(cellWidth),
+            metrics.GetPixelHeightForRows(cellHeight));
+        Write(SixelEncoder.Encode(resized));
+    }
+
+    /// <summary>
+    /// Writes validated pre-encoded Sixel data at the current cursor position.
+    /// Pre-encoded content is not resampled and must naturally occupy the requested
+    /// cell span under the active Sixel protocol metrics.
+    /// Surface-backed contexts override this operation to retain structured Sixel content.
+    /// </summary>
+    /// <param name="imageData">
+    /// A complete Sixel DCS sequence, or the Sixel body without its DCS framing.
+    /// </param>
+    /// <param name="cellWidth">The occupied width in terminal cells.</param>
+    /// <param name="cellHeight">The occupied height in terminal cells.</param>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="imageData"/> is malformed, incomplete, or
+    /// does not naturally occupy the requested cell span.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="imageData"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="cellWidth"/> or <paramref name="cellHeight"/> is not positive.
+    /// </exception>
+    [System.Diagnostics.CodeAnalysis.Experimental("HEX1B_SIXEL", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/sixel.md")]
+    public virtual void WriteSixel(string imageData, int cellWidth, int cellHeight)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellHeight);
+        var payload = SixelPayload.NormalizeAndValidate(imageData, nameof(imageData));
+        var parseResult = SixelParser.ParsePayload(payload);
+        var metrics = Capabilities.SixelCellMetrics ?? SixelCellMetrics.FromCapabilities(Capabilities);
+        SixelPayload.ValidateCellSpan(parseResult, metrics, cellWidth, cellHeight, nameof(imageData));
+        Write(payload);
+    }
     
     /// <summary>
     /// Writes a KGP image at the current cursor position.
@@ -223,6 +286,12 @@ public class Hex1bRenderContext
             animationControlPayload: controlPayload);
     }
 
+    internal virtual void RegisterSixel(SixelData image, int x, int y)
+    {
+        SetCursorPosition(x, y);
+        Write(image.Payload);
+    }
+
     internal virtual void RegisterKgp(KgpImageData image, KgpPlacement placement)
     {
         if (!Capabilities.SupportsKgp)
@@ -265,7 +334,12 @@ public class Hex1bRenderContext
             clipH: checked((int)placement.SourceHeight),
             zIndex: placement.ZIndex,
             cellOffsetX: placement.CellOffsetX,
-            cellOffsetY: placement.CellOffsetY);
+            cellOffsetY: placement.CellOffsetY)
+        {
+            UsesNativeSize = placement.UsesNativeSize,
+            NativeCellMetrics = new Surfaces.CellMetrics(
+                Capabilities.CellPixelWidth, Capabilities.CellPixelHeight)
+        };
     }
 
     private static byte[] ComputeKgpContentHash(

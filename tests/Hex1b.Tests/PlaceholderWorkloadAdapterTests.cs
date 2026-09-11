@@ -47,6 +47,40 @@ public class PlaceholderWorkloadAdapterTests
     }
 
     [TestMethod]
+    [DataRow(PlaceholderResumePolicy.OneShot)]
+    [DataRow(PlaceholderResumePolicy.OnDisconnect)]
+    public async Task ReadOutputAsync_ConcurrentPrimaryHandoffs_StreamsWithoutDisposedToken(
+        PlaceholderResumePolicy resumePolicy)
+    {
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, 10_000),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = 4,
+                CancellationToken = TestContext.Current.CancellationToken,
+            },
+            async (_, ct) =>
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(TimeSpan.FromSeconds(10));
+                var primary = new FakeConnectableAdapter();
+                var placeholder = new FakeAdapter();
+                primary.EnqueueOutput("PRIMARY"u8.ToArray());
+                await using var adapter = new PlaceholderWorkloadAdapter(
+                    primary, placeholder, resumePolicy);
+
+                // The watcher can swap and dispose the old cancellation source
+                // while the reader is capturing its active-child state.
+                primary.SignalConnected();
+                var reset = await adapter.ReadOutputAsync(timeout.Token);
+                AssertContainsSequence(reset, "\u001bc"u8);
+                var data = await adapter.ReadOutputAsync(timeout.Token);
+                TestSeq.AreEqual("PRIMARY"u8.ToArray(), data.ToArray());
+                Assert.AreSame(primary, adapter.ActiveChild);
+            });
+    }
+
+    [TestMethod]
     public async Task ReadOutputAsync_OnPrimaryDisconnect_ReturnsToPlaceholder_WhenPolicyOnDisconnect()
     {
         var primary = new FakeConnectableAdapter();

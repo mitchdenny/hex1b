@@ -1,0 +1,413 @@
+{
+  "schemaVersion": 1,
+  "normalizationVersion": 1,
+  "references": [
+    {
+      "id": "dec-vt340",
+      "name": "DEC VT340",
+      "version": "EK-VT3XX-GP-001",
+      "provenance": "DEC VT300 Series Programmer Reference Manual Volume 2, Chapter 14",
+      "captureKind": "published-specification"
+    },
+    {
+      "id": "xterm-411",
+      "name": "xterm",
+      "version": "patch 411 / 9489b2056ee51fa9dd6a7087483b9b8f85d6a0c4",
+      "provenance": "graphics_sixel.c and graphics.c at the pinned xterm source revision",
+      "sourceSha256": "3f6234e71ded3d816d6b2e7792b3a4860ecaf8c3c104d2284f0a44f31c726c96;447846c4a6120d24962f97b653538794df888a88b25b4c74a1c5ac5a5d0019c0",
+      "captureKind": "pinned-source-derived"
+    },
+    {
+      "id": "wezterm-20240203",
+      "name": "WezTerm",
+      "version": "20240203-110809-5046fc22 / 5046fc225992db6ba2ef8812743fadfdfe4b184a",
+      "provenance": "wezterm-terminal and termwiz source at the installed build revision",
+      "sourceSha256": "4a8007dd75244005874791b26cd7d0e4c62872bef4df4e978b9f921bf53ee9f9;ee4d38f6bafd98d3810074ba3d2f2675d62deac923da6a4b2559a4035add3de0;5bbdf36cae5d86c29fa4decda94fde6d370e2295c6451245c6218fec665082d9",
+      "captureKind": "installed-version-and-pinned-source-derived"
+    }
+  ],
+  "cases": [
+    {
+      "id": "initial-color",
+      "fixture": "reference-initial-color",
+      "framing": "7-bit",
+      "cellPixelWidth": 1,
+      "cellPixelHeight": 6,
+      "profiles": [
+        {
+          "reference": "dec-vt340",
+          "classification": "implementation-defined-ambiguous",
+          "expected": {
+            "placementCount": 1,
+            "firstPixel": "#000000FF"
+          }
+        },
+        {
+          "reference": "xterm-411",
+          "classification": "reference-match",
+          "expected": {
+            "placementCount": 1,
+            "firstPixel": "#33CC33FF"
+          }
+        },
+        {
+          "reference": "wezterm-20240203",
+          "classification": "reference-match",
+          "expected": {
+            "placementCount": 1,
+            "firstPixel": "#00FF00FF"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unmodified-palette-register",
+      "fixture": "reference-unmodified-register",
+      "framing": "7-bit",
+      "cellPixelWidth": 1,
+      "cellPixelHeight": 6,
+      "sourceEvidence": "WezTerm revision 5046fc225992db6ba2ef8812743fadfdfe4b184a, term/src/terminalstate/mod.rs lines 405-430, initializes register 6 to #CCCCCC.",
+      "profiles": [
+        {
+          "reference": "dec-vt340",
+          "classification": "reference-match",
+          "expected": {
+            "placementCount": 1,
+            "firstPixel": "#CCCC33FF"
+          }
+        },
+        {
+          "reference": "xterm-411",
+          "classification": "reference-match",
+          "expected": {
+            "placementCount": 1,
+            "firstPixel": "#CCCC33FF"
+          }
+        },
+        {
+          "reference": "wezterm-20240203",
+          "classification": "documented-reference-difference",
+          "expected": {
+            "placementCount": 1,
+            "firstPixel": "#CCCCCCFF"
+          }
+        }
+      ]
+    },
+    {
+      "id": "default-aspect",
+      "fixture": "reference-default-aspect",
+      "framing": "7-bit",
+      "chunking": "every-boundary",
+      "cellPixelWidth": 1,
+      "cellPixelHeight": 6,
+      "profiles": [
+        {
+          "reference": "dec-vt340",
+          "classification": "reference-match",
+          "expected": {
+            "placementCount": 1,
+            "placementRow": 0,
+            "placementColumn": 0,
+            "placementWidthInCells": 1,
+            "placementHeightInCells": 2,
+            "logicalWidth": 1,
+            "logicalHeight": 6,
+            "renderedWidth": 1,
+            "renderedHeight": 12,
+            "cursorRow": 2,
+            "cursorColumn": 1,
+            "firstPixel": "#FF0000FF"
+          }
+        },
+        {
+          "reference": "xterm-411",
+          "classification": "documented-reference-difference",
+          "expected": {
+            "placementCount": 1,
+            "placementRow": 0,
+            "placementColumn": 0,
+            "placementWidthInCells": 1,
+            "placementHeightInCells": 1,
+            "logicalWidth": 1,
+            "logicalHeight": 6,
+            "renderedWidth": 1,
+            "renderedHeight": 6,
+            "cursorRow": 1,
+            "cursorColumn": 1,
+            "firstPixel": "#FF0000FF"
+          }
+        },
+        {
+          "reference": "wezterm-20240203",
+          "classification": "documented-reference-difference",
+          "expected": {
+            "placementCount": 1,
+            "placementRow": 0,
+            "placementColumn": 0,
+            "placementWidthInCells": 1,
+            "placementHeightInCells": 1,
+            "logicalWidth": 1,
+            "logicalHeight": 6,
+            "renderedWidth": 1,
+            "renderedHeight": 6,
+            "cursorRow": 1,
+            "cursorColumn": 1,
+            "firstPixel": "#FF0000FF"
+          }
+        }
+      ]
+    },
+    {
+      "id": "definition-selection",
+      "fixture": "reference-definition-selection",
+      "framing": "7-bit",
+      "cellPixelWidth": 1,
+      "cellPixelHeight": 6,
+      "profiles": [
+        {
+          "reference": "dec-vt340",
+          "classification": "reference-match",
+          "expected": {
+            "placementCount": 1,
+            "firstPixel": "#FF0000FF"
+          }
+        },
+        {
+          "reference": "xterm-411",
+          "classification": "reference-match",
+          "expected": {
+            "placementCount": 1,
+            "firstPixel": "#FF0000FF"
+          }
+        },
+        {
+          "reference": "wezterm-20240203",
+          "classification": "documented-reference-difference",
+          "expected": {
+            "placementCount": 1,
+            "firstPixel": "#00FF00FF"
+          }
+        }
+      ]
+    },
+    {
+      "id": "opaque-background",
+      "fixture": "reference-opaque-background",
+      "prefix": "\u001b[48;2;10;20;30m",
+      "framing": "7-bit",
+      "cellPixelWidth": 1,
+      "cellPixelHeight": 1,
+      "profiles": [
+        {
+          "reference": "dec-vt340",
+          "classification": "reference-match",
+          "expected": {
+            "placementCount": 1,
+            "logicalWidth": 2,
+            "logicalHeight": 6,
+            "firstPixel": "#FF0000FF",
+            "lastPixel": "#0A141EFF"
+          }
+        },
+        {
+          "reference": "xterm-411",
+          "classification": "documented-reference-difference",
+          "expected": {
+            "placementCount": 1,
+            "logicalWidth": 2,
+            "logicalHeight": 6,
+            "firstPixel": "#FF0000FF",
+            "lastPixel": "#000000FF"
+          }
+        },
+        {
+          "reference": "wezterm-20240203",
+          "classification": "documented-reference-difference",
+          "expected": {
+            "placementCount": 1,
+            "logicalWidth": 2,
+            "logicalHeight": 6,
+            "firstPixel": "#FF0000FF",
+            "lastPixel": "#000000FF"
+          }
+        }
+      ]
+    },
+    {
+      "id": "repeat-zero",
+      "fixture": "reference-repeat-zero",
+      "framing": "7-bit",
+      "cellPixelWidth": 1,
+      "cellPixelHeight": 6,
+      "profiles": [
+        {
+          "reference": "dec-vt340",
+          "classification": "implementation-defined-ambiguous",
+          "expected": {
+            "placementCount": 1,
+            "logicalWidth": 1,
+            "logicalHeight": 6,
+            "firstPixel": "#FF0000FF"
+          }
+        },
+        {
+          "reference": "xterm-411",
+          "classification": "reference-match",
+          "expected": {
+            "placementCount": 1,
+            "logicalWidth": 1,
+            "logicalHeight": 6,
+            "firstPixel": "#FF0000FF"
+          }
+        },
+        {
+          "reference": "wezterm-20240203",
+          "classification": "documented-reference-difference",
+          "expected": {
+            "placementCount": 0,
+            "cursorRow": 0,
+            "cursorColumn": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "rgb-midpoint",
+      "fixture": "reference-rgb-midpoint",
+      "framing": "C1",
+      "suffix": "",
+      "cellPixelWidth": 1,
+      "cellPixelHeight": 6,
+      "profiles": [
+        {
+          "reference": "dec-vt340",
+          "classification": "implementation-defined-ambiguous",
+          "expected": {
+            "placementCount": 1,
+            "firstPixel": "#800000FF"
+          }
+        },
+        {
+          "reference": "wezterm-20240203",
+          "classification": "documented-reference-difference",
+          "expected": {
+            "placementCount": 1,
+            "firstPixel": "#7F0000FF"
+          }
+        }
+      ]
+    },
+    {
+      "id": "decsdm-set",
+      "fixture": "reference-rgb-midpoint",
+      "prefix": "\u001b[3;4H\u001b[?80h",
+      "framing": "7-bit",
+      "cellPixelWidth": 1,
+      "cellPixelHeight": 6,
+      "profiles": [
+        {
+          "reference": "dec-vt340",
+          "classification": "reference-match",
+          "expected": {
+            "placementCount": 1,
+            "placementRow": 2,
+            "placementColumn": 3,
+            "cursorRow": 3,
+            "cursorColumn": 4
+          }
+        },
+        {
+          "reference": "xterm-411",
+          "classification": "documented-reference-difference",
+          "expected": {
+            "placementCount": 1,
+            "placementRow": 0,
+            "placementColumn": 0,
+            "cursorRow": 2,
+            "cursorColumn": 4
+          }
+        },
+        {
+          "reference": "wezterm-20240203",
+          "classification": "documented-reference-difference",
+          "expected": {
+            "placementCount": 1,
+            "placementRow": 0,
+            "placementColumn": 0,
+            "cursorRow": 2,
+            "cursorColumn": 4
+          }
+        }
+      ]
+    }
+  ],
+  "contractCoverage": [
+    {
+      "area": "framing-termination-cancellation-chunking",
+      "evidence": [
+        "SixelReferenceConformanceTests.CorpusCases_MatchNormalizedReferenceOutcomes",
+        "SixelFramingTests",
+        "DcsByteStreamParserTests",
+        "SixelGrammarParserTests"
+      ]
+    },
+    {
+      "area": "commands-repeat-raster-palette-color-background-aspect",
+      "evidence": [
+        "SixelReferenceConformanceTests.CorpusCases_MatchNormalizedReferenceOutcomes",
+        "SixelParserTests",
+        "SixelRasterizerTests",
+        "SixelGrammarParserTests"
+      ]
+    },
+    {
+      "area": "cursor-decsdm-mode-8452-margins-origin-clipping-scroll",
+      "evidence": [
+        "SixelReferenceConformanceTests.CorpusCases_MatchNormalizedReferenceOutcomes",
+        "SixelCursorSemanticsTests"
+      ]
+    },
+    {
+      "area": "placement-content-lifetime-dedup-damage-erase-reset-alternate-screen",
+      "evidence": [
+        "SixelPlacementLifetimeTests",
+        "SixelTerminalSemanticsTests",
+        "SixelScrollingTests"
+      ]
+    },
+    {
+      "area": "scrollback-history-resize-reflow",
+      "evidence": [
+        "SixelScrollHistoryReflowTests"
+      ]
+    },
+    {
+      "area": "malformed-truncated-limit-recovery",
+      "evidence": [
+        "SixelHardeningFuzzTests",
+        "SixelFramingTests",
+        "SixelGrammarParserTests"
+      ]
+    },
+    {
+      "area": "native-byte-exact-passthrough",
+      "evidence": [
+        "SixelReferenceConformanceTests.CorpusCases_MatchNormalizedReferenceOutcomes",
+        "SixelFramingTests",
+        "SixelTerminationIntegrationTests"
+      ]
+    },
+    {
+      "area": "snapshots-recording-internal-hmp1-reconnect",
+      "evidence": [
+        "SixelSnapshotSharingTests",
+        "SixelSvgExportTests",
+        "SixelHtmlExportTests",
+        "Hmp1SixelRecordingTests",
+        "Hmp1SixelStateReplayTests"
+      ]
+    }
+  ],
+  "ignoredTests": []
+}

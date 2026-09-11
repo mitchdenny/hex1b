@@ -37,5 +37,29 @@ public class AnsiTokenUtf8SerializerTests
 
         TestSeq.AreEqual(expected, actual);
     }
-}
 
+    [TestMethod]
+    public void Serialize_InternallyFramedDcs_PreservesOpaquePayloadBytes()
+    {
+        var rawPayload = new byte[] { (byte)'1', (byte)'+', (byte)'r', 0xff };
+        var token = new DcsToken(Encoding.Latin1.GetString(rawPayload));
+        token.AttachRawPayload(rawPayload);
+
+        var actual = AnsiTokenUtf8Serializer.Serialize(token).ToArray();
+        byte[] expected = [0x1b, (byte)'P', .. rawPayload, 0x1b, (byte)'\\'];
+
+        TestSeq.AreEqual(expected, actual);
+    }
+
+    [TestMethod]
+    public void Serialize_ModifiedFramedDcs_UsesModifiedUtf8Payload()
+    {
+        var token = new DcsToken(Encoding.Latin1.GetString([0xff]));
+        token.AttachRawPayload(new byte[] { 0xff });
+        var modified = token with { Payload = "é" };
+
+        var actual = AnsiTokenUtf8Serializer.Serialize(modified).ToArray();
+
+        TestSeq.AreEqual(Encoding.UTF8.GetBytes("\x1bPé\x1b\\"), actual);
+    }
+}

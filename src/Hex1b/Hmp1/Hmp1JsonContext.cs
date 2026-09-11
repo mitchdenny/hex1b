@@ -12,6 +12,8 @@ namespace Hex1b;
 [JsonSerializable(typeof(RoleChangePayload))]
 [JsonSerializable(typeof(PeerJoinPayload))]
 [JsonSerializable(typeof(PeerLeavePayload))]
+[JsonSerializable(typeof(Hmp1KgpAnimationState))]
+[JsonSerializable(typeof(Hmp1ActivityState))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal sealed partial class Hmp1JsonContext : JsonSerializerContext
 {

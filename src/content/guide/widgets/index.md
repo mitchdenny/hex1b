@@ -54,6 +54,7 @@ Widgets for presenting information.
 - **[Hyperlink](/guide/widgets/hyperlink)** — Clickable terminal hyperlinks (OSC 8)
 - **[QrCode](/guide/widgets/qrcode)** — Render QR codes in the terminal
 - **[KgpImage](/guide/widgets/kgpimage)** — Display pixel images via the Kitty Graphics Protocol
+- **[Sixel](/guide/widgets/sixel)** — Display structured pixels in Sixel-capable terminals with fallback content
 
 ## Utility Widgets
 

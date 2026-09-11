@@ -1,3 +1,4 @@
+#pragma warning disable HEX1B_SIXEL // Internal Sixel presentation integration.
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Widgets;
@@ -35,6 +36,13 @@ public sealed class TerminalNode : Hex1bNode
     private Action? _releaseCaptureCallback;
     private bool _isFocused;
     private bool _handleChanged; // Tracks if handle was changed since last Arrange
+    private TerminalWidgetRenderFrame? _renderFrame;
+    private bool _frameDeferred;
+
+    internal (int X, int Y, CursorShape Shape, bool Visible) RenderedCursor =>
+        _renderFrame?.Cursor ??
+        (_handle?.CursorX ?? 0, (_handle?.CursorY ?? 0) + _scrollbackOffset,
+            _handle?.CursorShape ?? CursorShape.Default, !_frameDeferred && (_handle?.CursorVisible ?? false));
     
     // Tracks output version to detect if output arrived during render
     // This prevents the race condition where output arrives after snapshot
@@ -76,6 +84,8 @@ public sealed class TerminalNode : Hex1bNode
         {
             if (_handle != value)
             {
+                _renderFrame = null;
+                _frameDeferred = false;
                 _handle = value;
                 _handleChanged = true; // Mark that we need to resize the new handle
                 MarkDirty();
@@ -448,6 +458,8 @@ public sealed class TerminalNode : Hex1bNode
     /// </summary>
     internal void Unbind()
     {
+        _renderFrame = null;
+        _frameDeferred = false;
         if (!_isBound || _handle == null) return;
         
         if (_outputReceivedHandler != null)
@@ -608,9 +620,14 @@ public sealed class TerminalNode : Hex1bNode
         // This ensures we detect any output that arrives during render
         var currentVersion = _outputVersion;
         
-        // Get the current screen buffer with dimensions atomically
-        // This prevents race conditions where dimensions change between getting buffer and reading Width/Height
-        var (buffer, handleWidth, handleHeight) = _handle.GetScreenBufferSnapshot();
+        if (_handle.IsInCopyMode)
+            _scrollbackOffset = _handle.CurrentScrollbackOffset;
+
+        // Never wait for a child while rendering the parent. Repaint the last complete
+        // child frame into the current bounds until its synchronized update finishes.
+        _frameDeferred = !_handle.TryCaptureRenderFrame(_scrollbackOffset, out var frame);
+        if (!_frameDeferred)
+            _renderFrame = frame;
         
         // Mark this version as rendered (we'll check if more output arrived after this)
         _lastRenderedVersion = currentVersion;
@@ -633,13 +650,16 @@ public sealed class TerminalNode : Hex1bNode
         // (e.g., after scrolling back from scrollback mode to live mode).
         context.ClearRegion(Bounds);
         
-        // Sync scrollback offset from handle when in copy mode
-        // (the handle adjusts it to keep the copy cursor visible)
-        if (_handle.IsInCopyMode)
+        if (_renderFrame is { } completed)
         {
-            _scrollbackOffset = _handle.CurrentScrollbackOffset;
+            RenderCompletedFrame(context, completed);
+            return;
         }
-        
+        if (_frameDeferred)
+            return;
+
+        // Handles without a backing terminal still support their local cell buffer.
+        var (buffer, handleWidth, handleHeight) = _handle.GetScreenBufferSnapshot();
         if (_scrollbackOffset > 0)
         {
             RenderWithScrollback(context, buffer, handleWidth, handleHeight);
@@ -648,25 +668,33 @@ public sealed class TerminalNode : Hex1bNode
         {
             RenderLive(context, buffer, handleWidth, handleHeight);
         }
-
-        RenderKgp(context, handleWidth, handleHeight);
     }
 
-    private void RenderKgp(Hex1bRenderContext context, int handleWidth, int handleHeight)
+    private void RenderCompletedFrame(Hex1bRenderContext context, TerminalWidgetRenderFrame frame)
     {
-        if (_handle is null || !context.Capabilities.SupportsKgp)
-            return;
+        var selection = _handle!.IsInCopyMode ? _handle.Selection : null;
+        var virtualStart = frame.ScrollbackCount - frame.ScrollbackOffset;
+        var visibleWidth = Math.Min(Bounds.Width, frame.Width);
+        var visibleHeight = Math.Min(Bounds.Height, frame.Height);
+        for (var y = 0; y < visibleHeight; y++)
+            RenderRow(context, y, x => frame.Cells[y, x], frame.Width, virtualStart + y, selection);
+        if (selection is not null)
+            RenderCopyModeCursor(context, virtualStart, frame.ScrollbackCount);
 
-        var effectiveOffset = Math.Min(_scrollbackOffset, _handle.ScrollbackCount);
-        using var snapshot = _handle.CreateSnapshot(effectiveOffset);
-        if (snapshot is null)
-            return;
-
-        var visibleWidth = Math.Min(Bounds.Width, handleWidth);
-        var visibleHeight = Math.Min(Bounds.Height, handleHeight);
-        foreach (var placement in snapshot.KgpPlacements)
+        if (SixelNode.IsSixelSupported(context.Capabilities))
         {
-            if (!snapshot.KgpImages.TryGetValue(placement.ImageId, out var image))
+            var metrics = context.Capabilities.SixelCellMetrics ??
+                Sixel.SixelCellMetrics.FromCapabilities(context.Capabilities);
+            if (frame.GetSixelFrame(visibleWidth, visibleHeight, metrics) is { } sixel)
+                context.RegisterSixel(sixel.Image, Bounds.X + sixel.Bounds.X, Bounds.Y + sixel.Bounds.Y);
+        }
+
+        if (!context.Capabilities.SupportsKgp)
+            return;
+
+        foreach (var placement in frame.KgpPlacements)
+        {
+            if (!frame.KgpImages.TryGetValue(placement.ImageId, out var image))
                 continue;
 
             var clipped = placement.ClipToCellRectangle(
@@ -675,8 +703,8 @@ public sealed class TerminalNode : Hex1bNode
                 bottomExclusive: visibleHeight,
                 left: 0,
                 rightExclusive: visibleWidth,
-                snapshot.CellPixelWidth,
-                snapshot.CellPixelHeight);
+                frame.CellPixelWidth,
+                frame.CellPixelHeight);
             if (clipped is null)
                 continue;
 
@@ -770,7 +798,10 @@ public sealed class TerminalNode : Hex1bNode
         if (viewY >= 0 && viewY < Bounds.Height && cursorPos.Column < Bounds.Width)
         {
             // Render a block cursor at the copy mode cursor position with inverted colors
-            var cell = _handle.GetVirtualCell(cursorPos.Row, cursorPos.Column);
+            var cell = _renderFrame is { } frame
+                ? viewY < frame.Height && cursorPos.Column < frame.Width
+                    ? frame.Cells[viewY, cursorPos.Column] : TerminalCell.Empty
+                : _handle.GetVirtualCell(cursorPos.Row, cursorPos.Column);
             var ch = cell?.Character ?? " ";
             if (string.IsNullOrEmpty(ch)) ch = " ";
             context.WriteClipped(Bounds.X + cursorPos.Column, Bounds.Y + viewY, $"\x1b[7m{ch}\x1b[0m");

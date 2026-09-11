@@ -21,6 +21,7 @@ public sealed class KgpImageStore
     internal readonly record struct StoreResult(
         KgpImageData Image,
         bool Replaced,
+        bool Stored = true,
         ImageRelocation? Relocation = null);
 
     internal readonly record struct TransmissionStartResult(
@@ -122,6 +123,7 @@ public sealed class KgpImageStore
     private uint _nextId = 1;
     private long _totalSize;
     private readonly long _quotaBytes;
+    private readonly TerminalGraphicsRetainedBudget? _sharedBudget;
 
     private KgpPendingUpload? _pendingUpload;
 
@@ -138,6 +140,13 @@ public sealed class KgpImageStore
     {
         _quotaBytes = quotaBytes;
         _nextId = nextId == 0 ? 1 : nextId;
+    }
+
+    internal KgpImageStore(TerminalGraphicsRetainedBudget sharedBudget)
+    {
+        _sharedBudget = sharedBudget;
+        _quotaBytes = sharedBudget.MaximumBytes;
+        _nextId = 1;
     }
 
     /// <summary>
@@ -161,9 +170,7 @@ public sealed class KgpImageStore
                         animation.PlaybackState is
                             KgpParsedCommand.AnimationPlaybackState.Loading or
                             KgpParsedCommand.AnimationPlaybackState.Running &&
-                        animation.TotalDurationMilliseconds > 0 &&
-                        (animation.MaximumLoops <= 1 ||
-                         animation.CompletedLoops < animation.MaximumLoops - 1))
+                        animation.TotalDurationMilliseconds > 0)
                     {
                         return true;
                     }
@@ -191,7 +198,7 @@ public sealed class KgpImageStore
     }
 
     internal long MaximumPendingUploadBytes
-        => Math.Min(Math.Max(0, _quotaBytes), Array.MaxLength);
+        => Math.Min(Math.Max(0, EffectiveQuotaBytes), Array.MaxLength);
 
     /// <summary>
     /// Allocates a currently unused, non-zero image ID.
@@ -217,7 +224,8 @@ public sealed class KgpImageStore
     {
         lock (_lock)
         {
-            return StoreImageUnsafe(image).Image;
+            var result = StoreImageUnsafe(image);
+            return result.Stored ? result.Image : null;
         }
     }
 
@@ -252,12 +260,24 @@ public sealed class KgpImageStore
         IReadOnlyList<KgpPlacement> Placements,
         IReadOnlyDictionary<uint, KgpImageData> Images) CaptureSnapshot(
             IReadOnlyList<KgpPlacement> sourcePlacements,
-            IEnumerable<uint>? additionalImageIds = null)
+            IEnumerable<uint>? additionalImageIds = null,
+            bool includeAllImages = false)
     {
         lock (_lock)
         {
             var placements = new List<KgpPlacement>(sourcePlacements.Count);
             var images = new Dictionary<uint, KgpImageData>();
+            if (includeAllImages)
+            {
+                foreach (var image in _imagesById.Values.Where(image => image.ImageNumber == 0))
+                    images.Add(image.ImageId, image);
+
+                // Preserve each number's generation order, including ID wraparound.
+                // Replaying I= uploads in this order restores newest-number lookup.
+                foreach (var generations in _imagesByNumber.Values)
+                    foreach (var imageId in generations)
+                        images.Add(imageId, _imagesById[imageId]);
+            }
             foreach (var sourcePlacement in sourcePlacements)
             {
                 if (!_imagesById.TryGetValue(
@@ -440,7 +460,7 @@ public sealed class KgpImageStore
                 WouldExceedQuota(
                     _totalSize,
                     info.RequiredStorageBytes,
-                    _quotaBytes))
+                    EffectiveQuotaBytes))
             {
                 return new AnimationFrameResult(
                     info with { Status = AnimationFrameStatus.NoSpace },
@@ -516,7 +536,7 @@ public sealed class KgpImageStore
                 }
 
                 _imagesById[image.ImageId] = updatedImage;
-                _totalSize = checked(_totalSize + storageDelta);
+                SetTotalSizeUnsafe(checked(_totalSize + storageDelta));
                 return new AnimationFrameResult(info, updatedImage);
             }
             catch (OutOfMemoryException)
@@ -602,8 +622,8 @@ public sealed class KgpImageStore
                     currentFrameIndex);
                 var updatedImage = image.WithAnimation(updatedAnimation);
                 _imagesById[image.ImageId] = updatedImage;
-                _totalSize = checked(
-                    _totalSize - (image.StorageSize - updatedImage.StorageSize));
+                SetTotalSizeUnsafe(checked(
+                    _totalSize - (image.StorageSize - updatedImage.StorageSize)));
                 return new AnimationFrameDeleteResult(
                     AnimationFrameDeleteStatus.Deleted,
                     image.ImageId,
@@ -696,6 +716,34 @@ public sealed class KgpImageStore
         }
     }
 
+    internal void RestoreAnimationPlayback(KgpAnimationPlaybackSnapshot snapshot, DateTimeOffset now)
+    {
+        if (snapshot is null)
+            throw new InvalidDataException("Missing KGP animation checkpoint.");
+        lock (_lock)
+        {
+            var image = ResolveAddressableImageUnsafe(snapshot.ImageId, snapshot.ImageNumber);
+            var animation = image?.AnimationState;
+            if (animation is null || snapshot.CurrentFrameNumber < 1 ||
+                snapshot.CurrentFrameNumber > animation.FrameCount ||
+                snapshot.PlaybackState is < KgpParsedCommand.AnimationPlaybackState.Stopped or > KgpParsedCommand.AnimationPlaybackState.Running ||
+                snapshot.MaximumLoops < 1 ||
+                (snapshot.MaximumLoops == 1 ? snapshot.CompletedLoops != 0 : snapshot.CompletedLoops >= snapshot.MaximumLoops) ||
+                snapshot.ElapsedTicks is < 0 ||
+                snapshot.ElapsedTicks > now.UtcTicks - DateTimeOffset.MinValue.UtcTicks)
+                throw new InvalidDataException("Invalid KGP animation checkpoint.");
+
+            var currentFrameIndex = snapshot.CurrentFrameNumber - 1;
+            var shownAt = snapshot.ElapsedTicks is { } ticks
+                ? now - TimeSpan.FromTicks(ticks) : (DateTimeOffset?)null;
+            animation = animation.SetCurrentFrame(currentFrameIndex)
+                .SetPlaybackState(snapshot.PlaybackState)
+                .SetMaximumLoops(snapshot.MaximumLoops)
+                .SetPlaybackPosition(currentFrameIndex, snapshot.CompletedLoops, shownAt);
+            _imagesById[image!.ImageId] = image.WithAnimation(animation);
+        }
+    }
+
     internal AnimationAdvanceResult AdvanceAnimations(
         IReadOnlySet<uint> visibleImageIds,
         DateTimeOffset now)
@@ -775,7 +823,7 @@ public sealed class KgpImageStore
             _imagesById.Clear();
             _imagesByNumber.Clear();
             _unaddressableImageIds.Clear();
-            _totalSize = 0;
+            SetTotalSizeUnsafe(0);
             AbortChunkedTransferUnsafe();
         }
     }
@@ -1005,6 +1053,10 @@ public sealed class KgpImageStore
         var imageId = transmission.ImageId > 0
             ? transmission.ImageId
             : AllocateIdUnsafe();
+        var image = CreateImage(imageId, transmission, data);
+        if (_sharedBudget is not null && image.StorageSize > EffectiveQuotaBytes)
+            return new StoreResult(image, Replaced: false, Stored: false);
+
         ImageRelocation? relocation = null;
         if (transmission.IdentityKind == KgpParsedCommand.ImageIdentityKind.ExplicitId &&
             _unaddressableImageIds.Contains(imageId))
@@ -1014,7 +1066,6 @@ public sealed class KgpImageStore
             relocation = RelocateUnaddressableImageUnsafe(imageId);
         }
 
-        var image = CreateImage(imageId, transmission, data);
         var stored = StoreImageUnsafe(
             image,
             transmission.IdentityKind != KgpParsedCommand.ImageIdentityKind.Anonymous);
@@ -1025,10 +1076,13 @@ public sealed class KgpImageStore
         KgpImageData image,
         bool addressable = true)
     {
+        if (_sharedBudget is not null && image.StorageSize > EffectiveQuotaBytes)
+            return new StoreResult(image, Replaced: false, Stored: false);
+
         var replaced = _imagesById.TryGetValue(image.ImageId, out var existing);
         if (existing is not null)
         {
-            _totalSize -= existing.StorageSize;
+            SetTotalSizeUnsafe(checked(_totalSize - existing.StorageSize));
             _imagesById.Remove(existing.ImageId);
             _unaddressableImageIds.Remove(existing.ImageId);
             RemoveFromNumberIndex(existing);
@@ -1037,13 +1091,17 @@ public sealed class KgpImageStore
         while (WouldExceedQuota(
                    _totalSize,
                    image.StorageSize,
-                   _quotaBytes) &&
+                   EffectiveQuotaBytes) &&
                _imagesById.Count > 0)
         {
             EvictOldest();
         }
 
-        _totalSize += image.StorageSize;
+        if (_sharedBudget is not null &&
+            WouldExceedQuota(_totalSize, image.StorageSize, EffectiveQuotaBytes))
+            return new StoreResult(image, replaced, Stored: false);
+
+        SetTotalSizeUnsafe(checked(_totalSize + image.StorageSize));
         _imagesById[image.ImageId] = image;
         if (addressable)
             _unaddressableImageIds.Remove(image.ImageId);
@@ -1068,7 +1126,7 @@ public sealed class KgpImageStore
         if (!_imagesById.TryGetValue(imageId, out var image))
             return false;
 
-        _totalSize -= image.StorageSize;
+        SetTotalSizeUnsafe(checked(_totalSize - image.StorageSize));
         _imagesById.Remove(imageId);
         _unaddressableImageIds.Remove(imageId);
         RemoveFromNumberIndex(image);
@@ -1120,6 +1178,16 @@ public sealed class KgpImageStore
             throw new ArgumentOutOfRangeException(nameof(currentSize));
         return addedSize > quotaBytes ||
                currentSize > quotaBytes - addedSize;
+    }
+
+    private long EffectiveQuotaBytes =>
+        _sharedBudget?.MaximumKgpBytes ?? _quotaBytes;
+
+    private void SetTotalSizeUnsafe(long totalSize)
+    {
+        if (_sharedBudget is not null)
+            _sharedBudget.SetKgpBytes(totalSize);
+        _totalSize = totalSize;
     }
 
     private static KgpImageData CreateImage(

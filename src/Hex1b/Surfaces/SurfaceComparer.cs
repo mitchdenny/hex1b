@@ -1,3 +1,4 @@
+using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Tokens;
 using System.Text;
@@ -261,6 +262,17 @@ public static class SurfaceComparer
         if (diff.IsEmpty) return;
 
         var tokens = output;
+        IReadOnlyList<ChangedCell> changes = diff.ChangedCells;
+        List<Rect>? sixelDamage = null;
+
+        if (currentSurface is not null && previousSurface is not null && previousSurface.HasSixels)
+        {
+            sixelDamage = GetReplacedSixelRegions(previousSurface, currentSurface);
+            if (sixelDamage.Count > 0)
+            {
+                changes = IncludeDamageCells(diff.ChangedCells, currentSurface, sixelDamage);
+            }
+        }
         
         // Emit KGP delete commands for images that were in the previous surface but have
         // moved or been removed. KGP placements persist in the terminal until explicitly
@@ -298,6 +310,7 @@ public static class SurfaceComparer
                                 currentKgpAnchors.TryAdd(cell.Kgp.Data.ImageId, (x, y));
                             }
                         }
+
                     }
                 }
 
@@ -311,6 +324,11 @@ public static class SurfaceComparer
                     }
                 }
             }
+        }
+
+        if (sixelDamage is { Count: > 0 })
+        {
+            EmitSixelDamageClears(tokens, sixelDamage, currentSurface!.Width, currentSurface.Height);
         }
 
         // Track regions covered by sixels (we need to skip cells under sixels)
@@ -332,7 +350,7 @@ public static class SurfaceComparer
         {
             // Build a set of dirty cell positions for fast lookup
             var dirtyCells = new HashSet<(int, int)>();
-            foreach (var change in diff.ChangedCells)
+            foreach (var change in changes)
             {
                 dirtyCells.Add((change.X, change.Y));
             }
@@ -371,78 +389,47 @@ public static class SurfaceComparer
                 }
             }
             
-            // TEMPORARY: Skip fragmentation - just emit full sixels
-            // This tests whether the alignment issue is in fragmentation logic
-            // Use environment variable to toggle: HEX1B_SIXEL_FRAGMENTATION=1 to enable
-            var useFragmentation = Environment.GetEnvironmentVariable("HEX1B_SIXEL_FRAGMENTATION") == "1";
-            
-            if (useFragmentation)
+            // Deterministically fragment around text occluders. Cell backgrounds are
+            // the image's underlay, including backgrounds inherited during compositing,
+            // and must not suppress the image itself.
+            var fragmentsToEmit = new List<SixelFragment>();
+
+            foreach (var (sx, sy, sw, sh, cell) in sixelRegions)
             {
-                // For each sixel, compute occlusions from overlapping text and fragment accordingly
-                var fragmentsToEmit = new List<SixelFragment>();
-                
-                foreach (var (sx, sy, sw, sh, cell) in sixelRegions)
+                var visibility = new SixelVisibility(cell.Sixel!, sx, sy, 0);
+
+                for (var y = sy; y < sy + sh && y < currentSurface.Height; y++)
                 {
-                    // Create a SixelVisibility tracker for this sixel
-                    var visibility = new SixelVisibility(cell.Sixel!, sx, sy, 0);
-                    var metrics = currentSurface.CellMetrics;
-                    
-                    // Scan for overlapping text cells and apply as occlusions
-                    for (var y = sy; y < sy + sh && y < currentSurface.Height; y++)
+                    for (var x = sx; x < sx + sw && x < currentSurface.Width; x++)
                     {
-                        for (var x = sx; x < sx + sw && x < currentSurface.Width; x++)
+                        var checkCell = currentSurface[x, y];
+                        if (IsSixelOccluder(checkCell))
                         {
-                            var checkCell = currentSurface[x, y];
-                            // If there's a non-space, non-unwritten cell in the sixel region, it occludes
-                            if (checkCell.Character != " " && checkCell.Character != SurfaceCells.UnwrittenMarker)
-                            {
-                                // This single cell is an occlusion
-                                visibility.ApplyOcclusion(new Layout.Rect(x, y, 1, 1), metrics);
-                            }
+                            visibility.ApplyOcclusion(new Rect(x, y, 1, 1));
                         }
                     }
-                    
-                    // Generate fragments for the visible portions
-                    var fragments = visibility.GenerateFragments(metrics);
-                    
-                    if (visibility.IsFullyOccluded)
-                    {
-                        continue;
-                    }
-                    
-                    foreach (var fragment in fragments)
+                }
+
+                if (!visibility.IsFullyOccluded)
+                {
+                    foreach (var fragment in visibility.GenerateFragments())
                     {
                         fragmentsToEmit.Add(fragment);
                     }
                 }
-                
-                // Emit ALL sixel fragments first (before any text cells)
-                foreach (var fragment in fragmentsToEmit)
-                {
-                    var payload = fragment.GetPayload();
-                    if (payload is null)
-                    {
-                        continue;
-                    }
-
-                    var (fx, fy) = fragment.CellPosition;
-                    
-                    // Position cursor at fragment position
-                    tokens.Add(new CursorPositionToken(fy + 1, fx + 1));
-                    // Emit the fragment
-                    tokens.Add(new UnrecognizedSequenceToken(payload));
-                }
             }
-            else
+
+            foreach (var fragment in fragmentsToEmit)
             {
-                // No fragmentation - emit full sixels, rely on text to overwrite
-                foreach (var (sx, sy, _, _, cell) in sixelRegions)
+                var payload = fragment.GetPayload();
+                if (payload is null)
                 {
-                    // Position cursor at sixel anchor
-                    tokens.Add(new CursorPositionToken(sy + 1, sx + 1));
-                    // Emit the full sixel
-                    tokens.Add(new UnrecognizedSequenceToken(cell.Sixel!.Data.Payload));
+                    continue;
                 }
+
+                var (fx, fy) = fragment.CellPosition;
+                tokens.Add(new CursorPositionToken(fy + 1, fx + 1));
+                tokens.Add(new UnrecognizedSequenceToken(payload));
             }
         }
 
@@ -450,7 +437,7 @@ public static class SurfaceComparer
         if (currentSurface != null && currentSurface.HasKgp)
         {
             var dirtyCells = new HashSet<(int, int)>();
-            foreach (var change in diff.ChangedCells)
+            foreach (var change in changes)
             {
                 dirtyCells.Add((change.X, change.Y));
             }
@@ -520,7 +507,7 @@ public static class SurfaceComparer
         // foreground+RGB background+RGB underline colour, e.g. "0;1;3;38;2;255;255;255;48;2;255;255;255;58;2;255;255;255" is 56 bytes.
         Span<byte> sgrBuf = stackalloc byte[96];
 
-        foreach (var change in diff.ChangedCells)
+        foreach (var change in changes)
         {
             // Skip continuation cells - they're handled by the wide character before them
             if (change.Cell.IsContinuation)
@@ -615,11 +602,18 @@ public static class SurfaceComparer
                     // Emit the sixel DCS sequence as raw - the payload already contains ESC P ... ESC \
                     tokens.Add(new UnrecognizedSequenceToken(change.Cell.Sixel.Data.Payload));
                     
-                    // Sixel rendering moves cursor, mark position as unknown
+                    // Hex1b-as-emitter never relies on where the upstream terminal
+                    // leaves the cursor after a Sixel sequence: DECSDM, mode 8452
+                    // and margin state all vary between terminals. Invalidating the
+                    // tracked position forces an explicit CUP before the next cell.
                     cursorX = -1;
                     cursorY = -1;
                 }
-                continue;
+
+                if (!IsSixelOccluder(change.Cell))
+                {
+                    continue;
+                }
             }
 
             // Check if this cell has KGP data
@@ -721,7 +715,7 @@ public static class SurfaceComparer
     private static bool IsCoveredBySixelRegion(int x, int y, SurfaceCell cell, List<(int X, int Y, int Width, int Height, SurfaceCell Cell)> regions)
     {
         // If the cell has actual content, it should be rendered over the sixel
-        if (cell.Character != " " && cell.Character != string.Empty && cell.Character != SurfaceCells.UnwrittenMarker)
+        if (IsSixelOccluder(cell))
             return false;
         
         foreach (var (sx, sy, sw, sh, _) in regions)
@@ -837,6 +831,8 @@ public static class SurfaceComparer
             !ColorsEqual(a.Background, b.Background) ||
             a.Attributes != b.Attributes ||
             a.DisplayWidth != b.DisplayWidth ||
+            a.IsSixelUnderlay != b.IsSixelUnderlay ||
+            a.OccludesSixel != b.OccludesSixel ||
             a.UnderlineStyle != b.UnderlineStyle ||
             !ColorsEqual(a.UnderlineColor, b.UnderlineColor))
         {
@@ -860,8 +856,156 @@ public static class SurfaceComparer
         if (a is null && b is null) return true;
         if (a is null || b is null) return false;
         
-        // Compare by content hash
-        return SixelData.HashEquals(a.Data.ContentHash, b.Data.ContentHash);
+        return SixelData.HashEquals(a.Data.ContentHash, b.Data.ContentHash)
+            && a.Data.WidthInCells == b.Data.WidthInCells
+            && a.Data.HeightInCells == b.Data.HeightInCells
+            && a.Data.CellMetrics == b.Data.CellMetrics;
+    }
+
+    private static List<Rect> GetReplacedSixelRegions(Surface previous, Surface current)
+    {
+        var currentAnchors = new Dictionary<(int X, int Y), SixelData>();
+        for (var y = 0; y < current.Height; y++)
+        {
+            for (var x = 0; x < current.Width; x++)
+            {
+                if (current[x, y].Sixel?.Data is { } currentData)
+                {
+                    currentAnchors[(x, y)] = currentData;
+                }
+            }
+        }
+
+        var damage = new List<Rect>();
+        for (var y = 0; y < previous.Height; y++)
+        {
+            for (var x = 0; x < previous.Width; x++)
+            {
+                if (previous[x, y].Sixel?.Data is not { } previousData)
+                {
+                    continue;
+                }
+
+                if (currentAnchors.TryGetValue((x, y), out var currentData) &&
+                    SixelData.HashEquals(previousData.ContentHash, currentData.ContentHash) &&
+                    previousData.WidthInCells == currentData.WidthInCells &&
+                    previousData.HeightInCells == currentData.HeightInCells &&
+                    previousData.CellMetrics == currentData.CellMetrics)
+                {
+                    continue;
+                }
+
+                damage.Add(new Rect(x, y, previousData.WidthInCells, previousData.HeightInCells));
+            }
+        }
+
+        return damage;
+    }
+
+    private static IReadOnlyList<ChangedCell> IncludeDamageCells(
+        IReadOnlyList<ChangedCell> changes,
+        Surface current,
+        IReadOnlyList<Rect> damage)
+    {
+        var byPosition = new Dictionary<(int X, int Y), ChangedCell>(changes.Count);
+        foreach (var change in changes)
+        {
+            byPosition[(change.X, change.Y)] = change;
+        }
+
+        foreach (var rect in damage)
+        {
+            var left = Math.Max(0, rect.X);
+            var top = Math.Max(0, rect.Y);
+            var right = Math.Min(current.Width, rect.Right);
+            var bottom = Math.Min(current.Height, rect.Bottom);
+            for (var y = top; y < bottom; y++)
+            {
+                for (var x = left; x < right; x++)
+                {
+                    byPosition[(x, y)] = new ChangedCell(x, y, current[x, y]);
+                }
+            }
+        }
+
+        return byPosition.Values
+            .OrderBy(static change => change.Y)
+            .ThenBy(static change => change.X)
+            .ToArray();
+    }
+
+    private static void EmitSixelDamageClears(
+        List<AnsiToken> tokens,
+        IReadOnlyList<Rect> damage,
+        int surfaceWidth,
+        int surfaceHeight)
+    {
+        var rows = new Dictionary<int, HashSet<int>>();
+        foreach (var rect in damage)
+        {
+            var left = Math.Max(0, rect.X);
+            var top = Math.Max(0, rect.Y);
+            var right = Math.Min(surfaceWidth, rect.Right);
+            var bottom = Math.Min(surfaceHeight, rect.Bottom);
+            for (var y = top; y < bottom; y++)
+            {
+                if (!rows.TryGetValue(y, out var columns))
+                {
+                    columns = [];
+                    rows[y] = columns;
+                }
+
+                for (var x = left; x < right; x++)
+                {
+                    columns.Add(x);
+                }
+            }
+        }
+
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        tokens.Add(SgrToken.Reset);
+        foreach (var (y, columns) in rows.OrderBy(static pair => pair.Key))
+        {
+            var ordered = columns.Order().ToArray();
+            var start = ordered[0];
+            var previous = start;
+            for (var i = 1; i <= ordered.Length; i++)
+            {
+                if (i < ordered.Length && ordered[i] == previous + 1)
+                {
+                    previous = ordered[i];
+                    continue;
+                }
+
+                tokens.Add(new CursorPositionToken(y + 1, start + 1));
+                tokens.Add(new TextToken(new string(' ', previous - start + 1)));
+                if (i < ordered.Length)
+                {
+                    start = previous = ordered[i];
+                }
+            }
+        }
+    }
+
+    private static bool IsSixelOccluder(SurfaceCell cell)
+    {
+        if (cell.OccludesSixel)
+        {
+            return true;
+        }
+
+        if (cell.HasSixel)
+        {
+            return cell.Character != SurfaceCells.UnwrittenMarker && cell.Character != " ";
+        }
+
+        return !cell.IsSixelUnderlay &&
+            cell.Character != SurfaceCells.UnwrittenMarker &&
+            (cell.Character != " " || cell.Background is not null);
     }
     
     private static bool KgpEqual(TrackedObject<KgpCellData>? a, TrackedObject<KgpCellData>? b)
@@ -870,7 +1014,7 @@ public static class SurfaceComparer
         if (a is null || b is null) return false;
         
         // Compare by content hash
-        return KgpCellData.HashEquals(a.Data.ContentHash, b.Data.ContentHash);
+        return KgpCellData.HashEquals(a.Data.TrackingHash, b.Data.TrackingHash);
     }
     
     private static bool HyperlinksEqual(TrackedObject<HyperlinkData>? a, TrackedObject<HyperlinkData>? b)

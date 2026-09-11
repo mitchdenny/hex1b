@@ -1,3 +1,5 @@
+using Hex1b.Sixel;
+
 namespace Hex1b;
 
 /// <summary>
@@ -11,14 +13,15 @@ namespace Hex1b;
 /// </para>
 /// <para>
 /// This is internal infrastructure - not exposed to API consumers.
-/// Type-specific APIs (e.g., <see cref="GetOrCreateSixel"/>) handle deduplication
-/// by content hash.
+/// Type-specific APIs (e.g., <see cref="GetOrCreateSixel(string, int, int)"/>) handle deduplication
+/// by complete immutable resource identity.
 /// </para>
 /// </remarks>
 internal sealed class TrackedObjectStore
 {
-    // Content-addressable storage for Sixel data, keyed by content hash
-    private readonly Dictionary<byte[], TrackedObject<SixelData>> _sixelByHash = new(ByteArrayComparer.Instance);
+    // Sixel resource identity includes raster content/state, placement span,
+    // and captured protocol metrics.
+    private readonly Dictionary<string, TrackedObject<SixelData>> _sixelByIdentity = [];
     
     // Content-addressable storage for hyperlink data, keyed by content hash
     private readonly Dictionary<byte[], TrackedObject<HyperlinkData>> _hyperlinkByHash = new(ByteArrayComparer.Instance);
@@ -37,7 +40,7 @@ internal sealed class TrackedObjectStore
         {
             lock (_lock)
             {
-                return _sixelByHash.Count;
+                return _sixelByIdentity.Count;
             }
         }
     }
@@ -71,71 +74,67 @@ internal sealed class TrackedObjectStore
     }
 
     /// <summary>
-    /// Gets or creates a tracked Sixel object for the given payload.
-    /// If an identical payload already exists, adds a reference and returns it.
-    /// Otherwise, creates a new tracked object with refcount 1.
+    /// Gets or creates a tracked Sixel object for the given payload and cell span.
+    /// If an identical compatible resource already exists, adds a reference and
+    /// returns it. Otherwise, creates a new tracked object with refcount 1.
     /// </summary>
     /// <param name="payload">The raw Sixel DCS sequence.</param>
     /// <param name="widthInCells">Width of the image in terminal cells.</param>
     /// <param name="heightInCells">Height of the image in terminal cells.</param>
     /// <returns>A tracked Sixel object (new or existing with added ref).</returns>
     public TrackedObject<SixelData> GetOrCreateSixel(string payload, int widthInCells, int heightInCells)
+        => GetOrCreateSixel(
+            payload,
+            widthInCells,
+            heightInCells,
+            SixelParser.ParsePayload(payload));
+
+    internal TrackedObject<SixelData> GetOrCreateSixel(
+        string payload,
+        int widthInCells,
+        int heightInCells,
+        SixelParseResult parseResult,
+        SixelRasterPreparation? rasterPreparation = null,
+        SixelCellMetrics? cellMetrics = null)
     {
-        var hash = SixelData.ComputeHash(payload);
+        var capturedMetrics = cellMetrics ?? SixelCellMetrics.Unknown;
+        var hash = SixelData.ComputeHash(
+            payload,
+            rasterPreparation?.Identity,
+            widthInCells,
+            heightInCells,
+            capturedMetrics);
+        var identity = Convert.ToHexString(hash);
 
         lock (_lock)
         {
-            if (_sixelByHash.TryGetValue(hash, out var existing))
+            if (_sixelByIdentity.TryGetValue(identity, out var existing))
             {
                 // Found existing - add a reference and return it
                 existing.AddRef();
                 return existing;
             }
 
-            // Parse pixel dimensions from the payload raster attributes
-            var (pixelWidth, pixelHeight) = ParseSixelDimensions(payload);
-
             // Create the data
-            var sixelData = new SixelData(payload, widthInCells, heightInCells, hash, pixelWidth, pixelHeight);
+            var sixelData = new SixelData(
+                payload,
+                widthInCells,
+                heightInCells,
+                hash,
+                parseResult.DeclaredExtent.Width,
+                parseResult.DeclaredExtent.Height,
+                parseResult,
+                rasterPreparation: rasterPreparation,
+                cellMetrics: capturedMetrics);
             
             // Create new tracked wrapper with removal callback
             var tracked = new TrackedObject<SixelData>(
                 sixelData,
-                onZeroRefs: obj => RemoveSixel(obj.Data));
+                onZeroRefs: obj => RemoveSixel(identity, obj));
 
-            _sixelByHash[hash] = tracked;
+            _sixelByIdentity[identity] = tracked;
             return tracked;
         }
-    }
-
-    /// <summary>
-    /// Parses pixel dimensions from sixel raster attributes.
-    /// </summary>
-    /// <returns>Tuple of (width, height) in pixels, or (0, 0) if not found.</returns>
-    private static (int Width, int Height) ParseSixelDimensions(string payload)
-    {
-        // Look for raster attributes: "Pan;Pad;Ph;Pv
-        // Pan;Pad = pixel aspect ratio numerator/denominator
-        // Ph = horizontal extent (width), Pv = vertical extent (height)
-        var quoteIdx = payload.IndexOf('"');
-        if (quoteIdx < 0)
-            return (0, 0);
-
-        var endIdx = payload.IndexOfAny(['#', '!', '$', '-', '~'], quoteIdx + 1);
-        if (endIdx < 0)
-            endIdx = Math.Min(quoteIdx + 50, payload.Length);
-
-        var rasterStr = payload.Substring(quoteIdx + 1, endIdx - quoteIdx - 1);
-        var parts = rasterStr.Split(';');
-        
-        if (parts.Length >= 4 && 
-            int.TryParse(parts[2], out var width) && 
-            int.TryParse(parts[3], out var height))
-        {
-            return (width, height);
-        }
-
-        return (0, 0);
     }
 
     /// <summary>
@@ -181,7 +180,7 @@ internal sealed class TrackedObjectStore
     /// <returns>A tracked KGP object (new or existing with added ref).</returns>
     public TrackedObject<KgpCellData> GetOrCreateKgp(KgpCellData kgpData)
     {
-        var hash = kgpData.ContentHash;
+        var hash = kgpData.TrackingHash;
 
         lock (_lock)
         {
@@ -211,17 +210,21 @@ internal sealed class TrackedObjectStore
     {
         lock (_lock)
         {
-            _sixelByHash.Clear();
+            _sixelByIdentity.Clear();
             _hyperlinkByHash.Clear();
             _kgpByHash.Clear();
         }
     }
 
-    private void RemoveSixel(SixelData sixel)
+    private void RemoveSixel(string identity, TrackedObject<SixelData> tracked)
     {
         lock (_lock)
         {
-            _sixelByHash.Remove(sixel.ContentHash);
+            if (_sixelByIdentity.TryGetValue(identity, out var current) &&
+                ReferenceEquals(current, tracked))
+            {
+                _sixelByIdentity.Remove(identity);
+            }
         }
     }
 
@@ -237,7 +240,7 @@ internal sealed class TrackedObjectStore
     {
         lock (_lock)
         {
-            _kgpByHash.Remove(kgp.ContentHash);
+            _kgpByHash.Remove(kgp.TrackingHash);
         }
     }
 

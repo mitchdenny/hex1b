@@ -11,10 +11,16 @@ namespace Hex1b;
 /// <param name="Attributes">Text styling attributes (bold, italic, etc.).</param>
 /// <param name="Sequence">The write order of this cell. Higher values were written later. Used for z-ordering during rendering.</param>
 /// <param name="WrittenAt">The timestamp when this cell was written. Useful for debugging and future animation features.</param>
-/// <param name="TrackedSixel">Optional tracked reference to Sixel graphics data associated with this cell.</param>
 /// <param name="TrackedHyperlink">Optional tracked reference to hyperlink data associated with this cell.</param>
 /// <param name="UnderlineColor">The underline color (SGR 58), or null to use the foreground color.</param>
 /// <param name="UnderlineStyle">The underline style (SGR 4:x). Defaults to <see cref="Hex1b.UnderlineStyle.None"/>.</param>
+/// <remarks>
+/// Sixel graphics are no longer owned by a cell. A cell that happens to sit
+/// under a Sixel placement carries no marker or reference at all; placement
+/// occupancy and image lifetime are tracked independently by the terminal's
+/// Sixel graphics state (see <c>SixelGraphicsState</c>) so overwriting a cell
+/// never has side effects on Sixel image lifetime.
+/// </remarks>
 public readonly record struct TerminalCell(
     string Character,
     Hex1bColor? Foreground,
@@ -22,7 +28,6 @@ public readonly record struct TerminalCell(
     CellAttributes Attributes = CellAttributes.None,
     long Sequence = 0,
     DateTimeOffset WrittenAt = default,
-    TrackedObject<SixelData>? TrackedSixel = null,
     TrackedObject<HyperlinkData>? TrackedHyperlink = null,
     Hex1bColor? UnderlineColor = null,
     UnderlineStyle UnderlineStyle = UnderlineStyle.None)
@@ -57,17 +62,8 @@ public readonly record struct TerminalCell(
     /// <summary>Gets whether this cell has overlined text.</summary>
     public bool IsOverline => (Attributes & CellAttributes.Overline) != 0;
 
-    /// <summary>Gets whether this cell contains Sixel graphics.</summary>
-    public bool IsSixel => (Attributes & CellAttributes.Sixel) != 0;
-
     /// <summary>Gets whether this cell is a soft-wrap point (content continues on the next row).</summary>
     public bool IsSoftWrap => (Attributes & CellAttributes.SoftWrap) != 0;
-
-    /// <summary>Gets the Sixel data if this cell has any, otherwise null.</summary>
-    public SixelData? SixelData => TrackedSixel?.Data;
-
-    /// <summary>Gets whether this cell has associated Sixel data.</summary>
-    public bool HasSixelData => TrackedSixel is not null;
 
     /// <summary>Gets the hyperlink data if this cell has any, otherwise null.</summary>
     public HyperlinkData? HyperlinkData => TrackedHyperlink?.Data;

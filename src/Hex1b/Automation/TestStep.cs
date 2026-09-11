@@ -20,18 +20,6 @@ public abstract record TestStep
     /// </summary>
     protected static Task DelayAsync(TimeProvider timeProvider, TimeSpan delay, CancellationToken ct)
     {
-        if (delay <= TimeSpan.Zero)
-            return Task.CompletedTask;
-
-        var tcs = new TaskCompletionSource();
-        using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
-        
-        var timer = timeProvider.CreateTimer(
-            _ => tcs.TrySetResult(),
-            null,
-            delay,
-            Timeout.InfiniteTimeSpan);
-        
-        return tcs.Task.ContinueWith(_ => timer.Dispose(), CancellationToken.None);
+        return Task.Delay(delay <= TimeSpan.Zero ? TimeSpan.Zero : delay, timeProvider, ct);
     }
 }

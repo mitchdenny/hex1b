@@ -15,42 +15,6 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     private const int STDIN_FILENO = 0;
     private const int STDOUT_FILENO = 1;
     
-    // termios c_lflag bits (these are consistent across platforms)
-    private const uint ICANON = 0x00000002;  // Canonical mode
-    private const uint ECHO   = 0x00000008;  // Echo input
-    private const uint ECHONL = 0x00000040;  // Echo NL even if ECHO is off
-    private const uint ISIG   = 0x00000001;  // Enable signals (INTR, QUIT, SUSP)
-    private const uint IEXTEN = 0x00008000;  // Extended input processing
-    
-    // termios c_iflag bits - these match cfmakeraw
-    private const uint IGNBRK = 0x00000001;  // Ignore BREAK condition
-    private const uint BRKINT = 0x00000002;  // Signal on break
-    private const uint PARMRK = 0x00000008;  // Mark parity errors
-    private const uint INPCK  = 0x00000010;  // Parity checking
-    private const uint ISTRIP = 0x00000020;  // Strip 8th bit
-    private const uint INLCR  = 0x00000040;  // Map NL to CR
-    private const uint IGNCR  = 0x00000080;  // Ignore CR
-    private const uint ICRNL  = 0x00000100;  // Map CR to NL
-    private const uint IXON   = 0x00000400;  // Enable XON/XOFF flow control
-    
-    // termios c_oflag bits
-    private const uint OPOST  = 0x00000001;  // Post-process output
-    
-    // termios c_cflag bits
-    private const uint CSIZE  = 0x00000030;  // Character size mask
-    private const uint PARENB = 0x00000100;  // Enable parity
-    private const uint CS8    = 0x00000030;  // 8-bit chars
-    
-    // tcsetattr actions
-    private const int TCSAFLUSH = 2;  // Flush and set
-    
-    // Offsets in termios struct - Linux x64
-    private const int TERMIOS_SIZE = 60;
-    private const int IFLAG_OFFSET = 0;
-    private const int OFLAG_OFFSET = 4;
-    private const int CFLAG_OFFSET = 8;
-    private const int LFLAG_OFFSET = 12;
-    
     // poll() constants
     private const short POLLIN = 0x0001;
     
@@ -92,6 +56,16 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     
     public int Width => Console.WindowWidth;
     public int Height => Console.WindowHeight;
+
+    /// <inheritdoc />
+    public bool TryGetWindowPixelSize(out int pixelWidth, out int pixelHeight)
+    {
+        if (UnixTerminalInterop.GetWindowPixelSize(STDOUT_FILENO, out pixelWidth, out pixelHeight) == 0 &&
+            pixelWidth > 0 && pixelHeight > 0)
+            return true;
+        pixelWidth = pixelHeight = 0;
+        return false;
+    }
     public Encoding InputEncoding => Console.InputEncoding;
     
     public event Action<int, int>? Resized;
@@ -101,8 +75,8 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
         if (_inRawMode) return;
         
         // Get current termios settings for stdin
-        _originalTermios = new byte[TERMIOS_SIZE];
-        var result = tcgetattr(STDIN_FILENO, _originalTermios);
+        _originalTermios = new byte[UnixTerminalInterop.TermiosSize];
+        var result = UnixTerminalInterop.GetTermios(STDIN_FILENO, _originalTermios);
         if (result != 0)
         {
             var errno = Marshal.GetLastPInvokeError();
@@ -112,17 +86,15 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
         // Copy and use cfmakeraw() directly - this is the canonical way and matches SimplePty
         // cfmakeraw() clears OPOST which disables output post-processing (no LF->CRLF conversion)
         var rawTermios = (byte[])_originalTermios.Clone();
-        cfmakeraw(rawTermios);
-        
-        // If preserveOPost is requested, re-enable OPOST for output post-processing (LF→CRLF)
-        // This is useful for WithProcess scenarios where child programs expect normal output handling
-        if (preserveOPost)
+        result = UnixTerminalInterop.MakeRaw(rawTermios, preserveOPost);
+        if (result != 0)
         {
-            ModifyFlag(rawTermios, OFLAG_OFFSET, OPOST, clear: false);
+            var errno = Marshal.GetLastPInvokeError();
+            throw new InvalidOperationException($"cfmakeraw failed with errno {errno}");
         }
         
         // Apply to stdin (for input handling)
-        result = tcsetattr(STDIN_FILENO, TCSAFLUSH, rawTermios);
+        result = UnixTerminalInterop.SetTermios(STDIN_FILENO, rawTermios);
         if (result != 0)
         {
             var errno = Marshal.GetLastPInvokeError();
@@ -131,7 +103,7 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
         
         // Also apply to stdout to ensure OPOST is disabled for output
         // This ensures LF bytes pass through unchanged (no ONLCR conversion)
-        result = tcsetattr(STDOUT_FILENO, TCSAFLUSH, rawTermios);
+        result = UnixTerminalInterop.SetTermios(STDOUT_FILENO, rawTermios);
         if (result != 0)
         {
             var errno = Marshal.GetLastPInvokeError();
@@ -150,19 +122,9 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
         if (!_inRawMode || _originalTermios == null) return;
         
         // Restore original termios settings for both stdin and stdout
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, _originalTermios);
-        tcsetattr(STDOUT_FILENO, TCSAFLUSH, _originalTermios);
+        UnixTerminalInterop.SetTermios(STDIN_FILENO, _originalTermios);
+        UnixTerminalInterop.SetTermios(STDOUT_FILENO, _originalTermios);
         _inRawMode = false;
-    }
-    
-    private static void ModifyFlag(byte[] termios, int offset, uint flag, bool clear)
-    {
-        var current = BitConverter.ToUInt32(termios, offset);
-        if (clear)
-            current &= ~flag;
-        else
-            current |= flag;
-        BitConverter.GetBytes(current).CopyTo(termios, offset);
     }
     
     public bool DataAvailable
@@ -310,19 +272,6 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
         _sigwinchRegistration?.Dispose();
     }
     
-    // P/Invoke declarations for termios
-    [DllImport("libc", SetLastError = true)]
-    private static extern int tcgetattr(int fd, byte[] termios);
-    
-    [DllImport("libc", SetLastError = true)]
-    private static extern int tcsetattr(int fd, int actions, byte[] termios);
-    
-    [DllImport("libc", SetLastError = true)]
-    private static extern int tcdrain(int fd);
-    
-    [DllImport("libc", SetLastError = true)]
-    private static extern void cfmakeraw(byte[] termios);
-    
     // P/Invoke declarations for direct I/O
     [DllImport("libc", SetLastError = true)]
     private static extern unsafe nint read(int fd, byte* buf, nuint count);
@@ -341,4 +290,5 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     
     [DllImport("libc", SetLastError = true)]
     private static extern int poll(ref PollFd fds, nuint nfds, int timeout);
+
 }

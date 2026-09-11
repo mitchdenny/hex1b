@@ -3,11 +3,14 @@
 The Hex1b Muxer Protocol is a binary framing protocol for multiplexing terminal sessions over any bidirectional byte stream (Unix domain sockets, TCP, named pipes, etc.).
 
 > **In-place update — no protocol version bump.** Hex1b is pre-v1 and currently
-> has a single coordinated consumer (Aspire). HMP1 has been extended in-place
+> coordinates its first-party consumers. HMP1 has been extended in-place
 > with multi-head primary/secondary semantics and four new frame types
 > (`RequestPrimary`, `RoleChange`, `PeerJoin`, `PeerLeave`) plus an extended
 > `Hello` payload and a new client-emitted `ClientHello`. Old binaries cannot
-> speak the updated HMP1 — all builds upgrade together.
+> speak the updated HMP1 — all builds upgrade together. Animation replay also
+> adds the one-time `KgpAnimationState` checkpoint described below.
+> Activity replay adds a mandatory `ActivityState` checkpoint after every
+> `StateSync`; producers and consumers must upgrade together.
 
 ## Frame Format
 
@@ -41,6 +44,8 @@ Maximum payload size: 16 MB.
 | PeerJoin | `0x09` | Server → Client (broadcast) | A new peer joined the session |
 | PeerLeave | `0x0A` | Server → Client (broadcast) | An existing peer disconnected |
 | ClientHello | `0x0B` | Client → Server | Client identifies itself before the server's Hello (display name, default role) |
+| KgpAnimationState | `0x0C` | Server → Client | One-time playback-progress checkpoint following KGP animation replay |
+| ActivityState | `0x0D` | Server → Client | Mandatory activity baseline immediately following each StateSync |
 
 ## Peer IDs
 
@@ -159,10 +164,100 @@ Sent by the server immediately after the Hello frame. Contains a full snapshot o
 
 The payload may be empty if no screen content is available yet.
 
-If the snapshot contains active Kitty Graphics Protocol images, the server queues
-KGP transmit and placement sequences as `Output` frames immediately after
-`StateSync` and before subsequent live output. Graphics are replayed separately
-because their encoded data may exceed the maximum size of one HMP frame.
+Viewport cell hyperlinks are replayed with their OSC 8 destinations and parameters,
+including links spanning rows or wide characters. The active hyperlink is restored
+after painting so subsequent output retains its original link state. Sixel damage
+repaint also preserves cell links without changing that active state.
+
+Every `StateSync` is immediately followed by `ActivityState`, including an empty
+screen replay. The receiver buffers both as one state transaction before exposing
+the connected baseline. This also applies to later `StateSync` frames. A relay
+preserves this pair as control frames, not ordinary live output.
+
+The raw ANSI includes a canonical OSC 9;4 sequence for the current progress
+indicator, including explicit clear, so an ANSI-only/native presentation can
+restore progress. An authoritative replica suppresses intermediate replay
+notifications and uses the checkpoint for its final state. Shell phase is never
+reconstructed by emitting OSC 133 marker chains.
+
+If the snapshot contains graphics, the server queues KGP and Sixel replay after
+`ActivityState` and before subsequent live output. The clear-screen sequence in
+`StateSync` would erase graphics sent before it. Graphics use separate `Output`
+frames because their encoded data may exceed the maximum size of one HMP frame.
+An unfinished ANSI parser prefix follows graphics replay and precedes live output,
+so a late-attaching replica can finish a fragmented OSC sequence without losing it.
+
+KGP animation replay sends the root and all fully composed frames, timing gaps,
+current-frame selection, placements, and playback controls. A subsequent
+`KgpAnimationState` frame restores the captured loop progress and frame age.
+There is no per-animation-tick retransmission of these pixels.
+
+### ActivityState (0x0D)
+
+This mandatory server-to-client UTF-8 JSON checkpoint is limited to **1,024 bytes**,
+with required fields (including explicit nulls):
+
+```json
+{
+  "progress": { "state": 1, "percentage": 42 },
+  "shellIntegration": { "phase": 3, "lastExitCode": -1 }
+}
+```
+
+Progress states are 0 (none), 1 (normal), 2 (error), 3 (indeterminate), and 4
+(warning). States 0 and 3 require a null percentage; the others require an
+integer from 0 through 100. Shell phases are 0 (unknown), 1 (prompt),
+2 (command line), 3 (executing), and 4 (finished). `lastExitCode` is null or a
+signed 32-bit integer; unknown phase requires null. Prompt, command-line, and
+executing phases may preserve the latest reported completion result.
+
+Defaults are none/null and unknown/null. Missing, malformed, oversized,
+incomplete, or unpaired checkpoints fail the connection, rather than making a
+partial screen baseline ready. Unknown or duplicate fields are rejected.
+
+The checkpoint restores **current state**, not command history or execution
+events. Identical resyncs do not publish changed-state notifications; later real
+OSC 9;4 and OSC 133 output is parsed normally. Browser presentations may coalesce
+transitions. Disconnect and workload exit retain the last reported state; they do
+not synthesize a command completion or progress clear.
+
+### KgpAnimationState (0x0C)
+
+This server-to-client JSON checkpoint follows the KGP replay `Output` frames,
+in the same ordered stream. It supplements standard KGP commands with progress
+that those commands cannot express. It is not an HWT1 frame or a new election
+mechanism.
+
+```json
+{
+  "images": [{
+    "imageId": 1,
+    "imageNumber": 0,
+    "currentFrameNumber": 2,
+    "playbackState": 3,
+    "maximumLoops": 1,
+    "completedLoops": 0,
+    "elapsedTicks": 800000
+  }]
+}
+```
+
+Each entry addresses an already-replayed image by `imageId`, or by
+`imageNumber` with `imageId: 0` for numbered images. `currentFrameNumber` is
+one-based. `playbackState` is numeric: `1` stopped, `2` loading, `3` running.
+`maximumLoops` and `completedLoops` restore the image store's loop counters;
+`maximumLoops: 1` denotes infinite playback. `elapsedTicks` is the captured
+frame age in 100-nanosecond ticks, or null when its presentation time is not
+initialized.
+
+Hex1b applies the checkpoint **after** the preceding pixel/control bytes have
+been interpreted, never from the network reader ahead of queued output.
+The checkpoint must reference valid replayed frames and playback counters;
+invalid checkpoints fail instead of silently resetting the animation.
+Byte-only consumers still receive standard KGP playback commands but do not
+restore this additional progress. Captured frame age is restored relative to
+the consumer's clock; this is not a transport-latency compensation or
+cross-peer wall-clock synchronization guarantee.
 
 ### Output (0x03)
 
@@ -325,11 +420,12 @@ Client                              Server
    dimensions, the assigned `peerId`, the current `primaryPeerId`, and the
    roster of other attached peers.
 4. Server sends **StateSync** with the full current text screen content, followed
-   by ordered **Output** frames that restore active KGP images and placements.
+   by ordered graphics **Output** frames and, for KGP animation,
+   **KgpAnimationState** checkpoints.
 5. Normal operation: **Output** flows server → client; **Input** flows client → server.
 6. To take control of the PTY size, a peer sends **RequestPrimary**. The
-   server applies the resize, broadcasts **RoleChange** to all peers, and
-   broadcasts **Resize** carrying the accepted dimensions.
+   server applies the resize and broadcasts **RoleChange**, including the
+   accepted dimensions, to all peers.
 7. While primary, a peer may send **Resize** frames; the server applies them
    and broadcasts the accepted dimensions back to all peers.
 8. Roster changes are broadcast via **PeerJoin** / **PeerLeave**.
@@ -437,3 +533,7 @@ Future versions may add:
   focus events, bracketed paste, `DECTCEM`, `DECCKM`, `DECKPAM`, `DECSCUSR`,
   mouse encoding plus alt-screen `DECSET` ordered before cell repaint. (See
   `Hmp1Protocol` `BuildStateSync*` helpers.)
+- **(in-place, pre-v1)** KGP animation replay restores composed frames, gaps,
+  current frame, and playback controls, followed by `KgpAnimationState (0x0C)`
+  for completed-loop counters and captured frame age. Late viewers can advance
+  a silent producer's animation without a per-tick output stream.

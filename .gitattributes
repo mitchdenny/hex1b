@@ -6,3 +6,6 @@ samples/WebMuxerDemo/wwwroot/vendor/xterm.LICENSE -text
 samples/WebMuxerDemo/wwwroot/vendor/LICENSE.addon-fit.txt -text
 samples/WebMuxerDemo/wwwroot/vendor/LICENSE.addon-image.txt -text
 samples/WebMuxerDemo/wwwroot/vendor/addon-image.js.LICENSE.txt -text
+
+# Preserve the byte-exact VHS corpus and its pinned hashes on every platform.
+tests/Hex1b.Tests/TestData/Tape/upstream/** -text

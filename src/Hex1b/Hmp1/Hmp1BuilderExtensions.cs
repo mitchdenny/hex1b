@@ -122,10 +122,9 @@ public static class Hmp1BuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        var adapter = new Hmp1WorkloadAdapter(options);
-
         builder.SetWorkloadFactory(_ =>
         {
+            var adapter = new Hmp1WorkloadAdapter(options);
             Func<CancellationToken, Task<int>> runCallback = async ct =>
             {
                 await adapter.ConnectAsync(ct);

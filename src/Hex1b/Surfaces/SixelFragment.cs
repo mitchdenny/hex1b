@@ -1,4 +1,5 @@
 using Hex1b.Layout;
+using Hex1b.Sixel;
 
 namespace Hex1b.Surfaces;
 
@@ -30,11 +31,17 @@ public sealed class SixelFragment
     /// <summary>
     /// Gets whether this fragment represents the complete original sixel (no clipping).
     /// </summary>
-    public bool IsComplete => 
-        PixelRegion.X == 0 && 
-        PixelRegion.Y == 0 &&
-        PixelRegion.Width == OriginalSixel.PixelWidth &&
-        PixelRegion.Height == OriginalSixel.PixelHeight;
+    public bool IsComplete
+    {
+        get
+        {
+            var extent = OriginalSixel.GetRenderedPixelExtent();
+            return PixelRegion.X == 0
+                && PixelRegion.Y == 0
+                && PixelRegion.Width == extent.Width
+                && PixelRegion.Height == extent.Height;
+        }
+    }
 
     private string? _encodedPayload;
     private SixelPixelBuffer? _croppedPixels;
@@ -111,17 +118,32 @@ public sealed class SixelFragment
         if (pixels is null)
             return null;
 
-        _encodedPayload = SixelEncoder.Encode(pixels);
+        _encodedPayload = SixelExactEncoder.EncodeBounded(
+            pixels, int.MaxValue, CancellationToken.None, reuseColorRegisters: true).Payload;
         return _encodedPayload;
     }
 
     /// <summary>
-    /// Gets the cell span for this fragment using the specified metrics.
+    /// Gets the cell span for this fragment using the protocol cell metrics
+    /// captured by the original Sixel image.
     /// </summary>
-    public (int Width, int Height) GetCellSpan(CellMetrics metrics)
+    /// <returns>The width and height in protocol cells.</returns>
+    public (int Width, int Height) GetCellSpan()
     {
-        return metrics.PixelToCellSpan(PixelRegion.Width, PixelRegion.Height);
+        var metrics = OriginalSixel.CellMetrics;
+        return (metrics.ColumnsFor(PixelRegion.Width), metrics.RowsFor(PixelRegion.Height));
     }
+
+    /// <summary>
+    /// Gets the cell span for this fragment using the protocol cell metrics
+    /// captured by the original Sixel image.
+    /// </summary>
+    /// <param name="metrics">
+    /// Ignored. Sixel placement metrics are captured by <see cref="SixelData"/>.
+    /// </param>
+    /// <returns>The width and height in protocol cells.</returns>
+    [Obsolete("Cell metrics are captured by SixelData. Use GetCellSpan().")]
+    public (int Width, int Height) GetCellSpan(CellMetrics metrics) => GetCellSpan();
 }
 
 /// <summary>
@@ -158,7 +180,15 @@ public sealed class SixelVisibility
     /// <summary>
     /// Gets whether this sixel is fully occluded (not visible at all).
     /// </summary>
-    public bool IsFullyOccluded => VisibleRegions.Count == 0;
+    public bool IsFullyOccluded
+    {
+        get
+        {
+            var contentBounds = GetVisibleContentBounds();
+            return contentBounds.IsEmpty ||
+                !VisibleRegions.Any(region => !region.Intersect(contentBounds).IsEmpty);
+        }
+    }
 
     /// <summary>
     /// Gets whether this sixel is fragmented (partially occluded, multiple visible regions).
@@ -177,22 +207,21 @@ public sealed class SixelVisibility
         // Initially fully visible
         var data = sixel.Data;
         
-        // Use pixel dimensions if available, otherwise estimate from cell dimensions
-        var pixelWidth = data.PixelWidth > 0 ? data.PixelWidth : data.WidthInCells * 10;
-        var pixelHeight = data.PixelHeight > 0 ? data.PixelHeight : data.HeightInCells * 20;
+        var extent = data.GetRenderedPixelExtent();
         
-        VisibleRegions = [new PixelRect(0, 0, pixelWidth, pixelHeight)];
+        VisibleRegions = [new PixelRect(0, 0, extent.Width, extent.Height)];
         IsFullyVisible = true;
     }
 
     /// <summary>
-    /// Applies an occlusion rectangle (in cell coordinates) to this sixel.
+    /// Applies an occlusion rectangle in cell coordinates to this Sixel image,
+    /// using the protocol cell metrics captured when the image was created.
     /// </summary>
     /// <param name="occlusionCellRect">The occluding rectangle in cell coordinates.</param>
-    /// <param name="metrics">Cell metrics for coordinate conversion.</param>
-    public void ApplyOcclusion(Rect occlusionCellRect, CellMetrics metrics)
+    public void ApplyOcclusion(Rect occlusionCellRect)
     {
         var data = Sixel.Data;
+        var metrics = data.CellMetrics;
         
         // Convert sixel bounds to cell rect
         var sixelCellRect = new Rect(
@@ -210,11 +239,13 @@ public sealed class SixelVisibility
         // Use actual (floating-point) cell width for precise alignment
         var relX = intersection.X - AnchorPosition.X;
         var relY = intersection.Y - AnchorPosition.Y;
+        var pixelLeft = metrics.GetPixelForColumnBoundary(relX);
+        var pixelTop = metrics.GetPixelForRowBoundary(relY);
         var pixelOcclusion = new PixelRect(
-            metrics.GetPixelForCellBoundary(relX),
-            relY * metrics.PixelHeight,
-            metrics.GetPixelWidthForCells(intersection.Width),
-            intersection.Height * metrics.PixelHeight);
+            pixelLeft,
+            pixelTop,
+            metrics.GetPixelForColumnBoundary(relX + intersection.Width) - pixelLeft,
+            metrics.GetPixelForRowBoundary(relY + intersection.Height) - pixelTop);
 
         // Apply occlusion to all visible regions
         var newRegions = new List<PixelRect>();
@@ -228,33 +259,89 @@ public sealed class SixelVisibility
     }
 
     /// <summary>
-    /// Generates fragments for the visible regions of this sixel.
+    /// Applies an occlusion rectangle in cell coordinates to this Sixel image,
+    /// using the protocol cell metrics captured when the image was created.
     /// </summary>
-    /// <param name="metrics">Cell metrics for position calculation.</param>
+    /// <param name="occlusionCellRect">The occluding rectangle in cell coordinates.</param>
+    /// <param name="metrics">
+    /// Ignored. Sixel placement metrics are captured by <see cref="SixelData"/>.
+    /// </param>
+    [Obsolete("Cell metrics are captured by SixelData. Use ApplyOcclusion(Rect).")]
+    public void ApplyOcclusion(Rect occlusionCellRect, CellMetrics metrics)
+        => ApplyOcclusion(occlusionCellRect);
+
+    /// <summary>
+    /// Generates fragments for the visible regions of this Sixel image using
+    /// the protocol cell metrics captured when the image was created.
+    /// </summary>
     /// <returns>List of fragments to render.</returns>
-    public IReadOnlyList<SixelFragment> GenerateFragments(CellMetrics metrics)
+    public IReadOnlyList<SixelFragment> GenerateFragments()
     {
         if (IsFullyOccluded)
             return [];
 
-        var fragments = new List<SixelFragment>();
         var data = Sixel.Data;
+        var metrics = data.CellMetrics;
+        var extent = data.GetRenderedPixelExtent();
+        if (IsFullyVisible)
+        {
+            return
+            [
+                new SixelFragment(
+                    data,
+                    AnchorPosition.X,
+                    AnchorPosition.Y,
+                    new PixelRect(0, 0, extent.Width, extent.Height))
+            ];
+        }
+
+        var fragments = new List<SixelFragment>();
+        var contentBounds = GetVisibleContentBounds();
 
         foreach (var region in VisibleRegions)
         {
+            var visibleRegion = region.Intersect(contentBounds);
+            if (visibleRegion.IsEmpty)
+                continue;
+
             // Calculate cell position for this fragment using actual cell width
             // The pixel region is in the original sixel's coordinate space
-            var cellOffsetX = metrics.GetCellOffsetForPixel(region.X);
-            var cellOffsetY = region.Y / metrics.PixelHeight;
+            var cellOffsetX = metrics.GetColumnOffsetForPixel(visibleRegion.X);
+            var cellOffsetY = metrics.GetRowOffsetForPixel(visibleRegion.Y);
             
             fragments.Add(new SixelFragment(
                 data,
                 AnchorPosition.X + cellOffsetX,
                 AnchorPosition.Y + cellOffsetY,
-                region));
+                visibleRegion));
         }
 
         return fragments;
+    }
+
+    /// <summary>
+    /// Generates fragments for the visible regions of this Sixel image using
+    /// the protocol cell metrics captured when the image was created.
+    /// </summary>
+    /// <param name="metrics">
+    /// Ignored. Sixel placement metrics are captured by <see cref="SixelData"/>.
+    /// </param>
+    /// <returns>List of fragments to render.</returns>
+    [Obsolete("Cell metrics are captured by SixelData. Use GenerateFragments().")]
+    public IReadOnlyList<SixelFragment> GenerateFragments(CellMetrics metrics)
+        => GenerateFragments();
+
+    private PixelRect GetVisibleContentBounds()
+    {
+        var data = Sixel.Data;
+        if (data.BackgroundMode == Hex1b.Sixel.SixelBackgroundMode.Transparent)
+        {
+            var painted = data.ParseResult.PaintedBounds;
+            return new PixelRect(painted.X, painted.Y, painted.Width, painted.Height);
+        }
+
+        var extent = data.GetRenderedPixelExtent();
+        return new PixelRect(0, 0, extent.Width, extent.Height);
     }
 
     private static Rect IntersectRects(Rect a, Rect b)

@@ -245,6 +245,8 @@ public sealed class CompositeSurface : ISurfaceSource
     /// </summary>
     private static SurfaceCell CompositeCellFast(SurfaceCell below, SurfaceCell above)
     {
+        above = PreserveSixelUnderlay(below, above);
+
         // Handle transparency
         if (above.HasTransparentBackground)
             above = above with { Background = below.Background };
@@ -278,6 +280,31 @@ public sealed class CompositeSurface : ISurfaceSource
             Kgp = below.Kgp      // Preserve KGP from below if any
         };
     }
+
+    private static SurfaceCell PreserveSixelUnderlay(SurfaceCell below, SurfaceCell above)
+    {
+        if ((!below.IsSixelUnderlay && !below.HasSixel) || above.IsSixelUnderlay)
+        {
+            return above;
+        }
+
+        var occludesSixel = IsSixelOccluder(above);
+        if (!occludesSixel && above.HasTransparentBackground)
+        {
+            occludesSixel = below.OccludesSixel;
+        }
+
+        return above with
+        {
+            Sixel = below.HasSixel && !above.HasSixel ? below.Sixel : above.Sixel,
+            IsSixelUnderlay = true,
+            OccludesSixel = occludesSixel
+        };
+    }
+
+    private static bool IsSixelOccluder(in SurfaceCell cell)
+        => cell.Character != SurfaceCells.UnwrittenMarker
+            && (cell.Character != " " || cell.Background is not null);
 
     /// <inheritdoc />
     public bool IsInBounds(int x, int y)
@@ -376,7 +403,7 @@ public sealed class CompositeSurface : ISurfaceSource
         {
             if (!sixelVis.IsFullyOccluded)
             {
-                fragments.AddRange(sixelVis.GenerateFragments(CellMetrics));
+                fragments.AddRange(sixelVis.GenerateFragments());
             }
         }
 
@@ -450,7 +477,7 @@ public sealed class CompositeSurface : ISurfaceSource
             var sixelOcclusions = CollectSixelRegions(layer, layerRect, sixelRect);
             foreach (var occ in sixelOcclusions)
             {
-                sixelVis.ApplyOcclusion(occ, CellMetrics);
+                sixelVis.ApplyOcclusion(occ);
             }
 
             // Then scan the overlapping region for opaque text/background cells
@@ -476,7 +503,7 @@ public sealed class CompositeSurface : ISurfaceSource
                     {
                         // Apply single-cell occlusion
                         var occlusionRect = new Layout.Rect(x, y, 1, 1);
-                        sixelVis.ApplyOcclusion(occlusionRect, CellMetrics);
+                        sixelVis.ApplyOcclusion(occlusionRect);
                     }
                 }
             }
@@ -496,26 +523,22 @@ public sealed class CompositeSurface : ISurfaceSource
             if (sixelRect.X < 0)
             {
                 sixelVis.ApplyOcclusion(
-                    new Layout.Rect(sixelRect.X, sixelRect.Y, -sixelRect.X, sixelRect.Height),
-                    CellMetrics);
+                    new Layout.Rect(sixelRect.X, sixelRect.Y, -sixelRect.X, sixelRect.Height));
             }
             if (sixelRect.Y < 0)
             {
                 sixelVis.ApplyOcclusion(
-                    new Layout.Rect(sixelRect.X, sixelRect.Y, sixelRect.Width, -sixelRect.Y),
-                    CellMetrics);
+                    new Layout.Rect(sixelRect.X, sixelRect.Y, sixelRect.Width, -sixelRect.Y));
             }
             if (sixelRect.Right > Width)
             {
                 sixelVis.ApplyOcclusion(
-                    new Layout.Rect(Width, sixelRect.Y, sixelRect.Right - Width, sixelRect.Height),
-                    CellMetrics);
+                    new Layout.Rect(Width, sixelRect.Y, sixelRect.Right - Width, sixelRect.Height));
             }
             if (sixelRect.Bottom > Height)
             {
                 sixelVis.ApplyOcclusion(
-                    new Layout.Rect(sixelRect.X, Height, sixelRect.Width, sixelRect.Bottom - Height),
-                    CellMetrics);
+                    new Layout.Rect(sixelRect.X, Height, sixelRect.Width, sixelRect.Bottom - Height));
             }
         }
     }
@@ -873,6 +896,8 @@ public sealed class CompositeSurface : ISurfaceSource
 
         private static SurfaceCell CompositeCell(SurfaceCell below, SurfaceCell above)
         {
+            above = CompositeSurface.PreserveSixelUnderlay(below, above);
+
             // Handle transparency
             if (above.HasTransparentBackground)
             {

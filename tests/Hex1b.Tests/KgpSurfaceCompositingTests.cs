@@ -1,9 +1,12 @@
+#pragma warning disable HEX1B_SIXEL // Testing experimental Sixel API
+
 using System.Security.Cryptography;
 using System.Text;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
+using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
 
@@ -42,6 +45,202 @@ public class KgpSurfaceCompositingTests
         => new(data, _ => { });
 
     #region Surface.Composite KGP Clipping
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void Composite_NativeSprite_ClipsInPixelSpace(bool clipOrigin)
+    {
+        var parent = new Surface(1, 1, DefaultMetrics);
+        var child = new Surface(2, 2, DefaultMetrics);
+        var data = new KgpCellData(null, 1, 2, 2, 3, 3, new byte[32],
+            clipW: 3, clipH: 3, cellOffsetX: 8, cellOffsetY: 18)
+        {
+            UsesNativeSize = true,
+            NativeCellMetrics = DefaultMetrics
+        };
+        child[0, 0] = new SurfaceCell(" ", null, null, Kgp: Track(data));
+
+        parent.Composite(child, offsetX: clipOrigin ? -1 : 0, offsetY: clipOrigin ? -1 : 0);
+
+        var clipped = parent[0, 0].Kgp!.Data;
+        Assert.IsTrue(clipped.UsesNativeSize);
+        Assert.AreEqual(1, clipped.WidthInCells);
+        Assert.AreEqual(1, clipped.HeightInCells);
+        Assert.AreEqual(clipOrigin ? 2 : 0, clipped.ClipX);
+        Assert.AreEqual(clipOrigin ? 2 : 0, clipped.ClipY);
+        Assert.AreEqual(clipOrigin ? 1 : 2, clipped.ClipW);
+        Assert.AreEqual(clipOrigin ? 1 : 2, clipped.ClipH);
+        Assert.AreEqual(clipOrigin ? 0u : 8u, clipped.CellOffsetX);
+        Assert.AreEqual(clipOrigin ? 0u : 18u, clipped.CellOffsetY);
+        Assert.DoesNotContain(",c=", clipped.BuildPlacementPayload());
+        Assert.DoesNotContain(",r=", clipped.BuildPlacementPayload());
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void Composite_MixedGraphics_ClipsBothProtocols(bool clipOrigin)
+    {
+        var parent = new Surface(1, 1, DefaultMetrics);
+        parent[0, 0] = new SurfaceCell(" ", null, Hex1bColor.Blue);
+        var child = new Surface(2, 2, DefaultMetrics);
+        var pixels = new SixelPixelBuffer(1, 1);
+        pixels[0, 0] = Rgba32.FromRgb(200, 80, 40);
+        new SurfaceRenderContext(child).WriteSixel(pixels, 2, 2);
+        var originalSixel = child[0, 0].Sixel!;
+        var originalKgp = Track(new KgpCellData(null, 1, 2, 2, 3, 3, new byte[32],
+            clipW: 3, clipH: 3, cellOffsetX: 8, cellOffsetY: 18)
+        {
+            UsesNativeSize = true,
+            NativeCellMetrics = DefaultMetrics
+        });
+        child[0, 0] = child[0, 0] with { Kgp = originalKgp };
+
+        parent.Composite(child, offsetX: clipOrigin ? -1 : 0, offsetY: clipOrigin ? -1 : 0);
+
+        var cell = parent[0, 0];
+        Assert.IsTrue(parent.HasSixels);
+        Assert.IsTrue(parent.HasKgp);
+        Assert.IsTrue(cell.HasSixel);
+        Assert.IsTrue(cell.HasKgp);
+        Assert.IsTrue(cell.IsSixelUnderlay);
+        Assert.IsFalse(cell.OccludesSixel);
+        Assert.AreEqual(Hex1bColor.Blue, cell.Background);
+        var clippedSixel = cell.Sixel!;
+        Assert.AreNotSame(originalSixel, clippedSixel);
+        Assert.AreEqual(1, clippedSixel.Data.WidthInCells);
+        Assert.AreEqual(1, clippedSixel.Data.HeightInCells);
+        Assert.AreEqual(10, clippedSixel.Data.PixelWidth);
+        Assert.AreEqual(20, clippedSixel.Data.PixelHeight);
+        var clippedKgp = cell.Kgp!;
+        Assert.AreNotSame(originalKgp, clippedKgp);
+        var clipped = clippedKgp.Data;
+        Assert.IsTrue(clipped.UsesNativeSize);
+        Assert.AreEqual(DefaultMetrics, clipped.NativeCellMetrics);
+        Assert.AreEqual(3u, clipped.SourcePixelWidth);
+        Assert.AreEqual(3u, clipped.SourcePixelHeight);
+        Assert.AreEqual(1, clipped.WidthInCells);
+        Assert.AreEqual(1, clipped.HeightInCells);
+        Assert.AreEqual(clipOrigin ? 2 : 0, clipped.ClipX);
+        Assert.AreEqual(clipOrigin ? 2 : 0, clipped.ClipY);
+        Assert.AreEqual(clipOrigin ? 1 : 2, clipped.ClipW);
+        Assert.AreEqual(clipOrigin ? 1 : 2, clipped.ClipH);
+        Assert.AreEqual(clipOrigin ? 0u : 8u, clipped.CellOffsetX);
+        Assert.AreEqual(clipOrigin ? 0u : 18u, clipped.CellOffsetY);
+
+        var tokens = SurfaceComparer.ToTokens(SurfaceComparer.CompareToEmpty(parent), parent);
+        var sequences = tokens.OfType<UnrecognizedSequenceToken>().Select(token => token.Sequence).ToList();
+        Assert.IsTrue(sequences.Any(sequence => sequence.StartsWith("\x1bP", StringComparison.Ordinal)));
+        var placement = TestSeq.Single(sequences.Where(
+            sequence => sequence.StartsWith("\x1b_Ga=p,", StringComparison.Ordinal)));
+        Assert.AreEqual(clipped.BuildPlacementPayload(), placement);
+        Assert.DoesNotContain(",c=", placement);
+        Assert.DoesNotContain(",r=", placement);
+
+        Assert.AreEqual(1, clippedSixel.RefCount);
+        Assert.AreEqual(1, clippedKgp.RefCount);
+        parent.ClearAndReleaseTrackedObjects();
+        Assert.AreEqual(0, clippedSixel.RefCount);
+        Assert.AreEqual(0, clippedKgp.RefCount);
+        Assert.AreEqual(1, originalSixel.RefCount);
+        Assert.AreEqual(1, originalKgp.RefCount);
+        child.ClearAndReleaseTrackedObjects();
+        Assert.AreEqual(0, originalSixel.RefCount);
+        Assert.AreEqual(0, originalKgp.RefCount);
+    }
+
+    [TestMethod]
+    public void Composite_MixedGraphics_ClippedAwayNativeSpriteDoesNotReappear()
+    {
+        var parent = new Surface(1, 1, DefaultMetrics);
+        var child = new Surface(2, 2, DefaultMetrics);
+        var pixels = new SixelPixelBuffer(1, 1);
+        pixels[0, 0] = Rgba32.FromRgb(200, 80, 40);
+        new SurfaceRenderContext(child).WriteSixel(pixels, 2, 2);
+        var originalSixel = child[0, 0].Sixel!;
+        var originalKgp = Track(new KgpCellData(null, 1, 2, 2, 3, 3, new byte[32],
+            clipW: 3, clipH: 3, cellOffsetX: 10, cellOffsetY: 20)
+        {
+            UsesNativeSize = true,
+            NativeCellMetrics = DefaultMetrics
+        });
+        child[0, 0] = child[0, 0] with { Kgp = originalKgp };
+
+        parent.Composite(child, 0, 0);
+
+        Assert.IsTrue(parent.HasSixels);
+        Assert.IsTrue(parent[0, 0].IsSixelUnderlay);
+        Assert.IsFalse(parent[0, 0].OccludesSixel);
+        Assert.IsFalse(parent.HasKgp);
+        Assert.IsNull(parent[0, 0].Kgp);
+        var tokens = SurfaceComparer.ToTokens(SurfaceComparer.CompareToEmpty(parent), parent);
+        var sequences = tokens.OfType<UnrecognizedSequenceToken>().Select(token => token.Sequence).ToList();
+        Assert.IsTrue(sequences.Any(sequence => sequence.StartsWith("\x1bP", StringComparison.Ordinal)));
+        Assert.IsFalse(sequences.Any(sequence => sequence.StartsWith("\x1b_G", StringComparison.Ordinal)));
+
+        var clippedSixel = parent[0, 0].Sixel!;
+        Assert.AreEqual(1, clippedSixel.RefCount);
+        parent.ClearAndReleaseTrackedObjects();
+        Assert.AreEqual(0, clippedSixel.RefCount);
+        Assert.AreEqual(1, originalSixel.RefCount);
+        Assert.AreEqual(1, originalKgp.RefCount);
+        child.ClearAndReleaseTrackedObjects();
+        Assert.AreEqual(0, originalSixel.RefCount);
+        Assert.AreEqual(0, originalKgp.RefCount);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void Composite_MixedGraphics_ReanchoredNativeSpritePreservesUnclippedSixel(bool occludesSixel)
+    {
+        var parent = new Surface(1, 1, DefaultMetrics);
+        var child = new Surface(2, 2, DefaultMetrics);
+        var pixels = new SixelPixelBuffer(1, 1);
+        pixels[0, 0] = Rgba32.FromRgb(200, 80, 40);
+        var context = new SurfaceRenderContext(child);
+        context.SetCursorPosition(1, 1);
+        context.WriteSixel(pixels, 1, 1);
+        child[1, 1] = child[1, 1] with
+        {
+            Background = Hex1bColor.Blue,
+            OccludesSixel = occludesSixel
+        };
+        var originalSixel = child[1, 1].Sixel!;
+        var originalKgp = Track(new KgpCellData(null, 1, 2, 2, 3, 3, new byte[32],
+            clipW: 3, clipH: 3, cellOffsetX: 8, cellOffsetY: 18)
+        {
+            UsesNativeSize = true,
+            NativeCellMetrics = DefaultMetrics
+        });
+        child[0, 0] = new SurfaceCell(" ", null, null, Kgp: originalKgp);
+
+        parent.Composite(child, -1, -1);
+
+        Assert.IsTrue(parent.HasSixels);
+        Assert.IsTrue(parent.HasKgp);
+        Assert.AreSame(originalSixel, parent[0, 0].Sixel);
+        Assert.IsTrue(parent[0, 0].IsSixelUnderlay);
+        Assert.AreEqual(occludesSixel, parent[0, 0].OccludesSixel);
+        Assert.AreEqual(Hex1bColor.Blue, parent[0, 0].Background);
+        var tokens = SurfaceComparer.ToTokens(SurfaceComparer.CompareToEmpty(parent), parent);
+        var sequences = tokens.OfType<UnrecognizedSequenceToken>().Select(token => token.Sequence).ToList();
+        Assert.AreEqual(!occludesSixel,
+            sequences.Any(sequence => sequence.StartsWith("\x1bP", StringComparison.Ordinal)));
+        Assert.IsTrue(sequences.Any(sequence => sequence.StartsWith("\x1b_Ga=p,", StringComparison.Ordinal)));
+
+        var clippedKgp = parent[0, 0].Kgp!;
+        Assert.AreEqual(2, originalSixel.RefCount);
+        Assert.AreEqual(1, clippedKgp.RefCount);
+        parent.ClearAndReleaseTrackedObjects();
+        Assert.AreEqual(0, clippedKgp.RefCount);
+        Assert.AreEqual(1, originalSixel.RefCount);
+        Assert.AreEqual(1, originalKgp.RefCount);
+        child.ClearAndReleaseTrackedObjects();
+        Assert.AreEqual(0, originalSixel.RefCount);
+        Assert.AreEqual(0, originalKgp.RefCount);
+    }
 
     [TestMethod]
     public void Composite_KgpImage_FitsInBounds_NoClipping()

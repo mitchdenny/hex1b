@@ -22,9 +22,14 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     }
 
     internal Hex1bTerminalSnapshot(Hex1bTerminal terminal, int scrollbackLines, ScrollbackWidth scrollbackWidth, TerminalCell voidCell)
+        : this(terminal, terminal.CaptureSnapshotState(scrollbackLines, scrollbackWidth), scrollbackWidth, voidCell)
+    {
+    }
+
+    internal Hex1bTerminalSnapshot(Hex1bTerminal terminal, Hex1bTerminalSnapshotState state,
+        ScrollbackWidth scrollbackWidth, TerminalCell voidCell)
     {
         Terminal = terminal;
-        var state = terminal.CaptureSnapshotState(scrollbackLines, scrollbackWidth);
         var terminalWidth = state.TerminalWidth;
         var terminalHeight = state.TerminalHeight;
         CursorX = state.CursorX;
@@ -45,10 +50,19 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         MouseEncodingUrxvtEnabled = state.MouseEncodingUrxvtEnabled;
         CursorShape = state.CursorShape;
         Timestamp = state.Timestamp;
+        KgpAnimationTimestamp = state.KgpAnimationTimestamp;
         CellPixelWidth = state.CellPixelWidth;
         CellPixelHeight = state.CellPixelHeight;
         KgpPlacements = state.KgpPlacements;
         KgpImages = state.KgpImages;
+        SixelPlacements = state.SixelPlacements;
+        SixelImages = state.SixelImages;
+        ActiveHyperlink = state.ActiveHyperlink;
+        WindowTitle = state.WindowTitle;
+        IconName = state.IconName;
+        SavedTitles = state.SavedTitles;
+        Progress = state.Progress;
+        ShellIntegration = state.ShellIntegration;
 
         var scrollbackRows = state.ScrollbackRows;
         ScrollbackLineCount = scrollbackRows.Length;
@@ -140,6 +154,26 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// When the snapshot was taken.
     /// </summary>
     public DateTimeOffset Timestamp { get; }
+
+    internal DateTimeOffset KgpAnimationTimestamp { get; }
+
+    internal HyperlinkData? ActiveHyperlink { get; }
+
+    /// <summary>Gets the window title captured atomically with this snapshot.</summary>
+    /// <remarks>Empty means no title. The value uses the same normalization and reset
+    /// behavior as <see cref="Hex1bTerminal.WindowTitle"/> and remains untrusted text.</remarks>
+    public string WindowTitle { get; }
+
+    /// <summary>Gets the immutable progress state captured atomically with this snapshot.</summary>
+    public TerminalProgress Progress { get; }
+
+    /// <summary>Gets the immutable shell phase and latest result captured atomically with this snapshot.</summary>
+    /// <remarks>This is current terminal activity even when the snapshot displays historical text.</remarks>
+    public TerminalShellIntegration ShellIntegration { get; }
+
+    internal string IconName { get; }
+
+    internal IReadOnlyList<(string Title, string IconName)> SavedTitles { get; }
 
     /// <summary>
     /// Whether the terminal was in alternate screen mode at snapshot time.
@@ -238,6 +272,40 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// </summary>
     public IReadOnlyDictionary<uint, KgpImageData> KgpImages { get; }
 
+    /// <summary>
+    /// Sixel placements visible in this snapshot, including any requested
+    /// scrollback rows.
+    /// </summary>
+    /// <remarks>
+    /// Analogous to <see cref="KgpPlacements"/> but sized and shaped for the
+    /// Sixel protocol: there is no image ID (Sixel has no protocol concept
+    /// of one), so placements reference their <see cref="SixelPlacement.Image"/>
+    /// directly and <see cref="SixelImages"/> is keyed by resource identity
+    /// hash instead.
+    /// Each placement references an image resource whose identity includes its
+    /// creation-time <see cref="Sixel.SixelCellMetrics"/> and declared cell
+    /// span. Painted extents and per-cell damage remain placement-specific, and
+    /// the complete placement remains valid for the lifetime of this snapshot
+    /// even after the live terminal erases, prunes, or resets its source.
+    /// </remarks>
+    public IReadOnlyList<SixelPlacement> SixelPlacements { get; }
+
+    /// <summary>
+    /// Sixel image data referenced by the visible snapshot placements, keyed
+    /// by immutable resource identity hash.
+    /// </summary>
+    /// <remarks>
+    /// An image's decoded raster (or geometry-only outcome) is retained once
+    /// per compatible resource identity, never once per covered cell. Two
+    /// placements share a <see cref="SixelData"/> instance only when their
+    /// payload, raster state, protocol metrics, and cell span are all equal.
+    /// Snapshot image references are ordinary caller-owned references: keeping a
+    /// snapshot alive can retain payload, sparse raster, or dense pixel data after
+    /// the live terminal has evicted that image, outside the terminal's per-screen
+    /// retained-byte budget.
+    /// </remarks>
+    public IReadOnlyDictionary<byte[], SixelData> SixelImages { get; }
+
     /// <inheritdoc />
     public TerminalCell GetCell(int x, int y)
     {
@@ -247,17 +315,14 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     }
 
     /// <summary>
-    /// Checks if any cell in the snapshot contains Sixel data.
+    /// Checks if any placement in the snapshot paints at least one cell.
     /// </summary>
     public bool ContainsSixelData()
     {
-        for (int y = 0; y < Height; y++)
+        foreach (var placement in SixelPlacements)
         {
-            for (int x = 0; x < Width; x++)
-            {
-                if (_cells[y, x].TrackedSixel is not null)
-                    return true;
-            }
+            if (placement.HasPaintedExtent)
+                return true;
         }
         return false;
     }
@@ -288,7 +353,6 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         {
             for (int x = 0; x < Width; x++)
             {
-                _cells[y, x].TrackedSixel?.Release();
                 _cells[y, x].TrackedHyperlink?.Release();
             }
         }

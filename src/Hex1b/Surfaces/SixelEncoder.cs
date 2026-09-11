@@ -274,6 +274,30 @@ public sealed class SixelPixelBuffer
     /// <returns>A new buffer containing the cropped region.</returns>
     public SixelPixelBuffer Crop(PixelRect rect) => Crop(rect.X, rect.Y, rect.Width, rect.Height);
 
+    internal SixelPixelBuffer Resize(int width, int height)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+
+        if (width == Width && height == Height)
+        {
+            return this;
+        }
+
+        var resized = new SixelPixelBuffer(width, height);
+        for (var y = 0; y < height; y++)
+        {
+            var sourceY = (int)((long)y * Height / height);
+            for (var x = 0; x < width; x++)
+            {
+                var sourceX = (int)((long)x * Width / width);
+                resized[x, y] = this[sourceX, sourceY];
+            }
+        }
+
+        return resized;
+    }
+
     /// <summary>
     /// Fragments this buffer into multiple cropped buffers based on the specified regions.
     /// </summary>

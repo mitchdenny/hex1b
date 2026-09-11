@@ -158,6 +158,9 @@ public class Hex1bAppOptions
     /// </remarks>
     public int FrameRateLimitMs { get; set; } = 16;
 
+    // Keep frame pacing independently controllable without changing animation/input clocks.
+    internal TimeProvider FrameTimeProvider { get; set; } = TimeProvider.System;
+
     /// <summary>
     /// Whether to enable pooling of temporary <see cref="Surfaces.Surface"/> instances during rendering.
     /// This primarily affects <see cref="Widgets.SurfaceWidget"/> layers and nodes like EffectPanel.

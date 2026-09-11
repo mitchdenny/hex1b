@@ -1,4 +1,9 @@
+#pragma warning disable HEX1B_SIXEL // Testing experimental Sixel API
+
+using System.Text;
 using Hex1b.Layout;
+using Hex1b.Sixel;
+using Hex1b.Surfaces;
 
 namespace Hex1b.Tests;
 
@@ -8,6 +13,75 @@ namespace Hex1b.Tests;
 [TestClass]
 public class Hex1bRenderContextTests
 {
+    [TestMethod]
+    public void WriteSixel_StructuredPixels_ResamplesToRequestedProtocolSpan()
+    {
+        var context = new CapturingRenderContext(CreateSixelCapabilities(10, 20));
+        var pixels = new SixelPixelBuffer(240, 120);
+        pixels[0, 0] = Rgba32.FromRgb(255, 0, 0);
+
+        context.WriteSixel(pixels, 32, 9);
+
+        var payload = TestSeq.Single(context.Writes);
+        var parsed = SixelParser.ParsePayload(payload);
+        Assert.AreEqual(320, parsed.DeclaredExtent.Width);
+        Assert.AreEqual(180, parsed.DeclaredExtent.Height);
+        Assert.AreEqual(32, context.Capabilities.SixelCellMetrics!.Value.ColumnsFor(parsed.LogicalCanvasExtent.Width));
+        Assert.AreEqual(9, context.Capabilities.SixelCellMetrics!.Value.RowsFor(parsed.LogicalCanvasExtent.Height));
+    }
+
+    [TestMethod]
+    public void WriteSixel_PreEncodedPayloadWithDifferentSpan_Throws()
+    {
+        var context = new CapturingRenderContext(CreateSixelCapabilities(10, 20));
+        var pixels = new SixelPixelBuffer(20, 20);
+        pixels[0, 0] = Rgba32.FromRgb(255, 0, 0);
+        var payload = SixelEncoder.Encode(pixels);
+
+        var exception = Assert.Throws<ArgumentException>(() => context.WriteSixel(payload, 3, 1));
+
+        Assert.Contains("cannot be resized", exception.Message);
+        Assert.IsEmpty(context.Writes);
+    }
+
+    [TestMethod]
+    public void WriteSixel_FractionalProtocolMetrics_PreservesRequestedCellSpan()
+    {
+        var context = new CapturingRenderContext(CreateSixelCapabilities(9.6, 19.6));
+        var pixels = new SixelPixelBuffer(20, 20);
+        pixels[0, 0] = Rgba32.FromRgb(255, 0, 0);
+
+        context.WriteSixel(pixels, 1, 1);
+
+        var parsed = SixelParser.ParsePayload(TestSeq.Single(context.Writes));
+        Assert.AreEqual(9, parsed.DeclaredExtent.Width);
+        Assert.AreEqual(19, parsed.DeclaredExtent.Height);
+        Assert.AreEqual(1, context.Capabilities.SixelCellMetrics!.Value.ColumnsFor(parsed.LogicalCanvasExtent.Width));
+        Assert.AreEqual(1, context.Capabilities.SixelCellMetrics!.Value.RowsFor(parsed.LogicalCanvasExtent.Height));
+    }
+
+    [TestMethod]
+    public void WriteSixel_EightBitFraming_EmitsCanonicalSevenBitBytes()
+    {
+        var context = new CapturingRenderContext(CreateSixelCapabilities(10, 20));
+        var pixels = new SixelPixelBuffer(10, 20);
+        pixels[0, 0] = Rgba32.FromRgb(255, 0, 0);
+        var sevenBit = SixelEncoder.Encode(pixels);
+        var eightBit = $"\x90{sevenBit[2..^2]}\x9c";
+
+        context.WriteSixel(eightBit, 1, 1);
+
+        var emitted = TestSeq.Single(context.Writes);
+        var bytes = Encoding.UTF8.GetBytes(emitted);
+        Assert.StartsWith("\x1bP", emitted);
+        Assert.EndsWith("\x1b\\", emitted);
+        Assert.AreEqual(0x1b, bytes[0]);
+        Assert.AreEqual((byte)'P', bytes[1]);
+        Assert.AreEqual(0x1b, bytes[^2]);
+        Assert.AreEqual((byte)'\\', bytes[^1]);
+        Assert.IsFalse(bytes.Contains((byte)0xc2));
+    }
+
     #region ClearRegion Tests
 
     [TestMethod]
@@ -171,4 +245,25 @@ public class Hex1bRenderContextTests
     }
 
     #endregion
+
+    private static TerminalCapabilities CreateSixelCapabilities(double width, double height)
+        => new()
+        {
+            SixelSupport = SixelPresentationSupport.Native,
+            SixelCellMetrics = new SixelCellMetrics(
+                width,
+                height,
+                SixelCellMetricsSource.Direct,
+                SixelCellMetricsReliability.Authoritative)
+        };
+
+    private sealed class CapturingRenderContext(TerminalCapabilities capabilities)
+        : Hex1bRenderContext(theme: null)
+    {
+        public override TerminalCapabilities Capabilities => capabilities;
+
+        internal List<string> Writes { get; } = [];
+
+        public override void Write(string text) => Writes.Add(text);
+    }
 }

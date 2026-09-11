@@ -1,5 +1,6 @@
 using System.Text;
 using Hex1b.Theming;
+using Hex1b.Tokens;
 
 namespace Hex1b.Automation;
 
@@ -34,7 +35,12 @@ public static class TerminalRegionAnsiExtensions
         return RenderToAnsi(snapshot, options, snapshot.CursorX, snapshot.CursorY);
     }
 
-    private static string RenderToAnsi(IHex1bTerminalRegion region, TerminalAnsiOptions options, int? cursorX, int? cursorY)
+    // Replay preserves OSC 8 without changing the public ANSI export format.
+    internal static string ToAnsi(this Hex1bTerminalSnapshot snapshot, TerminalAnsiOptions options, bool includeHyperlinks)
+        => RenderToAnsi(snapshot, options, snapshot.CursorX, snapshot.CursorY, includeHyperlinks);
+
+    private static string RenderToAnsi(IHex1bTerminalRegion region, TerminalAnsiOptions options, int? cursorX, int? cursorY,
+        bool includeHyperlinks = false)
     {
         var sb = new StringBuilder();
 
@@ -56,6 +62,9 @@ public static class TerminalRegionAnsiExtensions
             sb.Append($"\x1b[{region.Height}A");
         }
 
+        if (includeHyperlinks)
+            sb.Append("\x1b]8;;\x1b\\");
+
         // Group cells by row for efficient row-based rendering
         // Cells are kept in X position order (not sequence order) so that text extraction
         // produces correct results when ANSI escape codes are stripped.
@@ -73,6 +82,7 @@ public static class TerminalRegionAnsiExtensions
         Hex1bColor? currentFg = null;
         Hex1bColor? currentBg = null;
         CellAttributes currentAttrs = CellAttributes.None;
+        HyperlinkData? currentHyperlink = null;
 
         // Render row by row
         for (int row = 0; row < region.Height; row++)
@@ -194,6 +204,15 @@ public static class TerminalRegionAnsiExtensions
                 currentFg = targetFg;
                 currentBg = targetBg;
 
+                var hyperlink = cell.HyperlinkData;
+                if (includeHyperlinks && (hyperlink?.Uri != currentHyperlink?.Uri ||
+                    hyperlink?.Parameters != currentHyperlink?.Parameters))
+                {
+                    sb.Append(AnsiTokenSerializer.Serialize(new OscToken("8",
+                        hyperlink?.Parameters ?? "", hyperlink?.Uri ?? "", UseEscBackslash: true)));
+                    currentHyperlink = hyperlink;
+                }
+
                 // Emit the character (unless hidden, in which case emit space for background)
                 if (isHidden)
                 {
@@ -207,6 +226,9 @@ public static class TerminalRegionAnsiExtensions
                 }
             }
         }
+
+        if (includeHyperlinks && currentHyperlink is not null)
+            sb.Append("\x1b]8;;\x1b\\");
 
         // Reset attributes at the end
         if (options.ResetAtEnd)

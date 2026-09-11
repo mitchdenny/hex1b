@@ -40,6 +40,8 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private FileStream? _fileStream;
     private StreamWriter? _writer;
+    private readonly Stream? _recordingStream;
+    private bool _streamRecordingCompleted;
     private int _width;
     private int _height;
     private DateTimeOffset _timestamp;
@@ -75,6 +77,23 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
         _filePath = filePath;
         _options = options ?? new AsciinemaRecorderOptions();
         _isRecording = true; // Start recording immediately for backward compatibility
+    }
+
+    /// <summary>
+    /// Records to one already-open stream without reopening a path on flush.
+    /// Owns the stream unless leaveOpen is true. Stop/dispose ends this single-use
+    /// recording; callers still initialize dimensions through OnSessionStartAsync.
+    /// </summary>
+    internal AsciinemaRecorder(Stream stream, AsciinemaRecorderOptions? options = null, bool leaveOpen = false)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        if (!stream.CanWrite)
+            throw new ArgumentException("The recording stream must be writable.", nameof(stream));
+
+        _recordingStream = stream;
+        _options = options ?? new AsciinemaRecorderOptions();
+        _writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), leaveOpen: leaveOpen);
+        _isRecording = true;
     }
 
     /// <summary>
@@ -126,6 +145,8 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
         
         lock (_lock)
         {
+            if (_recordingStream is not null)
+                throw new InvalidOperationException("A stream-backed recorder cannot be restarted.");
             if (_isRecording)
             {
                 throw new InvalidOperationException("Already recording. Call StopRecordingAsync() first.");
@@ -351,20 +372,21 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     /// <param name="ct">Cancellation token.</param>
     public async Task FlushAsync(CancellationToken ct = default)
     {
-        List<AsciinemaEvent> eventsToWrite;
-        AsciinemaHeader? header = null;
-        bool nothingToWrite;
-
-        lock (_lock)
+        // Serialize extraction as well as writing so a concurrent flush cannot
+        // overtake the header or an earlier event batch.
+        await _writeLock.WaitAsync(ct);
+        var closeAfterFlush = false;
+        try
         {
-            // Can't flush if no file path is set
-            if (_filePath == null)
-                return;
-                
-            nothingToWrite = _pendingEvents.Count == 0 && _headerWritten;
-
-            if (!nothingToWrite)
+            List<AsciinemaEvent> eventsToWrite;
+            AsciinemaHeader? header = null;
+            lock (_lock)
             {
+                if ((_filePath is null && _recordingStream is null) || _streamRecordingCompleted)
+                    return;
+                if (_pendingEvents.Count == 0 && _headerWritten)
+                    return;
+
                 if (!_headerWritten)
                 {
                     header = new AsciinemaHeader
@@ -389,44 +411,36 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
                 eventsToWrite = new List<AsciinemaEvent>(_pendingEvents);
                 _pendingEvents.Clear();
             }
-            else
-            {
-                eventsToWrite = [];
-            }
-        }
 
-        // Always acquire _writeLock so we wait for any in-progress write
-        // (e.g. a concurrent auto-flush) to finish before returning.  Without
-        // this, a caller could read the file before a concurrent flush has
-        // finished creating it on disk.
-        await _writeLock.WaitAsync(ct);
-        try
-        {
-            if (nothingToWrite)
-                return;
-
+            closeAfterFlush = _recordingStream is null;
             await EnsureStreamOpenAsync(overwrite: header != null);
 
             if (header != null)
             {
                 var headerJson = JsonSerializer.Serialize(header, AsciinemaJsonContext.Default.AsciinemaHeader);
-                await _writer!.WriteLineAsync(headerJson);
+                await _writer!.WriteLineAsync(headerJson.AsMemory(), ct);
             }
 
             foreach (var evt in eventsToWrite)
             {
                 ct.ThrowIfCancellationRequested();
                 var eventJson = JsonSerializer.Serialize(evt, AsciinemaJsonContext.Default.AsciinemaEvent);
-                await _writer!.WriteLineAsync(eventJson);
+                await _writer!.WriteLineAsync(eventJson.AsMemory(), ct);
             }
 
             await _writer!.FlushAsync(ct);
         }
         finally
         {
-            if (!nothingToWrite)
-                await CloseStreamAsync();
-            _writeLock.Release();
+            try
+            {
+                if (closeAfterFlush)
+                    await CloseStreamAsync();
+            }
+            finally
+            {
+                _writeLock.Release();
+            }
         }
     }
 
@@ -450,13 +464,19 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
 
     private async Task CloseStreamAsync()
     {
-        if (_writer != null)
+        var writer = _writer;
+        _writer = null;
+        try
         {
-            await _writer.DisposeAsync();
-            _writer = null;
+            if (writer is not null)
+                await writer.DisposeAsync();
         }
-
-        _fileStream = null;
+        finally
+        {
+            _fileStream = null;
+            if (_recordingStream is not null)
+                _streamRecordingCompleted = true;
+        }
     }
 
     /// <summary>
@@ -473,8 +493,12 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_disposed) return;
-        _disposed = true;
+        lock (_lock)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _isRecording = false;
+        }
 
         // Flush any remaining events
         try

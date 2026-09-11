@@ -1,5 +1,6 @@
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Sixel;
 using Hex1b.Theming;
 
 namespace Hex1b.Surfaces;
@@ -35,7 +36,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
     private Kgp.KgpImageRegistry? _kgpRegistry;
     private int _kgpLayer;
 
-    // Hierarchical KGP clip rect (absolute coordinates).
+    // Hierarchical graphics clip rect (absolute coordinates), shared with Sixel.
     // In the non-caching render path children render directly into the parent
     // surface, so there is no Composite / ClipKgpCell step. This rect
     // accumulates the intersection of every ancestor's Bounds so that
@@ -275,6 +276,174 @@ public class SurfaceRenderContext : Hex1bRenderContext
             return;
 
         WriteToSurface(_cursorX, _cursorY, text, updateCursor: true);
+    }
+
+    /// <inheritdoc />
+    public override void WriteSixel(SixelPixelBuffer pixels, int cellWidth, int cellHeight)
+    {
+        ArgumentNullException.ThrowIfNull(pixels);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellHeight);
+
+        if (!TryGetVisibleSixelSpan(cellWidth, cellHeight, out var visibleWidth, out var visibleHeight))
+        {
+            return;
+        }
+
+        var metrics = Capabilities.SixelCellMetrics ?? SixelCellMetrics.FromCapabilities(Capabilities);
+        var resized = pixels.Resize(
+            metrics.GetPixelWidthForColumns(cellWidth),
+            metrics.GetPixelHeightForRows(cellHeight));
+        if (visibleWidth != cellWidth || visibleHeight != cellHeight)
+        {
+            resized = resized.Crop(
+                0,
+                0,
+                metrics.GetPixelForColumnBoundary(visibleWidth),
+                metrics.GetPixelForRowBoundary(visibleHeight));
+        }
+
+        var payload = SixelEncoder.Encode(resized);
+        WriteSixelCore(
+            payload,
+            visibleWidth,
+            visibleHeight,
+            SixelParser.ParsePayload(payload),
+            metrics);
+    }
+
+    /// <inheritdoc />
+    public override void WriteSixel(string imageData, int cellWidth, int cellHeight)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellHeight);
+
+        var payload = SixelPayload.NormalizeAndValidate(imageData, nameof(imageData));
+        var parseResult = SixelParser.ParsePayload(payload);
+        var metrics = Capabilities.SixelCellMetrics ?? SixelCellMetrics.FromCapabilities(Capabilities);
+        SixelPayload.ValidateCellSpan(parseResult, metrics, cellWidth, cellHeight, nameof(imageData));
+
+        if (!TryGetVisibleSixelSpan(cellWidth, cellHeight, out var visibleWidth, out var visibleHeight))
+        {
+            return;
+        }
+
+        if (visibleWidth != cellWidth || visibleHeight != cellHeight)
+        {
+            var data = new SixelData(
+                payload,
+                cellWidth,
+                cellHeight,
+                SixelData.ComputeHash(
+                    payload,
+                    rasterIdentity: null,
+                    cellWidth,
+                    cellHeight,
+                    metrics),
+                parseResult.DeclaredExtent.Width,
+                parseResult.DeclaredExtent.Height,
+                parseResult,
+                cellMetrics: metrics);
+            var fragment = new SixelFragment(
+                data,
+                0,
+                0,
+                new PixelRect(
+                    0,
+                    0,
+                    Math.Min(data.GetRenderedPixelExtent().Width, metrics.GetPixelForColumnBoundary(visibleWidth)),
+                    Math.Min(data.GetRenderedPixelExtent().Height, metrics.GetPixelForRowBoundary(visibleHeight))));
+            payload = fragment.GetPayload()
+                ?? throw new InvalidOperationException("The pre-encoded Sixel payload could not be clipped.");
+            parseResult = SixelParser.ParsePayload(payload);
+        }
+
+        WriteSixelCore(payload, visibleWidth, visibleHeight, parseResult, metrics);
+    }
+
+    private bool TryGetVisibleSixelSpan(
+        int cellWidth,
+        int cellHeight,
+        out int visibleWidth,
+        out int visibleHeight)
+    {
+        var writeX = _cursorX - _offsetX;
+        var writeY = _cursorY - _offsetY;
+        if (writeX < 0 || writeY < 0 || writeX >= _surface.Width || writeY >= _surface.Height)
+        {
+            visibleWidth = 0;
+            visibleHeight = 0;
+            return false;
+        }
+
+        visibleWidth = Math.Min(cellWidth, _surface.Width - writeX);
+        visibleHeight = Math.Min(cellHeight, _surface.Height - writeY);
+        return visibleWidth > 0 && visibleHeight > 0;
+    }
+
+    private void WriteSixelCore(
+        string payload,
+        int visibleWidth,
+        int visibleHeight,
+        SixelParseResult parseResult,
+        SixelCellMetrics metrics)
+    {
+        var writeX = _cursorX - _offsetX;
+        var writeY = _cursorY - _offsetY;
+        var tracked = _trackedObjects.GetOrCreateSixel(
+            payload,
+            visibleWidth,
+            visibleHeight,
+            parseResult,
+            cellMetrics: metrics);
+
+        for (var y = 0; y < visibleHeight; y++)
+        {
+            for (var x = 0; x < visibleWidth; x++)
+            {
+                var targetX = writeX + x;
+                var targetY = writeY + y;
+                var oldSixel = _surface[targetX, targetY].Sixel;
+
+                if (x == 0 && y == 0)
+                {
+                    if (ReferenceEquals(oldSixel, tracked))
+                    {
+                        tracked.Release();
+                    }
+                    else
+                    {
+                        oldSixel?.Release();
+                    }
+
+                    _surface[targetX, targetY] = new SurfaceCell(
+                        " ",
+                        _currentForeground,
+                        _currentBackground,
+                        _currentAttributes,
+                        Sixel: tracked,
+                        UnderlineStyle: _currentUnderlineStyle,
+                        UnderlineColor: _currentUnderlineColor)
+                    {
+                        IsSixelUnderlay = true
+                    };
+                }
+                else
+                {
+                    oldSixel?.Release();
+                    _surface[targetX, targetY] = new SurfaceCell(
+                        " ",
+                        _currentForeground,
+                        _currentBackground,
+                        _currentAttributes,
+                        UnderlineStyle: _currentUnderlineStyle,
+                        UnderlineColor: _currentUnderlineColor)
+                    {
+                        IsSixelUnderlay = true
+                    };
+                }
+            }
+        }
     }
     
     /// <summary>
@@ -545,6 +714,51 @@ public class SurfaceRenderContext : Hex1bRenderContext
             clipW,
             clipH,
             zOrder == KgpZOrder.AboveText ? 1 : -1);
+    }
+
+    internal override void RegisterSixel(SixelData image, int x, int y)
+    {
+        var surfaceBounds = new Rect(_offsetX, _offsetY, _surface.Width, _surface.Height);
+        var visibleBounds = _kgpClipRect is { } clip
+            ? IntersectRects(surfaceBounds, clip) : surfaceBounds;
+        if (visibleBounds is null ||
+            IntersectRects(visibleBounds.Value, new Rect(x, y, image.WidthInCells, image.HeightInCells)) is not { } visible)
+            return;
+        if (visible.X != x || visible.Y != y ||
+            visible.Width != image.WidthInCells || visible.Height != image.HeightInCells)
+        {
+            var metrics = image.CellMetrics;
+            var pixels = image.GetPixels()
+                ?? throw new InvalidOperationException("The embedded Sixel image cannot be rasterized for clipping.");
+            var pixelLeft = Math.Min(pixels.Width, metrics.GetPixelForColumnBoundary(visible.X - x));
+            var pixelTop = Math.Min(pixels.Height, metrics.GetPixelForRowBoundary(visible.Y - y));
+            var pixelRight = Math.Min(pixels.Width, metrics.GetPixelForColumnBoundary(visible.Right - x));
+            var pixelBottom = Math.Min(pixels.Height, metrics.GetPixelForRowBoundary(visible.Bottom - y));
+            if (pixelLeft >= pixelRight || pixelTop >= pixelBottom)
+                return;
+            image = SixelData.FromExactPixels(
+                pixels.Crop(pixelLeft, pixelTop, pixelRight - pixelLeft, pixelBottom - pixelTop),
+                visible.Width, visible.Height, metrics);
+        }
+
+        var tracked = _trackedObjects.GetOrCreateSixel(
+            image.Payload, image.WidthInCells, image.HeightInCells, image.ParseResult, cellMetrics: image.CellMetrics);
+        for (var row = visible.Y; row < visible.Bottom; row++)
+        {
+            for (var column = visible.X; column < visible.Right; column++)
+            {
+                var existing = _surface[column - _offsetX, row - _offsetY];
+                var anchor = row == visible.Y && column == visible.X;
+                existing.Sixel?.Release();
+                _surface[column - _offsetX, row - _offsetY] = existing with
+                {
+                    Sixel = anchor ? tracked : null,
+                    IsSixelUnderlay = true,
+                    OccludesSixel = existing.Character is not (" " or "") &&
+                        existing.Character != SurfaceCells.UnwrittenMarker
+                };
+            }
+        }
     }
 
     internal override void RegisterKgp(KgpImageData image, KgpPlacement placement)
@@ -942,10 +1156,16 @@ public class SurfaceRenderContext : Hex1bRenderContext
             else
             {
                 var pool = SurfacePool;
-                // The retained buffer no longer fits — surrender it to the pool
-                // (or let GC collect it) before allocating a new one.
-                if (pool != null && child.RenderBuffer is { } retired)
-                    pool.Return(retired);
+                // The retained buffer no longer fits. Return it to the pool, or
+                // explicitly release tracked references before letting GC collect it.
+                if (existingBuffer is { } retired)
+                {
+                    if (pool != null)
+                        pool.Return(retired);
+                    else
+                        retired.ClearAndReleaseTrackedObjects();
+                }
+                child.CachedSurface = null;
                 child.RenderBuffer = null;
                 childSurface = pool != null
                     ? pool.Rent(clampedWidth, clampedHeight, CellMetrics)
@@ -1074,35 +1294,64 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 if (displayWidth == 2)
                 {
                     // Write main cell
-                    _surface[writeX, writeY] = new SurfaceCell(
+                    var existingCell = _surface[writeX, writeY];
+                    var cell = new SurfaceCell(
                         grapheme,
                         _currentForeground,
                         _currentBackground,
                         _currentAttributes,
                         displayWidth,
+                        Sixel: existingCell.Sixel,
                         Hyperlink: _currentHyperlink,
                         UnderlineStyle: _currentUnderlineStyle,
                         UnderlineColor: _currentUnderlineColor);
+                    if (existingCell.IsSixelUnderlay)
+                    {
+                        cell = cell with
+                        {
+                            IsSixelUnderlay = true,
+                            OccludesSixel = IsSixelOccluder(cell)
+                        };
+                    }
+                    _surface[writeX, writeY] = cell;
 
                     // Write continuation cell if space allows
                     if (writeX + 1 < _surface.Width)
                     {
-                        _surface[writeX + 1, writeY] = SurfaceCell.CreateContinuation(_currentBackground);
+                        var existingContinuation = _surface[writeX + 1, writeY];
+                        var continuation = SurfaceCell.CreateContinuation(_currentBackground) with
+                        {
+                            Sixel = existingContinuation.Sixel,
+                            IsSixelUnderlay = existingContinuation.IsSixelUnderlay,
+                            OccludesSixel = existingContinuation.IsSixelUnderlay
+                        };
+                        _surface[writeX + 1, writeY] = continuation;
                     }
 
                     writeX += 2;
                 }
                 else if (displayWidth == 1)
                 {
-                    _surface[writeX, writeY] = new SurfaceCell(
+                    var existingCell = _surface[writeX, writeY];
+                    var cell = new SurfaceCell(
                         grapheme,
                         _currentForeground,
                         _currentBackground,
                         _currentAttributes,
                         displayWidth,
+                        Sixel: existingCell.Sixel,
                         Hyperlink: _currentHyperlink,
                         UnderlineStyle: _currentUnderlineStyle,
                         UnderlineColor: _currentUnderlineColor);
+                    if (existingCell.IsSixelUnderlay)
+                    {
+                        cell = cell with
+                        {
+                            IsSixelUnderlay = true,
+                            OccludesSixel = IsSixelOccluder(cell)
+                        };
+                    }
+                    _surface[writeX, writeY] = cell;
                     writeX++;
                 }
                 else
@@ -1129,6 +1378,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
             _cursorY = writeY + _offsetY;
         }
     }
+
+    private static bool IsSixelOccluder(in SurfaceCell cell)
+        => cell.Character != SurfaceCells.UnwrittenMarker
+            && (cell.Character != " " || cell.Background is not null);
     
     /// <summary>
     /// Gets the next grapheme cluster from the string starting at the given index.

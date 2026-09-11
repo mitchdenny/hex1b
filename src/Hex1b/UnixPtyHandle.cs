@@ -38,72 +38,57 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
         
         string resolvedPath = ResolveExecutablePath(fileName);
         
-        // The native pty_forkpty functions inherit the parent's environment.
-        // We need to temporarily set HEX1B_NESTING_LEVEL so the child inherits the correct value,
-        // then restore the original value after fork.
-        // Note: This is not thread-safe, but acceptable for this diagnostic variable.
-        const string nestingLevelKey = "HEX1B_NESTING_LEVEL";
-        string? originalNestingLevel = System.Environment.GetEnvironmentVariable(nestingLevelKey);
-        
-        try
+        // Pass a complete, null-terminated environment without mutating the hosting process.
+        var envp = new string[environment.Count + 1];
+        var environmentIndex = 0;
+        foreach (var (key, value) in environment)
         {
-            // Set the nesting level from the environment dictionary (which has the incremented value)
-            if (environment.TryGetValue(nestingLevelKey, out var newNestingLevel))
+            if (key.Length == 0 || key.Contains('=') || key.Contains('\0') || value.Contains('\0'))
+                throw new ArgumentException("Environment names and values must be valid execve strings.", nameof(environment));
+            envp[environmentIndex++] = $"{key}={value}";
+        }
+
+        // Preserve the existing no-arguments login-shell behavior.
+        if (arguments.Length > 0)
+        {
+            var argv = new string[arguments.Length + 2];
+            argv[0] = resolvedPath;
+            for (int i = 0; i < arguments.Length; i++)
             {
-                System.Environment.SetEnvironmentVariable(nestingLevelKey, newNestingLevel);
+                argv[i + 1] = arguments[i];
             }
-            
-            int result;
-            
-            // If arguments are provided, use the exec function which passes them through
-            // Otherwise, use the shell function which creates a login shell
-            if (arguments.Length > 0)
+
+            var result = pty_forkpty_exec(
+                resolvedPath,
+                argv,
+                arguments.Length + 1,
+                workingDirectory ?? System.Environment.CurrentDirectory,
+                envp,
+                width,
+                height,
+                out _masterFd,
+                out _childPid);
+
+            if (result < 0)
             {
-                // Build argv array: [fileName, ...arguments, null]
-                var argv = new string[arguments.Length + 2];
-                argv[0] = resolvedPath;
-                for (int i = 0; i < arguments.Length; i++)
-                {
-                    argv[i + 1] = arguments[i];
-                }
-                // Last element is implicitly null for strings array in marshalling
-                
-                result = pty_forkpty_exec(
-                    resolvedPath,
-                    argv,
-                    arguments.Length + 1, // argc includes argv[0]
-                    workingDirectory ?? System.Environment.CurrentDirectory,
-                    width,
-                    height,
-                    out _masterFd,
-                    out _childPid);
-                
-                if (result < 0)
-                {
-                    throw new InvalidOperationException($"pty_forkpty_exec failed with error: {Marshal.GetLastWin32Error()}");
-                }
-            }
-            else
-            {
-                // No arguments - start as login shell
-                result = pty_forkpty_shell(
-                    resolvedPath,
-                    workingDirectory ?? System.Environment.CurrentDirectory,
-                    width,
-                    height,
-                    out _masterFd,
-                    out _childPid);
-                
-                if (result < 0)
-                {
-                    throw new InvalidOperationException($"pty_forkpty_shell failed with error: {Marshal.GetLastWin32Error()}");
-                }
+                throw new InvalidOperationException($"pty_forkpty_exec failed with error: {Marshal.GetLastWin32Error()}");
             }
         }
-        finally
+        else
         {
-            // Restore the original nesting level in the parent process
-            System.Environment.SetEnvironmentVariable(nestingLevelKey, originalNestingLevel);
+            var result = pty_forkpty_shell(
+                resolvedPath,
+                workingDirectory ?? System.Environment.CurrentDirectory,
+                envp,
+                width,
+                height,
+                out _masterFd,
+                out _childPid);
+
+            if (result < 0)
+            {
+                throw new InvalidOperationException($"pty_forkpty_shell failed with error: {Marshal.GetLastWin32Error()}");
+            }
         }
         
         // Small delay to let child process initialize
@@ -317,21 +302,23 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
     
     private const int SIGKILL = 9;
     
-    [LibraryImport("hex1binterop", EntryPoint = "hex1b_forkpty_shell", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport("hex1binterop", EntryPoint = "hex1b_forkpty_shell_env", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
     private static partial int pty_forkpty_shell(
         string shellPath,
         string workingDir,
+        [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[] environment,
         int width,
         int height,
         out int masterFd,
         out int childPid);
     
-    [LibraryImport("hex1binterop", EntryPoint = "hex1b_forkpty_exec", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    [LibraryImport("hex1binterop", EntryPoint = "hex1b_forkpty_exec_env", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
     private static partial int pty_forkpty_exec(
         string execPath,
         [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[] argv,
         int argc,
         string workingDir,
+        [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[] environment,
         int width,
         int height,
         out int masterFd,

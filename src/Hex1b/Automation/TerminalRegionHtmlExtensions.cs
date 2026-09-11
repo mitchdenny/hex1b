@@ -74,7 +74,8 @@ public static class TerminalRegionHtmlExtensions
             ShowCellGrid = true,  // Include in SVG so it can be toggled via CSS
             ShowPixelGrid = true, // Include in SVG so it can be toggled via CSS
             CellGridColor = options.CellGridColor,
-            PixelGridColor = options.PixelGridColor
+            PixelGridColor = options.PixelGridColor,
+            MaximumEmbeddedSixelBytes = options.MaximumEmbeddedSixelBytes,
         };
 
         // Get the SVG content with grids included (hidden via CSS initially)
@@ -587,8 +588,10 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("          <div class=\"tooltip-label\">Sixel Graphics</div>");
         sb.AppendLine("          <div class=\"tooltip-value\">");
         sb.AppendLine("            ${cell.sixel.origin ? '<span class=\"attr-badge\" style=\"background:#4e9a06\">Origin</span>' : '<span class=\"attr-badge\">Continuation</span>'}");
+        sb.AppendLine("            ${cell.sixel.geometryOnly ? '<span class=\"attr-badge\" style=\"background:#a06e4e\">Geometry-only</span>' : ''}");
         sb.AppendLine("            ${cell.sixel.w}×${cell.sixel.h} cells");
-        sb.AppendLine("          </div>");
+        sb.AppendLine("            <br><span style=\"color:#888;font-size:11px\">Outcome: ${cell.sixel.outcome}</span>");
+        sb.AppendLine("        </div>");
         sb.AppendLine("        </div>` : ''}");
         sb.AppendLine("        ${hasLink ? `");
         sb.AppendLine("        <div class=\"tooltip-section\">");
@@ -863,6 +866,33 @@ public static class TerminalRegionHtmlExtensions
     {
         var rows = new List<string>();
 
+        // Build a per-cell Sixel placement lookup up front (rather than
+        // reading per-cell attributes) so the JSON payload reflects the
+        // independent placement/image model. Only meaningful when exporting
+        // from a snapshot; other region kinds have no Sixel state to inspect.
+        var sixelByCell = new Dictionary<(int X, int Y), SixelPlacement>();
+        if (region is Hex1bTerminalSnapshot snapshot)
+        {
+            foreach (var placement in snapshot.SixelPlacements.OrderBy(p => p.Sequence))
+            {
+                if (!placement.HasPaintedExtent)
+                    continue;
+
+                for (var py = placement.PaintedTop; py <= placement.PaintedBottom; py++)
+                {
+                    for (var px = placement.PaintedLeft; px <= placement.PaintedRight; px++)
+                    {
+                        // CoversCell excludes cells a later text write has
+                        // damaged, so damaged cells correctly stop reporting
+                        // Sixel metadata even while still inside the painted
+                        // rectangle. CoversCell takes (row, column) — py, px.
+                        if (placement.CoversCell(py, px))
+                            sixelByCell[(px, py)] = placement; // later sequence overwrites earlier: topmost wins.
+                    }
+                }
+            }
+        }
+
         for (int y = 0; y < region.Height; y++)
         {
             var cells = new List<string>();
@@ -894,10 +924,20 @@ public static class TerminalRegionHtmlExtensions
                     ? $"\"{cell.WrittenAt:O}\"" 
                     : "null";
 
-                // Include sixel data if present
-                var sixel = cell.SixelData != null
-                    ? $"{{\"origin\":{(cell.IsSixel ? "true" : "false")},\"w\":{cell.SixelData.WidthInCells},\"h\":{cell.SixelData.HeightInCells}}}"
-                    : "null";
+                // Include sixel placement data if this cell falls within a
+                // placement's painted extent.
+                string sixel;
+                if (sixelByCell.TryGetValue((x, y), out var sixelPlacement))
+                {
+                    var isOrigin = x == sixelPlacement.PaintedLeft && y == sixelPlacement.PaintedTop;
+                    var geometryOnly = sixelPlacement.IsGeometryOnly ? "true" : "false";
+                    var outcome = EscapeJsonString(sixelPlacement.Image.RasterStatus.ToString());
+                    sixel = $"{{\"origin\":{(isOrigin ? "true" : "false")},\"w\":{sixelPlacement.WidthInCells},\"h\":{sixelPlacement.HeightInCells},\"geometryOnly\":{geometryOnly},\"outcome\":\"{outcome}\"}}";
+                }
+                else
+                {
+                    sixel = "null";
+                }
 
                 // Include hyperlink data if present (with group ID for highlighting related cells)
                 string hyperlink;
