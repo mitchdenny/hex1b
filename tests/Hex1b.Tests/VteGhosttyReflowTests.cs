@@ -277,8 +277,8 @@ public class VteGhosttyReflowTests
     /// 25 chars → ceil(25/3)=9 rows at width 3. Last row has "H" at col 0.
     /// Screen shows last 3 rows: "EFG", "H" — wait, need to trace more carefully.
     /// 25 chars at width 3: "1AB"(0) "CD2"(1) "EFG"(2) "H3I"(3) "JKL"(4) "4AB"(5) "CD5"(6) "EFG"(7) "H"(8)
-    /// Cursor was on 'H' at cell offset 4*5+4=24. At width 3: row=24/3=8, col=24%3=0.
-    /// Screen (rows=3): shows rows 6-8: "CD5", "EFG", "H". Cursor at (0, 2).
+    /// The pending-wrap insertion point is after 'H' at offset 25.
+    /// Screen (rows=3): shows rows 6-8: "CD5", "EFG", "H". Cursor at (1, 2).
     /// </remarks>
     [TestMethod]
     public void Ghostty_ResizeLessCols_PreviouslyWrappedWithScrollback()
@@ -295,9 +295,12 @@ public class VteGhosttyReflowTests
         terminal.Resize(3, 3);
 
         var snap = terminal.CreateSnapshot();
-        // Cursor was on 'H' (last char), should track to its new position
-        Assert.AreEqual(0, snap.CursorX);
+        // Pending wrap becomes an ordinary insertion point after 'H'.
+        Assert.AreEqual(1, snap.CursorX);
         Assert.AreEqual(2, snap.CursorY);
+        terminal.ApplyTokens([new TextToken("!")]);
+        using var appended = terminal.CreateSnapshot();
+        Assert.AreEqual("H!", appended.GetLineTrimmed(2));
     }
 
     #endregion

@@ -45,6 +45,16 @@ with your privileges. Do not put this sample behind a reverse proxy or expose
 it to other users.** Closing a view does not stop its terminal: use **End terminal**
 to terminate the shared workload explicitly.
 
+The **Interactive shell** scene enables
+`Hmp1PresentationAdapter.WithReflow(GhosttyReflowStrategy.Instance)` on its
+shared producer. Narrowing wraps shell output and widening rejoins soft wraps;
+hard newlines remain separate. Retained history participates, subject to the
+sample's 1,000-physical-row scrollback limit. Alternate-screen applications
+still use crop/redraw semantics; their saved main screen reflows on return.
+Selections are invalidated by resize. Generated text/graphics scenes retain
+crop behavior. The library's adapter defaults have not changed: consumers must
+[opt in on their producer](../../docs/web-terminal.md#shell-reflow-configuration).
+
 ## Play a scenario tape
 
 Create an **Interactive shell** terminal, or select one under **Existing terminal**.
@@ -129,6 +139,7 @@ origin:
 | `tapes.browser.js` | Scene-filtered tapes in an existing shell, shared-view output, retained identity/geometry, overlap rejection, cancellation, visible failures, and shutdown cleanup. |
 | `hyperlinks.browser.js` | Real OSC 8 output through HWT1 and the worker, Ctrl/Cmd activation, safe new tabs, selection/capture isolation, read-only thumbnails, destination updates, and scrollback. |
 | `history.browser.js` | Shared producer history, independent viewports, character/word/logical-line/block selection, held/released wheel scrolling, clipboard intent, capture override, read-only inspection, and eviction. Clipboard writes are intercepted rather than changing the user's clipboard. |
+| `reflow.browser.js` | Real shell output and retained history through repeated shrink/grow cycles, hard/soft breaks, wide/combining text, primary-only resize, selection invalidation, and editing a pending shell command. |
 | `bindings.browser.js` | Per-view input overrides, named actions, Windows-style right-click copy/paste, clipboard failures/races, capture ownership, and native text/paste/IME paths. Clipboard access is mocked. |
 | `selection-ui.browser.js` | Default, augmented, and replaced selection controls; host CSS, highlight parts, canvas alignment, focus/input isolation, action reuse, UI errors, and disposal. |
 | `graphics.browser.js` | Sixel and KGP in mixed WebGPU/WebGL2 views, renderer controls/diagnostics, cached-image movement, and late attachment to silent server-driven animation. |

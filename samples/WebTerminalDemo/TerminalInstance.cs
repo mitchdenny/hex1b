@@ -1,4 +1,5 @@
 using Hex1b;
+using Hex1b.Reflow;
 using Microsoft.Extensions.Logging;
 
 namespace WebTerminalDemo;
@@ -34,6 +35,8 @@ internal sealed class TerminalInstance
         _stop = new CancellationTokenSource();
         Stopping = _stop.Token;
         Presentation = new Hmp1PresentationAdapter(request.Columns, request.Rows);
+        if (_scene == "shell")
+            Presentation.WithReflow(GhosttyReflowStrategy.Instance);
         _demo = _scene == "shell" ? null : new DemoWorkload(_scene, request.Columns, request.Rows);
         var child = _demo is null ? new Hex1bTerminalChildProcess(
             OperatingSystem.IsWindows() ? "cmd.exe" : Environment.GetEnvironmentVariable("SHELL") ?? "/bin/sh",
