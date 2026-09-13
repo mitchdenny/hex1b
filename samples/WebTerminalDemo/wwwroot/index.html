@@ -114,6 +114,16 @@
     [data-connected=false] .view-activity { visibility: hidden; }
     .terminal-stage { display: flex; position: relative; flex: 1 1 0; min-width: 0; min-height: 0; }
     .terminal-mount { flex: 1 1 0; min-width: 0; min-height: 0; contain: size; overflow: hidden; }
+    .command-marks-rail { display: flex; flex: 0 0 14px; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; overflow-y: auto; background: var(--cp-surface-soft); border-right: 1px solid var(--cp-border); }
+    .command-marks-rail:empty { border-right-color: transparent; }
+    .command-mark-dot { width: 8px; height: 8px; min-height: 0; flex: none; padding: 0; margin: 0; border: 1px solid var(--cp-border-strong); border-radius: 50%; background: var(--cp-text-muted); cursor: pointer; }
+    .command-mark-dot:hover { transform: scale(1.35); }
+    .command-mark-dot:focus-visible { outline: 2px solid var(--cp-link); outline-offset: 1px; }
+    .command-mark-dot:disabled { cursor: not-allowed; opacity: 0.4; transform: none; }
+    .command-mark-dot[data-phase=executing] { background: var(--cp-warning); border-color: var(--cp-warning); animation: command-mark-pulse 1.1s ease-in-out infinite; }
+    .command-mark-dot[data-exit=ok] { background: var(--cp-success); border-color: var(--cp-success); }
+    .command-mark-dot[data-exit=error] { background: var(--cp-danger); border-color: var(--cp-danger); }
+    @keyframes command-mark-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .closed-overlay { position: absolute; inset: 0; z-index: 1; display: flex; overflow: auto; padding: 12px; background: var(--cp-overlay); }
     .closed-overlay[hidden] { display: none; }
     .closed-card { margin: auto; width: 100%; max-width: 480px; padding: 16px; border: 1px solid var(--cp-border-strong); border-radius: 12px; background: var(--cp-surface); box-shadow: var(--cp-shadow); overflow-wrap: anywhere; }

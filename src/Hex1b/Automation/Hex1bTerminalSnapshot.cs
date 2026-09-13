@@ -63,6 +63,8 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         SavedTitles = state.SavedTitles;
         Progress = state.Progress;
         ShellIntegration = state.ShellIntegration;
+        WorkingDirectory = state.WorkingDirectory;
+        CommandMarks = state.CommandMarks;
 
         var scrollbackRows = state.ScrollbackRows;
         ScrollbackLineCount = scrollbackRows.Length;
@@ -170,6 +172,12 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// <summary>Gets the immutable shell phase and latest result captured atomically with this snapshot.</summary>
     /// <remarks>This is current terminal activity even when the snapshot displays historical text.</remarks>
     public TerminalShellIntegration ShellIntegration { get; }
+
+    /// <summary>Gets the working directory last reported by OSC 7, captured atomically with this snapshot.</summary>
+    public TerminalWorkingDirectory WorkingDirectory { get; }
+
+    /// <summary>Gets the OSC 133 command-mark history captured atomically with this snapshot.</summary>
+    public IReadOnlyList<TerminalCommandMark> CommandMarks { get; }
 
     internal string IconName { get; }
 

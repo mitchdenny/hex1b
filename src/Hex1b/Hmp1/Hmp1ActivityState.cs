@@ -13,11 +13,13 @@ internal sealed record Hmp1ActivityState
 
     public required Hmp1ProgressState Progress { get; init; }
     public required Hmp1ShellIntegrationState ShellIntegration { get; init; }
+    public required Hmp1WorkingDirectoryState WorkingDirectory { get; init; }
 
     internal static Hmp1ActivityState Default { get; } = new()
     {
         Progress = new() { State = 0, Percentage = null },
-        ShellIntegration = new() { Phase = 0, LastExitCode = null }
+        ShellIntegration = new() { Phase = 0, LastExitCode = null },
+        WorkingDirectory = new() { Uri = null }
     };
 
     internal static Hmp1ActivityState Capture(Hex1bTerminalSnapshot snapshot) => new()
@@ -27,7 +29,8 @@ internal sealed record Hmp1ActivityState
         {
             Phase = (int)snapshot.ShellIntegration.Phase,
             LastExitCode = snapshot.ShellIntegration.LastExitCode
-        }
+        },
+        WorkingDirectory = new() { Uri = snapshot.WorkingDirectory.Uri }
     };
 
     internal static Hmp1ActivityState Parse(ReadOnlyMemory<byte> payload)
@@ -43,7 +46,9 @@ internal sealed record Hmp1ActivityState
             if (state.Progress is not { State: >= 0 and <= 4 } progress ||
                 state.ShellIntegration is not { Phase: >= 0 and <= 4 } shell ||
                 (progress.State is 0 or 3 ? progress.Percentage is not null : progress.Percentage is not (>= 0 and <= 100)) ||
-                (shell.Phase == 0 && shell.LastExitCode is not null))
+                (shell.Phase == 0 && shell.LastExitCode is not null) ||
+                state.WorkingDirectory is not { } workingDirectory ||
+                (workingDirectory.Uri is not null && TerminalWorkingDirectory.TryCreate(workingDirectory.Uri) is null))
                 throw new InvalidDataException("Invalid HMP activity checkpoint state.");
             return state;
         }
@@ -83,4 +88,10 @@ internal sealed record Hmp1ShellIntegrationState
 {
     public required int Phase { get; init; }
     public required int? LastExitCode { get; init; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record Hmp1WorkingDirectoryState
+{
+    public required string? Uri { get; init; }
 }

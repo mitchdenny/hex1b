@@ -11,7 +11,8 @@ const read = path => readFileSync(new URL(path, root), "utf8");
 
 test("Package entry exposes only the supported runtime API", () => {
   assert.deepEqual(Object.keys(entry).sort(), [
-    "InputRoute", "MAX_FONT_SIZE", "MIN_FONT_SIZE", "TerminalAction", "WebTerminal", "defaultInputBindings"
+    "InputRoute", "MAX_FONT_SIZE", "MIN_FONT_SIZE", "TerminalAction", "WebTerminal", "defaultInputBindings",
+    "getCmdlineUrl", "parseCommandMarkParameters"
   ]);
   assert.equal(entry.MIN_FONT_SIZE, 8);
   assert.equal(entry.MAX_FONT_SIZE, 32);

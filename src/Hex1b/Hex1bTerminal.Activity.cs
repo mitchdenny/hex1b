@@ -41,6 +41,61 @@ public sealed partial class Hex1bTerminal
     /// </remarks>
     public event Action<TerminalShellIntegration>? ShellIntegrationChanged;
 
+    /// <summary>Gets the working directory last reported by OSC 7.</summary>
+    /// <remarks>
+    /// Defaults to no reported directory. RIS clears it; soft reset, screen changes, and
+    /// process exit preserve it, matching <see cref="Progress"/> and
+    /// <see cref="ShellIntegration"/>.
+    /// </remarks>
+    public TerminalWorkingDirectory WorkingDirectory
+    {
+        get { lock (_bufferLock) return _activityState.WorkingDirectory; }
+    }
+
+    /// <summary>Occurs when the reported working directory changes to a distinct value.</summary>
+    /// <remarks>
+    /// Subscribing does not emit the baseline; read <see cref="WorkingDirectory"/> for
+    /// current state.
+    /// </remarks>
+    public event Action<TerminalWorkingDirectory>? WorkingDirectoryChanged;
+
+    private readonly List<TerminalCommandMark> _commandMarks = [];
+    private int _commandMarkHistoryCapacity = 200;
+
+    /// <summary>
+    /// Gets the bounded history of OSC 133 command marks, oldest first.
+    /// </summary>
+    /// <remarks>
+    /// Capacity is configured via <see cref="Hex1bTerminalOptions.CommandMarkHistoryCapacity"/>;
+    /// once exceeded, the oldest marks are evicted. RIS and reflow do not remove existing
+    /// entries, but their row anchors become unresolvable (see <see cref="TerminalCommandMark"/>).
+    /// </remarks>
+    public IReadOnlyList<TerminalCommandMark> CommandMarks
+    {
+        get { lock (_bufferLock) return [.. _commandMarks]; }
+    }
+
+    /// <summary>Occurs when a new OSC 133 command mark is recorded.</summary>
+    /// <remarks>Subscribing does not emit prior marks; read <see cref="CommandMarks"/> for
+    /// current history.</remarks>
+    public event Action<TerminalCommandMark>? CommandMarkAdded;
+
+    private void RecordCommandMarkIfPresent(string command, string parameters, string payload)
+    {
+        if (command != "133" || _commandMarkHistoryCapacity == 0)
+            return;
+        if (!TerminalActivityState.TryParseMarker(parameters, payload, out var phase, out var exitCode,
+                out var rawParameters))
+            return;
+
+        EnsureTextRows();
+        var mark = new TerminalCommandMark(phase, exitCode, rawParameters, _textGeneration, _textScreenRowIds[_cursorY]);
+        _commandMarks.Add(mark);
+        while (_commandMarks.Count > _commandMarkHistoryCapacity)
+            _commandMarks.RemoveAt(0);
+        CommandMarkAdded?.Invoke(mark);
+    }
+
     internal void SubscribeActivityStateChanged(Action<TerminalActivityState> handler)
     {
         lock (_bufferLock)
@@ -62,11 +117,12 @@ public sealed partial class Hex1bTerminal
         }
     }
 
-    internal void RestoreActivityState(TerminalProgress progress, TerminalShellIntegration shellIntegration)
+    internal void RestoreActivityState(TerminalProgress progress, TerminalShellIntegration shellIntegration,
+        TerminalWorkingDirectory workingDirectory)
     {
         lock (_bufferLock)
         {
-            SetActivityState(new TerminalActivityState(progress, shellIntegration));
+            SetActivityState(new TerminalActivityState(progress, shellIntegration, workingDirectory));
         }
         PresentationInvalidated?.Invoke();
     }
@@ -105,5 +161,7 @@ public sealed partial class Hex1bTerminal
             ProgressChanged?.Invoke(state.Progress);
         if (previous.ShellIntegration != state.ShellIntegration)
             ShellIntegrationChanged?.Invoke(state.ShellIntegration);
+        if (previous.WorkingDirectory != state.WorkingDirectory)
+            WorkingDirectoryChanged?.Invoke(state.WorkingDirectory);
     }
 }

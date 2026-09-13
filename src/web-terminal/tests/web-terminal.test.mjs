@@ -119,6 +119,8 @@ function frame(peer) {
     title: "",
     progress: { state: "none", percentage: null },
     shellIntegration: { phase: "unknown", lastExitCode: null },
+    workingDirectory: { uri: null, host: null, path: null },
+    commandMark: null,
     columns: 1, rows: 1, cellWidth: 10, cellHeight: 20, mouseTracking: 0, peer,
     cursor: { x: 0, y: 0, visible: false, shape: 0 }, history: null,
     images: [], retainedImages: [], placements: [], warnings: [], hyperlinks: [],

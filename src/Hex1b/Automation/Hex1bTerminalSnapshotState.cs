@@ -35,4 +35,6 @@ internal sealed record Hex1bTerminalSnapshotState(
     string IconName,
     IReadOnlyList<(string Title, string IconName)> SavedTitles,
     TerminalProgress Progress,
-    TerminalShellIntegration ShellIntegration);
+    TerminalShellIntegration ShellIntegration,
+    TerminalWorkingDirectory WorkingDirectory,
+    IReadOnlyList<TerminalCommandMark> CommandMarks);

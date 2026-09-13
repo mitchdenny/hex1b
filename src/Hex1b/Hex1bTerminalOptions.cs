@@ -108,6 +108,13 @@ public sealed class Hex1bTerminalOptions
     public int? ScrollbackCapacity { get; set; }
 
     /// <summary>
+    /// Maximum number of OSC 133 command marks to retain in <see cref="Hex1bTerminal.CommandMarks"/>.
+    /// Oldest marks are evicted first once the capacity is exceeded. Default is 200; set to 0
+    /// to disable command mark history entirely.
+    /// </summary>
+    public int CommandMarkHistoryCapacity { get; set; } = 200;
+
+    /// <summary>
     /// Optional callback invoked each time a row is scrolled off the top of the terminal
     /// into the scrollback buffer. Can be used for persistence or logging.
     /// </summary>

@@ -151,6 +151,8 @@ export function frame({ title = "", revision = 1, full = revision === 1, baseRev
     version: 1, title, revision, full, baseRevision, peer,
     progress: { state: "none", percentage: null },
     shellIntegration: { phase: "unknown", lastExitCode: null },
+    workingDirectory: { uri: null, host: null, path: null },
+    commandMark: null,
     columns: 1, rows: 1, cellWidth: 10, cellHeight: 20, mouseTracking: 0,
     cursor: { visible: true, x: 0, y: 0, shape: 1 },
     history: null, images: [], retainedImages: [], placements: [], warnings: [], hyperlinks: [],
