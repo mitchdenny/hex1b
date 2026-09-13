@@ -132,6 +132,8 @@ origin:
 | `bindings.browser.js` | Per-view input overrides, named actions, Windows-style right-click copy/paste, clipboard failures/races, capture ownership, and native text/paste/IME paths. Clipboard access is mocked. |
 | `selection-ui.browser.js` | Default, augmented, and replaced selection controls; host CSS, highlight parts, canvas alignment, focus/input isolation, action reuse, UI errors, and disposal. |
 | `graphics.browser.js` | Sixel and KGP in mixed WebGPU/WebGL2 views, renderer controls/diagnostics, cached-image movement, and late attachment to silent server-driven animation. |
+| `graphics-stream.browser.js` | Reviewed HWT1 capture replay through the actual decoder and WebGPU/WebGL2 renderer, with pixel readback and a screenshot-ready canvas. This is offline frame replay, not a live WebSocket/worker check. |
+| `graphics-worker-stream.browser.js` | A reviewed full HWT1 frame through the mounted client, actual worker and GPU. Only WebSocket transport is replaced; the mounted canvas stays available for screenshots until navigation. |
 | `relay.browser.js` | Direct/relay transport selection, mixed peers, input and resize authority, primary closure, fresh reconnect/navigation-return replicas, retained KGP movement, and silent animation. |
 | `titles.browser.js` | Real POSIX shell title output through direct HWT1 and HMP1 relay, initial/late/reconnect notifications, safe header text and fallback, reset retention, duplicate/resync suppression, and disposal. |
 | `activity.browser.js` | Host-owned progress/severity and shell-phase chrome, direct and relayed current state, paused late attachment, resync, and fresh reconnect. No shell hooks required. |
@@ -156,6 +158,92 @@ loopback-only access policy.
 The package's Node regressions and TypeScript builds run in CI. The browser
 fixtures remain focused, explicitly invoked checks; they are not a claim of
 broad HMP graphics/performance stability or a browser/device compatibility matrix.
+
+### Opt-in raw graphics investigations
+
+`tests/Hex1b.Tests/Diagnostics/` contains an internal duplex workload recorder and
+exact-chunk replay adapter. These record original byte arrays at the PTY adapter
+boundary, including terminal replies; Tape, Asciinema, and HWT1 frame recordings
+are not substitutes for this transcript. A PTY can split/coalesce application
+writes, and an input write completing does not prove application consumption.
+
+The ordinary `ProteinViewGraphicsStreamTests` exercise fragmented raw input,
+picker replies, uncompressed RGBA, PNG, and Unicode virtual placements. The
+opt-in comparison records compressed and otherwise equivalent uncompressed
+streams without encoding a currently missing image as permanent correct
+behavior:
+
+```sh
+HEX1B_GRAPHICS_EVIDENCE=/absolute/new/private/evidence-directory \
+  dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --no-progress \
+  --filter "FullyQualifiedName~ProteinViewGraphicsStreamTests"
+```
+
+To capture the real application, first build a reviewed ProteinView checkout
+locally. The investigation baseline is upstream commit
+`9b9a0790bc78f1d2a7c0923905049d27c67c05e2`; the test never downloads or installs it.
+Supply an absolute binary path and the bundled model:
+
+```sh
+HEX1B_PROTEINVIEW_EXECUTABLE=/absolute/ProteinView/target/release/proteinview \
+HEX1B_PROTEINVIEW_MODEL=/absolute/ProteinView/examples/4HHB.pdb \
+HEX1B_GRAPHICS_EVIDENCE=/absolute/new/private/application-evidence \
+  dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --no-progress \
+  --filter "FullyQualifiedName~ProteinViewInvestigationTests"
+```
+
+This Unix-only runner launches the binary directly, not a shell. Each case uses
+80x24 cells, a 20-second deadline, a 64 MiB/100,000-event capture budget, and
+four-second sampling windows. Cases cover plain/Braille/FullHD, uppercase `M`,
+safe observed terminal hints versus a separate normalized environment, and
+HMP1 producer-backed versus direct HWT1 projection. It records binary/model
+hashes, picker logs, byte transcripts and sampled HWT1 frames. It does not
+reproduce arbitrary inherited environments or a native Ghostty session.
+SSH/session identifier values are never copied; only their presence is retained.
+Do not run under tmux, where upstream may change passthrough configuration.
+Without the explicit environment variables these investigation cases are skipped.
+
+Keep captures private and review them before sharing. The binary runs with your
+privileges; supply only a reviewed executable and local input. An interrupted,
+failed, or budget-exceeded transcript is not a successful reproduction.
+
+For browser readback, use a loopback-only static test host serving the matching
+built client at `/web-terminal/` and **only reviewed `.hwt` files** at `/evidence/`.
+Do not expose raw transcripts, environment metadata, arbitrary files, or a
+production host. Navigate to
+`/?frame=rgba-control.hwt&backend=webgpu`, then run:
+
+```sh
+playwright-cli run-code "$(< samples/WebTerminalDemo/tests/graphics-stream.browser.js)"
+```
+
+Use `backend=webgl2` for that renderer. Repeat `frame` parameters in recorded
+order when replaying deltas (for example, before/after `M`). The optional
+`minimum` asserts a red-pixel lower bound for the synthetic red image. Without it,
+the fixture reports pixel counts for investigation; zero images or pixels do not
+constitute success. Real FullHD acceptance requires visible molecular output in
+the viewport, not just an ACK, texture allocation, or colored header text.
+
+For the mounted-worker check, navigate to a full-frame artifact with `?frame=...`
+and invoke `graphics-worker-stream.browser.js` instead. It runs the real client
+and worker with only the socket replaced, so it can distinguish renderer-only
+fixture effects from actual client behavior. It does not establish live network
+transport behavior. Navigate away or close the isolated browser to dispose it.
+
+To inspect an already reviewed reduced raw-output file (without launching an
+application), use:
+
+```sh
+HEX1B_GRAPHICS_STREAM=/absolute/reduced-output.bin \
+HEX1B_GRAPHICS_REPLAY_OUTPUT=/absolute/new/private/replay-directory \
+  dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --no-progress \
+  --filter "FullyQualifiedName~GraphicsStreamReplayTests"
+```
+
+The replay runner limits input to 8 MiB, rechunks to 997 bytes to exercise raw
+framing, and appends a last-row processing marker. It saves retained-image hashes
+and an HWT1 frame. Preserve the original capture and a transformation manifest
+separately: replay rechunking and the marker are not original application bytes.
 
 ## Shared instances and floating views
 
