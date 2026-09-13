@@ -35,12 +35,13 @@ public static class TerminalRegionAnsiExtensions
         return RenderToAnsi(snapshot, options, snapshot.CursorX, snapshot.CursorY);
     }
 
-    // Replay preserves OSC 8 without changing the public ANSI export format.
-    internal static string ToAnsi(this Hex1bTerminalSnapshot snapshot, TerminalAnsiOptions options, bool includeHyperlinks)
-        => RenderToAnsi(snapshot, options, snapshot.CursorX, snapshot.CursorY, includeHyperlinks);
+    // Replay preserves semantic state without changing the public ANSI export format.
+    internal static string ToAnsi(this Hex1bTerminalSnapshot snapshot, TerminalAnsiOptions options,
+        bool includeHyperlinks, bool preserveSoftWrap = false)
+        => RenderToAnsi(snapshot, options, snapshot.CursorX, snapshot.CursorY, includeHyperlinks, preserveSoftWrap);
 
     private static string RenderToAnsi(IHex1bTerminalRegion region, TerminalAnsiOptions options, int? cursorX, int? cursorY,
-        bool includeHyperlinks = false)
+        bool includeHyperlinks = false, bool preserveSoftWrap = false)
     {
         var sb = new StringBuilder();
 
@@ -89,8 +90,10 @@ public static class TerminalRegionAnsiExtensions
         {
             if (row > 0)
             {
-                // Move to the next row: go to start of line and down one
-                sb.Append("\r\n");
+                // Soft breaks must be produced by autowrap, not cursor movement.
+                if (!preserveSoftWrap ||
+                    (region.GetCell(region.Width - 1, row - 1).Attributes & CellAttributes.SoftWrap) == 0)
+                    sb.Append("\r\n");
             }
             else
             {
@@ -103,6 +106,9 @@ public static class TerminalRegionAnsiExtensions
             {
                 var ch = cell.Character;
 
+                if (preserveSoftWrap && cell.IsWideWrapPadding)
+                    continue;
+
                 // Skip empty continuation cells (used for wide characters)
                 if (string.IsNullOrEmpty(ch))
                     continue;
@@ -113,14 +119,15 @@ public static class TerminalRegionAnsiExtensions
                 // that were never painted.
                 if (ch == "\0" || ch == "\uE000")
                 {
-                    if (!options.RenderNullAsSpace)
+                    if (!options.RenderNullAsSpace && !preserveSoftWrap)
                         continue;
                     ch = " ";
                 }
 
                 // Position cursor within the row using absolute column (relative to line start)
                 // CSI n G = Cursor Horizontal Absolute (move to column n)
-                sb.Append($"\x1b[{x + 1}G");
+                if (!preserveSoftWrap)
+                    sb.Append($"\x1b[{x + 1}G");
 
                 // Build SGR (Select Graphic Rendition) sequence
                 var sgrParts = new List<string>();

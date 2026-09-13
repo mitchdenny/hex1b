@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Hex1b.Reflow;
 using Microsoft.Extensions.Logging.Abstractions;
 using WebTerminalDemo;
 
@@ -12,6 +13,65 @@ namespace Hex1b.Tests;
 [TestClass]
 public class WebTerminalDemoLifecycleTests
 {
+    [TestMethod]
+    [DataRow(DemoReflowStrategy.None, null)]
+    [DataRow(DemoReflowStrategy.Auto, typeof(AutoReflowStrategy))]
+    [DataRow(DemoReflowStrategy.Alacritty, typeof(AlacrittyReflowStrategy))]
+    [DataRow(DemoReflowStrategy.Foot, typeof(FootReflowStrategy))]
+    [DataRow(DemoReflowStrategy.Ghostty, typeof(GhosttyReflowStrategy))]
+    [DataRow(DemoReflowStrategy.ITerm2, typeof(ITerm2ReflowStrategy))]
+    [DataRow(DemoReflowStrategy.Kitty, typeof(KittyReflowStrategy))]
+    [DataRow(DemoReflowStrategy.Vte, typeof(VteReflowStrategy))]
+    [DataRow(DemoReflowStrategy.WezTerm, typeof(WezTermReflowStrategy))]
+    [DataRow(DemoReflowStrategy.WindowsTerminal, typeof(WindowsTerminalReflowStrategy))]
+    [DataRow(DemoReflowStrategy.Xterm, typeof(XtermReflowStrategy))]
+    public void CreateRequest_ExplicitReflow_SelectsNamedProvider(object value, Type? providerType)
+    {
+        var strategy = (DemoReflowStrategy)value;
+        var request = new CreateTerminalRequest(ReflowStrategy: strategy);
+        Assert.AreEqual(providerType, request.GetReflowProvider()?.GetType());
+        var json = JsonSerializer.Serialize(request, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var restored = JsonSerializer.Deserialize<CreateTerminalRequest>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.AreEqual(strategy, restored.ReflowStrategy);
+    }
+
+    [TestMethod]
+    [DataRow("shell", DemoReflowStrategy.Default, DemoReflowStrategy.Ghostty, true)]
+    [DataRow("activity", DemoReflowStrategy.Default, DemoReflowStrategy.None, false)]
+    [DataRow("shell", DemoReflowStrategy.None, DemoReflowStrategy.None, false)]
+    [DataRow("activity", DemoReflowStrategy.Ghostty, DemoReflowStrategy.Ghostty, true)]
+    [DataRow("activity", DemoReflowStrategy.Vte, DemoReflowStrategy.Vte, true)]
+    public async Task Create_ReflowPolicy_IsAppliedToProducerAndReported(
+        string scene, object selected, object resolved, bool enabled)
+    {
+        await using var registry = CreateRegistry();
+        var info = registry.Create(new(scene, 40, 12, ReflowStrategy: (DemoReflowStrategy)selected))!;
+        using var first = registry.TryOpenView(info.Id).View!;
+        using var second = registry.TryOpenView(info.Id).View!;
+        Assert.AreEqual((DemoReflowStrategy)resolved, info.ReflowStrategy);
+        Assert.AreEqual((DemoReflowStrategy)resolved, TestSeq.Single(registry.List()).ReflowStrategy);
+        Assert.AreSame(first.Instance.Presentation, second.Instance.Presentation);
+        Assert.AreEqual(enabled, first.Instance.Presentation.ReflowEnabled);
+    }
+
+    [TestMethod]
+    public void CreateRequest_OmittedReflow_KeepsSceneDefault()
+    {
+        var request = JsonSerializer.Deserialize<CreateTerminalRequest>("""{"scene":"shell"}""",
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.AreEqual(DemoReflowStrategy.Default, request.ReflowStrategy);
+        Assert.AreSame(GhosttyReflowStrategy.Instance, request.GetReflowProvider());
+    }
+
+    [TestMethod]
+    public void CreateRequest_UnknownReflow_IsRejected()
+    {
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<CreateTerminalRequest>(
+            """{"reflowStrategy":"unknown"}""", new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new CreateTerminalRequest(ReflowStrategy: (DemoReflowStrategy)999).GetReflowProvider());
+    }
+
     [TestMethod]
     [DataRow("close", 1000, "Demo: graceful view closure", false)]
     [DataRow("close", 1000, "Demo: graceful view closure", true)]

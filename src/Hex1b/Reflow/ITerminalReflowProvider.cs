@@ -81,7 +81,11 @@ public readonly record struct ReflowContext(
     int CursorY,
     bool InAlternateScreen,
     int? SavedCursorX = null,
-    int? SavedCursorY = null);
+    int? SavedCursorY = null)
+{
+    internal bool PendingWrap { get; init; }
+    internal bool SavedPendingWrap { get; init; }
+}
 
 /// <summary>
 /// A scrollback row passed to the reflow provider, containing cell data and the
@@ -115,4 +119,8 @@ public readonly record struct ReflowResult(
     int CursorX,
     int CursorY,
     int? NewSavedCursorX = null,
-    int? NewSavedCursorY = null);
+    int? NewSavedCursorY = null)
+{
+    internal bool PendingWrap { get; init; }
+    internal bool SavedPendingWrap { get; init; }
+}

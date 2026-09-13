@@ -44,6 +44,8 @@ app.MapPost("/api/terminals", (CreateTerminalRequest request) =>
         return Results.BadRequest(new { error = "columns must be 20..300 and rows must be 10..100." });
     if (!IsValidName(request.Name))
         return Results.BadRequest(new { error = "name must contain 1..80 printable characters when supplied." });
+    if (!Enum.IsDefined(request.ReflowStrategy))
+        return Results.BadRequest(new { error = "reflowStrategy must identify a supported reflow strategy." });
     try
     {
         var instance = terminals.Create(request);

@@ -111,6 +111,72 @@ all of those fixed responsibilities. A shared change-feed/projection cache
 remains a possible optimization; this milestone does not establish multi-view
 throughput.
 
+### Shell reflow configuration
+
+Reflow belongs to the authoritative producer, not the browser. The HMP1 and
+directly attached HWT1 presentation adapters retain their **crop-and-extend
+default** for compatibility. Enable normal shell reflow before constructing the
+terminal (configuration snippet):
+
+```csharp
+using Hex1b;
+using Hex1b.Reflow;
+
+var presentation = new Hmp1PresentationAdapter(80, 24)
+    .WithReflow(GhosttyReflowStrategy.Instance);
+// Assign presentation to Hex1bTerminalOptions.PresentationAdapter, or use
+// WithPresentation(presentation) on Hex1bTerminalBuilder.
+// Configure ScrollbackCapacity / WithScrollback(...) on the terminal as well.
+```
+
+`Hex1bTerminalBuilder.WithReflow(strategy)` also configures HMP1 and directly
+attached HWT1 adapters. Prefer an explicit strategy for a remote producer;
+parameterless builder `WithReflow()` auto-detects the *server's* environment,
+which need not describe the browser terminal. `NoReflowStrategy.Instance`
+selects crop behavior explicitly.
+Crop paths erase wide glyphs split at the right edge, preserving valid cell
+geometry for later screen replay instead of retaining an orphaned half glyph.
+
+For a directly attached `Hwt1PresentationAdapter`, the same
+`.WithReflow(GhosttyReflowStrategy.Instance)` opt-in applies. For views returned
+by `CreateBrowserViewAsync`, configure the **HMP1 producer only**; a view's
+reflow setting cannot override its producer. No browser configuration, transport
+replacement, or second ANSI model is required.
+
+The demo's optional HMP1 relay builds a terminal replica rather than a direct
+browser view. It explicitly gives that replica the producer's reflow provider,
+preserving the strategy and internal graphics-anchor mapping. HMP1 screen replay
+preserves soft line breaks, but the protocol does not negotiate a reflow strategy:
+hosts of other replicas must configure matching policies themselves.
+
+Ghostty reflow preserves hard line breaks while rewrapping soft continuations,
+including retained scrollback, styled and wide/combining text, and cursor and
+saved-cursor insertion positions. Retention remains bounded by the configured
+scrollback capacity **in physical rows**: narrowing can evict the oldest rows
+when that limit is exceeded. Previously cropped or evicted text cannot be
+recovered by enabling reflow later. Alternate-screen layouts still crop on
+resize; the saved main screen and history reflow to the current dimensions when
+the application returns to the main screen.
+
+The browser's minimum requested width is 20 columns. Native HMP1 peers can
+request narrower grids; a glyph wider than the entire grid is dropped, matching
+the terminal's normal printing behavior at that width.
+
+Primary-peer resize authority, graphics ownership/anchor remapping, and HWT1
+frame refresh are unchanged. Resize/reflow invalidates existing selections
+rather than trying to preserve stale coordinates.
+
+WebTerminalDemo's **New terminal reflow** selector defaults to this policy for
+its **shell** scene and cropping for generated text/graphics scenes. Select a
+different built-in strategy before creating a terminal to compare behaviors;
+the choice is fixed for that producer and shared by every attached view.
+The sample reports the policy in its existing-terminal list and HTTP metadata.
+See [the demo's strategy selector](../samples/WebTerminalDemo/README.md#choose-a-reflow-strategy)
+for API and query-string options. Library adapter defaults are unchanged.
+Existing consumers must opt in after upgrading to a release containing this
+API; it is not available in 0.166.0. Upgrade `Hex1b` and
+`@hex1b/web-terminal` together to matching released versions.
+
 Multi-head testing also exposed a replay gap: a late viewer could repaint a
 KGP animation's current image but then remained frozen once the producer stopped
 writing bytes. HMP1 now replays all composed animation frames and playback

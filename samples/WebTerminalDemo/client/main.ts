@@ -4,6 +4,7 @@ interface TerminalInstance {
   id: string;
   name: string;
   scene: string;
+  reflowStrategy: string;
   columns: number;
   rows: number;
   peerCount: number;
@@ -79,6 +80,10 @@ const instancesSelect = select("instances");
 const views = new Map<string, TerminalView>();
 const tapeSelections = new Map<string, string>();
 const pendingTapeActions = new Set<string>();
+const resizeEdges = {
+  n: "top", ne: "top-right", e: "right", se: "bottom-right",
+  s: "bottom", sw: "bottom-left", w: "left", nw: "top-left"
+};
 let instances: TerminalInstance[] = [];
 let selected: TerminalView | undefined;
 let nextView = 0;
@@ -111,6 +116,7 @@ function readInstance(value: unknown): TerminalInstance {
       !("id" in value) || typeof value.id !== "string" ||
       !("name" in value) || typeof value.name !== "string" ||
       !("scene" in value) || typeof value.scene !== "string" ||
+      !("reflowStrategy" in value) || typeof value.reflowStrategy !== "string" ||
       !("columns" in value) || typeof value.columns !== "number" ||
       !("rows" in value) || typeof value.rows !== "number" ||
       !("peerCount" in value) || typeof value.peerCount !== "number" ||
@@ -122,7 +128,7 @@ function readInstance(value: unknown): TerminalInstance {
     throw new Error("The server returned an invalid terminal instance");
   }
   return {
-    id: value.id, name: value.name, scene: value.scene,
+    id: value.id, name: value.name, scene: value.scene, reflowStrategy: value.reflowStrategy,
     columns: value.columns, rows: value.rows, peerCount: value.peerCount,
     paused: value.paused, rate: value.rate, batch: value.batch,
     tapes: value.tapes.map(readTape), tapePlayback: readTapePlayback(value.tapePlayback)
@@ -269,7 +275,7 @@ async function loadInstances(preferred?: string) {
   instancesSelect.replaceChildren(...instances.map(instance => {
     const option = document.createElement("option");
     option.value = instance.id;
-    option.textContent = `${instance.name} - ${instance.columns}x${instance.rows}, ${instance.peerCount} peers`;
+    option.textContent = `${instance.name} - ${instance.columns}x${instance.rows}, ${instance.peerCount} peers, reflow: ${instance.reflowStrategy}`;
     return option;
   }));
   if (instances.some(instance => instance.id === selectedId)) instancesSelect.value = selectedId;
@@ -400,30 +406,51 @@ function changeSizing(view: TerminalView, sizing: Parameters<WebTerminal["setSiz
 
 function moveAndResize(view: TerminalView) {
   const signal = view.controller.signal;
-  const handles: [HTMLElement, boolean][] = [
-    [elementAt(view.element, ".view-titlebar", HTMLElement), false],
-    [elementAt(view.element, ".resize-handle", HTMLElement), true]
+  const handles: [HTMLElement, string | null][] = [
+    [elementAt(view.element, ".view-titlebar", HTMLElement), null],
+    ...Object.keys(resizeEdges).map((edge): [HTMLElement, string] =>
+      [elementAt(view.element, `.resize-handle[data-edge="${edge}"]`, HTMLElement), edge])
   ];
-  for (const [handle, resize] of handles) {
-    let gesture: { pointer: number; x: number; y: number; left: number; top: number; width: number; height: number } | undefined;
+  let activePointer: number | undefined;
+  for (const [handle, edge] of handles) {
+    let gesture: {
+      pointer: number; x: number; y: number; left: number; top: number;
+      width: number; height: number; scrollLeft: number; scrollTop: number
+    } | undefined;
     handle.addEventListener("pointerdown", event => {
-      if (event.button !== 0 || event.target instanceof Element && event.target.closest("button")) return;
+      if (activePointer !== undefined || event.button !== 0 ||
+          event.target instanceof Element && event.target.closest("button")) return;
       event.preventDefault();
       selectView(view);
       gesture = {
         pointer: event.pointerId, x: event.clientX, y: event.clientY,
         left: view.element.offsetLeft, top: view.element.offsetTop,
-        width: view.element.offsetWidth, height: view.element.offsetHeight
+        width: view.element.offsetWidth, height: view.element.offsetHeight,
+        scrollLeft: workspace.scrollLeft, scrollTop: workspace.scrollTop
       };
+      activePointer = event.pointerId;
+      handle.dataset.active = "true";
       handle.setPointerCapture(event.pointerId);
     }, { signal });
     handle.addEventListener("pointermove", event => {
       if (!gesture || gesture.pointer !== event.pointerId) return;
-      const dx = event.clientX - gesture.x;
-      const dy = event.clientY - gesture.y;
-      if (resize) {
-        view.element.style.width = `${Math.max(240, Math.min(3200, gesture.width + dx))}px`;
-        view.element.style.height = `${Math.max(180, Math.min(2200, gesture.height + dy))}px`;
+      const dx = event.clientX - gesture.x + workspace.scrollLeft - gesture.scrollLeft;
+      const dy = event.clientY - gesture.y + workspace.scrollTop - gesture.scrollTop;
+      if (edge) {
+        if (edge.includes("e") || edge.includes("w")) {
+          const west = edge.includes("w");
+          const width = Math.max(240, Math.min(west ? Math.min(3200, gesture.left + gesture.width) : 3200,
+            gesture.width + (west ? -dx : dx)));
+          view.element.style.width = `${width}px`;
+          if (west) view.element.style.left = `${gesture.left + gesture.width - width}px`;
+        }
+        if (edge.includes("n") || edge.includes("s")) {
+          const north = edge.includes("n");
+          const height = Math.max(180, Math.min(north ? Math.min(2200, gesture.top + gesture.height) : 2200,
+            gesture.height + (north ? -dy : dy)));
+          view.element.style.height = `${height}px`;
+          if (north) view.element.style.top = `${gesture.top + gesture.height - height}px`;
+        }
       } else {
         view.element.style.left = `${Math.max(0, gesture.left + dx)}px`;
         view.element.style.top = `${Math.max(0, gesture.top + dy)}px`;
@@ -432,11 +459,13 @@ function moveAndResize(view: TerminalView) {
     const end = (event: PointerEvent) => {
       if (!gesture || gesture.pointer !== event.pointerId) return;
       gesture = undefined;
+      activePointer = undefined;
+      delete handle.dataset.active;
       if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
     };
     handle.addEventListener("pointerup", end, { signal });
     handle.addEventListener("pointercancel", end, { signal });
-    handle.addEventListener("lostpointercapture", () => { gesture = undefined; }, { signal });
+    handle.addEventListener("lostpointercapture", end, { signal });
   }
 }
 
@@ -528,7 +557,8 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
         <option value="custom" hidden>Custom</option>
       </select>
     </footer>
-    <span class="resize-handle" title="Drag to resize view" aria-hidden="true"></span>`;
+    ${Object.entries(resizeEdges).map(([edge, label]) =>
+      `<span class="resize-handle" data-edge="${edge}" title="Drag ${label} to resize view" aria-hidden="true"></span>`).join("")}`;
   const header = elementAt(element, ".view-title", HTMLElement);
   const fallbackTitle = `${instance.name} / ${id} / ${transport === "hmp1" ? "HMP1 relay" : "Direct HWT1"}`;
   header.textContent = fallbackTitle;
@@ -718,7 +748,9 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
 }
 
 async function createInstance() {
-  const instance = readInstance(await api("/api/terminals", "POST", { scene: select("scene").value, columns: 100, rows: 30 }));
+  const instance = readInstance(await api("/api/terminals", "POST", {
+    scene: select("scene").value, columns: 100, rows: 30, reflowStrategy: select("reflow-strategy").value
+  }));
   await refreshInstances(instance.id);
   await openView(instance, { primary: true });
 }
@@ -785,11 +817,17 @@ try {
   const scene = parameters.get("scene");
   const requestedScene = scene !== null && [...select("scene").options].some(option => option.value === scene);
   if (requestedScene) select("scene").value = scene;
+  const reflow = parameters.get("reflow");
+  if (reflow !== null) {
+    if (![...select("reflow-strategy").options].some(option => option.value === reflow))
+      throw new Error("Invalid reflow query parameter");
+    select("reflow-strategy").value = reflow;
+  }
   const scale = parameters.get("scale");
   if (scale !== null && [...select("scale").options].some(option => option.value === scale)) select("scale").value = scale;
   await refreshInstances();
   if (parameters.get("empty") !== "1") {
-    if (instances.length && !requestedScene) await openView(instances[0]);
+    if (instances.length && !requestedScene && reflow === null) await openView(instances[0]);
     else await createInstance();
   }
 } catch (error) {

@@ -1480,6 +1480,14 @@ public sealed class Hex1bTerminalBuilder
             {
                 console.WithReflow(strategy);
             }
+            else if (presentation is Hmp1PresentationAdapter muxer)
+            {
+                muxer.WithReflow(strategy);
+            }
+            else if (presentation is Hwt1PresentationAdapter browser)
+            {
+                browser.WithReflow(strategy);
+            }
         }
 
         // Resolve workload

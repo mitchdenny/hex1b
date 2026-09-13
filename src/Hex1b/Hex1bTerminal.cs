@@ -105,6 +105,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private volatile bool _disposed;
     private bool _inAlternateScreen;
     private TerminalCell[,]? _savedMainScreenBuffer; // Saved main screen when entering alternate screen
+    private bool _alternateScreenSavedPendingWrap;
     private int _alternateScreenSavedCursorX; // Saved cursor X for alternate screen (mode 1049)
     private int _alternateScreenSavedCursorY; // Saved cursor Y for alternate screen (mode 1049)
     private Task? _inputProcessingTask;
@@ -2497,6 +2498,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             else
             {
                 ResizeWithCrop(newWidth, newHeight);
+                _pendingWrap = false;
             }
             EnsureTabStops(newWidth);
             
@@ -2510,7 +2512,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _scrollTop = 0;
             _scrollBottom = newHeight - 1;
             
-            _pendingWrap = false;
             PublishCaptureResizeUnsafe();
             deferNotification = _deferHmp1ReplayCallbacks;
         }
@@ -2546,7 +2547,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _width, _height, newWidth, newHeight,
             _cursorX, _cursorY, _inAlternateScreen,
             _cursorSaved ? _savedCursorX : null,
-            _cursorSaved ? _savedCursorY : null);
+            _cursorSaved ? _savedCursorY : null)
+        {
+            PendingWrap = _pendingWrap,
+            SavedPendingWrap = _savedPendingWrap
+        };
 
         var kgpReflow = _kgpGraphicsState.PrepareActiveReflow(scrollbackEntries);
         var sixelReflow = _sixelGraphicsState.PrepareActiveReflow(scrollbackEntries);
@@ -2567,15 +2572,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var result = hasKgpLineage
             ? internalResult.Reflow
             : reflowProvider.Reflow(context);
-
-        // Release tracked objects from old screen buffer (all cells)
-        for (int y = 0; y < _height; y++)
-        {
-            for (int x = 0; x < _width; x++)
-            {
-                _screenBuffer[y, x].TrackedHyperlink?.Release();
-            }
-        }
 
         // Apply the reflowed screen buffer
         var newBuffer = new TerminalCell[newHeight, newWidth];
@@ -2631,17 +2627,23 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 DiscardedRowCount: result.ScrollbackRows.Length);
         }
 
+        // Keep the old owners alive until both screen and history have acquired
+        // their replacements, including cells moving between the two.
+        foreach (var cell in _screenBuffer)
+            cell.TrackedHyperlink?.Release();
         _screenBuffer = newBuffer;
         _width = newWidth;
         _height = newHeight;
         _cursorX = Math.Clamp(result.CursorX, 0, newWidth - 1);
         _cursorY = Math.Clamp(result.CursorY, 0, newHeight - 1);
+        _pendingWrap = result.PendingWrap;
 
         // Update saved cursor if the reflow strategy reflowed it
         if (result.NewSavedCursorX.HasValue && result.NewSavedCursorY.HasValue)
         {
             _savedCursorX = Math.Clamp(result.NewSavedCursorX.Value, 0, newWidth - 1);
             _savedCursorY = Math.Clamp(result.NewSavedCursorY.Value, 0, newHeight - 1);
+            _savedPendingWrap = result.SavedPendingWrap;
         }
 
         if (hasKgpLineage)
@@ -2709,6 +2711,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             for (int x = 0; x < copyWidth; x++)
             {
                 newBuffer[y, x] = _screenBuffer[y, x];
+            }
+            var edge = newBuffer[y, newWidth - 1];
+            if (!string.IsNullOrEmpty(edge.Character) && DisplayWidth.GetGraphemeWidth(edge.Character) > 1)
+            {
+                edge.TrackedHyperlink?.Release();
+                newBuffer[y, newWidth - 1] = TerminalCell.Empty;
             }
         }
         
@@ -4087,6 +4095,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         spacerCell = spacerCell with
                         {
                             Character = " ",
+                            IsWideWrapPadding = true,
                             TrackedHyperlink = _currentHyperlink,
                             Attributes = spacerCell.Attributes | CellAttributes.SoftWrap
                         };
@@ -5036,6 +5045,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // This uses separate fields from DECSC/DECRC to avoid conflicts
         _alternateScreenSavedCursorX = _cursorX;
         _alternateScreenSavedCursorY = _cursorY;
+        _alternateScreenSavedPendingWrap = _pendingWrap;
         
         // Always save the main screen buffer for internal state (needed for snapshots)
         // and for presentation adapters that don't handle alternate screen natively
@@ -5075,7 +5085,33 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void DoExitAlternateScreen(List<CellImpact>? impacts = null)
     {
-        if (!RestoreMainScreenBuffer(impacts))
+        if (_inAlternateScreen && _savedMainScreenBuffer is { } main &&
+            (main.GetLength(1) != _width || main.GetLength(0) != _height) &&
+            _presentation is ITerminalReflowProvider { ReflowEnabled: true } provider)
+        {
+            var width = _width;
+            var height = _height;
+            foreach (var cell in _screenBuffer)
+                cell.TrackedHyperlink?.Release();
+            _screenBuffer = main;
+            _savedMainScreenBuffer = null;
+            _width = main.GetLength(1);
+            _height = main.GetLength(0);
+            _cursorX = _alternateScreenSavedCursorX;
+            _cursorY = _alternateScreenSavedCursorY;
+            _pendingWrap = _alternateScreenSavedPendingWrap;
+            _kgpGraphicsState.ExitAlternateScreen();
+            _sixelGraphicsState.ExitAlternateScreen();
+            _inAlternateScreen = false;
+            ResizeWithReflow(width, height, provider);
+            if (!Capabilities.HandlesAlternateScreenNatively && impacts is not null)
+            {
+                for (var y = 0; y < height; y++)
+                    for (var x = 0; x < width; x++)
+                        impacts.Add(new CellImpact(x, y, _screenBuffer[y, x]));
+            }
+        }
+        else if (!RestoreMainScreenBuffer(impacts))
             return;
 
         _kgpGraphicsState.ExitAlternateScreen();
@@ -5108,6 +5144,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             for (int x = 0; x < restoreWidth; x++)
                 SetCell(y, x, savedBuffer[y, x], restoreImpacts);
+            var edge = _screenBuffer[y, _width - 1];
+            if (restoreWidth == _width && !string.IsNullOrEmpty(edge.Character) &&
+                DisplayWidth.GetGraphemeWidth(edge.Character) > 1)
+                SetCell(y, _width - 1, TerminalCell.Empty, restoreImpacts);
         }
 
         for (int y = 0; y < _height; y++)
@@ -5130,6 +5170,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _savedMainScreenBuffer = null;
         _cursorX = Math.Clamp(_alternateScreenSavedCursorX, 0, _width - 1);
         _cursorY = Math.Clamp(_alternateScreenSavedCursorY, 0, _height - 1);
+        _pendingWrap = _alternateScreenSavedPendingWrap && _cursorX == _width - 1;
         return true;
     }
 

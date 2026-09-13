@@ -6,6 +6,7 @@ using System.Threading.Channels;
 using Hex1b.Automation;
 using Hex1b.Diagnostics;
 using Hex1b.Sixel;
+using Hex1b.Reflow;
 
 namespace Hex1b;
 
@@ -35,7 +36,8 @@ namespace Hex1b;
 /// fresh <see cref="Hmp1FrameType.StateSync"/> are broadcast to all peers.
 /// </para>
 /// </remarks>
-public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentationAdapter
+public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentationAdapter,
+    ITerminalReflowProvider, IInternalTerminalReflowProvider
 {
     private readonly List<Hmp1ClientSession> _sessions = [];
     private readonly object _sessionsLock = new();
@@ -45,6 +47,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     private int _height;
     private string? _primaryPeerId;
     private bool _disposed;
+    private ITerminalReflowProvider _reflowStrategy = NoReflowStrategy.Instance;
+    private bool _reflowEnabled;
     private Hmp1SixelStateReplay.ReplayResult? _lastSixelReplayResult;
 
     internal Hex1bMetrics Metrics { get; set; } = Hex1bMetrics.Default;
@@ -83,6 +87,40 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
     /// <inheritdoc />
     public int Height => _height;
+
+    /// <summary>
+    /// Enables producer-side reflow using the specified strategy.
+    /// By default, resize crops the screen without reflow.
+    /// </summary>
+    /// <param name="strategy">The reflow strategy; use <see cref="GhosttyReflowStrategy.Instance"/> for shell terminals.</param>
+    /// <returns>This adapter for fluent configuration before terminal construction.</returns>
+    /// <remarks>
+    /// Configure the producer, not individual browser views. Primary-peer resize authority
+    /// is unchanged. Ghostty reflows main-screen text and retained scrollback, but not
+    /// alternate-screen layouts. Scrollback capacity still bounds retained history.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The strategy is null.</exception>
+    public Hmp1PresentationAdapter WithReflow(ITerminalReflowProvider strategy)
+    {
+        _reflowStrategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+        _reflowEnabled = true;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public bool ReflowEnabled => _reflowEnabled;
+
+    /// <inheritdoc/>
+    public bool ShouldClearSoftWrapOnAbsolutePosition => _reflowStrategy.ShouldClearSoftWrapOnAbsolutePosition;
+
+    /// <inheritdoc/>
+    public ReflowResult Reflow(ReflowContext context) => _reflowStrategy.Reflow(context);
+
+    bool IInternalTerminalReflowProvider.TryReflowWithAnchors(
+        ReflowContext context,
+        IReadOnlyList<TerminalReflowAnchor> anchors,
+        out InternalReflowResult result)
+        => InternalTerminalReflow.TryReflow(_reflowStrategy, context, anchors, out result);
 
     /// <summary>
     /// Gets the peer ID of the current primary, or <see langword="null"/> when
@@ -411,7 +449,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                     // ghosting on every fresh viewer connect or RoleChange-driven
                     // re-StateSync.)
                     IncludeTrailingNewline = false,
-                }, includeHyperlinks: true);
+                }, includeHyperlinks: true, preserveSoftWrap: true);
                 var suffix = BuildStateReplaySuffix(snap);
                 activityState = Hmp1ActivityState.Capture(snap);
                 var progress = activityState.BuildProgressReplay();

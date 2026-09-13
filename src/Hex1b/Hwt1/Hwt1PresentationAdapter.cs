@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using Hex1b.Sixel;
 using Hex1b.Tokens;
 using Hex1b.Automation;
+using Hex1b.Reflow;
 
 namespace Hex1b;
 
@@ -50,7 +51,8 @@ namespace Hex1b;
 /// These fields are current even when the view is displaying historical text.
 /// </remarks>
 public sealed class Hwt1PresentationAdapter :
-    ICellImpactAwarePresentationAdapter, ITerminalLifecycleAwarePresentationAdapter
+    ICellImpactAwarePresentationAdapter, ITerminalLifecycleAwarePresentationAdapter,
+    ITerminalReflowProvider, IInternalTerminalReflowProvider
 {
     private readonly Channel<bool> _dirty = Channel.CreateBounded<bool>(
         new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite });
@@ -74,6 +76,8 @@ public sealed class Hwt1PresentationAdapter :
     private long _outputBatches;
     private int _width;
     private int _height;
+    private ITerminalReflowProvider _reflowStrategy = NoReflowStrategy.Instance;
+    private bool _reflowEnabled;
     private TimeSpan _acknowledgementTimeout = TimeSpan.FromMinutes(2);
 
     /// <summary>Creates an HWT1 presentation adapter with the initial grid dimensions.</summary>
@@ -95,6 +99,41 @@ public sealed class Hwt1PresentationAdapter :
         _height = height;
         _timeProvider = timeProvider;
     }
+
+    /// <summary>
+    /// Enables reflow when this adapter is attached directly to a terminal.
+    /// By default, resize crops the screen without reflow.
+    /// </summary>
+    /// <param name="strategy">The reflow strategy; use <see cref="GhosttyReflowStrategy.Instance"/> for shell terminals.</param>
+    /// <returns>This adapter for fluent configuration before terminal construction.</returns>
+    /// <remarks>
+    /// For views created by <see cref="Hmp1PresentationAdapter.CreateBrowserViewAsync"/>,
+    /// configure <see cref="Hmp1PresentationAdapter.WithReflow"/> on the producer instead.
+    /// A view cannot change its producer's reflow policy. Ghostty reflows main-screen text
+    /// and retained scrollback, but not alternate-screen layouts.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The strategy is null.</exception>
+    public Hwt1PresentationAdapter WithReflow(ITerminalReflowProvider strategy)
+    {
+        _reflowStrategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+        _reflowEnabled = true;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public bool ReflowEnabled => _reflowEnabled;
+
+    /// <inheritdoc/>
+    public bool ShouldClearSoftWrapOnAbsolutePosition => _reflowStrategy.ShouldClearSoftWrapOnAbsolutePosition;
+
+    /// <inheritdoc/>
+    public ReflowResult Reflow(ReflowContext context) => _reflowStrategy.Reflow(context);
+
+    bool IInternalTerminalReflowProvider.TryReflowWithAnchors(
+        ReflowContext context,
+        IReadOnlyList<TerminalReflowAnchor> anchors,
+        out InternalReflowResult result)
+        => InternalTerminalReflow.TryReflow(_reflowStrategy, context, anchors, out result);
 
     /// <summary>
     /// Gets or sets whether this view ignores client commands that modify the producer.

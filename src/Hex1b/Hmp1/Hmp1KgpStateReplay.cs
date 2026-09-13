@@ -92,7 +92,7 @@ internal static class Hmp1KgpStateReplay
         }
 
         await AppendAsync(FormattableString.Invariant(
-            $"\x1b[{cursorY + 1};{cursorX + 1}H")).ConfigureAwait(false);
+            $"\x1b[{cursorY + 1}d\x1b[{cursorX + 1}G")).ConfigureAwait(false);
         foreach (var animation in animations)
             await AppendPlaybackAsync(animation).ConfigureAwait(false);
         await FlushAsync().ConfigureAwait(false);
@@ -216,8 +216,9 @@ internal static class Hmp1KgpStateReplay
         }
         controls.Append(",C=1,q=2");
 
+        // CUP would clear the replayed row's soft-wrap flag in reflowing replicas.
         return FormattableString.Invariant(
-            $"\x1b[{placement.Row + 1};{placement.Column + 1}H") +
+            $"\x1b[{placement.Row + 1}d\x1b[{placement.Column + 1}G") +
             BuildKgpSequence(controls.ToString(), string.Empty);
     }
 

@@ -36,6 +36,7 @@
     <Compile Include="../../samples/WebTerminalDemo/TerminalInstance.cs" Link="Samples/TerminalInstance.cs" />
     <Compile Include="../../samples/WebTerminalDemo/TerminalRegistry.cs" Link="Samples/TerminalRegistry.cs" />
     <Compile Include="../../samples/WebTerminalDemo/CreateTerminalRequest.cs" Link="Samples/CreateTerminalRequest.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/DemoReflowStrategy.cs" Link="Samples/DemoReflowStrategy.cs" />
     <Compile Include="../../samples/WebTerminalDemo/TerminalInstanceInfo.cs" Link="Samples/TerminalInstanceInfo.cs" />
     <Compile Include="../../samples/WebTerminalDemo/TerminalControlsRequest.cs" Link="Samples/TerminalControlsRequest.cs" />
     <Compile Include="../../samples/WebTerminalDemo/DemoWorkload.cs" Link="Samples/DemoWorkload.cs" />

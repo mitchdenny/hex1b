@@ -57,7 +57,11 @@ internal static class ReflowHelper
                     context.CursorX,
                     context.CursorY,
                     hasSavedCursor ? context.SavedCursorX : null,
-                    hasSavedCursor ? context.SavedCursorY : null),
+                    hasSavedCursor ? context.SavedCursorY : null)
+                {
+                    PendingWrap = context.PendingWrap,
+                    SavedPendingWrap = context.SavedPendingWrap
+                },
                 anchors.ToArray());
         }
 
@@ -67,16 +71,18 @@ internal static class ReflowHelper
         // Step 2: Group rows into logical lines using SoftWrap, and track which
         // logical line the cursor row belongs to (and optionally the saved cursor).
         int scrollbackRowCount = context.ScrollbackRows.Length;
-        int cursorAbsoluteRow = scrollbackRowCount + context.CursorY;
-        int savedCursorAbsoluteRow = hasSavedCursor ? scrollbackRowCount + context.SavedCursorY!.Value : -1;
+        int cursorAbsoluteRow = Math.Clamp(scrollbackRowCount + context.CursorY, 0, allRows.Count - 1);
+        int savedCursorAbsoluteRow = hasSavedCursor
+            ? Math.Clamp(scrollbackRowCount + context.SavedCursorY!.Value, 0, allRows.Count - 1)
+            : -1;
 
-        var (logicalLines, cursorLogicalLine, cursorRowInLogicalLine,
-             savedCursorLogicalLine, savedCursorRowInLogicalLine) =
+        var (logicalLines, cursorLogicalLine, _,
+             savedCursorLogicalLine, _) =
             GroupLogicalLinesWithCursors(allRows, cursorAbsoluteRow,
                 hasSavedCursor ? savedCursorAbsoluteRow : null);
         var rowLocations = BuildLogicalRowLocations(allRows);
         var anchorsByLogicalLine =
-            new Dictionary<int, List<(TerminalReflowAnchor Anchor, int RowInLine)>>();
+            new Dictionary<int, List<(TerminalReflowAnchor Anchor, int CellOffset)>>();
         foreach (var anchor in anchors)
         {
             if (anchor.Row < 0 || anchor.Row >= rowLocations.Length)
@@ -89,7 +95,7 @@ internal static class ReflowHelper
                 anchorsByLogicalLine.Add(location.LogicalLine, lineAnchors);
             }
 
-            lineAnchors.Add((anchor, location.RowInLine));
+            lineAnchors.Add((anchor, location.CellOffset));
         }
 
         // Step 3: Re-wrap all logical lines to the new width
@@ -106,39 +112,58 @@ internal static class ReflowHelper
         for (int lineIdx = 0; lineIdx < logicalLines.Count; lineIdx++)
         {
             var logicalLine = logicalLines[lineIdx];
+            var emptyLogicalLine = logicalLine.Count == 0;
+            var cursorOffset = lineIdx == cursorLogicalLine
+                ? rowLocations[cursorAbsoluteRow].CellOffset + context.CursorX + (context.PendingWrap ? 1 : 0)
+                : 0;
+            var savedCursorOffset = hasSavedCursor && lineIdx == savedCursorLogicalLine
+                ? rowLocations[savedCursorAbsoluteRow].CellOffset + context.SavedCursorX!.Value +
+                    (context.SavedPendingWrap ? 1 : 0)
+                : 0;
+            // Blank cells before an insertion point are significant even when
+            // trailing screen padding on the same logical line was trimmed.
+            var requiredLength = Math.Max(cursorOffset, savedCursorOffset);
+            while (logicalLine.Count < requiredLength)
+                logicalLine.Add(TerminalCell.Empty);
             var wrappedRows = WrapLogicalLine(logicalLine, context.NewWidth);
 
             if (!cursorFound && lineIdx == cursorLogicalLine)
             {
                 (newCursorRow, newCursorCol) = ComputeCursorInWrappedLine(
-                    logicalLine, wrappedRows, rowsSoFar,
-                    cursorRowInLogicalLine, context.CursorX,
-                    context.OldWidth, context.NewWidth);
+                    wrappedRows, rowsSoFar,
+                    cursorOffset,
+                    context.NewWidth);
                 cursorFound = true;
             }
 
             if (hasSavedCursor && !savedCursorFound && lineIdx == savedCursorLogicalLine)
             {
                 (newSavedCursorRow, newSavedCursorCol) = ComputeCursorInWrappedLine(
-                    logicalLine, wrappedRows, rowsSoFar,
-                    savedCursorRowInLogicalLine, context.SavedCursorX!.Value,
-                    context.OldWidth, context.NewWidth);
+                    wrappedRows, rowsSoFar,
+                    savedCursorOffset,
+                    context.NewWidth);
                 savedCursorFound = true;
             }
 
             if (anchorsByLogicalLine.TryGetValue(lineIdx, out var lineAnchors))
             {
-                foreach (var (anchor, rowInLine) in lineAnchors)
+                foreach (var (anchor, cellOffset) in lineAnchors)
                 {
-                    var (row, column) = ComputeAnchorInWrappedLine(
-                        logicalLine,
+                    if (emptyLogicalLine)
+                    {
+                        mappedAnchors.Add(anchor with
+                        {
+                            Row = rowsSoFar,
+                            Column = Math.Clamp(anchor.Column, 0, context.NewWidth - 1)
+                        });
+                        continue;
+                    }
+                    var (row, column) = ComputeCursorInWrappedLine(
                         wrappedRows,
                         rowsSoFar,
-                        rowInLine,
-                        anchor.Column,
-                        context.OldWidth,
+                        cellOffset + anchor.Column,
                         context.NewWidth);
-                    mappedAnchors.Add(anchor with { Row = row, Column = column });
+                    mappedAnchors.Add(anchor with { Row = row, Column = Math.Min(column, context.NewWidth - 1) });
                 }
             }
 
@@ -171,49 +196,22 @@ internal static class ReflowHelper
     /// Computes the new cursor position within re-wrapped rows for a given logical line.
     /// </summary>
     private static (int row, int col) ComputeCursorInWrappedLine(
-        List<TerminalCell> logicalLine, List<TerminalCell[]> wrappedRows, int rowsSoFar,
-        int cursorRowInLogicalLine, int cursorX, int oldWidth, int newWidth)
+        List<TerminalCell[]> wrappedRows, int rowsSoFar,
+        int cellOffsetInLine, int newWidth)
     {
-        int cellOffsetInLine = cursorRowInLogicalLine * oldWidth + cursorX;
-
-        if (logicalLine.Count == 0)
+        for (var row = 0; row < wrappedRows.Count; row++)
         {
-            return (rowsSoFar, 0);
+            for (var column = 0; column < newWidth; column++)
+            {
+                if (wrappedRows[row][column].IsWideWrapPadding)
+                    continue;
+                if (cellOffsetInLine == 0)
+                    return (rowsSoFar + row, column);
+                cellOffsetInLine--;
+            }
         }
-
-        int row = rowsSoFar + (cellOffsetInLine / newWidth);
-        int col = cellOffsetInLine % newWidth;
-
-        // Clamp to the last row of this wrapped line
-        if (row >= rowsSoFar + wrappedRows.Count)
-        {
-            row = rowsSoFar + wrappedRows.Count - 1;
-            col = Math.Min(col, newWidth - 1);
-        }
-
-        return (row, col);
-    }
-
-    private static (int row, int col) ComputeAnchorInWrappedLine(
-        List<TerminalCell> logicalLine,
-        List<TerminalCell[]> wrappedRows,
-        int rowsSoFar,
-        int rowInLogicalLine,
-        int column,
-        int oldWidth,
-        int newWidth)
-    {
-        if (logicalLine.Count == 0)
-            return (rowsSoFar, Math.Clamp(column, 0, newWidth - 1));
-
-        return ComputeCursorInWrappedLine(
-            logicalLine,
-            wrappedRows,
-            rowsSoFar,
-            rowInLogicalLine,
-            column,
-            oldWidth,
-            newWidth);
+        // The insertion point just beyond a full final row is pending wrap.
+        return (rowsSoFar + wrappedRows.Count - 1, newWidth);
     }
 
     /// <summary>
@@ -223,23 +221,11 @@ internal static class ReflowHelper
     {
         var allRows = new List<TerminalCell[]>(context.ScrollbackRows.Length + context.ScreenRows.Length);
 
-        // Add scrollback rows (may have different widths — normalize to OldWidth if needed)
+        // Retained rows may predate a crop resize. Their original cells and wrap
+        // boundaries, not today's viewport width, define their logical content.
         foreach (var sbRow in context.ScrollbackRows)
         {
-            if (sbRow.Cells.Length == context.OldWidth)
-            {
-                allRows.Add(sbRow.Cells);
-            }
-            else
-            {
-                // Normalize to current width for consistent processing
-                var normalized = new TerminalCell[context.OldWidth];
-                int copyLen = Math.Min(sbRow.Cells.Length, context.OldWidth);
-                Array.Copy(sbRow.Cells, normalized, copyLen);
-                for (int x = copyLen; x < context.OldWidth; x++)
-                    normalized[x] = TerminalCell.Empty;
-                allRows.Add(normalized);
-            }
+            allRows.Add(sbRow.Cells);
         }
 
         // Add screen rows
@@ -251,26 +237,26 @@ internal static class ReflowHelper
         return allRows;
     }
 
-    private static (int LogicalLine, int RowInLine)[] BuildLogicalRowLocations(
+    private static (int LogicalLine, int CellOffset)[] BuildLogicalRowLocations(
         List<TerminalCell[]> allRows)
     {
-        var locations = new (int LogicalLine, int RowInLine)[allRows.Count];
+        var locations = new (int LogicalLine, int CellOffset)[allRows.Count];
         var logicalLine = 0;
-        var rowInLine = 0;
+        var cellOffset = 0;
         for (var rowIndex = 0; rowIndex < allRows.Count; rowIndex++)
         {
-            locations[rowIndex] = (logicalLine, rowInLine);
+            locations[rowIndex] = (logicalLine, cellOffset);
             var row = allRows[rowIndex];
             var hasSoftWrap = row.Length > 0 &&
                 (row[^1].Attributes & CellAttributes.SoftWrap) != 0;
             if (hasSoftWrap)
             {
-                rowInLine++;
+                cellOffset += row.Count(cell => !cell.IsWideWrapPadding);
             }
             else
             {
                 logicalLine++;
-                rowInLine = 0;
+                cellOffset = 0;
             }
         }
 
@@ -313,6 +299,8 @@ internal static class ReflowHelper
                 for (int x = 0; x < row.Length; x++)
                 {
                     var cell = row[x];
+                    if (cell.IsWideWrapPadding)
+                        continue;
                     if (x == row.Length - 1)
                         cell = cell with { Attributes = cell.Attributes & ~CellAttributes.SoftWrap };
                     currentLine.Add(cell);
@@ -412,11 +400,22 @@ internal static class ReflowHelper
                 var cell = cells[cellIndex];
                 var graphemeWidth = GetCellDisplayWidth(cell);
 
+                // Match printing into a grid too narrow for this glyph, rather
+                // than retrying the same unplaceable glyph on unlimited rows.
+                if (graphemeWidth > newWidth)
+                {
+                    cellIndex++;
+                    for (var w = 1; w < graphemeWidth && cellIndex < cells.Count &&
+                        string.IsNullOrEmpty(cells[cellIndex].Character); w++)
+                        cellIndex++;
+                    continue;
+                }
+
                 // Wide character that doesn't fit at end of row
                 if (graphemeWidth > 1 && col + graphemeWidth > newWidth)
                 {
                     // Leave padding space at end of row
-                    row[col] = TerminalCell.Empty;
+                    row[col++] = TerminalCell.Empty with { IsWideWrapPadding = true };
                     break;
                 }
 
@@ -544,7 +543,11 @@ internal static class ReflowHelper
         }
 
         return new ReflowResult(screenRows, scrollbackRows, newCursorCol, newCursorRow,
-            newSavedCursorX, newSavedCursorY);
+            newSavedCursorX, newSavedCursorY)
+        {
+            PendingWrap = cursorCol >= context.NewWidth,
+            SavedPendingWrap = savedCursorCol >= context.NewWidth
+        };
     }
 
     private static bool IsEmptyRow(TerminalCell[] row)
