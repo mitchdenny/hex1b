@@ -285,7 +285,7 @@ internal static class Hmp1SixelStateReplay
     private static string BuildDamagePatchSequence(int row, int column, TerminalCell cell, HyperlinkData? activeHyperlink)
     {
         var sb = new StringBuilder();
-        sb.Append(FormattableString.Invariant($"\x1b[{row + 1};{column + 1}H"));
+        sb.Append(FormattableString.Invariant($"\x1b[{row + 1}d\x1b[{column + 1}G"));
         sb.Append("\x1b[0m");
 
         var attrs = cell.Attributes;
@@ -343,8 +343,9 @@ internal static class Hmp1SixelStateReplay
         CancellationToken cancellationToken,
         out string sequence)
     {
+        // Avoid CUP clearing soft-wrap flags established by the text replay.
         var cursor = FormattableString.Invariant(
-            $"\x1b[{placement.Row + 1};{placement.Column + 1}H");
+            $"\x1b[{placement.Row + 1}d\x1b[{placement.Column + 1}G");
         var cursorBytes = Encoding.UTF8.GetByteCount(cursor);
         if (cursorBytes > maximumBytes ||
             !TryGetReplayPayload(

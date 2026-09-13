@@ -30,6 +30,8 @@ internal sealed class Hmp1BrowserView : IAsyncDisposable
         Hmp1PresentationAdapter producer, string? name, CancellationToken ct)
     {
         var view = new Hmp1BrowserView(name, ct);
+        if (producer.ReflowEnabled)
+            view.Presentation.WithReflow(producer);
         var connected = false;
         try
         {

@@ -45,6 +45,52 @@ with your privileges. Do not put this sample behind a reverse proxy or expose
 it to other users.** Closing a view does not stop its terminal: use **End terminal**
 to terminate the shared workload explicitly.
 
+By default, the **Interactive shell** scene enables
+`Hmp1PresentationAdapter.WithReflow(GhosttyReflowStrategy.Instance)` on its
+shared producer. Narrowing wraps shell output and widening rejoins soft wraps;
+hard newlines remain separate. Retained history participates, subject to the
+sample's 1,000-physical-row scrollback limit. Alternate-screen applications
+still use crop/redraw semantics; their saved main screen reflows on return.
+Selections are invalidated by resize. Generated text/graphics scenes retain
+crop behavior. The library's adapter defaults have not changed: consumers must
+[opt in on their producer](../../docs/web-terminal.md#shell-reflow-configuration).
+
+## Choose a reflow strategy
+
+Use **New terminal reflow** before clicking **New terminal** to compare the
+built-in strategies without editing sample code. **Default** preserves the
+scene policy above. You can explicitly select Ghostty, VTE, Kitty, WezTerm,
+Alacritty, Windows Terminal, Foot, iTerm2, xterm, or **None (crop)**.
+The iTerm2 and xterm strategies currently use crop behavior in Hex1b.
+Cropping erases a wide glyph split by the right edge rather than retaining an
+unpaired lead cell that would wrap incorrectly during replay.
+**Auto (server environment)** detects the server's terminal environment, not
+the browser; use a named strategy for reproducible comparisons.
+
+The selection is applied once to the shared HMP1 producer during creation.
+Changing the picker or attaching another view does not change an existing
+terminal. The **Existing terminal** list shows each instance's reflow policy,
+with Default resolved to Ghostty or None.
+
+Both **Direct HWT1** and **HMP1 relay -> HWT1** honor the selection. Each demo
+relay replica inherits its producer's reflow provider, including graphics-anchor
+mapping; only the primary peer can resize the shared terminal. HMP1 does not
+negotiate a reflow strategy with arbitrary remote consumers, so other hosts that
+build terminal replicas must configure matching producer and replica policies.
+
+For a repeatable experiment, open `/?scene=shell&reflow=Vte`; the `reflow`
+query parameter uses the option values shown below and requests a new terminal
+unless `empty=1` is also supplied. The HTTP creation API accepts the same choice:
+
+```json
+{"scene":"shell","columns":80,"rows":24,"reflowStrategy":"Vte"}
+```
+
+Valid values are `Default`, `None`, `Auto`, `Alacritty`, `Foot`, `Ghostty`,
+`ITerm2`, `Kitty`, `Vte`, `WezTerm`, `WindowsTerminal`, and `Xterm`.
+Omitting `reflowStrategy` uses Default; unknown values are rejected with HTTP
+400. Creation responses and `GET /api/terminals` include `reflowStrategy`.
+
 ## Play a scenario tape
 
 Create an **Interactive shell** terminal, or select one under **Existing terminal**.
@@ -124,11 +170,14 @@ origin:
 | `fonts.browser.js` | Real font-rendered borders at five raster scales, Nerd Font symbols, delayed worker font readiness, per-view font selection, and font-load failure cleanup. |
 | `sizing.browser.js` | Auto font-size controls, fixed-grid presets, keyboard selection, resize authority, and retained sizing policy across primary handoff. |
 | `floating.browser.js` | Real workers/WebSockets/HMP1, dragging, primary-only resize, takeover, detach/reattach, and independent instances. |
+| `resize-handles.browser.js` | Eight-direction window resizing, proximity highlights, pointer capture/cancellation, size/origin limits, and primary versus secondary/fixed-grid sizing. |
 | `lifecycle.browser.js` | Closure overlays, native close details before/after mounting, rejected upgrades, local initialization failures, explicit reconnect, per-view isolation, and owner completion through direct/relay transports. |
 | `input.browser.js` | Real POSIX shell input, Backspace, history, paste, MouseTest, thumbnail coordinates, and window-chrome focus. Build `samples/MouseTest` in Release first. |
 | `tapes.browser.js` | Scene-filtered tapes in an existing shell, shared-view output, retained identity/geometry, overlap rejection, cancellation, visible failures, and shutdown cleanup. |
 | `hyperlinks.browser.js` | Real OSC 8 output through HWT1 and the worker, Ctrl/Cmd activation, safe new tabs, selection/capture isolation, read-only thumbnails, destination updates, and scrollback. |
 | `history.browser.js` | Shared producer history, independent viewports, character/word/logical-line/block selection, held/released wheel scrolling, clipboard intent, capture override, read-only inspection, and eviction. Clipboard writes are intercepted rather than changing the user's clipboard. |
+| `reflow.browser.js` | Real shell output and retained history through repeated shrink/grow cycles, hard/soft breaks, wide/combining text, primary-only resize, selection invalidation, and editing a pending shell command. |
+| `reflow-options.browser.js` | Creation-time strategy selection through the playground and HTTP API, preserved defaults, shared-instance policy, and real shell crop versus reflow through direct and relay views. |
 | `bindings.browser.js` | Per-view input overrides, named actions, Windows-style right-click copy/paste, clipboard failures/races, capture ownership, and native text/paste/IME paths. Clipboard access is mocked. |
 | `selection-ui.browser.js` | Default, augmented, and replaced selection controls; host CSS, highlight parts, canvas alignment, focus/input isolation, action reuse, UI errors, and disposal. |
 | `graphics.browser.js` | Sixel and KGP in mixed WebGPU/WebGL2 views, renderer controls/diagnostics, cached-image movement, and late attachment to silent server-driven animation. |
@@ -336,6 +385,12 @@ not interpreted as another image.
 
 ## Shared instances and floating views
 
+Drag a window's title bar to move it. Resize from any of its four edges or four
+corners: each bar highlights as the pointer approaches the border, shows the
+appropriate resize cursor, and stays highlighted while dragging. Top and left
+handles keep the opposite edge fixed, stopping at the workspace origin; all
+handles respect the window's 240×180 minimum and 3200×2200 maximum size.
+
 - **New terminal** creates a persistent producer, initially 100×30, and mounts a
   view that explicitly requests primary.
 - **Attach view** and **Thumbnail** join an existing instance as secondary, even
@@ -463,6 +518,8 @@ bounded in-memory duplex pipes. This uses the real HMP1 handshake, state/image
 replay, live output, input, and primary/resize messages without requiring a
 socket or another process. Closing the view disposes its peer and replica, not
 the shared producer. Attaching again or reloading creates a new replica.
+Initial screen replay preserves hard breaks and soft continuations, including
+wide-character wrap padding, so already-wrapped output can reflow after attaching.
 
 The selector applies to newly opened views, including thumbnails. Existing
 views retain their transport; their title and selected-view metrics show it.

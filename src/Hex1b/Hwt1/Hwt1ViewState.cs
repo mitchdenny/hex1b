@@ -369,6 +369,8 @@ internal sealed class Hwt1ViewState
             if (column >= buffer.RowWidth(row))
                 return null;
             var cell = buffer.Cell(row, column);
+            if (_mode != "rectangle" && cell.IsWideWrapPadding)
+                return cell with { Character = "" };
             return cell.Character is "\0" or "\uE000" ? cell with { Character = " " } : cell;
         }
     }

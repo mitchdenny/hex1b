@@ -8,6 +8,9 @@ internal static class InternalTerminalReflow
         IReadOnlyList<TerminalReflowAnchor> anchors,
         out InternalReflowResult result)
     {
+        if (provider is IInternalTerminalReflowProvider internalProvider)
+            return internalProvider.TryReflowWithAnchors(context, anchors, out result);
+
         if (provider is AutoReflowStrategy auto)
         {
             return TryReflow(
