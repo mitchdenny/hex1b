@@ -57,6 +57,7 @@ public sealed class Hwt1PresentationAdapter :
     private readonly Channel<bool> _dirty = Channel.CreateBounded<bool>(
         new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite });
     private readonly Hwt1RenderProjection _projection = new();
+    private readonly object _projectionLock = new();
     private readonly object _ackLock = new();
     private readonly CancellationTokenSource _disposedCancellation = new();
     private readonly TimeProvider _timeProvider;
@@ -276,9 +277,14 @@ public sealed class Hwt1PresentationAdapter :
             }
             using var capturedSnapshot = snapshot;
             var snapshotMs = Stopwatch.GetElapsedTime(snapshotStarted).TotalMilliseconds;
-            var bytes = _projection.Encode(snapshot, Capabilities, terminal.OutputBytesRead,
-                Interlocked.Read(ref _outputBatches), Stopwatch.GetElapsedTime(_started).TotalMilliseconds,
-                Interlocked.Exchange(ref _forceFull, 0) != 0, snapshotMs, peer, history);
+            byte[] bytes;
+            lock (_projectionLock)
+            {
+                linked.Token.ThrowIfCancellationRequested();
+                bytes = _projection.Encode(snapshot, Capabilities, terminal.OutputBytesRead,
+                    Interlocked.Read(ref _outputBatches), Stopwatch.GetElapsedTime(_started).TotalMilliseconds,
+                    Interlocked.Exchange(ref _forceFull, 0) != 0, snapshotMs, peer, history);
+            }
             lock (_ackLock)
             {
                 _awaitedRevision = _projection.Revision;
@@ -496,13 +502,33 @@ public sealed class Hwt1PresentationAdapter :
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
         if (_terminal is { } terminal)
+        {
+            _width = terminal.Width;
+            _height = terminal.Height;
             terminal.PresentationInvalidated -= InvalidatePresentation;
+        }
         _disposedCancellation.Cancel();
         _dirty.Writer.TryComplete();
-        Disconnected?.Invoke();
-        if (_muxer is not null)
-            await _muxer.RemoveSessionAsync(_session!).ConfigureAwait(false);
-        _disposedCancellation.Dispose();
+        lock (_projectionLock)
+            _projection.Clear();
+        var muxer = _muxer;
+        var session = _session;
+        _terminal = null;
+        _hmp1OutputSource = null;
+        _muxer = null;
+        _session = null;
+        try
+        {
+            Disconnected?.Invoke();
+        }
+        finally
+        {
+            Disconnected = null;
+            Resized = null;
+            if (muxer is not null)
+                await muxer.RemoveSessionAsync(session!).ConfigureAwait(false);
+            _disposedCancellation.Dispose();
+        }
     }
 
     private static int ReadBounded(JsonElement command, string name, int min, int max)

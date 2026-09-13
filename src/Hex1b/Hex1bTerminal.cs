@@ -343,7 +343,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
         var sixelPolicy = options.CreateSixelPolicy();
         var graphicsBudgets = new TerminalGraphicsRetainedBudgetSet(
-            options.Graphics.MaximumRetainedBytesPerScreen);
+            options.Graphics.MaximumRetainedBytesPerScreen,
+            options.Graphics.MaximumRetainedInputBytesPerImage,
+            options.Graphics.MaximumRasterPixelsPerImage);
         _kgpGraphicsState = new KgpTerminalGraphicsState(graphicsBudgets);
         _sixelColorRegisters = new Sixel.SixelColorRegisters(sixelPolicy);
         _sixelGraphicsState = new SixelGraphicsState(
@@ -2836,6 +2838,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     internal long GraphicsRetainedByteCount =>
         checked(ActiveKgpImageStore.TotalSize + SixelRetainedByteCount);
+
+    internal long GraphicsReservedDecodedByteCount => ActiveKgpImageStore.ReservedDecodedBytes;
+
+    internal long GraphicsChargedByteCount =>
+        checked(ActiveKgpImageStore.ChargedSize + SixelRetainedByteCount);
 
     internal Diagnostics.Hex1bMetrics DiagnosticsMetrics => _metrics;
 
@@ -7912,7 +7919,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         }
 
-        const int maximumEncodedLength = KgpMaximumEncodedChunkLength;
+        var maximumEncodedLength = pending.Transmission.Compression == KgpParsedCommand.CompressionMode.Zlib
+            ? Math.Min(KgpMaximumEncodedChunkLength,
+                GetMaximumKgpEncodedPayloadLength(ActiveKgpImageStore.RemainingPendingUploadBytes))
+            : KgpMaximumEncodedChunkLength;
         if (!TryDecodeKgpPayload(
                 base64Payload,
                 transmission.MoreData,
@@ -8027,6 +8037,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var maximumEncodedLength = command.Transmission.MoreData
             ? KgpMaximumEncodedChunkLength
             : GetMaximumKgpEncodedPayloadLength();
+        if (command.Transmission.Compression == KgpParsedCommand.CompressionMode.Zlib)
+            maximumEncodedLength = Math.Min(maximumEncodedLength,
+                GetMaximumKgpEncodedPayloadLength(ActiveKgpImageStore.MaximumCompressedUploadBytes));
         if (!TryDecodeKgpPayload(
                 base64Payload,
                 command.Transmission.MoreData,
@@ -8048,7 +8061,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             var result = ActiveKgpImageStore.ProcessChunk(
                 command,
                 decodedData,
-                info.ExpectedDataLength);
+                command.Transmission.Compression == KgpParsedCommand.CompressionMode.Zlib
+                    ? ActiveKgpImageStore.MaximumCompressedUploadBytes
+                    : info.ExpectedDataLength);
             switch (result.Status)
             {
                 case KgpImageStore.ChunkStatus.Incomplete:
@@ -8094,6 +8109,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var maximumEncodedLength = transmission.MoreData
             ? KgpMaximumEncodedChunkLength
             : GetMaximumKgpEncodedPayloadLength();
+        if (transmission.Compression == KgpParsedCommand.CompressionMode.Zlib)
+            maximumEncodedLength = Math.Min(maximumEncodedLength,
+                GetMaximumKgpEncodedPayloadLength(ActiveKgpImageStore.MaximumCompressedUploadBytes));
         byte[]? decodedData = null;
         if (!transmission.MoreData)
         {
@@ -8212,7 +8230,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var message = result.Info.Status ==
             KgpImageStore.AnimationFrameStatus.Success
                 ? "OK"
-                : FormatKgpAnimationFrameError(
+                : result.Error ?? FormatKgpAnimationFrameError(
                     result.Info,
                     decodedData.LongLength);
         SendKgpFrameResponse(
@@ -8229,8 +8247,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         out string error)
     {
         maximumBytes = ActiveKgpImageStore.MaximumPendingUploadBytes;
-        if (transmission.Compression != KgpParsedCommand.CompressionMode.None ||
-            !TryGetExpectedKgpDataSize(transmission, out var expectedSize) ||
+        if (transmission.Compression == KgpParsedCommand.CompressionMode.Zlib)
+            return ActiveKgpImageStore.TryGetCompressedUploadLimit(transmission, out maximumBytes, out error);
+        if (!TryGetExpectedKgpDataSize(transmission, out var expectedSize) ||
             expectedSize == 0)
         {
             error = "";
@@ -8261,7 +8280,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 nameof(command));
         }
 
-        if (!TryValidateKgpData(transmission, decodedData, out var validationError))
+        KgpImageData? validatedImage = null;
+        var valid = transmission.Compression == KgpParsedCommand.CompressionMode.Zlib
+            ? ActiveKgpImageStore.TryCreateCompressedImage(transmission, decodedData,
+                out validatedImage, out var validationError)
+            : TryValidateKgpData(transmission, decodedData, out validationError);
+        if (!valid)
         {
             SendKgpTransmissionResponse(
                 transmission,
@@ -8271,7 +8295,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         }
 
-        var stored = ActiveKgpImageStore.StoreImage(transmission, decodedData);
+        var stored = ActiveKgpImageStore.StoreImage(transmission, decodedData, validatedImage);
         if (stored.Relocation is { } relocation)
             ApplyKgpImageRelocation(relocation);
         if (!stored.Stored)
@@ -8477,8 +8501,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 => "ENOENT:Image not found",
             KgpImageStore.AnimationFrameStatus.UnsupportedMedium
                 => "EINVAL:Animation frame transmission requires direct data",
-            KgpImageStore.AnimationFrameStatus.UnsupportedCompression
-                => "EINVAL:Animation frame compression is not supported",
+            KgpImageStore.AnimationFrameStatus.InvalidCompressedData
+                => "EINVAL:Invalid or incomplete zlib frame data",
             KgpImageStore.AnimationFrameStatus.UnsupportedFormat
                 => "EINVAL:Animation frames require RGB or RGBA data",
             KgpImageStore.AnimationFrameStatus.UnsupportedBaseFormat
@@ -8510,6 +8534,26 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         KgpParsedCommand.QuietMode quiet,
         string base64Payload)
     {
+        if (command.Compression == KgpParsedCommand.CompressionMode.Zlib)
+        {
+            var maximumLength = GetMaximumKgpEncodedPayloadLength(ActiveKgpImageStore.MaximumCompressedUploadBytes);
+            if (!ActiveKgpImageStore.TryGetCompressedUploadLimit(command, out _, out var error))
+            {
+                SendKgpResponse(command.ImageId, command.ImageNumber, error, (int)quiet);
+                return;
+            }
+            if (!TryDecodeKgpPayload(base64Payload, command.MoreData, maximumLength,
+                    out var compressed, out var payloadError))
+            {
+                SendKgpResponse(command.ImageId, command.ImageNumber,
+                    FormatKgpPayloadError(payloadError, maximumLength), (int)quiet);
+                return;
+            }
+            var valid = ActiveKgpImageStore.TryCreateCompressedImage(command, compressed, out _, out error);
+            SendKgpResponse(command.ImageId, command.ImageNumber, valid ? "OK" : error, (int)quiet);
+            return;
+        }
+
         var decodedData = DecodeKgpPayload(base64Payload);
 
         if (TryGetExpectedKgpDataSize(command, out var expectedSize) &&
@@ -9005,8 +9049,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
 
     private int GetMaximumKgpEncodedPayloadLength()
+        => GetMaximumKgpEncodedPayloadLength(ActiveKgpImageStore.MaximumPendingUploadBytes);
+
+    private static int GetMaximumKgpEncodedPayloadLength(long maximumDecodedLength)
     {
-        var maximumDecodedLength = ActiveKgpImageStore.MaximumPendingUploadBytes;
         var maximumEncodedLength = (maximumDecodedLength + 2) / 3 * 4;
         return checked((int)Math.Min(maximumEncodedLength, int.MaxValue));
     }

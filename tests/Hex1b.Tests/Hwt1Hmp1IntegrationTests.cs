@@ -109,12 +109,16 @@ public class Hwt1Hmp1IntegrationTests
     }
 
     [TestMethod]
-    [DataRow(false, false)]
-    [DataRow(false, true)]
-    [DataRow(true, false)]
-    [DataRow(true, true)]
+    [DataRow(false, false, false)]
+    [DataRow(false, true, false)]
+    [DataRow(true, false, false)]
+    [DataRow(true, true, false)]
+    [DataRow(false, false, true)]
+    [DataRow(false, true, true)]
+    [DataRow(true, false, true)]
+    [DataRow(true, true, true)]
     public async Task LateAttachment_DuringKgpPlacementReplacement_RetainsUnusedPalette(
-        bool alternateScreen, bool keepPlacement)
+        bool alternateScreen, bool keepPlacement, bool compressed)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         await using var server = new Hmp1PresentationAdapter(20, 10);
@@ -134,9 +138,12 @@ public class Hwt1Hmp1IntegrationTests
             .WithPresentation(firstView).Build();
         var red = Enumerable.Range(0, 9).SelectMany(_ => new byte[] { 255, 0, 0, 255 }).ToArray();
         var green = Enumerable.Range(0, 9).SelectMany(_ => new byte[] { 0, 255, 0, 255 }).ToArray();
+        var encodedRed = compressed ? Compress(red) : red;
+        var encodedGreen = compressed ? Compress(green) : green;
+        var compression = compressed ? ",o=z" : "";
         workload.Write((alternateScreen ? "\x1b[?1049h" : "") + "\x1b[?2026h" +
-            KgpTestHelper.BuildCommand("a=t,f=32,s=3,v=3,i=7300,q=2", red) +
-            KgpTestHelper.BuildCommand("a=t,f=32,s=3,v=3,i=7301,q=2", green) +
+            KgpTestHelper.BuildCommand("a=t,f=32,s=3,v=3,i=7300,q=2" + compression, encodedRed) +
+            KgpTestHelper.BuildCommand("a=t,f=32,s=3,v=3,i=7301,q=2" + compression, encodedGreen) +
             "\x1b[2;3H" + KgpTestHelper.BuildCommand("a=p,i=7300,C=1,q=2") +
             "\x1b[4;3H" + KgpTestHelper.BuildCommand("a=p,i=7301,C=1,q=2") + "\x1b[?2026l");
         await ReadUntilAsync(firstView, frame => frame.GetProperty("placements").GetArrayLength() == 2);
@@ -172,6 +179,13 @@ public class Hwt1Hmp1IntegrationTests
         Assert.AreEqual(alternateScreen, actual.InAlternateScreen);
         TestSeq.AreEqual(red, actual.KgpImages[7300].Data);
         TestSeq.AreEqual(green, actual.KgpImages[7301].Data);
+        Assert.AreEqual(compressed, actual.KgpImages[7300].IsZlibCompressed);
+        Assert.AreEqual(compressed, actual.KgpImages[7301].IsZlibCompressed);
+        if (compressed)
+        {
+            TestSeq.AreEqual(encodedRed, actual.KgpImages[7300].EncodedData.ToArray());
+            TestSeq.AreEqual(encodedGreen, actual.KgpImages[7301].EncodedData.ToArray());
+        }
         foreach (var placement in actual.KgpPlacements)
         {
             Assert.AreEqual(7, placement.Column);
@@ -180,6 +194,58 @@ public class Hwt1Hmp1IntegrationTests
             Assert.IsTrue(placement.UsesNativeSize);
         }
         await ReadUntilAsync(lateView, frame => frame.GetProperty("placements").GetArrayLength() == 2);
+    }
+
+    [TestMethod]
+    public async Task ProducerBackedView_ReplacementsAndReconnect_SendCurrentResourcesAsIndependentBaselines()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var server = new Hmp1PresentationAdapter(20, 10);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(20, 10).Build();
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=1,o=z,i=1,C=1,q=2", Compress([1, 0, 0, 255]))));
+        await using var first = await server.CreateBrowserViewAsync("first");
+        var firstBytes = await first.ReadFrameAsync();
+        var firstCopy = firstBytes.ToArray();
+        await first.HandleMessageAsync("""{"type":"ack","revision":1}"""u8.ToArray());
+        for (var generation = 2; generation <= 65; generation++)
+            producer.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand(
+                "a=T,f=32,s=1,v=1,o=z,i=1,C=1,q=2", Compress([(byte)generation, 0, 0, 255]))));
+        var latest = await first.ReadFrameAsync();
+        using (var metadata = JsonDocument.Parse(latest.Slice(8, BinaryPrimitives.ReadInt32LittleEndian(latest.Span[4..]))))
+            Assert.AreEqual(1, metadata.RootElement.GetProperty("retainedImages").GetArrayLength());
+        TestSeq.AreEqual(new byte[] { 65, 0, 0, 255 }, latest.Span[^4..].ToArray());
+
+        await using var late = await server.CreateBrowserViewAsync("late");
+        var lateBytes = await late.ReadFrameAsync();
+        TestSeq.AreEqual(new byte[] { 65, 0, 0, 255 }, lateBytes.Span[^4..].ToArray());
+        await first.DisposeAsync();
+        TestSeq.AreEqual(firstCopy, firstBytes.ToArray());
+        for (var reconnect = 0; reconnect < 5; reconnect++)
+        {
+            await using var fresh = await server.CreateBrowserViewAsync($"reconnect-{reconnect}");
+            var bytes = await fresh.ReadFrameAsync();
+            using var metadata = JsonDocument.Parse(bytes.Slice(8, BinaryPrimitives.ReadInt32LittleEndian(bytes.Span[4..])));
+            Assert.IsTrue(metadata.RootElement.GetProperty("full").GetBoolean());
+            Assert.AreEqual(1, metadata.RootElement.GetProperty("images").GetArrayLength());
+            Assert.AreEqual(1, metadata.RootElement.GetProperty("retainedImages").GetArrayLength());
+            TestSeq.AreEqual(new byte[] { 65, 0, 0, 255 }, bytes.Span[^4..].ToArray());
+        }
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand("a=d,d=I,i=1,q=2")));
+        await late.HandleMessageAsync("""{"type":"ack","revision":1}"""u8.ToArray());
+        var empty = await late.ReadFrameAsync();
+        using var emptyMetadata = JsonDocument.Parse(empty.Slice(8, BinaryPrimitives.ReadInt32LittleEndian(empty.Span[4..])));
+        Assert.AreEqual(0, emptyMetadata.RootElement.GetProperty("retainedImages").GetArrayLength());
+    }
+
+    private static byte[] Compress(byte[] data)
+    {
+        using var output = new MemoryStream();
+        using (var zlib = new System.IO.Compression.ZLibStream(output,
+            System.IO.Compression.CompressionLevel.Fastest, leaveOpen: true))
+            zlib.Write(data);
+        return output.ToArray();
     }
 
     [TestMethod]

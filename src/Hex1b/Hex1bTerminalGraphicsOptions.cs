@@ -41,6 +41,9 @@ public sealed class Hex1bTerminalGraphicsOptions
     /// Framing may continue after this limit is reached so the terminal can
     /// recover at the protocol terminator. This limit is separate from decoded
     /// raster work and aggregate retained-memory budgets.
+    /// For zlib-compressed KGP uploads this bounds Base64-decoded compressed
+    /// input, including uninterpreted bytes after the first complete zlib member.
+    /// Legacy uncompressed KGP admission is unchanged.
     /// </remarks>
     public int MaximumRetainedInputBytesPerImage { get; set; } = 1024 * 1024;
 
@@ -48,6 +51,7 @@ public sealed class Hex1bTerminalGraphicsOptions
     /// Gets or sets the maximum logical pixel area rasterized for one graphic.
     /// The default is 16,777,216 pixels.
     /// </summary>
+    /// <remarks>Also bounds the dimensions of zlib-compressed KGP images.</remarks>
     public long MaximumRasterPixelsPerImage { get; set; } = 16L * 1024 * 1024;
 
     /// <summary>
@@ -92,6 +96,10 @@ public sealed class Hex1bTerminalGraphicsOptions
     /// <remarks>
     /// The main and alternate screens each receive one shared budget across all
     /// graphics protocols. KGP counts encoded image and animation-frame bytes.
+    /// A zlib-backed static KGP image also reserves its validated decoded-format
+    /// length, without retaining a decoded array. Materialized animation frames
+    /// count actual bytes only. This reservation bounds live admission, not
+    /// caller-owned arrays returned by <see cref="KgpImageData.Data"/> or old snapshots.
     /// Sixel counts each distinct image once, including retained payload, parsed
     /// metadata, sparse raster tiles, and a cached dense pixel buffer. Each
     /// protocol applies its established oldest-first eviction order to its own

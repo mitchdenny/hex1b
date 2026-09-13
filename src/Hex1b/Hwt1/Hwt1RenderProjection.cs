@@ -13,13 +13,24 @@ internal sealed class Hwt1RenderProjection
 {
     internal const uint Magic = 0x31545748;
     internal const int MaxImageCount = 4096;
+    private const long MaxImageBytes = 32 * 1024 * 1024;
     private const long ImageBudget = 64 * 1024 * 1024;
-    private readonly Dictionary<string, (Hwt1RenderImage Image, uint LastUsed)> _images = [];
+    private readonly Dictionary<string, (Hwt1RenderImage Image, uint LastUsed, long BudgetBytes)> _images = [];
     private readonly ConditionalWeakTable<byte[], ImageIdentity> _identities = new();
     private Hwt1RenderCell[] _previous = [];
     private int _columns;
     private int _rows;
     public uint Revision { get; private set; }
+    internal int KgpMaterializationCount { get; private set; }
+    internal int RetainedImageCount => _images.Count;
+    internal long RetainedImageBytes => _images.Values.Sum(entry => (long)entry.Image.Bytes.Length);
+
+    internal void Clear()
+    {
+        _images.Clear();
+        _identities.Clear();
+        _previous = [];
+    }
 
     public byte[] Encode(Hex1bTerminalSnapshot snapshot, TerminalCapabilities capabilities,
         long workloadBytes, long outputBatches, double elapsedMs, bool forceFull = false,
@@ -32,9 +43,7 @@ internal sealed class Hwt1RenderProjection
         var started = Stopwatch.GetTimestamp();
         var full = forceFull || _previous.Length == 0 || _columns != snapshot.Width || _rows != snapshot.Height;
         var plannedImages = PreflightImages(snapshot, out var sixelKeys);
-        if (full)
-            _images.Clear();
-        TrimImages(plannedImages);
+        TrimImages(plannedImages, full);
         var baseRevision = full ? 0 : Revision;
         Revision = checked(Revision + 1);
         _columns = snapshot.Width;
@@ -80,7 +89,7 @@ internal sealed class Hwt1RenderProjection
             if (!snapshot.KgpImages.TryGetValue(p.ImageId, out var image))
                 throw new InvalidDataException("Snapshot placement references a missing KGP image.");
             var resource = ProjectKgpImage(image);
-            Retain(resource, active, newImages, full);
+            Retain(resource, active, newImages, full, plannedImages[resource.Key]);
             var sx = (double)p.SourceX;
             var sy = (double)p.SourceY;
             var sw = p.SourceWidth == 0 ? resource.Width - sx : Math.Min(p.SourceWidth, resource.Width - sx);
@@ -154,7 +163,7 @@ internal sealed class Hwt1RenderProjection
                 }
                 resource = new(key, pixels.Width, pixels.Height, "rgba", rgba);
             }
-            Retain(resource, active, newImages, full);
+            Retain(resource, active, newImages, full, plannedImages[resource.Key]);
             var px = p.PaintedLeft * cw;
             var py = p.PaintedTop * ch;
             var width = resource.Width * cw / p.Image.CellMetrics.SafeWidth;
@@ -243,24 +252,36 @@ internal sealed class Hwt1RenderProjection
 
     private Hwt1RenderImage ProjectKgpImage(KgpImageData image, bool dimensionsOnly = false)
     {
-        var data = image.CurrentFrameData;
-        var identity = _identities.GetValue(data, bytes => new(Convert.ToHexString(SHA256.HashData(bytes))));
+        // Validated compressed roots already carry their format-byte identity and
+        // dimensions. Do not inflate them during preflight or cache lookups.
+        byte[]? data = null;
+        var hash = image.CurrentFrameDataHash;
+        if (hash is null)
+        {
+            data = image.CurrentFrameData;
+            hash = _identities.GetValue(data, bytes => new(Convert.ToHexString(SHA256.HashData(bytes)))).Hash;
+        }
         var format = image.CurrentFrameFormat;
         var width = checked((int)image.Width);
         var height = checked((int)image.Height);
         if (format == KgpFormat.Png && (width == 0 || height == 0))
         {
-            if (data.Length < 24 || !data.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }))
+            if (data is null || data.Length < 24 || !data.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }))
                 throw new InvalidDataException("KGP PNG does not contain an IHDR.");
             width = BinaryPrimitives.ReadInt32BigEndian(data.AsSpan(16, 4));
             height = BinaryPrimitives.ReadInt32BigEndian(data.AsSpan(20, 4));
         }
         EnsureImageSize(width, height);
-        var key = $"k:{identity.Hash}:{width}:{height}:{format}";
+        var key = $"k:{hash}:{width}:{height}:{format}";
         if (dimensionsOnly)
             return new(key, width, height, format == KgpFormat.Png ? "png" : "rgba", []);
         if (_images.TryGetValue(key, out var cached))
             return cached.Image;
+        if (data is null)
+        {
+            data = image.CurrentFrameData;
+            KgpMaterializationCount++;
+        }
         if (format == KgpFormat.Png)
             return new(key, width, height, "png", data);
         var pixelCount = checked(width * height);
@@ -285,17 +306,18 @@ internal sealed class Hwt1RenderProjection
 
     private static void EnsureImageSize(int width, int height)
     {
-        if (width <= 0 || height <= 0 || width > 4096 || height > 4096 || (long)width * height * 4 > 32 * 1024 * 1024)
+        if (width <= 0 || height <= 0 || width > 4096 || height > 4096 || (long)width * height * 4 > MaxImageBytes)
             throw new InvalidDataException("Image exceeds the HWT1 limit (4096 per axis, 32 MiB decoded).");
     }
 
-    private void Retain(Hwt1RenderImage resource, HashSet<string> active, List<Hwt1RenderImage> added, bool full)
+    private void Retain(Hwt1RenderImage resource, HashSet<string> active, List<Hwt1RenderImage> added, bool full,
+        long budgetBytes)
     {
         if (!active.Add(resource.Key))
             return;
         if (full || !_images.ContainsKey(resource.Key))
             added.Add(resource);
-        _images[resource.Key] = (resource, Revision);
+        _images[resource.Key] = (resource, Revision, budgetBytes);
     }
 
     private Dictionary<string, long> PreflightImages(
@@ -308,8 +330,12 @@ internal sealed class Hwt1RenderProjection
         {
             if (!snapshot.KgpImages.TryGetValue(placement.ImageId, out var image))
                 throw new InvalidDataException("Snapshot placement references a missing KGP image.");
+            var payloadBytes = image.IsZlibCompressed && image.CurrentFrameFormat == KgpFormat.Png
+                ? image.ReservedDecodedBytes : 0;
+            if (payloadBytes > MaxImageBytes)
+                throw new InvalidDataException("Image exceeds the HWT1 32 MiB PNG payload limit.");
             var resource = ProjectKgpImage(image, dimensionsOnly: true);
-            Reserve(resource.Key, resource.Width, resource.Height);
+            Reserve(resource.Key, resource.Width, resource.Height, payloadBytes);
         }
         foreach (var placement in snapshot.SixelPlacements)
         {
@@ -327,15 +353,20 @@ internal sealed class Hwt1RenderProjection
         }
         return planned;
 
-        void Reserve(string key, int width, int height)
+        void Reserve(string key, int width, int height, long payloadBytes = 0)
         {
             EnsureImageSize(width, height);
-            var size = (long)width * height * 4;
-            if (!planned.TryAdd(key, size))
+            // Compressed PNG format bytes can dwarf their raster (for example,
+            // ancillary metadata). Bound both payload retention and texture cost.
+            var size = Math.Max((long)width * height * 4, payloadBytes);
+            if (_images.TryGetValue(key, out var cached))
+                size = Math.Max(size, cached.BudgetBytes);
+            if (planned.TryGetValue(key, out var previous) && previous >= size)
                 return;
-            bytes += size;
+            planned[key] = size;
+            bytes += size - previous;
             if (bytes > ImageBudget)
-                throw new InvalidDataException("Visible graphics exceed the HWT1 64 MiB decoded-image budget.");
+                throw new InvalidDataException("Visible graphics exceed the HWT1 64 MiB image-resource budget.");
             if (planned.Count > MaxImageCount)
                 throw new InvalidDataException($"Visible graphics exceed the HWT1 {MaxImageCount}-image resource limit.");
         }
@@ -353,17 +384,24 @@ internal sealed class Hwt1RenderProjection
         return "s:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity.ToString())));
     }
 
-    private void TrimImages(Dictionary<string, long> planned)
+    private void TrimImages(Dictionary<string, long> planned, bool full)
     {
+        // KGP uploads replace image generations, often on every animation frame.
+        // Retaining obsolete hashes also keeps the browser's corresponding GPU
+        // resources alive. Shared hashes remain while any current placement uses them.
+        foreach (var key in _images.Keys.Where(key => key.StartsWith("k:", StringComparison.Ordinal) &&
+                     !planned.ContainsKey(key)).ToArray())
+            _images.Remove(key);
+
         // Reserve the complete next frame and evict inactive entries before allocating replacements.
         var inactive = _images.Where(p => !planned.ContainsKey(p.Key)).OrderBy(p => p.Value.LastUsed).ToArray();
-        var bytes = planned.Values.Sum() + inactive.Sum(p => (long)p.Value.Image.Width * p.Value.Image.Height * 4);
+        var bytes = planned.Values.Sum() + inactive.Sum(p => p.Value.BudgetBytes);
         var count = planned.Count + inactive.Length;
         foreach (var entry in inactive)
         {
-            if (bytes <= ImageBudget && count <= MaxImageCount)
+            if (!full && bytes <= ImageBudget && count <= MaxImageCount)
                 break;
-            bytes -= (long)entry.Value.Image.Width * entry.Value.Image.Height * 4;
+            bytes -= entry.Value.BudgetBytes;
             count--;
             _images.Remove(entry.Key);
         }

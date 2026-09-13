@@ -448,7 +448,6 @@ public class KgpAnimationFrameTests
 
     [TestMethod]
     [DataRow("t=f", "EINVAL:Animation frame transmission requires direct data")]
-    [DataRow("o=z", "EINVAL:Animation frame compression is not supported")]
     [DataRow("f=100", "EINVAL:Animation frames require RGB or RGBA data")]
     public void AnimationFrame_UnsupportedTransferShape_ReturnsError(
         string control,

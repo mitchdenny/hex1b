@@ -26,6 +26,7 @@ internal sealed class KgpPendingUpload : IDisposable
     internal long MaximumBytes { get; }
 
     internal long Length => _length;
+    internal long Capacity => _buffer?.LongLength ?? 0;
 
     internal void ApplyQuiet(KgpParsedCommand.QuietMode quiet)
     {

@@ -181,6 +181,9 @@ origin:
 | `bindings.browser.js` | Per-view input overrides, named actions, Windows-style right-click copy/paste, clipboard failures/races, capture ownership, and native text/paste/IME paths. Clipboard access is mocked. |
 | `selection-ui.browser.js` | Default, augmented, and replaced selection controls; host CSS, highlight parts, canvas alignment, focus/input isolation, action reuse, UI errors, and disposal. |
 | `graphics.browser.js` | Sixel and KGP in mixed WebGPU/WebGL2 views, renderer controls/diagnostics, cached-image movement, and late attachment to silent server-driven animation. |
+| `graphics-stream.browser.js` | Reviewed HWT1 capture replay through the actual decoder and WebGPU/WebGL2 renderer, with pixel readback and a screenshot-ready canvas. This is offline frame replay, not a live WebSocket/worker check. |
+| `graphics-worker-stream.browser.js` | A reviewed full HWT1 frame through the mounted client, actual worker and GPU. Only WebSocket transport is replaced; the mounted canvas stays available for screenshots until navigation. |
+| `proteinview-live.browser.js` | An explicitly supplied ProteinView binary/model through this sample's actual shell scene, socket, mounted client and worker. Checks changing image presentations, viewport pixels and bounded browser image ownership. |
 | `relay.browser.js` | Direct/relay transport selection, mixed peers, input and resize authority, primary closure, fresh reconnect/navigation-return replicas, retained KGP movement, and silent animation. |
 | `titles.browser.js` | Real POSIX shell title output through direct HWT1 and HMP1 relay, initial/late/reconnect notifications, safe header text and fallback, reset retention, duplicate/resync suppression, and disposal. |
 | `activity.browser.js` | Host-owned progress/severity and shell-phase chrome, direct and relayed current state, paused late attachment, resync, and fresh reconnect. No shell hooks required. |
@@ -205,6 +208,180 @@ loopback-only access policy.
 The package's Node regressions and TypeScript builds run in CI. The browser
 fixtures remain focused, explicitly invoked checks; they are not a claim of
 broad HMP graphics/performance stability or a browser/device compatibility matrix.
+
+### Opt-in raw graphics investigations
+
+`tests/Hex1b.Tests/Diagnostics/` contains an internal duplex workload recorder and
+exact-chunk replay adapter. These record original byte arrays at the PTY adapter
+boundary, including terminal replies; Tape, Asciinema, and HWT1 frame recordings
+are not substitutes for this transcript. A PTY can split/coalesce application
+writes, and an input write completing does not prove application consumption.
+
+The ordinary `ProteinViewGraphicsStreamTests` exercise fragmented raw input,
+picker replies, raw and zlib-compressed RGBA, PNG, and Unicode virtual placements.
+The opt-in comparison records compressed and otherwise equivalent uncompressed
+streams and checks that both retain the same exact pixels:
+
+```sh
+HEX1B_GRAPHICS_EVIDENCE=/absolute/new/private/evidence-directory \
+  dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --no-progress \
+  --filter "FullyQualifiedName~ProteinViewGraphicsStreamTests"
+```
+
+To capture the real application, first build a reviewed ProteinView checkout
+locally. The investigation baseline is upstream commit
+`9b9a0790bc78f1d2a7c0923905049d27c67c05e2`; the test never downloads or installs it.
+Supply an absolute binary path and the bundled model:
+
+```sh
+HEX1B_PROTEINVIEW_EXECUTABLE=/absolute/ProteinView/target/release/proteinview \
+HEX1B_PROTEINVIEW_MODEL=/absolute/ProteinView/examples/4HHB.pdb \
+HEX1B_GRAPHICS_EVIDENCE=/absolute/new/private/application-evidence \
+  dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --no-progress \
+  --filter "FullyQualifiedName~ProteinViewInvestigationTests"
+```
+
+This Unix-only runner launches the binary directly, not a shell. Each case uses
+80x24 cells, a 20-second deadline, a 64 MiB/100,000-event capture budget, and
+four-second sampling windows. Cases cover plain/Braille/FullHD, uppercase `M`,
+safe observed terminal hints versus a separate normalized environment, and
+HMP1 producer-backed versus direct HWT1 projection. It records binary/model
+hashes, picker logs, byte transcripts and sampled HWT1 frames. It does not
+reproduce arbitrary inherited environments or a native Ghostty session.
+SSH/session identifier values are never copied; only their presence is retained.
+Do not run under tmux, where upstream may change passthrough configuration.
+Without the explicit environment variables these investigation cases are skipped.
+
+Keep captures private and review them before sharing. The binary runs with your
+privileges; supply only a reviewed executable and local input. An interrupted,
+failed, or budget-exceeded transcript is not a successful reproduction.
+
+For browser readback, use a loopback-only static test host serving the matching
+built client at `/web-terminal/` and **only reviewed `.hwt` files** at `/evidence/`.
+Do not expose raw transcripts, environment metadata, arbitrary files, or a
+production host. Navigate to
+`/?frame=rgba-control.hwt&backend=webgpu`, then run:
+
+```sh
+playwright-cli run-code "$(< samples/WebTerminalDemo/tests/graphics-stream.browser.js)"
+```
+
+Use `backend=webgl2` for that renderer. Repeat `frame` parameters in recorded
+order when replaying deltas (for example, before/after `M`). The optional
+`minimum` asserts a red-pixel lower bound for the synthetic red image. Without it,
+the fixture reports pixel counts for investigation; zero images or pixels do not
+constitute success. Real FullHD acceptance requires visible molecular output in
+the viewport, not just an ACK, texture allocation, or colored header text.
+
+For the mounted-worker check, navigate to a full-frame artifact with `?frame=...`
+and invoke `graphics-worker-stream.browser.js` instead. It runs the real client
+and worker with only the socket replaced, so it can distinguish renderer-only
+fixture effects from actual client behavior. It does not establish live network
+transport behavior. Navigate away or close the isolated browser to dispose it.
+
+To inspect an already reviewed reduced raw-output file (without launching an
+application), use:
+
+```sh
+HEX1B_GRAPHICS_STREAM=/absolute/reduced-output.bin \
+HEX1B_GRAPHICS_REPLAY_OUTPUT=/absolute/new/private/replay-directory \
+  dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --no-progress \
+  --filter "FullyQualifiedName~GraphicsStreamReplayTests"
+```
+
+The replay runner limits input to 8 MiB, rechunks to 997 bytes to exercise raw
+framing, and appends a last-row processing marker. It saves retained-image hashes
+and an HWT1 frame. Preserve the original capture and a transformation manifest
+separately: replay rechunking and the marker are not original application bytes.
+
+## ProteinView live and sustained validation
+
+After starting this sample, the live fixture can run a reviewed, already-built
+ProteinView executable through its normal shell scene. It does not download or
+modify the application. Use an isolated browser and a task-owned sample process
+with a clean POSIX shell (`SHELL=/bin/sh`); the fixture uses POSIX argument quoting.
+Supply URL-encoded absolute paths where necessary:
+
+```sh
+playwright-cli -s=proteinview-validation open \
+  'http://localhost:5290/health?executable=/absolute/ProteinView/target/release/proteinview&model=/absolute/ProteinView/examples/4HHB.pdb&backend=webgpu'
+playwright-cli -s=proteinview-validation run-code \
+  "$(< samples/WebTerminalDemo/tests/proteinview-live.browser.js)"
+```
+
+The fixture creates its own terminal, runs `--fullhd`, toggles auto-rotation and
+waits for 50 observed image-upload/presentation changes. It reads actual
+compositor pixels rather than a renderer-only mock. The result includes peak
+texture/image/atlas counters. These browser counters are not the producer's
+retained-memory counters. Use `backend=webgl2` for the other renderer.
+
+On success the application stays paused for screenshots or reconnect checks.
+Run the lifecycle fixture in that same browser to check FullHD/HD/Braille mode
+switching and 20 reconnects alternating direct HWT1 and HMP1-replica views:
+
+```sh
+playwright-cli -s=proteinview-validation run-code \
+  "$(< samples/WebTerminalDemo/tests/proteinview-lifecycle.browser.js)"
+```
+
+It checks one 800x400 RGBA texture after each reconnect and zero image textures
+in text modes. These dimensions belong to the pinned application/model and
+80x24 test geometry, not a general meaning of "FullHD". To save screenshots,
+set `window.proteinViewEvidenceDirectory` to an existing private absolute
+directory before invoking it. The fixture preserves the workload on completion
+or failure for inspection.
+
+The caller must dispose `window.proteinViewAcceptance.terminal` and end the
+owned instance with `DELETE /api/terminals/{instanceId}` from the same origin,
+then close the isolated browser. Closing the browser alone does not terminate
+the sample's shared workload.
+
+For bounded **server-side** actual-application ownership measurements, run the
+opt-in sustained capture separately:
+
+```sh
+HEX1B_PROTEINVIEW_EXECUTABLE=/absolute/ProteinView/target/release/proteinview \
+HEX1B_PROTEINVIEW_MODEL=/absolute/ProteinView/examples/4HHB.pdb \
+HEX1B_GRAPHICS_SUSTAINED_EVIDENCE=/absolute/new/private/sustained-directory \
+  dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --no-progress \
+  --filter "FullyQualifiedName~Capture_ExplicitSustainedRun"
+```
+
+This run requires 200 distinct accepted image generations within 60 seconds and
+a 64 MiB/100,000-event raw duplex budget. It records physical encoded retention,
+decoded-capacity reservations and acknowledged HWT1 frames independently.
+It deliberately retains an initial snapshot and one caller-owned decoded array.
+Reported allocation churn includes capture and projection overhead; it is not a
+benchmark or a process-wide memory bound. Ordinary snapshot/image references
+remain valid after live eviction or disposal, so retaining them extends their
+lifetime outside the terminal's current-screen accounting.
+
+Set `HEX1B_GRAPHICS_ACK_INTERVAL_MS=16` for a separate, explicitly paced HWT1
+acknowledgement comparison. The default is immediate acknowledgement. Pacing
+changes capture/projection frequency and allocation overhead; it does not
+simulate or replace measurements from the actual browser connection.
+
+### Compressed image ownership
+
+Kitty zlib uploads are validated completely before publication. The terminal
+retains their compressed backing in the existing `KgpImageData`, so snapshots
+and non-web consumers see authoritative image data too. Each `Data` access on a
+compressed image returns a fresh caller-owned array in its declared format
+(RGB, RGBA, or PNG bytes). Read it once per operation; the terminal does not keep
+a decoded-array cache. Existing uncompressed image behavior is unchanged.
+
+The live-screen budget charges actual compressed storage plus a conservative
+decoded-capacity reservation. That is not a process-memory limit: chunk assembly,
+validation, transport projection and caller-owned arrays have separate transient
+costs, and retaining old snapshots keeps their ordinary image references alive.
+Snapshot disposal does not invalidate those references. HWT1 drops obsolete KGP
+generations from its current projection cache while preserving resources still
+used by current placements; already emitted frames own their payloads separately.
+
+Malformed checksums, truncation, invalid output sizes and exceeded limits reject
+the upload rather than publishing a partially decoded image. One complete zlib
+member is interpreted; bounded trailing input is ignored but retained and charged,
+not interpreted as another image.
 
 ## Shared instances and floating views
 
