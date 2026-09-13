@@ -164,6 +164,8 @@ delta.
 | `title` | string | Required complete current workload window title on every full/delta frame; `""` means unset or explicitly cleared. At most 4,096 UTF-16 code units, no C0/DEL/C1 controls or unpaired surrogates. |
 | `progress` | object | Required complete OSC 9;4 state: `state` and nullable `percentage`, defined below. |
 | `shellIntegration` | object | Required complete OSC 133 state: `phase` and nullable `lastExitCode`, defined below. |
+| `workingDirectory` | object | Required complete OSC 7 state: nullable `uri`, `host`, `path`, defined below. |
+| `commandMark` | object or null | Latest OSC 133 marker only (not a history), defined below. |
 | `history` | object or null | Complete per-view text viewport, selection, and copy state, defined below. Null denotes a projection without history interaction metadata. |
 | `hyperlinks` | array of objects | Complete OSC 8 destination ranges for the presented viewport, including on cell-delta frames. |
 | `defaultBackground`, `defaultForeground` | integers | Resolved packed colors, using §3.3; producer emits opaque colors. |
@@ -222,7 +224,25 @@ the other states. `shellIntegration` initially contains
 `{ "phase": "unknown", "lastExitCode": null }`. Phase is one of `unknown`,
 `prompt`, `commandLine`, `executing`, `finished`. Last exit code is null or a
 signed 32-bit integer; Unknown requires null. Null does not imply success.
+`workingDirectory` initially contains `{ "uri": null, "host": null, "path": null }`
+from OSC 7. When set, `uri` is the raw `file://` URI as reported by the shell;
+`host` and `path` are derived from it (`host` is `""` for a local/unqualified
+authority). A malformed or non-`file` URI does not update this state.
 All properties are required, including explicit nulls.
+
+`commandMark` is `null` until the first OSC 133 marker, then `{ "phase", "exitCode",
+"rawParameters" }`: `phase` is one of `unknown`, `prompt`, `commandLine`, `executing`,
+`finished` (same enum as `shellIntegration.phase`); `exitCode` is null except on a
+`finished` mark, where it carries the reported OSC 133;D exit code as a signed 32-bit
+integer; `rawParameters` is the verbatim `key=value[;key=value...]` text trailing the
+marker (for example a `cmdline_url` extension on marker C), or null when none was
+present. This is the single most-recently-reported marker only, exactly mirroring how
+`shellIntegration` exposes only the current phase rather than a stream of past phases;
+it is not a command-mark history. `Hex1bTerminal.CommandMarks` keeps a bounded
+server-side history of marks, but that history itself is never sent over the wire —
+only this atomic "latest mark" projection is. Clients that want their own history
+should accumulate distinct `commandMark` values from
+`WebTerminalOptions.onCommandMarkChange` themselves.
 
 Both objects are captured atomically with the screen, sent on every full and
 delta frame, and remain current when inspecting historical rows. Metadata-only
@@ -232,7 +252,9 @@ or transport an event log. The browser validates fields before presenting,
 updates both getters, then invokes `onProgressChange` and
 `onShellIntegrationChange` for the initial state and distinct presented changes.
 Missing/malformed fields are fatal. Unchanged resyncs, discarded frames, and
-disposal do not notify.
+disposal do not notify. `workingDirectory` and `commandMark` follow the same
+validation, getter, and callback pattern via `onWorkingDirectoryChange` and
+`onCommandMarkChange`.
 
 HMP1 restores these values from its structured activity checkpoint as part of
 the StateSync transaction, before the replica is available to browser capture.
@@ -244,6 +266,7 @@ last reported values, not an invented completion. Hosts should combine these
 values with connection status. The
 [public client contract](../src/web-terminal/README.md#application-progress-and-shell-activity)
 describes callback semantics and the supported OSC argument forms.
+
 
 `cursor` has exactly these currently emitted fields:
 
@@ -1229,6 +1252,8 @@ not a recorded multi-head benchmark.
   "title": "",
   "progress": { "state": "none", "percentage": null },
   "shellIntegration": { "phase": "unknown", "lastExitCode": null },
+  "workingDirectory": { "uri": null, "host": null, "path": null },
+  "commandMark": null,
   "history": null,
   "hyperlinks": [],
   "defaultBackground": 4279769112,

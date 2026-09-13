@@ -14,7 +14,11 @@ internal sealed class DemoTapeCatalog
             new("line-editing", "shell", "Editing and history", "Correct a command with Backspace, then replay it with Up.")
         ];
         if (!OperatingSystem.IsWindows())
+        {
             entries.Add(new("ansi-colors", "shell", "ANSI colors", "Use the shell's printf command to display colored text."));
+            entries.Add(new("shell-integration", "shell", "Shell integration",
+                "Use printf to emit OSC 7 working-directory and OSC 133 command-mark sequences across a few commands."));
+        }
 
         var options = new TapeParserOptions();
         options.SyntaxExtensions.Remove("Source");

@@ -389,6 +389,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 OnScrollbackRowPruned);
             _scrollbackCallback = options.ScrollbackCallback;
         }
+        _commandMarkHistoryCapacity = Math.Max(0, options.CommandMarkHistoryCapacity);
         
         _dcsByteStreamParser = new DcsByteStreamParser(sixelPolicy);
         _escapeTimeout = options.EscapeSequenceTimeout ?? TimeSpan.FromMilliseconds(50);
@@ -2174,7 +2175,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _iconName,
                 includeSavedTitles ? Array.AsReadOnly(_titleStack.ToArray()) : [],
                 _activityState.Progress,
-                _activityState.ShellIntegration);
+                _activityState.ShellIntegration,
+                _activityState.WorkingDirectory,
+                [.. _commandMarks]);
         }
     }
 
@@ -6771,7 +6774,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Processes an OSC sequence, handling title sequences (0/1/2/22/23) and hyperlinks (8).
+    /// Processes an OSC sequence, handling title sequences (0/1/2/22/23), hyperlinks (8),
+    /// and shell integration (7/9/133).
     /// </summary>
     /// <remarks>
     /// <para>Supported OSC sequences:</para>
@@ -6779,9 +6783,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     ///   <item>OSC 0 - Set icon name AND window title</item>
     ///   <item>OSC 1 - Set icon name only</item>
     ///   <item>OSC 2 - Set window title only</item>
+    ///   <item>OSC 7 - Report working directory</item>
     ///   <item>OSC 8 - Hyperlinks</item>
+    ///   <item>OSC 9;4 - Progress</item>
     ///   <item>OSC 22 - Push current title/icon onto stack, optionally set new values</item>
     ///   <item>OSC 23 - Pop title/icon from stack and restore</item>
+    ///   <item>OSC 133 - Shell integration markers and command marks</item>
     /// </list>
     /// <para>
     /// OSC 0/1/2 do NOT affect the title stack - they only modify current values.
@@ -6814,9 +6821,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 ProcessOsc8Hyperlink(parameters, payload);
                 break;
 
+            case "7":
             case "9":
             case "133":
                 SetActivityState(_activityState.ApplyOsc(command, parameters, payload));
+                RecordCommandMarkIfPresent(command, parameters, payload);
                 break;
                 
             case "22":

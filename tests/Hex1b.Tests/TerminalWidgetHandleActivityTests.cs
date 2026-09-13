@@ -107,7 +107,7 @@ public class TerminalWidgetHandleActivityTests
 
         var progress = new TerminalProgress(TerminalProgressState.Indeterminate, null);
         var shell = new TerminalShellIntegration(TerminalShellIntegrationPhase.Executing, -4);
-        terminal.RestoreActivityState(progress, shell);
+        terminal.RestoreActivityState(progress, shell, TerminalWorkingDirectory.Default);
         var changes = 0;
         handle.ProgressChanged += _ => changes++;
         handle.ShellIntegrationChanged += _ => changes++;
@@ -178,7 +178,7 @@ public class TerminalWidgetHandleActivityTests
         {
             terminal.BeginActivityStateRestore();
             terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b" + "c\x1b]133;C\x07"));
-            terminal.RestoreActivityState(progress, shell);
+            terminal.RestoreActivityState(progress, shell, TerminalWorkingDirectory.Default);
             terminal.EndActivityStateRestore();
         }
         Assert.AreEqual(2, changes);

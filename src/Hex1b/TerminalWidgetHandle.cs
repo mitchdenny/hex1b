@@ -291,6 +291,18 @@ public sealed class TerminalWidgetHandle :
     /// This describes current state, not a history of command executions.
     /// </remarks>
     public event Action<TerminalShellIntegration>? ShellIntegrationChanged;
+
+    /// <summary>Gets the working directory last reported by OSC 7 from the child workload.</summary>
+    /// <remarks>Remains live while copy mode freezes displayed cells. Process exit and
+    /// disconnect retain the last reported directory; <see cref="Reset"/> clears it.</remarks>
+    public TerminalWorkingDirectory WorkingDirectory
+    {
+        get { lock (_bufferLock) return _activityState.WorkingDirectory; }
+    }
+
+    /// <summary>Occurs when the reported working directory changes to a distinct value.</summary>
+    /// <remarks>Subscribing does not emit a baseline; read <see cref="WorkingDirectory"/>.</remarks>
+    public event Action<TerminalWorkingDirectory>? WorkingDirectoryChanged;
     
     /// <summary>
     /// Event raised when the terminal state changes.
@@ -446,6 +458,10 @@ public sealed class TerminalWidgetHandle :
             return;
         if (previous.ShellIntegration != activity.ShellIntegration)
             ShellIntegrationChanged?.Invoke(activity.ShellIntegration);
+        if (_disposed)
+            return;
+        if (previous.WorkingDirectory != activity.WorkingDirectory)
+            WorkingDirectoryChanged?.Invoke(activity.WorkingDirectory);
         if (!_disposed)
             OutputReceived?.Invoke();
     }

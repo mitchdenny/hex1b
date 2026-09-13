@@ -93,7 +93,10 @@ public sealed partial class Hex1bTerminal
                 RestoreActivityState(
                     new TerminalProgress((TerminalProgressState)activity.Progress.State, activity.Progress.Percentage),
                     new TerminalShellIntegration((TerminalShellIntegrationPhase)activity.ShellIntegration.Phase,
-                        activity.ShellIntegration.LastExitCode));
+                        activity.ShellIntegration.LastExitCode),
+                    activity.WorkingDirectory.Uri is { } uri
+                        ? TerminalWorkingDirectory.TryCreate(uri) ?? TerminalWorkingDirectory.Default
+                        : TerminalWorkingDirectory.Default);
             }
             catch
             {

@@ -12,7 +12,8 @@ import type { MouseCapture } from "./mouse-input.js";
 import type { CopySelectionOptions, InputActionHandler, InputDecision, InputBinding,
   TerminalActionName, TerminalGeometry, TerminalInput, TerminalInputContext, TerminalPeer,
   TerminalRendererPreference, TerminalSelection, TerminalSizing, TerminalSizingState, TerminalStats, TerminalViewport,
-  TerminalProgress, TerminalShellIntegration, WebTerminalHandle, WebTerminalOptions } from "./types.js";
+  TerminalProgress, TerminalShellIntegration, TerminalWorkingDirectory, TerminalCommandMark,
+  WebTerminalHandle, WebTerminalOptions } from "./types.js";
 import type { InputCommand, TerminalCommand, WorkerInputMessage, WorkerOutputMessage } from "./wire-types.js";
 import { errorMessage, isRecord } from "./validation.js";
 export { InputRoute, TerminalAction, defaultInputBindings } from "./input-policy.js";
@@ -60,6 +61,8 @@ export class WebTerminal implements WebTerminalHandle {
   #hasTitle = false;
   #progress: TerminalProgress = { state: "none", percentage: null };
   #shellIntegration: TerminalShellIntegration = { phase: "unknown", lastExitCode: null };
+  #workingDirectory: TerminalWorkingDirectory = { uri: null, host: null, path: null };
+  #commandMark: TerminalCommandMark | null = null;
   #hasActivity = false;
   #history: HistoryState;
   #highlights!: HTMLDivElement;
@@ -128,6 +131,8 @@ export class WebTerminal implements WebTerminalHandle {
   get title(): string { return this.#title; }
   get progress(): TerminalProgress { return { ...this.#progress }; }
   get shellIntegration(): TerminalShellIntegration { return { ...this.#shellIntegration }; }
+  get workingDirectory(): TerminalWorkingDirectory { return { ...this.#workingDirectory }; }
+  get commandMark(): TerminalCommandMark | null { return this.#commandMark ? { ...this.#commandMark } : null; }
   get stats(): TerminalStats { return { ...this.#stats }; }
   get screenText() { return this.#screenText; }
   get sizing(): TerminalSizingState { return { ...this.#sizing }; }
@@ -333,14 +338,23 @@ export class WebTerminal implements WebTerminalHandle {
           this.#progress.percentage !== message.progress.percentage;
         const shellChanged = !this.#hasActivity || this.#shellIntegration.phase !== message.shellIntegration.phase ||
           this.#shellIntegration.lastExitCode !== message.shellIntegration.lastExitCode;
+        const workingDirectoryChanged = !this.#hasActivity ||
+          this.#workingDirectory.uri !== message.workingDirectory.uri;
+        const commandMarkChanged = !this.#hasActivity || this.#commandMark?.phase !== message.commandMark?.phase ||
+          this.#commandMark?.exitCode !== message.commandMark?.exitCode ||
+          this.#commandMark?.rawParameters !== message.commandMark?.rawParameters;
         this.#title = message.title;
         this.#hasTitle = true;
         this.#progress = { ...message.progress };
         this.#shellIntegration = { ...message.shellIntegration };
+        this.#workingDirectory = { ...message.workingDirectory };
+        this.#commandMark = message.commandMark ? { ...message.commandMark } : null;
         this.#hasActivity = true;
         if (titleChanged) this.#options.onTitleChange?.(this.#title);
         if (!this.#disposed && progressChanged) this.#options.onProgressChange?.(this.progress);
         if (!this.#disposed && shellChanged) this.#options.onShellIntegrationChange?.(this.shellIntegration);
+        if (!this.#disposed && workingDirectoryChanged) this.#options.onWorkingDirectoryChange?.(this.workingDirectory);
+        if (!this.#disposed && commandMarkChanged) this.#options.onCommandMarkChange?.(this.commandMark);
       }
     } else if (message.type === "history") {
       this.#screenText = message.text;

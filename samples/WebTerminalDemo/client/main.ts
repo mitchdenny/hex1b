@@ -1,4 +1,4 @@
-import { WebTerminal, MIN_FONT_SIZE, MAX_FONT_SIZE, type TerminalCloseDetails } from "@hex1b/web-terminal";
+import { WebTerminal, MIN_FONT_SIZE, MAX_FONT_SIZE, getCmdlineUrl, type TerminalCloseDetails, type TerminalCommandMark } from "@hex1b/web-terminal";
 
 interface TerminalInstance {
   id: string;
@@ -30,6 +30,19 @@ interface TapePlayback {
   diagnostics: string[];
 }
 
+/**
+ * A single command-mark rail entry, demo-only bookkeeping layered on top of the library's
+ * `onCommandMarkChange` callback. `anchor` captures the viewport coordinates in effect when the
+ * command line started, letting the demo scroll back to (roughly) that point later. It is null
+ * when no viewport snapshot was available yet, in which case the dot cannot be jumped to.
+ */
+interface CommandMarkEntry {
+  phase: TerminalCommandMark["phase"];
+  exitCode: number | null;
+  cmdlineUrl: string | null;
+  anchor: { generation: string; top: number } | null;
+}
+
 interface TerminalView {
   id: string;
   instance: TerminalInstance;
@@ -45,6 +58,7 @@ interface TerminalView {
   transport: "direct" | "hmp1";
   viewport?: WebTerminal["viewport"];
   selection?: WebTerminal["selection"];
+  commandMarks: CommandMarkEntry[];
 }
 
 interface ViewClosure {
@@ -373,6 +387,44 @@ function showClosure(view: TerminalView, closure: ViewClosure) {
   return closure;
 }
 
+/** Rebuilds the left-edge command-mark dots for `view` from `view.commandMarks`. */
+function renderCommandMarksRail(view: TerminalView) {
+  const rail = elementAt(view.element, ".command-marks-rail", HTMLElement);
+  rail.replaceChildren(...view.commandMarks.map(entry => {
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = "command-mark-dot";
+    dot.setAttribute("role", "listitem");
+    dot.dataset.phase = entry.phase;
+    if (entry.exitCode !== null) dot.dataset.exit = entry.exitCode === 0 ? "ok" : "error";
+    const description = entry.phase === "finished"
+      ? `Command finished${entry.exitCode === null ? "" : ` (exit ${entry.exitCode})`}`
+      : entry.phase === "executing" ? "Command running" : "Command entered";
+    const detail = [description, entry.cmdlineUrl ?? ""].filter(Boolean).join("\n");
+    dot.title = entry.anchor ? `${detail}\nClick to jump back to this point.`
+      : `${detail}\nThis point can no longer be located in scrollback.`;
+    dot.setAttribute("aria-label", dot.title.replace(/\n/g, ". "));
+    dot.disabled = entry.anchor === null;
+    dot.addEventListener("click", () => jumpToCommandMark(view, entry));
+    return dot;
+  }));
+}
+
+/**
+ * Scrolls `view`'s terminal back to where `entry.anchor` was captured, using a relative delta from
+ * the current viewport top (the library only exposes relative scrolling). Refuses to jump when the
+ * viewport generation has changed since capture (resize/reflow/reset/history-clear/alt-screen
+ * transition), since row coordinates are no longer comparable at that point.
+ */
+function jumpToCommandMark(view: TerminalView, entry: CommandMarkEntry) {
+  const viewport = view.viewport;
+  if (!view.terminal || !entry.anchor || !viewport?.available || viewport.generation !== entry.anchor.generation) {
+    report("That point is no longer reachable in scrollback (the view was reset, resized, or reflowed since).", "error");
+    return;
+  }
+  view.terminal.scrollLines(entry.anchor.top - viewport.top);
+}
+
 function connectionClosed(view: TerminalView, close: TerminalCloseDetails) {
   const stage = view.phase === "connected" ? "After mounting" : "Before mounting completed";
   const summary = close.code === 4000 ? "The producer has ended. This terminal cannot be reconnected."
@@ -499,8 +551,11 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
       <span class="shell-status">Shell activity unknown</span>
       <progress class="activity-progress" max="100" hidden aria-label="Application progress"></progress>
       <span class="progress-status"></span>
+      <span class="cwd-status"></span>
+      <span class="command-mark-status"></span>
     </div>
     <div class="terminal-stage">
+      <div class="command-marks-rail" role="list" aria-label="Command history"></div>
       <div class="terminal-mount"></div>
       <div class="closed-overlay" hidden>
         <div class="closed-card">
@@ -541,7 +596,8 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
   workspace.append(element);
   workspace.classList.remove("empty");
   const view: TerminalView = {
-    id, instance, element, controller: new AbortController(), phase: "connecting", stats: {}, text: "", transport
+    id, instance, element, controller: new AbortController(), phase: "connecting", stats: {}, text: "", transport,
+    commandMarks: []
   };
   views.set(id, view);
   selectView(view);
@@ -596,12 +652,15 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
   view.closure = undefined;
   view.stats = {};
   view.text = "";
+  view.commandMarks = [];
+  let previousMarkPhase: TerminalCommandMark["phase"] | null = null;
   const { element, instance, id, transport } = view;
   const current = () => !controller.signal.aborted && !view.controller.signal.aborted;
   element.dataset.phase = "connecting";
   element.dataset.connected = "false";
   elementAt(element, ".closed-overlay", HTMLElement).hidden = true;
   elementAt(element, ".terminal-mount", HTMLElement).inert = false;
+  elementAt(element, ".command-marks-rail", HTMLElement).replaceChildren();
   elementAt(element, ".view-role", HTMLElement).textContent = "Joining";
   elementAt(element, ".view-role", HTMLElement).title = "";
   updateViewControls(view);
@@ -644,6 +703,37 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
         element.dataset.shellPhase = shell.phase;
         elementAt(element, ".shell-status", HTMLElement).textContent = labels[shell.phase] +
           (shell.lastExitCode === null ? "" : ` / last exit ${shell.lastExitCode}`);
+      },
+      onWorkingDirectoryChange(workingDirectory) {
+        elementAt(element, ".cwd-status", HTMLElement).textContent =
+          workingDirectory.path === null ? "" : `cwd: ${workingDirectory.path}`;
+      },
+      onCommandMarkChange(mark) {
+        const status = elementAt(element, ".command-mark-status", HTMLElement);
+        if (mark === null) {
+          status.textContent = "";
+          previousMarkPhase = null;
+          return;
+        }
+        const cmdlineUrl = getCmdlineUrl(mark);
+        status.textContent = `mark: ${mark.phase}` +
+          (mark.exitCode === null ? "" : ` (exit ${mark.exitCode})`) +
+          (cmdlineUrl === null ? "" : ` / ${cmdlineUrl}`);
+        // A rising edge into "commandLine" starts a new logical command; every other phase update
+        // (executing, finished) refines the same trailing rail entry in place.
+        if (mark.phase === "commandLine" && previousMarkPhase !== "commandLine") {
+          const viewport = view.viewport;
+          const anchor = viewport?.available ? { generation: viewport.generation, top: viewport.top } : null;
+          view.commandMarks.push({ phase: mark.phase, exitCode: mark.exitCode, cmdlineUrl, anchor });
+          if (view.commandMarks.length > 20) view.commandMarks.shift();
+        } else if (view.commandMarks.length > 0) {
+          const entry = view.commandMarks[view.commandMarks.length - 1];
+          entry.phase = mark.phase;
+          entry.exitCode = mark.exitCode;
+          if (cmdlineUrl !== null) entry.cmdlineUrl = cmdlineUrl;
+        }
+        previousMarkPhase = mark.phase;
+        renderCommandMarksRail(view);
       },
       onStatus(message, level) {
         if (!current() || view.closure?.close) return;
