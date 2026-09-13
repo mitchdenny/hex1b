@@ -4,6 +4,7 @@ interface TerminalInstance {
   id: string;
   name: string;
   scene: string;
+  reflowStrategy: string;
   columns: number;
   rows: number;
   peerCount: number;
@@ -111,6 +112,7 @@ function readInstance(value: unknown): TerminalInstance {
       !("id" in value) || typeof value.id !== "string" ||
       !("name" in value) || typeof value.name !== "string" ||
       !("scene" in value) || typeof value.scene !== "string" ||
+      !("reflowStrategy" in value) || typeof value.reflowStrategy !== "string" ||
       !("columns" in value) || typeof value.columns !== "number" ||
       !("rows" in value) || typeof value.rows !== "number" ||
       !("peerCount" in value) || typeof value.peerCount !== "number" ||
@@ -122,7 +124,7 @@ function readInstance(value: unknown): TerminalInstance {
     throw new Error("The server returned an invalid terminal instance");
   }
   return {
-    id: value.id, name: value.name, scene: value.scene,
+    id: value.id, name: value.name, scene: value.scene, reflowStrategy: value.reflowStrategy,
     columns: value.columns, rows: value.rows, peerCount: value.peerCount,
     paused: value.paused, rate: value.rate, batch: value.batch,
     tapes: value.tapes.map(readTape), tapePlayback: readTapePlayback(value.tapePlayback)
@@ -269,7 +271,7 @@ async function loadInstances(preferred?: string) {
   instancesSelect.replaceChildren(...instances.map(instance => {
     const option = document.createElement("option");
     option.value = instance.id;
-    option.textContent = `${instance.name} - ${instance.columns}x${instance.rows}, ${instance.peerCount} peers`;
+    option.textContent = `${instance.name} - ${instance.columns}x${instance.rows}, ${instance.peerCount} peers, reflow: ${instance.reflowStrategy}`;
     return option;
   }));
   if (instances.some(instance => instance.id === selectedId)) instancesSelect.value = selectedId;
@@ -718,7 +720,9 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
 }
 
 async function createInstance() {
-  const instance = readInstance(await api("/api/terminals", "POST", { scene: select("scene").value, columns: 100, rows: 30 }));
+  const instance = readInstance(await api("/api/terminals", "POST", {
+    scene: select("scene").value, columns: 100, rows: 30, reflowStrategy: select("reflow-strategy").value
+  }));
   await refreshInstances(instance.id);
   await openView(instance, { primary: true });
 }
@@ -785,11 +789,17 @@ try {
   const scene = parameters.get("scene");
   const requestedScene = scene !== null && [...select("scene").options].some(option => option.value === scene);
   if (requestedScene) select("scene").value = scene;
+  const reflow = parameters.get("reflow");
+  if (reflow !== null) {
+    if (![...select("reflow-strategy").options].some(option => option.value === reflow))
+      throw new Error("Invalid reflow query parameter");
+    select("reflow-strategy").value = reflow;
+  }
   const scale = parameters.get("scale");
   if (scale !== null && [...select("scale").options].some(option => option.value === scale)) select("scale").value = scale;
   await refreshInstances();
   if (parameters.get("empty") !== "1") {
-    if (instances.length && !requestedScene) await openView(instances[0]);
+    if (instances.length && !requestedScene && reflow === null) await openView(instances[0]);
     else await createInstance();
   }
 } catch (error) {

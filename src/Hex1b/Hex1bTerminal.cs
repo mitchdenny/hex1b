@@ -2712,6 +2712,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 newBuffer[y, x] = _screenBuffer[y, x];
             }
+            var edge = newBuffer[y, newWidth - 1];
+            if (!string.IsNullOrEmpty(edge.Character) && DisplayWidth.GetGraphemeWidth(edge.Character) > 1)
+            {
+                edge.TrackedHyperlink?.Release();
+                newBuffer[y, newWidth - 1] = TerminalCell.Empty;
+            }
         }
         
         // Release tracked objects from cells that are being removed
@@ -5138,6 +5144,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             for (int x = 0; x < restoreWidth; x++)
                 SetCell(y, x, savedBuffer[y, x], restoreImpacts);
+            var edge = _screenBuffer[y, _width - 1];
+            if (restoreWidth == _width && !string.IsNullOrEmpty(edge.Character) &&
+                DisplayWidth.GetGraphemeWidth(edge.Character) > 1)
+                SetCell(y, _width - 1, TerminalCell.Empty, restoreImpacts);
         }
 
         for (int y = 0; y < _height; y++)

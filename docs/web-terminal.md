@@ -134,12 +134,20 @@ attached HWT1 adapters. Prefer an explicit strategy for a remote producer;
 parameterless builder `WithReflow()` auto-detects the *server's* environment,
 which need not describe the browser terminal. `NoReflowStrategy.Instance`
 selects crop behavior explicitly.
+Crop paths erase wide glyphs split at the right edge, preserving valid cell
+geometry for later screen replay instead of retaining an orphaned half glyph.
 
 For a directly attached `Hwt1PresentationAdapter`, the same
 `.WithReflow(GhosttyReflowStrategy.Instance)` opt-in applies. For views returned
 by `CreateBrowserViewAsync`, configure the **HMP1 producer only**; a view's
 reflow setting cannot override its producer. No browser configuration, transport
 replacement, or second ANSI model is required.
+
+The demo's optional HMP1 relay builds a terminal replica rather than a direct
+browser view. It explicitly gives that replica the producer's reflow provider,
+preserving the strategy and internal graphics-anchor mapping. HMP1 screen replay
+preserves soft line breaks, but the protocol does not negotiate a reflow strategy:
+hosts of other replicas must configure matching policies themselves.
 
 Ghostty reflow preserves hard line breaks while rewrapping soft continuations,
 including retained scrollback, styled and wide/combining text, and cursor and
@@ -158,8 +166,13 @@ Primary-peer resize authority, graphics ownership/anchor remapping, and HWT1
 frame refresh are unchanged. Resize/reflow invalidates existing selections
 rather than trying to preserve stale coordinates.
 
-WebTerminalDemo explicitly enables this policy for its **shell** scene only.
-Its generated text/graphics scenes and other adapter defaults are unchanged.
+WebTerminalDemo's **New terminal reflow** selector defaults to this policy for
+its **shell** scene and cropping for generated text/graphics scenes. Select a
+different built-in strategy before creating a terminal to compare behaviors;
+the choice is fixed for that producer and shared by every attached view.
+The sample reports the policy in its existing-terminal list and HTTP metadata.
+See [the demo's strategy selector](../samples/WebTerminalDemo/README.md#choose-a-reflow-strategy)
+for API and query-string options. Library adapter defaults are unchanged.
 Existing consumers must opt in after upgrading to a release containing this
 API; it is not available in 0.166.0. Upgrade `Hex1b` and
 `@hex1b/web-terminal` together to matching released versions.

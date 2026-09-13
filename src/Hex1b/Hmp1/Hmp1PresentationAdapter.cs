@@ -449,7 +449,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                     // ghosting on every fresh viewer connect or RoleChange-driven
                     // re-StateSync.)
                     IncludeTrailingNewline = false,
-                }, includeHyperlinks: true);
+                }, includeHyperlinks: true, preserveSoftWrap: true);
                 var suffix = BuildStateReplaySuffix(snap);
                 activityState = Hmp1ActivityState.Capture(snap);
                 var progress = activityState.BuildProgressReplay();

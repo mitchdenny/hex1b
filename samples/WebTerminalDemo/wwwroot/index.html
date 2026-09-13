@@ -161,6 +161,22 @@
           <option value="shell">Interactive shell</option>
         </select>
       </label>
+      <label>New terminal reflow
+        <select id="reflow-strategy" title="Chosen when creating a terminal; shared by every attached view.">
+          <option value="Default">Default (shell: Ghostty; other scenes: none)</option>
+          <option value="None">None (crop)</option>
+          <option value="Ghostty">Ghostty</option>
+          <option value="Vte">VTE</option>
+          <option value="Kitty">Kitty</option>
+          <option value="WezTerm">WezTerm</option>
+          <option value="Alacritty">Alacritty</option>
+          <option value="WindowsTerminal">Windows Terminal</option>
+          <option value="Foot">Foot</option>
+          <option value="ITerm2">iTerm2 (crop)</option>
+          <option value="Xterm">xterm (crop)</option>
+          <option value="Auto">Auto (server environment)</option>
+        </select>
+      </label>
       <label>New view maximum scale
         <select id="scale">
           <option value="auto">Device DPR (max 3×)</option>
