@@ -170,6 +170,7 @@ origin:
 | `fonts.browser.js` | Real font-rendered borders at five raster scales, Nerd Font symbols, delayed worker font readiness, per-view font selection, and font-load failure cleanup. |
 | `sizing.browser.js` | Auto font-size controls, fixed-grid presets, keyboard selection, resize authority, and retained sizing policy across primary handoff. |
 | `floating.browser.js` | Real workers/WebSockets/HMP1, dragging, primary-only resize, takeover, detach/reattach, and independent instances. |
+| `resize-handles.browser.js` | Eight-direction window resizing, proximity highlights, pointer capture/cancellation, size/origin limits, and primary versus secondary/fixed-grid sizing. |
 | `lifecycle.browser.js` | Closure overlays, native close details before/after mounting, rejected upgrades, local initialization failures, explicit reconnect, per-view isolation, and owner completion through direct/relay transports. |
 | `input.browser.js` | Real POSIX shell input, Backspace, history, paste, MouseTest, thumbnail coordinates, and window-chrome focus. Build `samples/MouseTest` in Release first. |
 | `tapes.browser.js` | Scene-filtered tapes in an existing shell, shared-view output, retained identity/geometry, overlap rejection, cancellation, visible failures, and shutdown cleanup. |
@@ -206,6 +207,12 @@ fixtures remain focused, explicitly invoked checks; they are not a claim of
 broad HMP graphics/performance stability or a browser/device compatibility matrix.
 
 ## Shared instances and floating views
+
+Drag a window's title bar to move it. Resize from any of its four edges or four
+corners: each bar highlights as the pointer approaches the border, shows the
+appropriate resize cursor, and stays highlighted while dragging. Top and left
+handles keep the opposite edge fixed, stopping at the workspace origin; all
+handles respect the window's 240×180 minimum and 3200×2200 maximum size.
 
 - **New terminal** creates a persistent producer, initially 100×30, and mounts a
   view that explicitly requests primary.

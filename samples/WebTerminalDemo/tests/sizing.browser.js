@@ -83,7 +83,7 @@ async page => {
     stage = "resizing a fixed-grid window";
     await first.locator(".view-title").click();
     const beforeFixedResize = resizeCount();
-    const handle = await first.locator(".resize-handle").boundingBox();
+    const handle = await first.locator('.resize-handle[data-edge="se"]').boundingBox();
     await test.mouse.move(handle.x + 5, handle.y + 5);
     await test.mouse.down();
     await test.mouse.move(handle.x - 175, handle.y - 95, { steps: 10 });

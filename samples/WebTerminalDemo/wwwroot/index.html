@@ -94,9 +94,9 @@
     #warnings { color: var(--cp-warning); white-space: pre-wrap; margin: 8px 0; }
     #workspace { position: relative; overflow: auto; flex: 1; min-height: 320px; background: var(--cp-bg-elevated); border: 1px solid var(--cp-border); border-radius: 16px; }
     #workspace.empty::before { content: "Create a terminal or attach a view above. Closing a view keeps its terminal running."; display: block; padding: 32px; color: var(--cp-text-muted); }
-    .terminal-window { position: absolute; display: flex; flex-direction: column; min-width: 240px; min-height: 180px; overflow: hidden; border: 1px solid var(--cp-border-strong); border-radius: .625rem; background: var(--cp-surface); }
+    .terminal-window { position: absolute; display: flex; flex-direction: column; min-width: 240px; min-height: 180px; border: 1px solid var(--cp-border-strong); border-radius: .625rem; background: var(--cp-surface); }
     .terminal-window.selected { border-color: var(--cp-accent); }
-    .view-titlebar { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 8px; padding: 4px 8px; background: var(--cp-surface-soft); cursor: grab; touch-action: none; user-select: none; }
+    .view-titlebar { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 8px; padding: 4px 8px; border-radius: .625rem .625rem 0 0; background: var(--cp-surface-soft); cursor: grab; touch-action: none; user-select: none; }
     .view-title { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 600; }
     .view-role { flex: none; font-size: 11px; color: var(--cp-text-muted); }
     .terminal-window[data-primary=true] .view-role { color: var(--cp-accent); font-weight: 600; }
@@ -129,7 +129,27 @@
     .view-resolution { width: 96px; }
     .font-size { flex: none; min-width: 28px; text-align: center; font: 10px Consolas, "Courier New", Courier, monospace; color: var(--cp-text-muted); }
     .view-status[data-level=error] { color: var(--cp-danger); }
-    .resize-handle { position: absolute; right: 3px; bottom: 3px; width: 16px; height: 16px; border-right: 3px solid var(--cp-border-strong); border-bottom: 3px solid var(--cp-border-strong); cursor: se-resize; touch-action: none; }
+    .resize-handle { position: absolute; z-index: 2; touch-action: none; user-select: none; }
+    .resize-handle::after { content: ""; position: absolute; border: 0 solid var(--cp-border-strong); border-radius: 3px; opacity: .45; pointer-events: none; transition: border-color 100ms, opacity 100ms; }
+    .resize-handle:hover::after, .resize-handle[data-active=true]::after { border-color: var(--cp-accent); opacity: 1; }
+    .resize-handle[data-edge=n], .resize-handle[data-edge=s] { left: 10px; right: 10px; height: 12px; cursor: ns-resize; }
+    .resize-handle[data-edge=n] { top: -6px; }
+    .resize-handle[data-edge=s] { bottom: -6px; }
+    .resize-handle[data-edge=n]::after, .resize-handle[data-edge=s]::after { inset: 5px 0; border-top-width: 2px; }
+    .resize-handle[data-edge=e], .resize-handle[data-edge=w] { top: 10px; bottom: 10px; width: 12px; cursor: ew-resize; }
+    .resize-handle[data-edge=e] { right: -6px; }
+    .resize-handle[data-edge=w] { left: -6px; }
+    .resize-handle[data-edge=e]::after, .resize-handle[data-edge=w]::after { inset: 0 5px; border-left-width: 2px; }
+    .resize-handle[data-edge=ne], .resize-handle[data-edge=nw],
+    .resize-handle[data-edge=se], .resize-handle[data-edge=sw] { z-index: 3; width: 20px; height: 20px; }
+    .resize-handle[data-edge=ne] { right: -10px; top: -10px; cursor: nesw-resize; }
+    .resize-handle[data-edge=nw] { left: -10px; top: -10px; cursor: nwse-resize; }
+    .resize-handle[data-edge=se] { right: -10px; bottom: -10px; cursor: nwse-resize; }
+    .resize-handle[data-edge=sw] { left: -10px; bottom: -10px; cursor: nesw-resize; }
+    .resize-handle[data-edge=ne]::after { inset: 9px 9px 0 0; border-top-width: 2px; border-right-width: 2px; }
+    .resize-handle[data-edge=nw]::after { inset: 9px 0 0 9px; border-top-width: 2px; border-left-width: 2px; }
+    .resize-handle[data-edge=se]::after { inset: 0 9px 9px 0; border-bottom-width: 2px; border-right-width: 2px; }
+    .resize-handle[data-edge=sw]::after { inset: 0 0 9px 9px; border-bottom-width: 2px; border-left-width: 2px; }
     .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-top: 12px; }
     dt { font-size: 12px; color: var(--cp-text-muted); }
     dd { font: 15px/1.7 Consolas, "Courier New", Courier, monospace; margin: 0; }
