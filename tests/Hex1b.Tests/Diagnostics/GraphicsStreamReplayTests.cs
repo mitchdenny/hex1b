@@ -43,11 +43,15 @@ public class GraphicsStreamReplayTests
             images = snapshot.KgpImages.Count,
             placements = snapshot.KgpPlacements.Count,
             virtualPlacements = terminal.KgpVirtualPlacementCount,
-            imageData = snapshot.KgpImages.Values.Select(image => new
+            imageData = snapshot.KgpImages.Values.Select(image =>
             {
-                image.ImageId, image.Width, image.Height, format = image.Format.ToString(),
-                length = image.Data.Length,
-                sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(image.Data))
+                var data = image.Data;
+                return new
+                {
+                    image.ImageId, image.Width, image.Height, format = image.Format.ToString(),
+                    length = data.Length,
+                    sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data))
+                };
             }),
             replies = Convert.ToBase64String(workload.WrittenInput)
         }, TestContext.Current.CancellationToken);

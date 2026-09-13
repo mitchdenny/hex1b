@@ -11,6 +11,81 @@ namespace Hex1b.Tests;
 public class Hwt1PresentationAdapterTests
 {
     [TestMethod]
+    public async Task ReadFrameAsync_ReplacementAndDeletion_WaitForAckBeforePruningPreviousFrameResources()
+    {
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = CreateTerminal(presentation, new RecordingWorkload());
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=T,f=32,s=1,v=1,i=1,C=1,q=2", [1, 0, 0, 255])));
+        var first = await presentation.ReadFrameAsync();
+        var firstCopy = first.ToArray();
+        using var firstMetadata = ReadMetadata(first);
+        var firstKey = firstMetadata.RootElement.GetProperty("retainedImages")[0].GetString()!;
+        var projection = (Hwt1RenderProjection)typeof(Hwt1PresentationAdapter)
+            .GetField("_projection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(presentation)!;
+        var images = (System.Collections.IDictionary)typeof(Hwt1RenderProjection)
+            .GetField("_images", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(projection)!;
+        var next = presentation.ReadFrameAsync().AsTask();
+        for (var generation = 2; generation <= 65; generation++)
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand(
+                "a=T,f=32,s=1,v=1,i=1,C=1,q=2", [(byte)generation, 0, 0, 255])));
+
+        Assert.IsFalse(next.IsCompleted);
+        Assert.AreEqual(1, projection.RetainedImageCount);
+        Assert.IsTrue(images.Contains(firstKey), "The outstanding frame still owns its resource until acknowledgement.");
+        await presentation.HandleMessageAsync("""{"type":"ack","revision":1}"""u8.ToArray());
+        var latest = await next.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        var latestCopy = latest.ToArray();
+        using var latestMetadata = ReadMetadata(latest);
+        Assert.AreEqual(1, latestMetadata.RootElement.GetProperty("retainedImages").GetArrayLength());
+        Assert.IsFalse(images.Contains(firstKey));
+        TestSeq.AreEqual(new byte[] { 65, 0, 0, 255 }, latest.Span[^4..].ToArray());
+
+        var deletion = presentation.ReadFrameAsync().AsTask();
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand("a=d,d=I,i=1,q=2")));
+        Assert.IsFalse(deletion.IsCompleted);
+        Assert.AreEqual(1, projection.RetainedImageCount, "Deletion must not prune an outstanding frame before its ACK.");
+        await presentation.HandleMessageAsync("""{"type":"ack","revision":2}"""u8.ToArray());
+        using var deleted = ReadMetadata(await deletion.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        Assert.AreEqual(0, deleted.RootElement.GetProperty("retainedImages").GetArrayLength());
+        Assert.AreEqual(0L, projection.RetainedImageBytes);
+        await presentation.DisposeAsync();
+        TestSeq.AreEqual(firstCopy, first.ToArray());
+        TestSeq.AreEqual(latestCopy, latest.ToArray());
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_RetainedAdapter_ReleasesProjectedImagesButPreservesReturnedFrame()
+    {
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = CreateTerminal(presentation, new RecordingWorkload());
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b_Ga=T,f=32,s=1,v=1,i=1,p=1,C=1,q=2;/wAA/w==\x1b\\"));
+        var frame = await presentation.ReadFrameAsync();
+        var original = frame.ToArray();
+        var projection = (Hwt1RenderProjection)typeof(Hwt1PresentationAdapter)
+            .GetField("_projection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(presentation)!;
+        Assert.AreEqual(1, projection.RetainedImageCount);
+        Assert.AreEqual(4L, projection.RetainedImageBytes);
+        var pending = presentation.ReadFrameAsync().AsTask();
+
+        await presentation.DisposeAsync();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => pending);
+        Assert.AreEqual(0, projection.RetainedImageCount);
+        Assert.AreEqual(0L, projection.RetainedImageBytes);
+        foreach (var name in new[] { "_terminal", "_muxer", "_session", "Resized", "Disconnected" })
+            Assert.IsNull(typeof(Hwt1PresentationAdapter)
+                .GetField(name, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .GetValue(presentation), name);
+        TestSeq.AreEqual(original, frame.ToArray());
+        GC.KeepAlive(presentation);
+    }
+
+    [TestMethod]
     [DataRow(false, false)]
     [DataRow(true, false)]
     [DataRow(false, true)]

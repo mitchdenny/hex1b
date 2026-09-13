@@ -55,7 +55,30 @@ public class ProteinViewGraphicsStreamTests
     }
 
     [TestMethod]
-    public async Task Capture_ExplicitSyntheticInvestigation_WritesComparisonWithoutAssumingFailure()
+    [DataRow(1)]
+    [DataRow(7)]
+    [DataRow(997)]
+    [DataRow(4096)]
+    public async Task RawPump_CompressedVirtualImage_RetainsExactPixelsAndVisiblePlacement(int chunkSize)
+    {
+        await using var workload = new CapturedWorkloadAdapter(Chunks(BuildImage(compressed: true), chunkSize));
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithPresentation(presentation).Build();
+        await WaitForMarkerAsync(terminal);
+        using var snapshot = terminal.CreateSnapshot();
+        var image = TestSeq.Single(snapshot.KgpImages.Values);
+        Assert.IsTrue(image.IsZlibCompressed);
+        Assert.AreEqual(KgpFormat.Rgba32, image.Format);
+        CollectionAssert.AreEqual(Pixels(), image.Data);
+        Assert.IsNotEmpty(snapshot.KgpPlacements);
+        Assert.AreEqual(1, terminal.KgpVirtualPlacementCount);
+        using var metadata = Metadata(await presentation.ReadFrameAsync(TestContext.Current.CancellationToken));
+        Assert.IsTrue(metadata.RootElement.GetProperty("placements").GetArrayLength() > 0);
+    }
+
+    [TestMethod]
+    public async Task Capture_ExplicitSyntheticInvestigation_WritesCompressionParityEvidence()
     {
         var directory = Environment.GetEnvironmentVariable("HEX1B_GRAPHICS_EVIDENCE");
         if (string.IsNullOrEmpty(directory))
@@ -89,8 +112,7 @@ public class ProteinViewGraphicsStreamTests
                 virtualPlacements = terminal.KgpVirtualPlacementCount,
                 replies = Convert.ToBase64String(workload.WrittenInput)
             }, TestContext.Current.CancellationToken);
-            if (!compressed)
-                Assert.IsNotEmpty(snapshot.KgpPlacements, "The otherwise equivalent control must render.");
+            Assert.IsNotEmpty(snapshot.KgpPlacements, "Compressed and uncompressed graphics must both render.");
         }
     }
 

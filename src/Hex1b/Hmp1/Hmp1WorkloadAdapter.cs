@@ -104,7 +104,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             new BoundedChannelOptions(1000)
             {
                 FullMode = BoundedChannelFullMode.Wait,
-                SingleReader = true,
+                SingleReader = false,
                 SingleWriter = true
             });
 
@@ -277,6 +277,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         {
             _initialHandshake.TrySetResult(error);
             _outputChannel.Writer.TryComplete();
+            while (_outputChannel.Reader.TryRead(out _)) { }
             _disconnectedTcs.TrySetResult();
             throw;
         }
@@ -792,6 +793,9 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         }
 
         _outputChannel.Writer.TryComplete();
+        // Ordinary EOF leaves the final output available to the terminal. Explicit
+        // disposal ends that contract and must release unread replay/pixel payloads.
+        while (_outputChannel.Reader.TryRead(out _)) { }
     }
 }
 

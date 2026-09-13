@@ -35,6 +35,12 @@ function glyphKey(cell: TerminalCell): string {
   return `${cell.attributes & 5}/${cell.width}/${cell.text}`;
 }
 
+function isKgpPlaceholder(cell: TerminalCell): boolean {
+  // The base scalar and following diacritics encode an image reference, not a glyph.
+  // Keep the authoritative text and colors intact even when no image is placed.
+  return cell.text.codePointAt(0) === 0x10eeee;
+}
+
 /** Shelf packer. Plans are computed before mutating the atlas used by a submitted frame. */
 function packGlyphs(glyphs: ReadonlyMap<string, TerminalCell>, size: number, scale: number,
   initial: Shelf = { x: 0, y: 0, rowHeight: 0 }): { placements: GlyphPlacement[]; shelf: Shelf } | null {
@@ -219,7 +225,7 @@ export class TerminalRenderer {
   prepareGlyphs(cells: readonly (TerminalCell | undefined)[]): void {
     const visible = new Map<string, TerminalCell>();
     for (const cell of cells) {
-      if (!cell || !cell.width || !cell.text.trim() || (cell.attributes & 64)) continue;
+      if (!cell || !cell.width || !cell.text.trim() || (cell.attributes & 64) || isKgpPlaceholder(cell)) continue;
       visible.set(glyphKey(cell), cell);
     }
     const keyUnits = (glyphs: ReadonlyMap<string, TerminalCell>) => [...glyphs.keys()].reduce((total, key) => total + key.length, 0);
@@ -385,7 +391,7 @@ export class TerminalRenderer {
       const y = Math.floor(i / this.columns) * CELL_HEIGHT;
       const width = Math.min(cell.width * CELL_WIDTH, this.width - x);
       const foreground = rgba(cell.foreground);
-      const glyph = this.glyphs.get(glyphKey(cell));
+      const glyph = isKgpPlaceholder(cell) ? undefined : this.glyphs.get(glyphKey(cell));
       if (glyph) {
         const tint: Vector4 = glyph.colored ? (cell.attributes & 2 ? [0.5, 0.5, 0.5, 1] : WHITE) : foreground;
         this.quad(this.atlas, x, y, cell.width * CELL_WIDTH, CELL_HEIGHT,
@@ -444,7 +450,13 @@ export class TerminalRenderer {
     this.disposed = true;
     for (const image of this.images.values()) image.destroy();
     this.images.clear();
+    this.textureBytes = 0;
     this.atlas?.destroy();
+    this.glyphs.clear();
+    this.glyphKeyUnits = 0;
+    this.batches = [];
+    this.quadCount = 0;
+    this.instances = new Float32Array(0);
     this.font?.dispose();
     this.fontMetrics.clear();
     this.backend.dispose();

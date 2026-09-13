@@ -73,7 +73,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             new BoundedChannelOptions(1000)
             {
                 FullMode = BoundedChannelFullMode.DropOldest,
-                SingleReader = true,
+                SingleReader = false,
                 SingleWriter = false
             });
     }
@@ -777,6 +777,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         {
             snapshot = [.. _sessions];
             _sessions.Clear();
+            _terminal = null;
         }
 
         foreach (var session in snapshot)
@@ -785,7 +786,16 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         }
 
         _inputChannel.Writer.TryComplete();
-        Disconnected?.Invoke();
+        while (_inputChannel.Reader.TryRead(out _)) { }
+        try
+        {
+            Disconnected?.Invoke();
+        }
+        finally
+        {
+            Disconnected = null;
+            Resized = null;
+        }
     }
 
     /// <summary>
@@ -799,22 +809,25 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     {
         try
         {
-            await foreach (var work in session.OutputChannel.Reader.ReadAllAsync(session.Cts.Token)
-                .ConfigureAwait(false))
+            while (await session.OutputChannel.Reader.WaitToReadAsync(session.Cts.Token).ConfigureAwait(false))
             {
-                if (work.ControlWriter is { } writer)
+                while (session.OutputChannel.Reader.TryRead(out var work))
                 {
-                    await writer(session.Stream).ConfigureAwait(false);
-                }
-                else if (!work.Output.IsEmpty)
-                {
-                    await Hmp1Protocol.WriteFrameAsync(
-                        session.Stream, Hmp1FrameType.Output, work.Output, session.Cts.Token).ConfigureAwait(false);
-                }
-                // Flush periodically (after draining available items)
-                if (session.OutputChannel.Reader.Count == 0)
-                {
-                    await session.Stream.FlushAsync(session.Cts.Token).ConfigureAwait(false);
+                    try
+                    {
+                        session.Cts.Token.ThrowIfCancellationRequested();
+                        if (work.ControlWriter is not null)
+                            await work.ControlWriter(session.Stream).ConfigureAwait(false);
+                        else if (!work.Output.IsEmpty)
+                            await Hmp1Protocol.WriteFrameAsync(
+                                session.Stream, Hmp1FrameType.Output, work.Output, session.Cts.Token).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        work = default;
+                    }
+                    if (session.OutputChannel.Reader.Count == 0)
+                        await session.Stream.FlushAsync(session.Cts.Token).ConfigureAwait(false);
                 }
             }
         }
@@ -1124,6 +1137,9 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         if (session.BrowserView is { } view)
             await view.DisposeAsync().ConfigureAwait(false);
         session.OutputChannel.Writer.TryComplete();
+        // Completion/cancellation does not discard buffered output or replay
+        // delegates, which can own an entire graphics snapshot.
+        while (session.OutputChannel.Reader.TryRead(out _)) { }
 
         try
         {
@@ -1193,7 +1209,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             OutputChannel = Channel.CreateBounded<Hmp1OutboundWork>(new BoundedChannelOptions(1000)
             {
                 FullMode = BoundedChannelFullMode.Wait,
-                SingleReader = true,
+                SingleReader = false,
                 SingleWriter = false
             });
         }

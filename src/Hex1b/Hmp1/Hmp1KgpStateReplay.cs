@@ -38,7 +38,8 @@ internal static class Hmp1KgpStateReplay
         foreach (var image in images.Values.OrderBy(image => image.ImageNumber > 0)
             .ThenBy(image => image.ImageNumber == 0 ? image.ImageId : 0))
         {
-            await AppendPixelsAsync(image, image.Data, image.Format, animationGap: null).ConfigureAwait(false);
+            await AppendPixelsAsync(image, image.IsZlibCompressed ? image.EncodedData : image.Data,
+                image.Format, animationGap: null, compressed: image.IsZlibCompressed).ConfigureAwait(false);
             KgpAnimationPlaybackSnapshot? playback = null;
             if (image.AnimationState is { } animation)
             {
@@ -127,7 +128,8 @@ internal static class Hmp1KgpStateReplay
         }
 
         async ValueTask AppendPixelsAsync(
-            KgpImageData image, byte[] data, KgpFormat format, int? animationGap)
+            KgpImageData image, ReadOnlyMemory<byte> data, KgpFormat format, int? animationGap,
+            bool compressed = false)
         {
             var action = animationGap.HasValue ? 'f' : 't';
             var offset = 0;
@@ -138,12 +140,14 @@ internal static class Hmp1KgpStateReplay
                 var isLast = offset + count >= data.Length;
                 var payload = count == 0
                     ? string.Empty
-                    : Convert.ToBase64String(data, offset, count);
+                    : Convert.ToBase64String(data.Span.Slice(offset, count));
                 string controls;
                 if (first)
                 {
                     controls = FormattableString.Invariant(
                         $"a={action},f={(int)format},s={image.Width},v={image.Height},{BuildImageIdentity(image)},t=d,q=2");
+                    if (compressed)
+                        controls += ",o=z";
                     if (animationGap is { } gap)
                         controls += FormattableString.Invariant($",X=1,z={(gap == 0 ? -1 : gap)}");
                     if (!isLast)

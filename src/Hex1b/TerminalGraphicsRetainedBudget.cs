@@ -7,15 +7,23 @@ internal sealed class TerminalGraphicsRetainedBudget
 {
     private readonly object _lock = new();
     private long _kgpBytes;
+    private long _kgpReservedBytes;
     private long _sixelBytes;
 
-    internal TerminalGraphicsRetainedBudget(long maximumBytes)
+    internal TerminalGraphicsRetainedBudget(
+        long maximumBytes,
+        int maximumInputBytes = 1024 * 1024,
+        long maximumRasterPixels = 16L * 1024 * 1024)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maximumBytes);
         MaximumBytes = maximumBytes;
+        MaximumInputBytes = maximumInputBytes;
+        MaximumRasterPixels = maximumRasterPixels;
     }
 
     internal long MaximumBytes { get; }
+    internal int MaximumInputBytes { get; }
+    internal long MaximumRasterPixels { get; }
 
     internal long KgpBytes
     {
@@ -49,7 +57,7 @@ internal sealed class TerminalGraphicsRetainedBudget
         get
         {
             lock (_lock)
-                return Math.Max(0, MaximumBytes - _kgpBytes);
+                return Math.Max(0, MaximumBytes - _kgpBytes - _kgpReservedBytes);
         }
     }
 
@@ -57,17 +65,19 @@ internal sealed class TerminalGraphicsRetainedBudget
     {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
         lock (_lock)
-            return bytes <= MaximumBytes - _kgpBytes;
+            return bytes <= MaximumBytes - _kgpBytes - _kgpReservedBytes;
     }
 
-    internal void SetKgpBytes(long bytes)
+    internal void SetKgpBytes(long bytes, long reservedBytes = 0)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+        ArgumentOutOfRangeException.ThrowIfNegative(reservedBytes);
         lock (_lock)
         {
-            if (bytes > MaximumBytes - _sixelBytes)
+            if (checked(bytes + reservedBytes) > MaximumBytes - _sixelBytes)
                 throw new InvalidOperationException("KGP retained bytes exceed the shared screen budget.");
             _kgpBytes = bytes;
+            _kgpReservedBytes = reservedBytes;
         }
     }
 
@@ -76,7 +86,7 @@ internal sealed class TerminalGraphicsRetainedBudget
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
         lock (_lock)
         {
-            if (bytes > MaximumBytes - _kgpBytes)
+            if (bytes > MaximumBytes - _kgpBytes - _kgpReservedBytes)
                 throw new InvalidOperationException("Sixel retained bytes exceed the shared screen budget.");
             _sixelBytes = bytes;
         }
@@ -85,10 +95,13 @@ internal sealed class TerminalGraphicsRetainedBudget
 
 internal sealed class TerminalGraphicsRetainedBudgetSet
 {
-    internal TerminalGraphicsRetainedBudgetSet(long maximumBytesPerScreen)
+    internal TerminalGraphicsRetainedBudgetSet(
+        long maximumBytesPerScreen,
+        int maximumInputBytes = 1024 * 1024,
+        long maximumRasterPixels = 16L * 1024 * 1024)
     {
-        Main = new TerminalGraphicsRetainedBudget(maximumBytesPerScreen);
-        Alternate = new TerminalGraphicsRetainedBudget(maximumBytesPerScreen);
+        Main = new TerminalGraphicsRetainedBudget(maximumBytesPerScreen, maximumInputBytes, maximumRasterPixels);
+        Alternate = new TerminalGraphicsRetainedBudget(maximumBytesPerScreen, maximumInputBytes, maximumRasterPixels);
     }
 
     internal TerminalGraphicsRetainedBudget Main { get; }

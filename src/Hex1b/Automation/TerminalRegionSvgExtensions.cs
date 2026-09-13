@@ -253,6 +253,13 @@ public static class TerminalRegionSvgExtensions
                 .ToList();
             var placeholderImageDefinitions =
                 new Dictionary<uint, (string ElementId, string DataUri)>();
+            var imageFormatData = new Dictionary<uint, byte[]>();
+            byte[] GetImageFormatData(KgpImageData image)
+            {
+                if (!imageFormatData.TryGetValue(image.ImageId, out var data))
+                    imageFormatData.Add(image.ImageId, data = image.CurrentFrameData);
+                return data;
+            }
             foreach (var placement in sortedPlacements)
             {
                 if (placeholderImageDefinitions.ContainsKey(placement.ImageId) ||
@@ -264,7 +271,7 @@ public static class TerminalRegionSvgExtensions
                 }
 
                 var dataUri = EncodeKgpImageToDataUri(
-                    image.CurrentFrameData,
+                    GetImageFormatData(image),
                     image.Width,
                     image.Height,
                     image.CurrentFrameFormat);
@@ -360,7 +367,7 @@ public static class TerminalRegionSvgExtensions
                         var (imgX, imgY, imgWidth, imgHeight) =
                             GetKgpDestinationBounds(placement, imageData, snapshot2, cellWidth, cellHeight);
                         var dataUri = EncodeKgpImageToDataUri(
-                            imageData.CurrentFrameData,
+                            GetImageFormatData(imageData),
                             imageData.Width,
                             imageData.Height,
                             imageData.CurrentFrameFormat,

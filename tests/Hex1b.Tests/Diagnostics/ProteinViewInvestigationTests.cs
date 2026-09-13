@@ -135,6 +135,194 @@ public class ProteinViewInvestigationTests
         }
     }
 
+    [TestMethod]
+    public async Task Capture_ExplicitSustainedRun_BoundsCurrentOwnersAcrossRotation()
+    {
+        var executable = Environment.GetEnvironmentVariable("HEX1B_PROTEINVIEW_EXECUTABLE");
+        var model = Environment.GetEnvironmentVariable("HEX1B_PROTEINVIEW_MODEL");
+        var root = Environment.GetEnvironmentVariable("HEX1B_GRAPHICS_SUSTAINED_EVIDENCE");
+        if (string.IsNullOrEmpty(executable) || string.IsNullOrEmpty(model) || string.IsNullOrEmpty(root))
+            Assert.Inconclusive("Opt-in: set HEX1B_PROTEINVIEW_EXECUTABLE, HEX1B_PROTEINVIEW_MODEL and HEX1B_GRAPHICS_SUSTAINED_EVIDENCE.");
+        Assert.IsTrue(File.Exists(executable));
+        Assert.IsTrue(File.Exists(model));
+        if (!OperatingSystem.IsMacOS() && !OperatingSystem.IsLinux())
+        {
+            Assert.Inconclusive("The real-PTY runner requires Unix.");
+            return;
+        }
+
+        var acknowledgementIntervalMs = 0;
+        if (Environment.GetEnvironmentVariable("HEX1B_GRAPHICS_ACK_INTERVAL_MS") is { } interval)
+            Assert.IsTrue(int.TryParse(interval, out acknowledgementIntervalMs) &&
+                acknowledgementIntervalMs is >= 0 and <= 1000, "ACK interval must be 0..1000 milliseconds.");
+        Assert.IsFalse(Directory.Exists(root), "Use a new private evidence directory.");
+        Directory.CreateDirectory(root, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var environment = LaunchEnvironment(normalized: true);
+        var arguments = new[] { Path.GetFullPath(model), "--fullhd", "--log", Path.Combine(root, "proteinview.log") };
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(60));
+        await using var child = new Hex1bTerminalChildProcess(Path.GetFullPath(executable), arguments,
+            workingDirectory: root, environment: environment, inheritEnvironment: false,
+            initialWidth: 80, initialHeight: 24);
+        await using var capture = new DuplexPtyCapture(child, 64 * 1024 * 1024, 100000);
+        using var stopped = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, capture.FailureToken);
+        await using var producer = new Hmp1PresentationAdapter(80, 24);
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(capture).WithPresentation(producer).WithDimensions(80, 24).Build();
+        await using var presentation = await producer.CreateBrowserViewAsync("Sustained ProteinView", stopped.Token);
+        var generations = new HashSet<string>(StringComparer.Ordinal);
+        var observations = new List<object>();
+        var frames = 0;
+        var completed = false;
+        var allocationStart = GC.GetTotalAllocatedBytes();
+        long rotationAllocations = 0;
+        KgpImageData? observedImage = null;
+        long previousMaterializations = 0;
+        long observedMaterializations = 0;
+        long observedMaterializedBytes = 0;
+        long rotationMaterializedBytes = 0;
+        var observedVersions = 0;
+        try
+        {
+            await child.StartAsync(stopped.Token);
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.KgpImages.Count == 1, TimeSpan.FromSeconds(10), "initial actual compressed image")
+                .Build().ApplyAsync(terminal, stopped.Token);
+            using var initial = terminal.CreateSnapshot();
+            var first = TestSeq.Single(initial.KgpImages.Values);
+            Assert.IsTrue(first.IsZlibCompressed);
+            var initialHash = Convert.ToHexString(first.ContentHash);
+            var initialPixels = first.Data;
+            Assert.AreEqual(initialHash, Convert.ToHexString(SHA256.HashData(initialPixels)));
+            await RecordFrameAsync("initial");
+            await terminal.SendInputAsync(" "u8.ToArray(), stopped.Token);
+
+            while (generations.Count < 200)
+                await RecordFrameAsync(generations.Count == 100 ? "rotation" : null);
+
+            ObserveMaterializations();
+            rotationAllocations = GC.GetTotalAllocatedBytes() - allocationStart;
+            rotationMaterializedBytes = observedMaterializedBytes;
+            await terminal.SendInputAsync(" r"u8.ToArray(), stopped.Token);
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.KgpImages.Values.Any(image =>
+                    Convert.ToHexString(image.ContentHash) == initialHash),
+                    TimeSpan.FromSeconds(10), "paused camera reset to exact initial pixels")
+                .Build().ApplyAsync(terminal, stopped.Token);
+            using (var reset = terminal.CreateSnapshot())
+                CollectionAssert.AreEqual(initialPixels, TestSeq.Single(reset.KgpImages.Values).Data);
+            await RecordFrameAsync("reset");
+            ObserveMaterializations();
+            Assert.IsTrue(generations.Count >= 200);
+
+            await terminal.SendInputAsync("q"u8.ToArray(), stopped.Token);
+            Assert.AreEqual(0, await child.WaitForExitAsync(stopped.Token));
+            using var drain = CancellationTokenSource.CreateLinkedTokenSource(stopped.Token);
+            drain.CancelAfter(TimeSpan.FromSeconds(2));
+            while (!capture.Records.Any(record => record.Kind == "output" && record.Data.Length == 0))
+                await Task.Delay(10, drain.Token);
+            capture.Complete("sustained-application-exited-and-output-drained");
+            completed = true;
+        }
+        finally
+        {
+            try
+            {
+                if (child.HasStarted && !child.HasExited)
+                {
+                    child.Kill();
+                    using var exitTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    await child.WaitForExitAsync(exitTimeout.Token);
+                }
+            }
+            finally
+            {
+                try { await terminal.DisposeAsync(); }
+                finally
+                {
+                    await capture.SaveAsync(Path.Combine(root, "transcript.json"), new
+                    {
+                        provenance = "real unmodified ProteinView; server-side producer/HWT1 ownership run, not browser presentation counts",
+                        requestedBaselineRevision = "9b9a0790bc78f1d2a7c0923905049d27c67c05e2",
+                        executableHash = Hash(executable), modelHash = Hash(model), arguments, environment,
+                        deadlineSeconds = 60, maximumBytes = 64 * 1024 * 1024, maximumEvents = 100000,
+                        observedDistinctAcceptedGenerations = generations.Count,
+                        hwtFramesReadAndAcknowledged = frames,
+                        acknowledgementIntervalMs,
+                        completed,
+                        rotationAllocationBytesIncludingCaptureAndProjection = rotationAllocations,
+                        rotationMaterializedFormatBytesObserved = rotationMaterializedBytes,
+                        observedImageVersions = observedVersions,
+                        successfulDataReadsObserved = observedMaterializations,
+                        materializedFormatBytesObserved = observedMaterializedBytes,
+                        note = "Generations sampled from atomic terminal snapshots; source uploads can exceed observations. Current store gauges are sampled independently during rotation. The initial snapshot, one decoded array, and only the last observed image for counter deltas remain caller-owned; no per-generation image registry is retained.",
+                        actualBytesAfterTerminalDisposal = terminal.KgpImageStore.TotalSize,
+                        reservedBytesAfterTerminalDisposal = terminal.KgpImageStore.ReservedDecodedBytes,
+                        observations
+                    }, CancellationToken.None);
+                }
+            }
+        }
+
+        Assert.IsTrue(completed);
+        Assert.AreEqual(0L, terminal.KgpImageStore.ChargedSize);
+
+        async Task RecordFrameAsync(string? name)
+        {
+            var frame = await presentation.ReadFrameAsync(stopped.Token);
+            using var metadata = ProteinViewGraphicsStreamTests.Metadata(frame);
+            using var snapshot = terminal.CreateSnapshot();
+            frames++;
+            if (snapshot.KgpImages.Count > 0)
+            {
+                var image = TestSeq.Single(snapshot.KgpImages.Values);
+                Assert.IsTrue(image.IsZlibCompressed);
+                if (!ReferenceEquals(observedImage, image))
+                {
+                    ObserveMaterializations();
+                    observedImage = image;
+                    previousMaterializations = 0;
+                    observedVersions++;
+                }
+                ObserveMaterializations();
+                var hash = Convert.ToHexString(image.ContentHash);
+                if (generations.Add(hash))
+                {
+                    observations.Add(new
+                    {
+                        generation = generations.Count, hash, image.Width, image.Height,
+                        snapshotEncodedBytes = image.EncodedData.Length,
+                        snapshotReservedBytes = image.ReservedDecodedBytes,
+                        currentStoreActualBytes = terminal.KgpImageStore.TotalSize,
+                        currentStoreReservedBytes = terminal.KgpImageStore.ReservedDecodedBytes,
+                        currentStoreChargedBytes = terminal.KgpImageStore.ChargedSize,
+                        frameBytes = frame.Length
+                    });
+                }
+                Assert.IsTrue(terminal.KgpImageStore.ImageCount <= 1);
+                Assert.IsTrue(terminal.KgpImageStore.ChargedSize <= 320L * 1024 * 1024);
+            }
+            if (name is not null && !File.Exists(Path.Combine(root, $"{name}.hwt")))
+                await File.WriteAllBytesAsync(Path.Combine(root, $"{name}.hwt"), frame.ToArray(), stopped.Token);
+            // Explicit presentation pacing for allocation comparisons, not a render-readiness delay.
+            if (acknowledgementIntervalMs != 0)
+                await Task.Delay(acknowledgementIntervalMs, stopped.Token);
+            await presentation.HandleMessageAsync(Encoding.UTF8.GetBytes(
+                $$"""{"type":"ack","revision":{{metadata.RootElement.GetProperty("revision").GetUInt32()}}}"""), stopped.Token);
+        }
+
+        void ObserveMaterializations()
+        {
+            if (observedImage is null)
+                return;
+            var count = observedImage.MaterializationCount;
+            var delta = count - previousMaterializations;
+            observedMaterializations = checked(observedMaterializations + delta);
+            observedMaterializedBytes = checked(observedMaterializedBytes + delta * observedImage.ReservedDecodedBytes);
+            previousMaterializations = count;
+        }
+    }
+
     private static Dictionary<string, string> LaunchEnvironment(bool normalized)
     {
         var environment = new Dictionary<string, string>
