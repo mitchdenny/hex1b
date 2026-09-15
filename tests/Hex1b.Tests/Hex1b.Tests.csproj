@@ -62,11 +62,11 @@
 
   <Target Name="CopyWindowsPtyShim" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty.exe')">
     <ItemGroup>
-      <WindowsPtyShimFiles Include="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/**/*.*"
-                           Exclude="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/**/*.pdb" />
+      <WindowsPtyShimFiles Include="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.*"
+                           Exclude="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.pdb" />
     </ItemGroup>
     <Copy SourceFiles="@(WindowsPtyShimFiles)"
-          DestinationFolder="$(TargetDir)runtimes\$(WindowsPtyShimRid)\native\%(RecursiveDir)"
+          DestinationFolder="$(TargetDir)runtimes\$(WindowsPtyShimRid)\native\"
           SkipUnchangedFiles="true" />
   </Target>
 

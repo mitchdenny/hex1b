@@ -6,7 +6,7 @@ namespace Hex1b.Tests;
 public class WindowsConsoleProbeTests
 {
     private const string ChildEnvironmentVariable = "HEX1B_WINDOWS_CONSOLE_PROBE_TEST";
-    private const string Query = "\x1b_Gi=2147483647,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\";
+    private const string ProbeStarted = "PROBE_STARTED";
 
     [TestMethod]
     [TestCategory("Windows")]
@@ -37,7 +37,7 @@ public class WindowsConsoleProbeTests
             var bytes = await pty.ReadAsync(ct);
             Assert.IsFalse(bytes.IsEmpty, $"Child exited before reporting capabilities: {output}");
             output.Append(Encoding.UTF8.GetString(bytes.Span));
-            if (!replied && output.ToString().Contains(Query, StringComparison.Ordinal))
+            if (!replied && output.ToString().Contains(ProbeStarted, StringComparison.Ordinal))
             {
                 replied = true;
                 // Exercise replies larger than a ReadConsoleInput batch, mixed with keyboard input.
@@ -50,7 +50,7 @@ public class WindowsConsoleProbeTests
             }
         }
 
-        Assert.IsTrue(replied, $"KGP query did not reach the outer terminal: {output}");
+        Assert.IsTrue(replied, $"Child did not start probing: {output}");
         await pty.WriteAsync("z\r"u8.ToArray(), ct);
         Assert.AreEqual(0, await pty.WaitForExitAsync(ct), output.ToString());
     }
@@ -65,7 +65,11 @@ public class WindowsConsoleProbeTests
         await using var adapter = new ConsolePresentationAdapter(
             driver, kgpProbeTimeout: TimeSpan.FromSeconds(2));
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await adapter.EnterRawModeAsync(cancellation.Token);
+        var probe = adapter.EnterRawModeAsync(cancellation.Token);
+        // Some ConPTY hosts consume APC queries instead of forwarding them.
+        // Signal after the probe starts so input coverage does not require graphics passthrough.
+        driver.Write(Encoding.UTF8.GetBytes(ProbeStarted + "\r\n"));
+        await probe;
 
         var input = new StringBuilder();
         while (input.Length < 3)
