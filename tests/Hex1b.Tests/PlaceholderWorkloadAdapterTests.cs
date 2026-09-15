@@ -10,6 +10,101 @@ namespace Hex1b.Tests;
 public class PlaceholderWorkloadAdapterTests
 {
     [TestMethod]
+    public async Task ProtocolResponse_QueuedBehindKeyboardDuringSwap_DropsStaleReply()
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        var primary = new GatedInputPrimary();
+        var placeholder = new FakeAdapter();
+        var adapter = new PlaceholderWorkloadAdapter(
+            primary, placeholder, PlaceholderResumePolicy.OnDisconnect);
+        primary.SignalConnected();
+        _ = await adapter.ReadOutputAsync(timeout.Token);
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            WorkloadAdapter = adapter,
+            PresentationAdapter = new HeadlessPresentationAdapter(80, 24),
+            Width = 80,
+            Height = 24,
+        });
+
+        var keyboard = terminal.SendInputAsync("held"u8.ToArray(), timeout.Token);
+        try
+        {
+            await primary.InputStarted.Task.WaitAsync(timeout.Token);
+            primary.EnqueueOutput("\x1b[c"u8.ToArray());
+            await primary.OutputProcessed.Task.WaitAsync(timeout.Token);
+            primary.SignalDisconnected();
+        }
+        finally
+        {
+            primary.ReleaseInput.TrySetResult();
+        }
+        await keyboard;
+        await terminal.SendInputAsync("next-key"u8.ToArray(), timeout.Token);
+
+        Assert.AreEqual(1, primary.WrittenInputCount);
+        Assert.AreEqual(1, placeholder.WrittenInputCount,
+            "The new child should receive the key, not the prior child's queued DA1 reply.");
+    }
+
+    [TestMethod]
+    public async Task HandlesProtocolQueries_Swaps_DelegatesToActiveChild()
+    {
+        var primary = new FakeConnectableAdapter { HandlesProtocolQueries = true };
+        var placeholder = new FakeAdapter();
+        await using var adapter = new PlaceholderWorkloadAdapter(
+            primary, placeholder, PlaceholderResumePolicy.OnDisconnect);
+
+        Assert.IsFalse(adapter.HandlesProtocolQueries);
+        primary.SignalConnected();
+        _ = await adapter.ReadOutputAsync(TestCancel());
+        Assert.IsTrue(adapter.HandlesProtocolQueries);
+        await adapter.WriteInputAsync("remote-key"u8.ToArray());
+        Assert.AreEqual(1, primary.WrittenInputCount);
+
+        primary.SignalDisconnected();
+        _ = await adapter.ReadOutputAsync(TestCancel());
+        Assert.IsFalse(adapter.HandlesProtocolQueries);
+        await adapter.WriteInputAsync("local-key"u8.ToArray());
+        Assert.AreEqual(1, placeholder.WrittenInputCount);
+    }
+
+    [TestMethod]
+    public async Task ProtocolResponse_AfterOutputReadAndSwap_DoesNotLeakToNewChild()
+    {
+        var primary = new FakeConnectableAdapter { HandlesProtocolQueries = true };
+        var placeholder = new FakeAdapter();
+        placeholder.EnqueueOutput("\x1b[c"u8.ToArray());
+        await using var adapter = new PlaceholderWorkloadAdapter(
+            primary, placeholder, PlaceholderResumePolicy.OnDisconnect);
+
+        _ = await adapter.ReadOutputAsync(TestCancel());
+        var localOutput = adapter.CaptureProtocolResponseTarget();
+        primary.EnqueueOutput("\x1b[c"u8.ToArray());
+        primary.SignalConnected();
+        _ = await adapter.ReadOutputAsync(TestCancel());
+        _ = await adapter.ReadOutputAsync(TestCancel());
+        var remoteOutput = adapter.CaptureProtocolResponseTarget();
+        await adapter.WriteProtocolResponseAsync(localOutput, "local-reply"u8.ToArray(), TestCancel());
+        await adapter.WriteProtocolResponseAsync(remoteOutput, "remote-reply"u8.ToArray(), TestCancel());
+
+        primary.SignalDisconnected();
+        // The last output is still remote even though keyboard ownership changed.
+        Assert.AreSame(primary, adapter.CaptureProtocolResponseTarget().Workload);
+        await adapter.WriteProtocolResponseAsync(remoteOutput, "remote-reply"u8.ToArray(), TestCancel());
+        _ = await adapter.ReadOutputAsync(TestCancel());
+        // Returning to the same placeholder must not revive its old reply.
+        await adapter.WriteProtocolResponseAsync(localOutput, "stale-local-reply"u8.ToArray(), TestCancel());
+        Assert.AreEqual(0, primary.WrittenInputCount);
+        Assert.AreEqual(0, placeholder.WrittenInputCount);
+
+        var currentOutput = adapter.CaptureProtocolResponseTarget();
+        await adapter.WriteProtocolResponseAsync(currentOutput, "current-reply"u8.ToArray(), TestCancel());
+        Assert.AreEqual(1, placeholder.WrittenInputCount);
+    }
+
+    [TestMethod]
     public async Task ReadOutputAsync_StartsFromPlaceholder_BeforePrimaryConnects()
     {
         var primary = new FakeConnectableAdapter();
@@ -244,7 +339,10 @@ public class PlaceholderWorkloadAdapterTests
             Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
 
         public int WrittenInputCount;
+        public bool HandlesProtocolQueries { get; init; }
         public (int, int)? LastResize;
+        private bool _returnedOutput;
+        public TaskCompletionSource OutputProcessed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public event Action? Disconnected;
 
@@ -253,9 +351,12 @@ public class PlaceholderWorkloadAdapterTests
 
         public virtual async ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
         {
+            if (_returnedOutput) OutputProcessed.TrySetResult();
             try
             {
-                return await _out.Reader.ReadAsync(ct).ConfigureAwait(false);
+                var output = await _out.Reader.ReadAsync(ct).ConfigureAwait(false);
+                _returnedOutput = true;
+                return output;
             }
             catch (ChannelClosedException)
             {
@@ -263,7 +364,7 @@ public class PlaceholderWorkloadAdapterTests
             }
         }
 
-        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+        public virtual ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
         {
             Interlocked.Increment(ref WrittenInputCount);
             return ValueTask.CompletedTask;
@@ -302,6 +403,19 @@ public class PlaceholderWorkloadAdapterTests
         {
             _disconnected.TrySetResult();
             RaiseDisconnected();
+        }
+    }
+
+    private sealed class GatedInputPrimary : FakeConnectableAdapter
+    {
+        public TaskCompletionSource InputStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseInput { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+        {
+            InputStarted.TrySetResult();
+            await ReleaseInput.Task.WaitAsync(ct);
+            await base.WriteInputAsync(data, ct);
         }
     }
 

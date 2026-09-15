@@ -29,6 +29,17 @@ namespace Hex1b;
 public interface IHex1bTerminalWorkloadAdapter : IAsyncDisposable
 {
     /// <summary>
+    /// Gets whether the workload's upstream terminal owns protocol query responses.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="false"/> for locally hosted workloads. Remote
+    /// terminal adapters return <see langword="true"/> to prevent the local
+    /// <see cref="Hex1bTerminal"/> from generating duplicate protocol responses.
+    /// This does not suppress keyboard, mouse, or other user input.
+    /// </remarks>
+    bool HandlesProtocolQueries => false;
+
+    /// <summary>
     /// Read output FROM the workload (ANSI sequences to display).
     /// The terminal calls this to get data to parse and send to presentation.
     /// Returns empty when workload has no more output (should be called in a loop).

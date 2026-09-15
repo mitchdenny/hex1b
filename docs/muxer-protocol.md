@@ -265,6 +265,33 @@ Incremental terminal output from the server's workload (e.g., PTY process). Sent
 
 **Payload:** Raw ANSI bytes (UTF-8).
 
+For a terminal-backed producer, this is a **rendering stream**, not a byte-for-byte
+capture of workload output. The producer answers supported terminal queries using
+its own capabilities and state, even when no clients are connected. It consumes
+DA1 (`CSI c` / `CSI 0 c`), XTWINOPS reports (`CSI 14/16/18 t`), supported status
+and cursor-position reports (`CSI 5/6 n`), and recognized Kitty query commands
+before broadcasting output. Clients must not answer these queries again.
+
+State-changing Kitty commands still reach viewers, with their quiet control set
+to `q=2` to suppress downstream success and error acknowledgements. The producer
+processes the original quiet control and returns the appropriate response to the
+workload. Other output retains its original bytes; unsupported or malformed
+commands are not covered by this response-ownership guarantee.
+
+Projection is streaming across Output boundaries. A partially received query is
+not seeded into a newly attached client's parser; ordinary incomplete sequences
+retain their projected continuation. CSI and Kitty control headers are bounded
+to 64 KiB; exceeding the limit fails output processing with an error rather than
+silently truncating the header. Graphics payloads are streamed, not buffered by
+this header limit.
+
+Hex1b HMP1 workload adapters also declare upstream ownership, suppressing locally
+generated replies in replicas. This protects Hex1b replicas receiving queries
+from older producers, but an external raw terminal can still answer queries
+forwarded by an older producer. Upgrade the producer to prevent those replies.
+A transport-only `Hmp1PresentationAdapter` with no attached `Hex1bTerminal`
+continues to forward bytes unchanged: it has no terminal responsible for replies.
+
 > **Important:** Output frames are stateful — ANSI escape sequences build on previous state (colors, cursor position, modes). Dropping or reordering Output frames will cause visual corruption. If a client falls behind, it should be disconnected and reconnected (which triggers a fresh Hello + StateSync).
 
 ### Input (0x04)
@@ -438,6 +465,12 @@ its own `Hello + StateSync` on connection. **Output** is multicast to all
 connected clients. **Input** from any client is forwarded to the workload
 without arbitration (so multiple peers may type into the same PTY at once —
 that's a UX concern, not a protocol concern).
+
+**Protocol replies.** The original producer is the answerer, not the primary
+client. Attachment count, role changes, and disconnects do not transfer that
+responsibility. The primary can change the producer's dimensions, so subsequent
+size reports reflect those dimensions, but viewer capabilities do not replace
+the producer's capability model. Ordinary input from secondaries remains enabled.
 
 **Resize policy.** Exactly one peer at a time may hold the **primary** role.
 Only the primary can drive the PTY's dimensions. There is no implicit primary;

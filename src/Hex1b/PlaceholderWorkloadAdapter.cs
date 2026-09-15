@@ -48,6 +48,7 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
     private IHex1bTerminalWorkloadAdapter _active;
     private CancellationTokenSource _swapCts = new();
+    private ProtocolResponseTarget _outputOwner;
     private bool _resetPending;
     private bool _disposed;
 
@@ -80,6 +81,7 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
         _placeholderRun = placeholderRun;
         _resumePolicy = resumePolicy;
         _active = placeholder;
+        _outputOwner = new(placeholder, _swapCts.Token);
 
         _primary.Disconnected += OnPrimaryDisconnectedEvent;
 
@@ -104,6 +106,37 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
     /// <summary>The currently-active child (test hook).</summary>
     internal IHex1bTerminalWorkloadAdapter ActiveChild => Volatile.Read(ref _active);
+    public bool HandlesProtocolQueries => ActiveChild.HandlesProtocolQueries;
+
+    // Output and input can straddle a swap. Pin replies to the child that supplied
+    // the last returned output, not whichever child now receives keyboard input.
+    internal readonly record struct ProtocolResponseTarget(
+        IHex1bTerminalWorkloadAdapter Workload, CancellationToken Generation);
+
+    internal ProtocolResponseTarget CaptureProtocolResponseTarget()
+    {
+        lock (_swapLock)
+        {
+            return _outputOwner;
+        }
+    }
+
+    internal ValueTask WriteProtocolResponseAsync(
+        ProtocolResponseTarget target, ReadOnlyMemory<byte> data, CancellationToken ct)
+    {
+        lock (_swapLock)
+        {
+            if (_disposed || target.Generation != _swapCts.Token
+                || !ReferenceEquals(target.Workload, _active)
+                || target.Workload.HandlesProtocolQueries)
+                return ValueTask.CompletedTask;
+
+            // Start the write while holding the swap lock, but never hold it
+            // across an await. An in-flight write stays bound to this child.
+            return target.Workload.WriteInputAsync(data, ct);
+        }
+    }
+
     Hmp1WorkloadAdapter? IHmp1TerminalOutputSource.Hmp1Workload =>
         (ActiveChild as IHmp1TerminalOutputSource)?.Hmp1Workload;
     ValueTask<Hmp1WorkloadOutput> IHmp1TerminalOutputSource.ReadTerminalOutputAsync(CancellationToken cancellationToken)
@@ -211,7 +244,12 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
                     var state = preserveState && _primary is IHmp1TerminalOutputSource
                         ? new Hmp1TerminalState(null, null, _lastWidth, _lastHeight, false)
                         : null;
-                    return new(ResetSequence, State: state);
+                    lock (_swapLock)
+                    {
+                        if (swapToken != _swapCts.Token) continue;
+                        _outputOwner = new(active, swapToken);
+                        return new(ResetSequence, State: state);
+                    }
                 }
             }
 
@@ -253,7 +291,12 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
                     output.Bytes.Span.CopyTo(combined.AsSpan(ResetSequence.Length));
                     output = output with { Bytes = combined };
                 }
-                return output;
+                lock (_swapLock)
+                {
+                    if (swapToken != _swapCts.Token) continue;
+                    _outputOwner = new(active, swapToken);
+                    return output;
+                }
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {

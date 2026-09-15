@@ -40,6 +40,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     ITerminalReflowProvider, IInternalTerminalReflowProvider
 {
     private readonly List<Hmp1ClientSession> _sessions = [];
+    private readonly Hmp1OutputProjection _outputProjection = new();
     private readonly object _sessionsLock = new();
     private readonly Channel<ReadOnlyMemory<byte>> _inputChannel;
     private Hex1bTerminal? _terminal;
@@ -537,6 +538,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             // sequence. Seed the new parser after all replay commands and before
             // live output can deliver the remainder of that sequence.
             var pendingAnsi = _terminal?.CapturePendingAnsiOutput() ?? ReadOnlyMemory<byte>.Empty;
+            pendingAnsi = Hmp1OutputProjection.ProjectContinuation(pendingAnsi.Span);
             if (!pendingAnsi.IsEmpty)
             {
                 EnqueueControlFrameAsync(session, async stream =>
@@ -736,13 +738,15 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         var replayActivity = _terminal?.Hmp1ReplayActivityState;
         if (_disposed || (data.IsEmpty && replayActivity is null)) return ValueTask.CompletedTask;
 
-        // Copy once; each session's pump consumes the same buffer view.
-        var copy = data.ToArray();
-
         // Enqueue to each client's write channel (non-blocking).
         // Clients that can't keep up will be disconnected.
         lock (_sessionsLock)
         {
+            if (replayActivity is not null)
+                _outputProjection.Reset();
+            // Project once, even without clients. The producer still parses the
+            // original bytes and owns replies; viewers receive only rendering output.
+            var copy = _terminal is null ? data.ToArray() : _outputProjection.Process(data.Span);
             for (var i = _sessions.Count - 1; i >= 0; i--)
             {
                 var session = _sessions[i];
@@ -751,6 +755,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                     browserView.RecordOutputBatch();
                     continue;
                 }
+                if (copy.IsEmpty && replayActivity is null)
+                    continue;
                 var work = replayActivity is null
                     ? new Hmp1OutboundWork(copy, null)
                     : new Hmp1OutboundWork(default, async stream =>
@@ -857,8 +863,15 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                         if (work.ControlWriter is not null)
                             await work.ControlWriter(session.Stream).ConfigureAwait(false);
                         else if (!work.Output.IsEmpty)
-                            await Hmp1Protocol.WriteFrameAsync(
-                                session.Stream, Hmp1FrameType.Output, work.Output, session.Cts.Token).ConfigureAwait(false);
+                        {
+                            for (var offset = 0; offset < work.Output.Length;)
+                            {
+                                var length = Math.Min(Hmp1Protocol.MaxPayloadSize, work.Output.Length - offset);
+                                await Hmp1Protocol.WriteFrameAsync(session.Stream, Hmp1FrameType.Output,
+                                    work.Output.Slice(offset, length), session.Cts.Token).ConfigureAwait(false);
+                                offset += length;
+                            }
+                        }
                     }
                     finally
                     {

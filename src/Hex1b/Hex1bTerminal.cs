@@ -3703,10 +3703,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// only presentation whose
     /// <see cref="IHex1bTerminalPresentationAdapter.AnswersProtocolQueriesDirectly"/>
     /// is <see langword="true"/>, so it is the only presentation this method stays
-    /// silent for — every other presentation (including headless and WebSocket
-    /// adapters) gets a synthesized reply here so a single, deterministic answerer
-    /// always exists and duplicate responses from both Hex1b and a real terminal are
-    /// impossible.
+    /// silent for at the presentation layer. For other presentations (including
+    /// headless and WebSocket adapters), a reply is synthesized unless the workload
+    /// already has an upstream owner, as checked by SendProtocolResponseAsync.
     /// </remarks>
     private void HandleDeviceAttributesQuery()
     {
@@ -3730,7 +3729,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Answers an XTWINOPS window-operation query (<c>CSI 14/16/18 t</c>) on behalf
     /// of the workload, using the terminal's own authoritative size and cell-metric
     /// model, unless the active presentation is a real upstream terminal that will
-    /// already answer it itself.
+    /// already answer it itself. Workloads with an upstream query owner are also
+    /// kept silent by SendProtocolResponseAsync.
     /// </summary>
     /// <remarks>
     /// Only the report-style operations recognized by
@@ -3796,9 +3796,25 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private async Task SendProtocolResponseAsync(byte[] bytes)
     {
+        var placeholder = _workload as PlaceholderWorkloadAdapter;
+        var target = placeholder?.CaptureProtocolResponseTarget();
+        var responseWorkload = target?.Workload ?? _workload;
+        if (responseWorkload is null || responseWorkload.HandlesProtocolQueries) return;
+
         try
         {
-            await WriteWorkloadInputAsync(bytes, _disposeCts.Token).ConfigureAwait(false);
+            await _workloadInputWriteLock.WaitAsync(_disposeCts.Token).ConfigureAwait(false);
+            try
+            {
+                if (placeholder is not null && target is { } outputOwner)
+                    await placeholder.WriteProtocolResponseAsync(outputOwner, bytes, _disposeCts.Token).ConfigureAwait(false);
+                else
+                    await responseWorkload.WriteInputAsync(bytes, _disposeCts.Token).ConfigureAwait(false);
+            }
+            finally
+            {
+                _workloadInputWriteLock.Release();
+            }
         }
         catch (OperationCanceledException) when (_disposeCts.IsCancellationRequested)
         {

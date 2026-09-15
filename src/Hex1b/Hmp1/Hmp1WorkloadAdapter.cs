@@ -67,6 +67,12 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     private int _connectionStarted;
 
     internal bool ConnectionStarted => Volatile.Read(ref _connectionStarted) != 0;
+    /// <summary>
+    /// Gets whether the remote producer owns protocol query responses.
+    /// Always <see langword="true"/>, regardless of connection or primary role.
+    /// </summary>
+    public bool HandlesProtocolQueries => true;
+
     internal Task<Exception?> InitialHandshake => _initialHandshake.Task;
     internal Task<Exception?> InitialReplay => _initialReplay.Task;
     internal void CompleteInitialReplay(Exception? error) => _initialReplay.TrySetResult(error);

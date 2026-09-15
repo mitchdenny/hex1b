@@ -106,7 +106,9 @@ public interface IHex1bTerminalPresentationAdapter : IAsyncDisposable
     /// managed WebSocket/browser presentations, or (once
     /// <see href="https://github.com/mitchdenny/hex1b/issues/458">#458</see> lands)
     /// translated raster-graphics presentations. For those, <see cref="Hex1bTerminal"/>
-    /// owns query answering and synthesizes replies from its own authoritative model.
+    /// owns query answering and synthesizes replies from its own authoritative model,
+    /// unless <see cref="IHex1bTerminalWorkloadAdapter.HandlesProtocolQueries"/> assigns
+    /// that responsibility to a remote producer.
     /// </para>
     /// <para>
     /// <see cref="ConsolePresentationAdapter"/> overrides this to <see langword="true"/>
