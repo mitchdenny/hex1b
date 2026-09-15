@@ -535,6 +535,20 @@ Not every widget needs every combination, but consider which dimensions are rele
 
 ## Low-Level API Testing (Isolation)
 
+### Native Windows Console Probes
+
+Run native console tests in a child process under `WindowsProxyPtyHandle`, not
+against the test runner's own console. `WindowsConsoleProbeTests` launches the
+already-built test executable with an exact `--filter` and a child-only
+environment marker; its guarded child test constructs the real console driver.
+The parent acts as the terminal, waits for the actual query before replying,
+and checks a result written through the driver. This exercises ConPTY and
+`ReadConsoleInputW` without runtime compilation or shared-console mutation.
+Keep the proxy's complete native directory tree in the test output, including
+`x64/OpenConsole.exe` and `arm64/OpenConsole.exe`; otherwise ConPTY can fall back
+to the OS host, which may not forward graphics sequences. Use bounded
+cancellation and dispose the PTY to terminate children on assertion failures.
+
 For APIs that are dependencies of `Hex1bApp` (like `Surface`), test in isolation:
 
 ```csharp

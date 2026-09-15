@@ -178,6 +178,39 @@ public class ConsolePresentationAdapterTests
     }
 
     [TestMethod]
+    [DataRow("ENOTSUP: unsupported format")]
+    [DataRow("EINVAL: invalid query")]
+    [DataRow("")]
+    [DataRow("OK trailing garbage")]
+    public async Task EnterRawModeAsync_WhenKgpQueryFails_ConsumesReplyWithoutEnablingKgp(string reply)
+    {
+        using var driver = new FakeConsoleDriver($"a\x1b_Gi=2147483647;{reply}\x1b\\bc");
+        await using var adapter = new ConsolePresentationAdapter(
+            driver, kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+
+        Assert.IsFalse(adapter.Capabilities.SupportsKgp);
+        Assert.AreEqual("abc", Encoding.ASCII.GetString(input.Span));
+    }
+
+    [TestMethod]
+    public async Task EnterRawModeAsync_WhenKgpReplyHasDifferentId_PreservesReplyWithoutEnablingKgp()
+    {
+        const string response = "\x1b_Gi=123;OK\x1b\\abc";
+        using var driver = new FakeConsoleDriver(response);
+        await using var adapter = new ConsolePresentationAdapter(
+            driver, kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+
+        Assert.IsFalse(adapter.Capabilities.SupportsKgp);
+        Assert.AreEqual(response, Encoding.ASCII.GetString(input.Span));
+    }
+
+    [TestMethod]
     public async Task EnterRawModeAsync_WhenProbeReadsMixedInput_PreservesNonProbeBytes()
     {
         using var driver = new FakeConsoleDriver($"\x1b_Gi=2147483647;OK\x1b\\abc");
