@@ -438,35 +438,6 @@ public sealed class ConsolePresentationAdapter :
 
         _kgpProbeCompleted = true;
 
-        // Windows uses console input records rather than a raw stdin byte stream, so
-        // none of these probe replies are currently readable through the built-in
-        // console driver (see WindowsConsoleDriver's ENABLE_VIRTUAL_TERMINAL_INPUT /
-        // lone-ESC-disambiguation notes). Sixel support and metrics stay unknown on
-        // Windows unless declared directly via WithSixelSupport.
-        if (_driver is WindowsConsoleDriver)
-        {
-            if (_declaredSixelSupport is null)
-            {
-                const string reason = "Windows console driver does not support Sixel capability probing.";
-                _sixelDiagnostics = new SixelCapabilityProbeDiagnostics(
-                    Attempts:
-                    [
-                        new SixelMetricsProbeAttempt(SixelCellMetricsSource.Csi16, SixelMetricsProbeOutcome.NotAttempted, reason),
-                        new SixelMetricsProbeAttempt(SixelCellMetricsSource.Osc1337, SixelMetricsProbeOutcome.NotAttempted, reason),
-                        new SixelMetricsProbeAttempt(SixelCellMetricsSource.Derived, SixelMetricsProbeOutcome.NotAttempted, reason)
-                    ],
-                    Da1DeclaresSixel: null,
-                    SelectedMetrics: null,
-                    MetricsDisagreement: false,
-                    DisagreementDetail: null);
-                // Explicit, not just relying on the enum default: capability
-                // discovery could not run, so support is unknown, never "confirmed
-                // unsupported."
-                _capabilities = _capabilities with { SixelSupport = SixelPresentationSupport.Unknown };
-            }
-            return;
-        }
-
         var sixelProbeNeeded = _declaredSixelSupport is null;
 
         _driver.Write(KgpProbeQuery);
@@ -486,6 +457,7 @@ public sealed class ConsolePresentationAdapter :
 
         var bufferedInput = new List<byte>();
         var readBuffer = new byte[256];
+        var kgpDone = false;
 
         bool? da1DeclaresSixel = null;
         var da1Done = !sixelProbeNeeded;
@@ -520,9 +492,10 @@ public sealed class ConsolePresentationAdapter :
 
                 bufferedInput.AddRange(readBuffer.AsSpan(0, bytesRead).ToArray());
 
-                if (TryConsumeKgpProbeResponse(bufferedInput, KgpProbeImageId))
+                if (!kgpDone && TryConsumeKgpProbeResponse(bufferedInput, KgpProbeImageId, out var supportsKgp))
                 {
-                    _capabilities = _capabilities with { SupportsKgp = true };
+                    kgpDone = true;
+                    _capabilities = _capabilities with { SupportsKgp = supportsKgp };
                 }
 
                 if (!_backgroundProbeCompleted &&
@@ -574,7 +547,7 @@ public sealed class ConsolePresentationAdapter :
                     }
                 }
 
-                if (_capabilities.SupportsKgp && _backgroundProbeCompleted &&
+                if (kgpDone && _backgroundProbeCompleted &&
                     da1Done && csi16Done && csi14Done && csi18Done && osc1337Done)
                     break;
             }
@@ -1016,8 +989,9 @@ public sealed class ConsolePresentationAdapter :
         _prefetchedInput = combined;
     }
 
-    private static bool TryConsumeKgpProbeResponse(List<byte> buffer, uint probeImageId)
+    private static bool TryConsumeKgpProbeResponse(List<byte> buffer, uint probeImageId, out bool supportsKgp)
     {
+        supportsKgp = false;
         var span = CollectionsMarshal.AsSpan(buffer);
         for (var start = 0; start <= span.Length - 4; start++)
         {
@@ -1032,6 +1006,7 @@ public sealed class ConsolePresentationAdapter :
                 var content = Encoding.ASCII.GetString(span[(start + 3)..end]);
                 if (IsKgpProbeResponse(content, probeImageId))
                 {
+                    supportsKgp = content.AsSpan(content.IndexOf(';') + 1).SequenceEqual("OK");
                     buffer.RemoveRange(start, end + 2 - start);
                     return true;
                 }
