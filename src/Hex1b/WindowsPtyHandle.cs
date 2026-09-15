@@ -23,6 +23,7 @@ internal sealed class WindowsPtyHandle : IPtyHandle
     
     private const uint EXTENDED_STARTUPINFO_PRESENT = 0x00080000;
     private const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
+    private const uint STARTF_USESTDHANDLES = 0x00000100;
     private const int PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016;
     private const uint INFINITE = 0xFFFFFFFF;
     private const uint WAIT_OBJECT_0 = 0;
@@ -66,7 +67,7 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         public int dwXCountChars;
         public int dwYCountChars;
         public int dwFillAttribute;
-        public int dwFlags;
+        public uint dwFlags;
         public short wShowWindow;
         public short cbReserved2;
         public IntPtr lpReserved2;
@@ -289,7 +290,12 @@ internal sealed class WindowsPtyHandle : IPtyHandle
                     {
                         StartupInfo = new STARTUPINFOW
                         {
-                            cb = Marshal.SizeOf<STARTUPINFOEXW>()
+                            cb = Marshal.SizeOf<STARTUPINFOEXW>(),
+                            // https://github.com/vim/vim/commit/78ae2ff09438c4383d570f4c92e23134805cf0b7
+                            dwFlags = STARTF_USESTDHANDLES,
+                            hStdInput = new IntPtr(-1),
+                            hStdOutput = new IntPtr(-1),
+                            hStdError = new IntPtr(-1)
                         },
                         lpAttributeList = attrList
                     };
