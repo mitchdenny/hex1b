@@ -298,7 +298,8 @@ public class Hwt1Hmp1IntegrationTests
         Assert.IsTrue(nativeClient.Peers.Any(peer => peer.PeerId == browserId));
         await nativeClient.RequestPrimaryAsync(40, 12);
         Assert.IsTrue(await nativeClient.WaitForRoleAsync(true, TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
-        var primary = await ReadUntilAsync(browser, frame => PrimaryId(frame) == nativeClient.PeerId);
+        var primary = await ReadUntilAsync(browser, frame => PrimaryId(frame) == nativeClient.PeerId &&
+            frame.GetProperty("columns").GetInt32() == 40 && frame.GetProperty("rows").GetInt32() == 12);
         Assert.AreEqual(40, primary.GetProperty("columns").GetInt32());
         Assert.AreEqual(12, primary.GetProperty("rows").GetInt32());
         Assert.IsFalse(primary.GetProperty("peer").GetProperty("isPrimary").GetBoolean());
@@ -318,7 +319,10 @@ public class Hwt1Hmp1IntegrationTests
         Assert.AreEqual(1, server.ClientCount);
         await nativeClient.RequestPrimaryAsync(20, 10);
         Assert.IsTrue(await nativeClient.WaitForRoleAsync(true, TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        // Role acknowledgement can arrive before the producer applies the resize.
+        await WaitForScreenAsync(producer, snapshot => snapshot.Width == 20 && snapshot.Height == 10);
         Assert.AreEqual(20, producer.Width);
+        Assert.AreEqual(10, producer.Height);
     }
 
     [TestMethod]
