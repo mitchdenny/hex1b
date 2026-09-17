@@ -9,7 +9,7 @@ namespace Hex1b;
 /// </summary>
 internal sealed class Hmp1ListenerStartFilter : IHex1bTerminalPresentationFilter
 {
-    private readonly Hmp1PresentationAdapter _adapter;
+    private Hmp1PresentationAdapter? _adapter;
     private readonly List<(Func<CancellationToken, IAsyncEnumerable<Stream>> Source, Func<Stream, Task<Stream>>? Transform)> _streamSources = [];
     private readonly List<Task> _listenerTasks = [];
     private CancellationTokenSource? _listenerCts;
@@ -18,7 +18,7 @@ internal sealed class Hmp1ListenerStartFilter : IHex1bTerminalPresentationFilter
     private static readonly ConditionalWeakTable<Hex1bTerminalBuilder, Hmp1ListenerStartFilter> s_filters = new();
 
     /// <summary>
-    /// Gets or creates the filter and adapter for this builder. Multiple calls return the same instance.
+    /// Gets or creates the filter for this builder. The adapter is created at build time.
     /// </summary>
     /// <remarks>
     /// The first caller's <paramref name="options"/> (if any) wins for
@@ -30,42 +30,41 @@ internal sealed class Hmp1ListenerStartFilter : IHex1bTerminalPresentationFilter
     /// are stored alongside each stream source and applied per-client.
     /// </remarks>
     internal static Hmp1ListenerStartFilter GetOrCreate(
-        Hex1bTerminalBuilder builder, Hmp1ServerOptions? options, out Hmp1PresentationAdapter adapter)
+        Hex1bTerminalBuilder builder, Hmp1ServerOptions? options)
     {
         if (s_filters.TryGetValue(builder, out var existing))
         {
-            adapter = existing._adapter;
             return existing;
         }
 
-        adapter = new Hmp1PresentationAdapter();
-        var filter = new Hmp1ListenerStartFilter(adapter);
+        var filter = new Hmp1ListenerStartFilter();
 
-        // Wire the first-caller options to adapter-wide async callback
-        // properties. Subsequent WithHmp1*Server calls add additional
-        // listeners (and may carry their own per-listener stream
-        // transforms) but do not get to re-bind the adapter-wide hooks.
-        // Hmp1AsyncCallback handles per-handler exception isolation
-        // internally so we don't need to wrap each assignment in
-        // try/catch here.
-        if (options is not null)
+        // Snapshot the first caller's hooks now, but resolve dimensions at build time.
+        var onClientConnected = options?.OnClientConnected;
+        var onClientDisconnected = options?.OnClientDisconnected;
+        var onResized = options?.OnResized;
+        var onPrimaryChanged = options?.OnPrimaryChanged;
+        builder.SetPresentationFactory((width, height) =>
         {
-            adapter.OnClientConnected = options.OnClientConnected;
-            adapter.OnClientDisconnected = options.OnClientDisconnected;
-            adapter.OnResized = options.OnResized;
-            adapter.OnPrimaryChanged = options.OnPrimaryChanged;
-        }
+            var adapter = new Hmp1PresentationAdapter(width, height)
+            {
+                OnClientConnected = onClientConnected,
+                OnClientDisconnected = onClientDisconnected,
+                OnResized = onResized,
+                OnPrimaryChanged = onPrimaryChanged
+            };
+            filter._adapter = adapter;
+            return adapter;
+        });
 
-        builder.WithPresentation(adapter);
         builder.AddPresentationFilter(filter);
         s_filters.AddOrUpdate(builder, filter);
 
         return filter;
     }
 
-    private Hmp1ListenerStartFilter(Hmp1PresentationAdapter adapter)
+    private Hmp1ListenerStartFilter()
     {
-        _adapter = adapter;
     }
 
     public void AddStreamSource(
@@ -77,18 +76,21 @@ internal sealed class Hmp1ListenerStartFilter : IHex1bTerminalPresentationFilter
 
     public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct = default)
     {
+        var adapter = _adapter ??
+            throw new InvalidOperationException("The HMP1 presentation adapter must be created before starting listeners.");
         _listenerCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var token = _listenerCts.Token;
 
         foreach (var (source, transform) in _streamSources)
         {
-            _listenerTasks.Add(Task.Run(() => RunListenerAsync(source, transform, token), token));
+            _listenerTasks.Add(Task.Run(() => RunListenerAsync(adapter, source, transform, token), token));
         }
 
         return ValueTask.CompletedTask;
     }
 
-    private async Task RunListenerAsync(
+    private static async Task RunListenerAsync(
+        Hmp1PresentationAdapter adapter,
         Func<CancellationToken, IAsyncEnumerable<Stream>> streamSource,
         Func<Stream, Task<Stream>>? streamTransform,
         CancellationToken ct)
@@ -97,13 +99,14 @@ internal sealed class Hmp1ListenerStartFilter : IHex1bTerminalPresentationFilter
         {
             await foreach (var stream in streamSource(ct).WithCancellation(ct).ConfigureAwait(false))
             {
-                _ = AddClientSafeAsync(stream, streamTransform, ct);
+                _ = AddClientSafeAsync(adapter, stream, streamTransform, ct);
             }
         }
         catch (OperationCanceledException) { }
     }
 
-    private async Task AddClientSafeAsync(Stream stream, Func<Stream, Task<Stream>>? transform, CancellationToken ct)
+    private static async Task AddClientSafeAsync(
+        Hmp1PresentationAdapter adapter, Stream stream, Func<Stream, Task<Stream>>? transform, CancellationToken ct)
     {
         Stream toAdd = stream;
         try
@@ -113,7 +116,7 @@ internal sealed class Hmp1ListenerStartFilter : IHex1bTerminalPresentationFilter
                 toAdd = await transform(stream).ConfigureAwait(false);
             }
 
-            await _adapter.AddClient(toAdd, ct).ConfigureAwait(false);
+            await adapter.AddClient(toAdd, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (
             ex is IOException or ObjectDisposedException or OperationCanceledException or InvalidOperationException)

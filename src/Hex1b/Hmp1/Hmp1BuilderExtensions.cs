@@ -36,6 +36,11 @@ public static class Hmp1BuilderExtensions
     /// the given async stream source. Can be called multiple times to serve
     /// over multiple transports simultaneously.
     /// </summary>
+    /// <remarks>
+    /// The initial grid uses <see cref="Hex1bTerminalBuilder.WithDimensions"/> at build
+    /// time, regardless of call order, and defaults to 80 columns by 24 rows.
+    /// A primary viewer can resize the terminal later.
+    /// </remarks>
     public static Hex1bTerminalBuilder WithHmp1Server(
         this Hex1bTerminalBuilder builder,
         Func<CancellationToken, IAsyncEnumerable<Stream>> streamSource)
@@ -47,6 +52,11 @@ public static class Hmp1BuilderExtensions
     /// <see cref="Hmp1ServerOptions"/> configuration callback for stream
     /// transforms and lifecycle event hooks.
     /// </summary>
+    /// <remarks>
+    /// The initial grid uses <see cref="Hex1bTerminalBuilder.WithDimensions"/> at build
+    /// time, regardless of call order, and defaults to 80 columns by 24 rows.
+    /// A primary viewer can resize the terminal later.
+    /// </remarks>
     public static Hex1bTerminalBuilder WithHmp1Server(
         this Hex1bTerminalBuilder builder,
         Func<CancellationToken, IAsyncEnumerable<Stream>> streamSource,
@@ -61,7 +71,7 @@ public static class Hmp1BuilderExtensions
             configure(options);
         }
 
-        var filter = Hmp1ListenerStartFilter.GetOrCreate(builder, options, out _);
+        var filter = Hmp1ListenerStartFilter.GetOrCreate(builder, options);
         filter.AddStreamSource(streamSource, options?.StreamTransform);
 
         return builder;
@@ -71,6 +81,11 @@ public static class Hmp1BuilderExtensions
     /// Adds an HMP v1 server listener on a Unix domain socket. Can be
     /// called multiple times to serve over multiple sockets.
     /// </summary>
+    /// <remarks>
+    /// The initial grid uses <see cref="Hex1bTerminalBuilder.WithDimensions"/> at build
+    /// time, regardless of call order, and defaults to 80 columns by 24 rows.
+    /// A primary viewer can resize the terminal later.
+    /// </remarks>
     public static Hex1bTerminalBuilder WithHmp1UdsServer(
         this Hex1bTerminalBuilder builder,
         string socketPath)
@@ -81,6 +96,11 @@ public static class Hmp1BuilderExtensions
     /// <see cref="Hmp1ServerOptions"/> configuration callback for stream
     /// transforms (e.g. TLS) and lifecycle event hooks.
     /// </summary>
+    /// <remarks>
+    /// The initial grid uses <see cref="Hex1bTerminalBuilder.WithDimensions"/> at build
+    /// time, regardless of call order, and defaults to 80 columns by 24 rows.
+    /// A primary viewer can resize the terminal later.
+    /// </remarks>
     /// <example>
     /// <code>
     /// await using var terminal = Hex1bTerminal.CreateBuilder()

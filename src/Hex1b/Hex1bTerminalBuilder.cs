@@ -1347,11 +1347,18 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
-    /// Sets the dimensions for headless terminals.
+    /// Sets the initial dimensions for headless terminals and HMP v1 servers.
     /// </summary>
     /// <param name="width">Terminal width in columns.</param>
     /// <param name="height">Terminal height in rows.</param>
     /// <returns>This builder for chaining.</returns>
+    /// <remarks>
+    /// The last configured dimensions are used at build time, regardless of whether
+    /// this method is called before or after configuring headless mode or an HMP v1
+    /// server listener. The default is 80 columns by 24 rows. An HMP v1 primary
+    /// viewer can resize the terminal later. Console and custom presentation
+    /// adapters continue to supply their own dimensions.
+    /// </remarks>
     public Hex1bTerminalBuilder WithDimensions(int width, int height)
     {
         if (width <= 0) throw new ArgumentOutOfRangeException(nameof(width), "Width must be positive.");
@@ -1552,6 +1559,11 @@ public sealed class Hex1bTerminalBuilder
     }
 
     // === Internal for factory pattern ===
+
+    internal void SetPresentationFactory(Func<int, int, IHex1bTerminalPresentationAdapter> factory)
+    {
+        _presentationFactory = builder => factory(builder._width, builder._height);
+    }
 
     internal void SetWorkloadFactory(Func<IHex1bTerminalPresentationAdapter?, Hex1bTerminalBuildContext> factory)
     {
