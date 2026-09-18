@@ -11,6 +11,39 @@ namespace Hex1b.Tests;
 public class Hwt1PresentationAdapterTests
 {
     [TestMethod]
+    [DataRow(1, 1)]
+    [DataRow(1, 24)]
+    [DataRow(80, 1)]
+    [DataRow(19, 9)]
+    public async Task Constructor_SmallPositiveGrid_MatchesTerminalDimensions(int columns, int rows)
+    {
+        await using var presentation = new Hwt1PresentationAdapter(columns, rows);
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(new RecordingWorkload())
+            .WithPresentation(presentation)
+            .WithDimensions(columns, rows)
+            .Build();
+
+        using var metadata = ReadMetadata(await presentation.ReadFrameAsync(TestContext.Current.CancellationToken));
+        Assert.AreEqual(columns, terminal.Width);
+        Assert.AreEqual(rows, terminal.Height);
+        Assert.AreEqual(columns, metadata.RootElement.GetProperty("columns").GetInt32());
+        Assert.AreEqual(rows, metadata.RootElement.GetProperty("rows").GetInt32());
+    }
+
+    [TestMethod]
+    [DataRow(0, 1)]
+    [DataRow(1, 0)]
+    [DataRow(-1, 1)]
+    [DataRow(1, -1)]
+    [DataRow(301, 1)]
+    [DataRow(1, 101)]
+    public void Constructor_InvalidDimensions_Rejects(int columns, int rows)
+    {
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new Hwt1PresentationAdapter(columns, rows));
+    }
+
+    [TestMethod]
     public async Task ReadFrameAsync_ReplacementAndDeletion_WaitForAckBeforePruningPreviousFrameResources()
     {
         await using var presentation = new Hwt1PresentationAdapter(20, 10);
@@ -336,7 +369,16 @@ public class Hwt1PresentationAdapterTests
     }
 
     [TestMethod]
-    public async Task HandleMessageAsync_Resize_WaitsForAckAndEstablishesNewBaseline()
+    [DataRow("resize", 40, 12)]
+    [DataRow("resize", 1, 1)]
+    [DataRow("resize", 1, 24)]
+    [DataRow("resize", 80, 1)]
+    [DataRow("resize", 19, 9)]
+    [DataRow("requestPrimary", 1, 1)]
+    [DataRow("requestPrimary", 1, 24)]
+    [DataRow("requestPrimary", 80, 1)]
+    [DataRow("requestPrimary", 19, 9)]
+    public async Task HandleMessageAsync_Resize_WaitsForAckAndEstablishesNewBaseline(string type, int columns, int rows)
     {
         var workload = new RecordingWorkload();
         await using var presentation = new Hwt1PresentationAdapter(20, 10);
@@ -344,10 +386,10 @@ public class Hwt1PresentationAdapterTests
         await presentation.ReadFrameAsync();
         var next = presentation.ReadFrameAsync().AsTask();
 
-        await presentation.HandleMessageAsync("""{"type":"resize","columns":40,"rows":12}"""u8.ToArray());
-        Assert.AreEqual(40, terminal.Width);
-        Assert.AreEqual(12, terminal.Height);
-        Assert.AreEqual((40, 12), workload.LastSize);
+        await presentation.HandleMessageAsync(JsonSerializer.SerializeToUtf8Bytes(new { type, columns, rows }));
+        Assert.AreEqual(columns, terminal.Width);
+        Assert.AreEqual(rows, terminal.Height);
+        Assert.AreEqual((columns, rows), workload.LastSize);
         Assert.IsFalse(next.IsCompleted);
         await presentation.HandleMessageAsync("""{"type":"ack","revision":1}"""u8.ToArray());
 
@@ -355,9 +397,9 @@ public class Hwt1PresentationAdapterTests
         using var metadata = ReadMetadata(bytes);
         Assert.IsTrue(metadata.RootElement.GetProperty("full").GetBoolean());
         Assert.AreEqual(0u, metadata.RootElement.GetProperty("baseRevision").GetUInt32());
-        Assert.AreEqual(40, metadata.RootElement.GetProperty("columns").GetInt32());
-        Assert.AreEqual(12, metadata.RootElement.GetProperty("rows").GetInt32());
-        Assert.AreEqual(480, ReadCellCount(bytes));
+        Assert.AreEqual(columns, metadata.RootElement.GetProperty("columns").GetInt32());
+        Assert.AreEqual(rows, metadata.RootElement.GetProperty("rows").GetInt32());
+        Assert.AreEqual(columns * rows, ReadCellCount(bytes));
     }
 
     [TestMethod]
@@ -477,7 +519,14 @@ public class Hwt1PresentationAdapterTests
     [DataRow("""{"type":"rate","rate":60,"batch":100}""")]
     [DataRow("""{"type":"resize","columns":301,"rows":10}""")]
     [DataRow("""{"type":"resize","columns":20,"rows":101}""")]
-    [DataRow("""{"type":"requestPrimary","columns":19,"rows":10}""")]
+    [DataRow("""{"type":"resize","columns":0,"rows":10}""")]
+    [DataRow("""{"type":"resize","columns":20,"rows":0}""")]
+    [DataRow("""{"type":"resize","columns":-1,"rows":10}""")]
+    [DataRow("""{"type":"resize","columns":20,"rows":-1}""")]
+    [DataRow("""{"type":"requestPrimary","columns":0,"rows":10}""")]
+    [DataRow("""{"type":"requestPrimary","columns":20,"rows":0}""")]
+    [DataRow("""{"type":"requestPrimary","columns":-1,"rows":10}""")]
+    [DataRow("""{"type":"requestPrimary","columns":20,"rows":-1}""")]
     [DataRow("""{"type":"requestPrimary","columns":20,"rows":101}""")]
     [DataRow("""{"type":"ack","revision":1}""")]
     public async Task HandleMessageAsync_InvalidCommand_RejectsWithoutChangingDimensions(string json)

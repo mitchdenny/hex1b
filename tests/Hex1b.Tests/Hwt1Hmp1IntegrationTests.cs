@@ -833,7 +833,10 @@ public class Hwt1Hmp1IntegrationTests
     }
 
     [TestMethod]
-    public async Task ResizeAndPrimaryRequests_WaitForProducerConfirmation_IgnoreSecondaryResize()
+    [DataRow(40, 12)]
+    [DataRow(1, 1)]
+    [DataRow(19, 9)]
+    public async Task ResizeAndPrimaryRequests_WaitForProducerConfirmation_IgnoreSecondaryResize(int columns, int rows)
     {
         var (serverStream, clientStream) = CreateStreams();
         await using var server = serverStream;
@@ -846,21 +849,22 @@ public class Hwt1Hmp1IntegrationTests
         await using var mirror = Hex1bTerminal.CreateBuilder().WithWorkload(client).WithPresentation(view).Build();
         await ReadUntilAsync(view, m => PeerId(m) == "viewer");
 
-        await view.HandleMessageAsync("""{"type":"resize","columns":40,"rows":12}"""u8.ToArray());
+        await view.HandleMessageAsync(JsonSerializer.SerializeToUtf8Bytes(new { type = "resize", columns, rows }));
         var resize = await Hmp1Protocol.ReadFrameAsync(server, TestContext.Current.CancellationToken)
             .AsTask().WaitAsync(TimeSpan.FromSeconds(5));
         Assert.AreEqual(Hmp1FrameType.Resize, resize!.Value.Type);
-        Assert.AreEqual((40, 12), Hmp1Protocol.ParseResize(resize.Value.Payload));
+        Assert.AreEqual((columns, rows), Hmp1Protocol.ParseResize(resize.Value.Payload));
         Assert.AreEqual(20, mirror.Width);
         Assert.AreEqual(20, view.Width);
-        await Hmp1Protocol.WriteResizeAsync(server, 40, 12, TestContext.Current.CancellationToken);
-        await ReadUntilAsync(view, m => m.GetProperty("columns").GetInt32() == 40);
+        await Hmp1Protocol.WriteResizeAsync(server, columns, rows, TestContext.Current.CancellationToken);
+        await ReadUntilAsync(view, m => m.GetProperty("columns").GetInt32() == columns &&
+            m.GetProperty("rows").GetInt32() == rows);
 
         await view.HandleMessageAsync("""{"type":"requestPrimary","columns":50,"rows":15}"""u8.ToArray());
         var claim = await Hmp1Protocol.ReadFrameAsync(server, TestContext.Current.CancellationToken)
             .AsTask().WaitAsync(TimeSpan.FromSeconds(5));
         Assert.AreEqual(Hmp1FrameType.RequestPrimary, claim!.Value.Type);
-        Assert.AreEqual(40, mirror.Width);
+        Assert.AreEqual(columns, mirror.Width);
         await Hmp1Protocol.WriteRoleChangeAsync(server, "viewer", 50, 15, "RequestPrimary", TestContext.Current.CancellationToken);
         await ReadUntilAsync(view, m => m.GetProperty("columns").GetInt32() == 50);
 

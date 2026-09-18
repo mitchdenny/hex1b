@@ -114,7 +114,7 @@ Unless stated otherwise:
 
 * Cell coordinates are zero-based, origin at the upper-left, positive right/down.
 * Logical pixel coordinates are independent of browser backing scale.
-* Local resize/primary requests use **20..300 columns, 10..100 rows**, with cells
+* Local resize/primary requests use **1..300 columns, 1..100 rows**, with cells
   **10 logical pixels wide × 20 logical pixels high**. These request bounds are
   not a promise that upstream HMP1 geometry is always clamped to that range.
   A native HMP1 primary can establish a larger grid; receiver limits are in §8.
@@ -803,8 +803,8 @@ regardless of application-cursor mode.
 {"type":"resize","columns":100,"rows":30}
 ```
 
-Both fields are required integers. Columns MUST be **20..300** and rows
-**10..100**, inclusive. For a standalone terminal, the adapter resizes through
+Both fields are required integers. Columns MUST be **1..300** and rows
+**1..100**, inclusive. For a standalone terminal, the adapter resizes through
 its normal notification. For a shared-source browser peer, the HMP1 presentation
 adapter applies its existing primary-only resize handler. For an HMP1-backed
 mirror, the request routes through
@@ -1067,7 +1067,7 @@ decoder does not expand the public adapter's input or image limits.
 | Complete state frame | 96 MiB | No separate total-frame budget check in the projection. |
 | Metadata length | 2 bytes..8 MiB | UTF-8 serialized metadata. |
 | Window title | Required string, at most 4,096 UTF-16 code units; no C0/DEL/C1 controls or unpaired surrogates | Normalized in the core before storage; scalar-safe truncation. |
-| Grid | Columns 1..1024, rows 1..512, product at most 262,144 | Projection rejects geometry outside those receiver limits without clamping producer/mirror dimensions. Local resize/claim bounds remain 20..300 columns, 10..100 rows. |
+| Grid | Columns 1..1024, rows 1..512, product at most 262,144 | Projection rejects geometry outside those receiver limits without clamping producer/mirror dimensions. Local resize/claim bounds remain 1..300 columns, 1..100 rows. |
 | Changed cells | 0..grid product; full count equals product | Every full cell or each differing projected cell. |
 | Text per cell | `u16` byte length; strict UTF-8 | At most 65,535 UTF-8 bytes. |
 | Incoming/retained resources | At most 4,096 in each array | At most 4,096 retained after eviction. |
@@ -1195,7 +1195,7 @@ ends on explicit HTTP deletion, workload exit, or server shutdown.
 | `DELETE /api/terminals/{id}` | End the shared producer and all attached views, then return 204; absent instance returns 404. |
 | `POST /api/terminals/{id}/controls` | Update shared generated-workload controls (204); absent instance returns 404, shell returns 409. |
 
-Create accepts the six sample scenes and dimensions 20..300 by 10..100. A
+Create accepts the six sample scenes and dimensions 1..300 by 1..100. A
 supplied name must be nonblank, contain no control characters, and be at most
 80 .NET UTF-16 code units; the optional WebSocket display name uses the same
 limit. Invalid request values return 400. Creating a fifth instance or opening
