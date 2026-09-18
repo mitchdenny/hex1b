@@ -112,6 +112,14 @@ public sealed class Hex1bTerminalInputSequenceBuilder
     /// <summary>
     /// Sends a key press event.
     /// </summary>
+    /// <remarks>
+    /// Printable key defaults use a US-style mapping, independent of the host keyboard layout.
+    /// Numeric keypad keys retain their digit or operator identity regardless of Shift.
+    /// Process workloads encode keys using the terminal's current cursor and keypad application modes;
+    /// in-process applications receive the original key event.
+    /// </remarks>
+    /// <param name="key">The logical key to send.</param>
+    /// <returns>This builder.</returns>
     public Hex1bTerminalInputSequenceBuilder Key(Hex1bKey key)
     {
         var text = GetDefaultTextForKey(key, _pendingModifiers);
@@ -123,6 +131,13 @@ public sealed class Hex1bTerminalInputSequenceBuilder
     /// <summary>
     /// Sends a key press event with the specified modifiers.
     /// </summary>
+    /// <remarks>
+    /// Uses the same key mapping and mode-aware encoding as <see cref="Key(Hex1bKey)"/>.
+    /// Explicit modifiers are combined with pending fluent modifiers and consumed by this key.
+    /// </remarks>
+    /// <param name="key">The logical key to send.</param>
+    /// <param name="modifiers">The modifiers to combine with pending fluent modifiers.</param>
+    /// <returns>This builder.</returns>
     public Hex1bTerminalInputSequenceBuilder Key(Hex1bKey key, Hex1bModifiers modifiers)
     {
         // Combine with any pending modifiers
@@ -447,6 +462,12 @@ public sealed class Hex1bTerminalInputSequenceBuilder
             Hex1bKey.Oem5 => isShift ? "|" : "\\",
             Hex1bKey.OemQuestion => isShift ? "?" : "/",
             Hex1bKey.OemTilde => isShift ? "~" : "`",
+            >= Hex1bKey.NumPad0 and <= Hex1bKey.NumPad9 => ((char)('0' + (key - Hex1bKey.NumPad0))).ToString(),
+            Hex1bKey.Multiply => "*",
+            Hex1bKey.Add => "+",
+            Hex1bKey.Subtract => "-",
+            Hex1bKey.Decimal => ".",
+            Hex1bKey.Divide => "/",
             _ => "",
         };
     }

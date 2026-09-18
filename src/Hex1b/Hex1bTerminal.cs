@@ -1994,7 +1994,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             lock (_bufferLock)
             {
                 return new TerminalInputModes(
-                    _appCursorKeysMode, _bracketedPasteMode,
+                    _appCursorKeysMode, _appKeypadMode, _bracketedPasteMode,
                     TerminalInputEncoder.MouseTracking(
                         _mouseProtocolX10, _mouseProtocolNormal, _mouseProtocolButton, _mouseProtocolAny),
                     _mouseEncodingSgr ? TerminalMouseEncoding.Sgr :

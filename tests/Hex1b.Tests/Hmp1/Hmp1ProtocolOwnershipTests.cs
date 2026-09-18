@@ -1,6 +1,7 @@
 using System.IO.Pipelines;
 using System.Text;
 using System.Threading.Channels;
+using Hex1b.Automation;
 using Hex1b.Input;
 using Hex1b.Tokens;
 
@@ -9,6 +10,57 @@ namespace Hex1b.Tests;
 [TestClass]
 public class Hmp1ProtocolOwnershipTests
 {
+    [TestMethod]
+    [DataRow(Hex1bModifiers.Alt, "\u001be")]
+    [DataRow(Hex1bModifiers.Alt | Hex1bModifiers.Shift, "\u001bE")]
+    [DataRow(Hex1bModifiers.Alt | Hex1bModifiers.Control, "\u001b\u0005")]
+    [DataRow(Hex1bModifiers.Alt | Hex1bModifiers.Control | Hex1bModifiers.Shift, "\u001b\u0005")]
+    public async Task KeyAsync_AltLetter_TraversesHmp1WithoutReencoding(
+        Hex1bModifiers modifiers, string expected)
+    {
+        await using var workload = new QueryWorkload();
+        await using var server = new Hmp1PresentationAdapter(40, 12);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(40, 12).Build();
+        var connection = await ConnectAsync(server);
+        await using var handle = connection.Handle;
+        await using var clientTerminal = Hex1bTerminal.CreateBuilder().WithWorkload(connection.Client)
+            .WithHeadless().WithDimensions(40, 12).Build();
+        var automator = new Hex1bTerminalAutomator(clientTerminal, TimeSpan.FromSeconds(5));
+
+        await automator.KeyAsync(Hex1bKey.E, modifiers, TestContext.Current.CancellationToken);
+
+        Assert.AreEqual(expected, await workload.ReadInputAsync());
+    }
+
+    [TestMethod]
+    public async Task KeyAsync_ReplayedKeypadMode_UsesProducerModeAndTracksChanges()
+    {
+        await using var workload = new QueryWorkload();
+        await using var server = new Hmp1PresentationAdapter(40, 12);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(40, 12).Build();
+        producer.ApplyTokens(AnsiTokenizer.Tokenize("\u001b="));
+        var connection = await ConnectAsync(server);
+        await using var handle = connection.Handle;
+        await using var clientTerminal = Hex1bTerminal.CreateBuilder().WithWorkload(connection.Client)
+            .WithHeadless().WithDimensions(40, 12).Build();
+        using var ready = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(snapshot => snapshot.ApplicationKeypadEnabled, TimeSpan.FromSeconds(5))
+            .Build().ApplyAsync(clientTerminal, TestContext.Current.CancellationToken);
+        var automator = new Hex1bTerminalAutomator(clientTerminal, TimeSpan.FromSeconds(5));
+
+        await automator.Ctrl().KeyAsync(Hex1bKey.NumPad1, TestContext.Current.CancellationToken);
+        Assert.AreEqual("\u001bO5q", await workload.ReadInputAsync());
+
+        workload.Emit("\u001b>");
+        using var changed = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(snapshot => !snapshot.ApplicationKeypadEnabled, TimeSpan.FromSeconds(5))
+            .Build().ApplyAsync(clientTerminal, TestContext.Current.CancellationToken);
+        await automator.Ctrl().KeyAsync(Hex1bKey.NumPad1, TestContext.Current.CancellationToken);
+        Assert.AreEqual("1", await workload.ReadInputAsync());
+    }
+
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]

@@ -535,6 +535,18 @@ Not every widget needs every combination, but consider which dimensions are rele
 
 ## Low-Level API Testing (Isolation)
 
+### Keyboard Wire Conformance
+
+Use literal expected bytes independent of the production key/text mapper. For
+example, Alt+Shift+E is `1B45`, while Ctrl+Alt+E is `1B05` in Hex1b's legacy
+automation profile. Exercise the public automator and sequence builder against a
+recording workload, asserting immediately after awaited sends rather than sleeping.
+See `TerminalKeyboardMatrixTests` for the key/modifier/cursor-mode/keypad-mode
+matrix and completeness checks that fail when an enum grows. Include modifier
+reset, overlap, ordering, and replay after mode changes; constructing a sequence
+must not freeze its wire encoding. Keep physical layout, AltGr/IME, and negotiated
+keyboard protocols distinct from this logical-key encoding contract.
+
 ### Native Windows Console Probes
 
 Run native console tests in a child process under `WindowsProxyPtyHandle`, not
