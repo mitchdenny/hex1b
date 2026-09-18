@@ -51,8 +51,8 @@ async page => {
     if (!primary || primary.terminal.sizing.mode !== "auto") return false;
     const mount = primary.element.querySelector(".terminal-mount").getBoundingClientRect();
     const scale = primary.terminal.sizing.fontSize / 16;
-    const columns = Math.max(20, Math.min(300, Math.floor(mount.width / (10 * scale))));
-    const rows = Math.max(10, Math.min(100, Math.floor(mount.height / (20 * scale))));
+    const columns = Math.max(1, Math.min(300, Math.floor(mount.width / (10 * scale))));
+    const rows = Math.max(1, Math.min(100, Math.floor(mount.height / (20 * scale))));
     return [...webTerminalViews.values()].every(view => view.terminal.geometry.columns === columns &&
       view.terminal.geometry.rows === rows && view.stats.columns === columns && view.stats.rows === rows);
   });

@@ -692,7 +692,7 @@ that call until the user chooses Take primary.
 | `onInputError(error)` | Errors from UI-dispatched actions or input-policy callbacks. Errors also appear in the view's inspection status. Public API calls reject/throw to their caller. |
 | `focus()` | Focus this view's input, or its wrapper when input is disabled. |
 | `requestPrimary()` | Request primary using the retained sizing policy: the font-sized fitted grid in Auto, or the configured fixed grid. Requires a visible container; no optimistic role change. |
-| `resize(columns, rows)` | One-off primary-only request, 20..300 columns by 10..100 rows; no optimistic reflow or sizing-policy change. |
+| `resize(columns, rows)` | One-off primary-only request, 1..300 columns by 1..100 rows; no optimistic reflow or sizing-policy change. |
 | `setSizing(sizing)` | Change the connected primary's Auto/font-size or fixed-grid policy. Grid requests are throttled and applied by the server. |
 | `scrollLines(delta)` | Request a relative text scroll; positive values move toward live output. Does not require primary. |
 | `scrollToLive()` | Return this viewport to live output without resizing or taking primary. |
@@ -975,7 +975,7 @@ resize the producer.
 `fontSize` is an integer from 8 to 32. It controls display-cell scale relative
 to the original 16-size presentation: 12 uses 7.5x15 CSS-pixel cells instead of
 10x20. The server still owns 10x20 logical-pixel cells, so images and mouse
-coordinates remain consistent. Local requests retain their 20..300 by 10..100
+coordinates remain consistent. Local requests retain their 1..300 by 1..100
 grid bounds; when those bounds prevent the requested text size from fitting,
 the surface scales down to remain visible. Fixed grids and secondary views
 always contain-fit, without an Auto font-size cap.
@@ -1295,7 +1295,7 @@ produce frames.
   backend switch. There is no Canvas2D terminal renderer.
 - Fixed 10x20 logical-pixel cells. Device pixel ratio affects browser
   rasterization, not terminal protocol geometry. Local resize/claim requests use
-  20..300 columns and 10..100 rows; a native HMP1 primary can establish a larger
+  1..300 columns and 1..100 rows; a native HMP1 primary can establish a larger
   authoritative grid. Projection rejects grids beyond 1024 columns, 512 rows,
   or 262,144 cells without clamping the producer/mirror. Within that envelope,
   GPU canvas limits reduce framebuffer resolution rather than grid dimensions.

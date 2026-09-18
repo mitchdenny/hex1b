@@ -16,7 +16,7 @@ export interface TerminalPeer {
   primaryId: string | null;
   isPrimary: boolean;
 }
-/** Font size is an integer from 8 to 32; fixed grids allow 20–300 columns and 10–100 rows. */
+/** Font size is an integer from 8 to 32; fixed grids allow 1–300 columns and 1–100 rows. */
 export type TerminalSizing =
   | { mode: "auto"; fontSize?: number }
   | { mode: "fixed"; fontSize?: number; columns: number; rows: number };

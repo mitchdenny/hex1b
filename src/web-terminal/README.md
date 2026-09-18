@@ -194,7 +194,8 @@ workers, fonts, and the intended WebSocket endpoint.
 
 Font size is an integer from 8–32, defaulting to 16. Import `MIN_FONT_SIZE` and
 `MAX_FONT_SIZE` from `@hex1b/web-terminal` for sizing controls. Requested fixed grids allow
-20–300 columns and 10–100 rows. The producer still owns actual grid geometry.
+1–300 columns and 1–100 rows, matching `Hex1bTerminal`'s minimum of one cell
+in each dimension. Automatic sizing uses the same bounds. The producer still owns actual grid geometry.
 `resize()`, `setSizing()`, and automatic resize requests require primary
 ownership. `requestPrimary()` explicitly requests ownership; inspect `peer` or
 `onRoleChange` to observe the result.

@@ -40,8 +40,8 @@ app.MapPost("/api/terminals", (CreateTerminalRequest request) =>
 {
     if (request.Scene is not ("mixed" or "text" or "sixel" or "kgp" or "animation" or "activity" or "shell"))
         return Results.BadRequest(new { error = "scene must be mixed, text, sixel, kgp, animation, activity, or shell." });
-    if (request.Columns is < 20 or > 300 || request.Rows is < 10 or > 100)
-        return Results.BadRequest(new { error = "columns must be 20..300 and rows must be 10..100." });
+    if (request.Columns is < 1 or > 300 || request.Rows is < 1 or > 100)
+        return Results.BadRequest(new { error = "columns must be 1..300 and rows must be 1..100." });
     if (!IsValidName(request.Name))
         return Results.BadRequest(new { error = "name must contain 1..80 printable characters when supplied." });
     if (!Enum.IsDefined(request.ReflowStrategy))

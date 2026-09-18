@@ -4,6 +4,7 @@ import { decodeFrame } from "../dist/protocol.js";
 import { TerminalRenderer } from "../dist/renderer.js";
 import { normalizeFont, measureFont } from "../dist/terminal-font.js";
 import { normalizeSizing, requestedGrid, fittedScale } from "../dist/terminal-sizing.js";
+import { browser, mounting, present } from "./fixtures/browser.mjs";
 
 test("Sizing defaults to Auto at the original 16px cell scale", () => {
   assert.deepEqual(normalizeSizing(), { mode: "auto", fontSize: 16 });
@@ -15,11 +16,20 @@ test("Sizing defaults to Auto at the original 16px cell scale", () => {
 test("Sizing validates mode, font limits, and fixed grid bounds", () => {
   for (const sizing of [null, {}, { mode: "zoom" }, { mode: "auto", fontSize: 7 },
     { mode: "auto", fontSize: 33 }, { mode: "auto", fontSize: 12.5 },
-    { mode: "fixed", columns: 301, rows: 24 }, { mode: "fixed", columns: 80, rows: 9 }]) {
+    ...[0, -1, 1.5, NaN, Infinity, 301].map(columns => ({ mode: "fixed", columns, rows: 24 })),
+    ...[0, -1, 1.5, NaN, Infinity, 101].map(rows => ({ mode: "fixed", columns: 80, rows }))]) {
     assert.throws(() => normalizeSizing(sizing));
   }
   assert.equal(normalizeSizing({ mode: "auto", fontSize: 8 }).fontSize, 8);
   assert.equal(normalizeSizing({ mode: "auto", fontSize: 32 }).fontSize, 32);
+});
+
+test("Fixed sizing accepts positive grids below the old minimums", () => {
+  for (const [columns, rows] of [[1, 1], [1, 24], [80, 1], [19, 9], [300, 100]]) {
+    const sizing = normalizeSizing({ mode: "fixed", columns, rows });
+    assert.deepEqual(sizing, { mode: "fixed", fontSize: 16, columns, rows });
+    assert.deepEqual(requestedGrid({ width: 0, height: 0 }, cellGeometry, sizing), { columns, rows });
+  }
 });
 
 const cellGeometry = { columns: 80, rows: 24, cellWidth: 10, cellHeight: 20 };
@@ -33,9 +43,13 @@ test("Smaller Auto text fits more cells into the same container", () => {
 });
 
 test("Auto sizing retains local grid bounds and ignores hidden containers", () => {
-  assert.deepEqual(requestedGrid({ width: 1, height: 1 }, cellGeometry, normalizeSizing()), { columns: 20, rows: 10 });
+  assert.deepEqual(requestedGrid({ width: 1, height: 1 }, cellGeometry, normalizeSizing()), { columns: 1, rows: 1 });
+  assert.deepEqual(requestedGrid({ width: 190, height: 180 }, cellGeometry, normalizeSizing()), { columns: 19, rows: 9 });
+  assert.deepEqual(requestedGrid({ width: 800, height: 20 }, cellGeometry, normalizeSizing()), { columns: 80, rows: 1 });
+  assert.deepEqual(requestedGrid({ width: 10, height: 480 }, cellGeometry, normalizeSizing()), { columns: 1, rows: 24 });
   assert.deepEqual(requestedGrid({ width: 10000, height: 10000 }, cellGeometry, normalizeSizing()), { columns: 300, rows: 100 });
   assert.equal(requestedGrid({ width: 0, height: 480 }, cellGeometry, normalizeSizing()), null);
+  assert.equal(requestedGrid({ width: 800, height: 0 }, cellGeometry, normalizeSizing()), null);
 });
 
 test("Explicit fixed sizing does not derive dimensions from the container", () => {
@@ -43,6 +57,56 @@ test("Explicit fixed sizing does not derive dimensions from the container", () =
   for (const size of [{ width: 800, height: 480 }, { width: 240, height: 80 }, { width: 0, height: 0 }]) {
     assert.deepEqual(requestedGrid(size, cellGeometry, fixed), { columns: 120, rows: 40 });
   }
+});
+
+test("Public resize, fixed sizing and primary requests send grids down to one cell", async t => {
+  const observers = [];
+  const workers = browser(t, {
+    ResizeObserver: class {
+      constructor(callback) { observers.push(callback); }
+      observe() {}
+      disconnect() {}
+    }
+  });
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const view = await mounting(t, workers, { sizing: { mode: "fixed", columns: 1, rows: 1 } });
+  observers[0]([{ contentRect: { width: 1, height: 1 } }]);
+  await view.worker.request("open");
+  await present(view, { peer: { id: "viewer", primaryId: "viewer", isPrimary: true } });
+  const terminal = await view.promise;
+  assert.deepEqual(terminal.sizing, { mode: "fixed", fontSize: 16, columns: 1, rows: 1 });
+  terminal.resize(1, 1);
+  terminal.setSizing({ mode: "fixed", columns: 19, rows: 9 });
+  t.mock.timers.tick(50);
+  terminal.requestPrimary();
+  await view.worker.request("flush");
+  assert.deepEqual(view.worker.commands.filter(command => ["resize", "requestPrimary"].includes(command.type)), [
+    { type: "resize", columns: 1, rows: 1 },
+    { type: "resize", columns: 19, rows: 9 },
+    { type: "requestPrimary", columns: 19, rows: 9 }
+  ]);
+});
+
+test("Automatic resize sends a one-cell grid for a tiny visible container", async t => {
+  const observers = [];
+  const workers = browser(t, {
+    ResizeObserver: class {
+      constructor(callback) { observers.push(callback); }
+      observe() {}
+      disconnect() {}
+    }
+  });
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const view = await mounting(t, workers);
+  observers[0]([{ contentRect: { width: 1, height: 1 } }]);
+  await view.worker.request("open");
+  await present(view, { columns: 80, rows: 24 });
+  await view.promise;
+  t.mock.timers.tick(50);
+  await view.worker.request("flush");
+  assert.deepEqual(view.worker.commands.filter(command => command.type === "resize"), [
+    { type: "resize", columns: 1, rows: 1 }
+  ]);
 });
 
 test("Primary Auto fitting caps at the requested font size", () => {

@@ -24,7 +24,7 @@ namespace Hex1b;
 /// change without backward-compatibility or deprecation guarantees; its name and
 /// version field do not imply cross-release compatibility. This API is also experimental.
 /// The current client-requested profile uses 10x20 logical-pixel cells,
-/// 20..300 columns, and 10..100 rows. A directly attached
+/// 1..300 columns, and 1..100 rows. A directly attached
 /// <see cref="Hmp1WorkloadAdapter"/> supplies authoritative geometry and primary
 /// ownership instead; producer dimensions are not clamped to this request profile.
 /// Frames support up to 1024 columns, 512 rows, and 262144 total cells.
@@ -82,8 +82,8 @@ public sealed class Hwt1PresentationAdapter :
     private TimeSpan _acknowledgementTimeout = TimeSpan.FromMinutes(2);
 
     /// <summary>Creates an HWT1 presentation adapter with the initial grid dimensions.</summary>
-    /// <param name="width">Initial width, from 20 to 300 columns.</param>
-    /// <param name="height">Initial height, from 10 to 100 rows.</param>
+    /// <param name="width">Initial width, from 1 to 300 columns.</param>
+    /// <param name="height">Initial height, from 1 to 100 rows.</param>
     /// <exception cref="ArgumentOutOfRangeException">A dimension is outside the draft profile's bounds.</exception>
     public Hwt1PresentationAdapter(int width = 80, int height = 24)
         : this(width, height, TimeProvider.System)
@@ -92,9 +92,9 @@ public sealed class Hwt1PresentationAdapter :
 
     internal Hwt1PresentationAdapter(int width, int height, TimeProvider timeProvider)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(width, 20);
+        ArgumentOutOfRangeException.ThrowIfLessThan(width, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(width, 300);
-        ArgumentOutOfRangeException.ThrowIfLessThan(height, 10);
+        ArgumentOutOfRangeException.ThrowIfLessThan(height, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(height, 100);
         _width = width;
         _height = height;
@@ -351,8 +351,8 @@ public sealed class Hwt1PresentationAdapter :
                 InvalidatePresentation();
                 break;
             case "resize":
-                var columns = ReadBounded(command, "columns", 20, 300);
-                var rows = ReadBounded(command, "rows", 10, 100);
+                var columns = ReadBounded(command, "columns", 1, 300);
+                var rows = ReadBounded(command, "rows", 1, 100);
                 if (IsReadOnly)
                     break;
                 if (_muxer is not null)
@@ -363,8 +363,8 @@ public sealed class Hwt1PresentationAdapter :
                     Resize(columns, rows);
                 break;
             case "requestPrimary":
-                var primaryColumns = ReadBounded(command, "columns", 20, 300);
-                var primaryRows = ReadBounded(command, "rows", 10, 100);
+                var primaryColumns = ReadBounded(command, "columns", 1, 300);
+                var primaryRows = ReadBounded(command, "rows", 1, 100);
                 if (IsReadOnly)
                     break;
                 if (_muxer is not null)

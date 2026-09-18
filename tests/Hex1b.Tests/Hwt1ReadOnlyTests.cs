@@ -64,7 +64,7 @@ public class Hwt1ReadOnlyTests
     [DataRow("""{"type":"key","key":"a","ctrl":1}""", typeof(InvalidDataException))]
     [DataRow("""{"type":"mouse","action":"invalid"}""", typeof(InvalidDataException))]
     [DataRow("""{"type":"mouse","action":"down","button":"left","x":-1,"y":0}""", typeof(InvalidDataException))]
-    [DataRow("""{"type":"resize","columns":19,"rows":10}""", typeof(InvalidDataException))]
+    [DataRow("""{"type":"resize","columns":0,"rows":10}""", typeof(InvalidDataException))]
     [DataRow("""{"type":"requestPrimary","columns":20,"rows":101}""", typeof(InvalidDataException))]
     [DataRow("""{"type":"ack","revision":1}""", typeof(InvalidDataException))]
     [DataRow("""{"type":"ack","revision":"1"}""", typeof(InvalidOperationException))]

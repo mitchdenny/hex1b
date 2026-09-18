@@ -303,7 +303,7 @@ its window changes size instead of issuing a new producer resize. Returning
 to Auto restores the previous text-size preference. Sizing controls are
 disabled on secondaries; a view retains its policy for an explicit future
 primary claim. This adds no new HWT1 command or separate authority mechanism.
-Local requests remain bounded to 20..300 columns and 10..100 rows, independently
+Local requests remain bounded to 1..300 columns and 1..100 rows, independently
 of a larger grid established by a native HMP1 primary.
 The glyph atlas starts at up to 2048x2048 and can grow to 4096x4096.
 The renderer rebuilds viewport draw geometry each frame, even when the wire
