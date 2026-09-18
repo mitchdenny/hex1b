@@ -46,6 +46,19 @@ test("Windows-style context click applies in both screens, with Shift capture ov
   }
 });
 
+test("Alt shortcuts remain browser-owned unless explicitly routed to the application", () => {
+  const policy = new InputPolicy();
+  for (const modifiers of [{ alt: true }, { alt: true, shift: true }, { alt: true, ctrl: true, shift: true }])
+    assert.equal(policy.resolve(key("e", modifiers), context()).route, InputRoute.Browser);
+  assert.equal(policy.resolve(key("e", { alt: true, ctrl: true }), context()).route, InputRoute.Application);
+
+  const overridden = new InputPolicy({ inputBindings: [
+    { id: "host.alt", match: input => input.type === "key" && input.alt, route: InputRoute.Application }
+  ] });
+  assert.equal(overridden.resolve(key("e", { alt: true }), context()).route, InputRoute.Application);
+  assert.equal(overridden.resolve({ type: "text", text: "\u20ac" }, context()).route, InputRoute.Continue);
+});
+
 test("Matching IDs replace defaults, explicit removal disables them, and views stay independent", () => {
   const overrides = [
     { id: "clipboard.copy-key", remove: true },

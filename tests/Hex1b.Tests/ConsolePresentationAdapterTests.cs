@@ -45,6 +45,9 @@ public class ConsolePresentationAdapterTests
     [DataRow("\x1b[65;30;97;1;0;1_", "a")]
     [DataRow("\x1b[13;28;13;1;0;1_", "\r")]
     [DataRow("\x1b[65;30;97;1;0;3_", "aaa")]
+    [DataRow("\u001b[69;18;101;1;2;1_", "\u001be")]
+    [DataRow("\u001b[69;18;69;1;18;1_", "\u001bE")]
+    [DataRow("\u001b[69;18;8364;1;9;1_", "\u20ac")]
     public void WindowsConsoleDriver_TryTranslateWin32InputSequence_DecodesForwardedKeyboardInput(
         string sequence,
         string expected)
