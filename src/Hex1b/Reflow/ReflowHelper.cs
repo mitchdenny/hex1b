@@ -95,7 +95,12 @@ internal static class ReflowHelper
                 anchorsByLogicalLine.Add(location.LogicalLine, lineAnchors);
             }
 
-            lineAnchors.Add((anchor, location.CellOffset));
+            var offset = location.CellOffset;
+            if (anchor.IsTextPosition)
+                for (var column = 0; column < Math.Min(anchor.Column, allRows[anchor.Row].Length); column++)
+                    if (allRows[anchor.Row][column].IsWideWrapPadding)
+                        offset--;
+            lineAnchors.Add((anchor, offset));
         }
 
         // Step 3: Re-wrap all logical lines to the new width
@@ -125,13 +130,13 @@ internal static class ReflowHelper
             var requiredLength = Math.Max(cursorOffset, savedCursorOffset);
             while (logicalLine.Count < requiredLength)
                 logicalLine.Add(TerminalCell.Empty);
-            var wrappedRows = WrapLogicalLine(logicalLine, context.NewWidth);
+            var (wrappedRows, sourceOffsets) = WrapLogicalLine(logicalLine, context.NewWidth);
 
             if (!cursorFound && lineIdx == cursorLogicalLine)
             {
                 (newCursorRow, newCursorCol) = ComputeCursorInWrappedLine(
                     wrappedRows, rowsSoFar,
-                    cursorOffset,
+                    MapCursorOffset(sourceOffsets, cursorOffset),
                     context.NewWidth);
                 cursorFound = true;
             }
@@ -140,16 +145,22 @@ internal static class ReflowHelper
             {
                 (newSavedCursorRow, newSavedCursorCol) = ComputeCursorInWrappedLine(
                     wrappedRows, rowsSoFar,
-                    savedCursorOffset,
+                    MapCursorOffset(sourceOffsets, savedCursorOffset),
                     context.NewWidth);
                 savedCursorFound = true;
             }
 
             if (anchorsByLogicalLine.TryGetValue(lineIdx, out var lineAnchors))
             {
+                var availableColumns = wrappedRows.Sum(row => row.Count(cell => !cell.IsWideWrapPadding));
                 foreach (var (anchor, cellOffset) in lineAnchors)
                 {
-                    if (emptyLogicalLine)
+                    var mappedOffset = MapSourceOffset(sourceOffsets, cellOffset + anchor.Column);
+                    // Anchors do not extend terminal content. A position in discarded
+                    // trailing padding cannot be mapped to a guessed final column.
+                    if (mappedOffset is null || (anchor.IsTextPosition && mappedOffset > availableColumns))
+                        continue;
+                    if (emptyLogicalLine && !anchor.IsTextPosition)
                     {
                         mappedAnchors.Add(anchor with
                         {
@@ -161,9 +172,10 @@ internal static class ReflowHelper
                     var (row, column) = ComputeCursorInWrappedLine(
                         wrappedRows,
                         rowsSoFar,
-                        cellOffset + anchor.Column,
+                        mappedOffset.Value,
                         context.NewWidth);
-                    mappedAnchors.Add(anchor with { Row = row, Column = Math.Min(column, context.NewWidth - 1) });
+                    mappedAnchors.Add(anchor with { Row = row,
+                        Column = anchor.IsTextPosition ? column : Math.Min(column, context.NewWidth - 1) });
                 }
             }
 
@@ -190,6 +202,19 @@ internal static class ReflowHelper
         var retainedRowCount = reflow.ScrollbackRows.Length + reflow.ScreenRows.Length;
         mappedAnchors.RemoveAll(anchor => anchor.Row < 0 || anchor.Row >= retainedRowCount);
         return new InternalReflowResult(reflow, mappedAnchors);
+    }
+
+    private static int? MapSourceOffset(int?[] sourceOffsets, int offset)
+        => offset < sourceOffsets.Length ? sourceOffsets[offset] :
+            sourceOffsets[^1] + offset - (sourceOffsets.Length - 1);
+
+    private static int MapCursorOffset(int?[] sourceOffsets, int offset)
+    {
+        // An insertion point on a removed glyph collapses to the next surviving
+        // position; unlike a text anchor, the terminal cursor cannot expire.
+        while (offset < sourceOffsets.Length && sourceOffsets[offset] is null)
+            offset++;
+        return MapSourceOffset(sourceOffsets, offset)!.Value;
     }
 
     /// <summary>
@@ -311,6 +336,11 @@ internal static class ReflowHelper
                 // Row ends with a hard break: trim trailing empty cells
                 while (lastNonEmpty >= 0 && IsEmptyCell(row[lastNonEmpty]))
                     lastNonEmpty--;
+                // A trailing wide glyph's continuation belongs to its source
+                // position even when it otherwise looks like empty padding.
+                if (lastNonEmpty >= 0)
+                    lastNonEmpty = Math.Min(row.Length - 1,
+                        lastNonEmpty + GetCellDisplayWidth(row[lastNonEmpty]) - 1);
 
                 for (int x = 0; x <= lastNonEmpty; x++)
                     currentLine.Add(row[x]);
@@ -376,9 +406,13 @@ internal static class ReflowHelper
     /// <summary>
     /// Wraps a logical line of cells to the specified width, producing one or more rows.
     /// </summary>
-    private static List<TerminalCell[]> WrapLogicalLine(List<TerminalCell> cells, int newWidth)
+    private static (List<TerminalCell[]> Rows, int?[] SourceOffsets) WrapLogicalLine(
+        List<TerminalCell> cells, int newWidth)
     {
         var rows = new List<TerminalCell[]>();
+        // Null denotes discarded source cells; offsets exclude synthetic wrap padding.
+        var sourceOffsets = new int?[cells.Count + 1];
+        var outputOffset = 0;
 
         if (cells.Count == 0)
         {
@@ -386,7 +420,8 @@ internal static class ReflowHelper
             var emptyRow = new TerminalCell[newWidth];
             Array.Fill(emptyRow, TerminalCell.Empty);
             rows.Add(emptyRow);
-            return rows;
+            sourceOffsets[0] = 0;
+            return (rows, sourceOffsets);
         }
 
         int cellIndex = 0;
@@ -420,6 +455,7 @@ internal static class ReflowHelper
                 }
 
                 row[col] = cell;
+                sourceOffsets[cellIndex] = outputOffset++;
                 col++;
                 cellIndex++;
 
@@ -429,6 +465,7 @@ internal static class ReflowHelper
                     if (cellIndex < cells.Count && string.IsNullOrEmpty(cells[cellIndex].Character))
                     {
                         row[col] = cells[cellIndex];
+                        sourceOffsets[cellIndex] = outputOffset++;
                         col++;
                         cellIndex++;
                     }
@@ -436,6 +473,7 @@ internal static class ReflowHelper
                     {
                         // Create continuation cell
                         row[col] = TerminalCell.Empty;
+                        outputOffset++;
                         col++;
                     }
                 }
@@ -457,7 +495,9 @@ internal static class ReflowHelper
             rows.Add(row);
         }
 
-        return rows;
+        // The final source boundary survives even when the last glyph is removed.
+        sourceOffsets[^1] = outputOffset;
+        return (rows, sourceOffsets);
     }
 
     /// <summary>

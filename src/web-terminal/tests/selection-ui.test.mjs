@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { SelectionUI, sameSelectionUIState, selectionRectangles } from "../dist/selection-ui.js";
-import { WebTerminal } from "../dist/web-terminal.js";
+import { SelectionUI, sameSelectionUIState, selectionRectangles } from "../.build/selection-ui.js";
+import { WebTerminal } from "../.build/web-terminal.js";
 
 function snapshot() {
   return {

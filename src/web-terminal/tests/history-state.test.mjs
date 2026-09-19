@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { HistoryState } from "../dist/history-state.js";
-import { validateHistory } from "../dist/protocol.js";
+import { HistoryState } from "../.build/history-state.js";
+import { validateHistory } from "../.build/protocol.js";
 
 function history(overrides = {}) {
   return {
@@ -15,6 +15,42 @@ function history(overrides = {}) {
 function selected(requestId = 1, text = "hello") {
   return { requestId, status: "valid", mode: "word", ranges: [{ row: 0, startColumn: 1, endColumn: 6 }], text };
 }
+
+test("Absolute scrolling anchors every target to the presented rows, not an unacknowledged delta", () => {
+  const commands = [];
+  const state = new HistoryState(command => commands.push(command));
+  state.accept(history({ totalRows: 102, liveTop: 100, top: 100, rowIds: ["101", "102"] }), 1);
+  state.scrollTo(20);
+  state.scrollTo(40);
+  assert.deepEqual(commands.map(({ requestId, ...command }) => command), [
+    { type: "viewport", top: 20, generation: "1", originRowId: "101", originTop: 100 },
+    { type: "viewport", top: 40, generation: "1", originRowId: "101", originTop: 100 }
+  ]);
+  state.accept(history({ totalRows: 102, liveTop: 100, top: 20, following: false,
+    rowIds: ["21", "22"], requestId: 1 }), 2);
+  assert.equal(state.viewport.pending, true);
+  state.accept(history({ totalRows: 102, liveTop: 100, top: 40, following: false,
+    rowIds: ["41", "42"], requestId: 2 }), 3);
+  assert.equal(state.viewport.pending, false);
+  state.scrollTo(200);
+  assert.equal(commands.at(-1).top, 100);
+  for (const top of [-1, 0.5, NaN, Infinity, 2147483648]) assert.throws(() => state.scrollTo(top));
+  assert.equal(commands.length, 3);
+});
+
+test("A rejected absolute navigation settles pending state and exposes an error until the next request", () => {
+  const state = new HistoryState(() => {});
+  state.accept(history(), 1);
+  state.scrollTo(0);
+  state.accept(history({ requestId: 1, viewportError: "The starting row was evicted" }), 2);
+  assert.equal(state.viewport.pending, false);
+  assert.match(state.viewport.navigationError, /evicted/);
+  state.scrollTo(1);
+  assert.equal(state.viewport.navigationError, undefined);
+  assert.equal(state.viewport.pending, true);
+  state.accept(history({ requestId: 2, viewportError: null }), 3);
+  assert.equal(state.viewport.pending, false);
+});
 
 test("History metadata validates row identities, extent, generation and exclusive ranges", () => {
   validateHistory(history(), 10, 2);

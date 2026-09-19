@@ -30,14 +30,41 @@ public sealed partial class Hex1bTerminal
     }
 
     private async Task ApplyHmp1ReplayAsync(
-        ReadOnlyMemory<byte> bytes, Hmp1TerminalState? state, Hmp1ActivityState? activity, CancellationToken ct)
+        ReadOnlyMemory<byte> bytes, Hmp1TerminalState? state, Hmp1ActivityState? activity,
+        Hmp1ScrollbackState? scrollback, Hmp1CommandMarkState? commands, CancellationToken ct)
     {
         if (activity is null)
             throw new InvalidDataException("StateSync requires an activity checkpoint.");
         Hmp1ReplayActivityState = activity;
+        Hmp1ReplayScrollbackState = scrollback;
+        Hmp1ReplayCommandMarkState = commands;
         var rawPassthrough = _presentationFilters.Count == 0 &&
             _presentation is not ICellImpactAwarePresentationAdapter;
         var fastPath = _workloadFilters.Count == 0 && rawPassthrough;
+
+        // The new baseline supersedes any unfinished prefix from the previous stream.
+        _incompleteSequenceBuffer = "";
+        _utf8Decoder.Reset();
+        _pendingUtf8OutputLength = 0;
+        _dcsByteStreamParser.Complete();
+        var tokenization = TokenizeRawWorkloadOutput(bytes.Span);
+        var tokens = tokenization.Tokens;
+        if (commands is { Available: true })
+        {
+            lock (_bufferLock)
+            {
+                var alternate = _inAlternateScreen;
+                foreach (var token in tokens)
+                {
+                    if (token is RisToken)
+                        alternate = false;
+                    else if (token is PrivateModeToken { Mode: 47 or 1047 or 1049 } mode)
+                        alternate = mode.Enable;
+                }
+                if (commands.Alternate != alternate)
+                    throw new InvalidDataException("Command checkpoint buffer does not match StateSync.");
+            }
+        }
 
         if (rawPassthrough && !_disposed && _presentation is not null)
         {
@@ -47,13 +74,6 @@ public sealed partial class Hex1bTerminal
             _metrics.TerminalOutputBytes.Record(bytes.Length);
         }
 
-        // The new baseline supersedes any unfinished prefix from the previous stream.
-        _incompleteSequenceBuffer = "";
-        _utf8Decoder.Reset();
-        _pendingUtf8OutputLength = 0;
-        _dcsByteStreamParser.Complete();
-        var tokenization = TokenizeRawWorkloadOutput(bytes.Span);
-        var tokens = tokenization.Tokens;
         _metrics.TerminalOutputTokens.Record(tokens.Count);
         if (!fastPath && !bytes.IsEmpty)
             await NotifyWorkloadFiltersOutputAsync(tokens).ConfigureAwait(false);
@@ -90,6 +110,8 @@ public sealed partial class Hex1bTerminal
                     applied = ApplyTokensWithImpacts(tokens, tokenization.FramedDcs);
                 }
                 ObjectDisposedException.ThrowIf(_disposed, this);
+                RestoreHmp1Scrollback(scrollback);
+                RestoreHmp1CommandMarks(commands);
                 RestoreActivityState(
                     new TerminalProgress((TerminalProgressState)activity.Progress.State, activity.Progress.Percentage),
                     new TerminalShellIntegration((TerminalShellIntegrationPhase)activity.ShellIntegration.Phase,

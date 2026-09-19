@@ -1,5 +1,13 @@
 import type { TerminalLinkOptions, TerminalLinkDetectionError } from "./link-types.js";
+import type { TerminalLayout, TerminalMarker, TerminalMarkerOptions, TerminalPadding, TerminalInsets,
+  TerminalScrollbar, TerminalScrollbarConfiguration } from "./scrollbar-types.js";
 export type * from "./link-types.js";
+export type { TerminalRectangle, TerminalInsets, TerminalPadding, TerminalLayout, TerminalTextPosition,
+  TerminalMarker, TerminalMarkerOptions, TerminalScrollbarMarker, TerminalScrollbarInteraction,
+  TerminalScrollbarFrame, TerminalScrollbarRenderer, TerminalScrollbarOptions,
+  TerminalScrollbarConfiguration, TerminalScrollbar, TerminalScrollbarTooltipContext,
+  TerminalScrollbarTooltipRenderer } from "./scrollbar-types.js";
+export type * from "./scrollbar-appearance.js";
 
 /** Logical terminal dimensions, confirmed by the producer rather than reflowed locally. */
 export interface TerminalGrid { columns: number; rows: number }
@@ -34,7 +42,11 @@ export type TerminalViewport = (
       liveTop: number; top: number; requestId: number; rowIds: readonly string[]; revision: number }
   | { available: false; generation?: undefined; buffer?: undefined; totalRows?: undefined;
       liveTop?: undefined; top?: undefined; requestId?: undefined; rowIds?: readonly string[]; revision?: undefined }
-) & { following: boolean; pending: boolean; followTail: boolean; offset: number };
+) & {
+  following: boolean; pending: boolean; followTail: boolean; offset: number;
+  /** Producer rejection of the last absolute navigation request, cleared by the next request. */
+  navigationError?: string;
+};
 export type TerminalSelection = (
   | { status: "valid"; text: string; requestId: number; revision: number }
   | { status: "none" | "invalidated"; text: null; requestId: number; revision: number }
@@ -181,9 +193,9 @@ export interface TerminalWorkingDirectory {
 /**
  * Latest OSC 133 marker, distinct from {@link TerminalShellIntegration}: it additionally carries
  * any raw trailing `key=value` parameters (e.g. a `cmdline_url` extension on marker C). This is
- * the single most-recent marker only — the server does not transport a mark history or event
- * log over this wire; consumers that want their own history should accumulate distinct values
- * from {@link WebTerminalOptions.onCommandMarkChange} themselves.
+ * the single most-recent marker only. Use {@link WebTerminalHandle.markers} for retained
+ * producer-backed positions and {@link WebTerminalHandle.getCommandMarkDetails} for their
+ * raw parameters; do not reconstruct command history from coalesced activity callbacks.
  */
 export interface TerminalCommandMark {
   readonly phase: TerminalShellIntegrationPhase;
@@ -193,9 +205,17 @@ export interface TerminalCommandMark {
 }
 export interface WebTerminalOptions extends InputPolicyOptions {
   url: string | URL;
-  /** Optional module-worker entry, resolved against the page URL. Defaults to the bundled worker. */
+  /** Canvas2D scrollbar: overlay auto-hides (default); beside stays visible. False enables host-owned chrome. */
+  scrollbar?: TerminalScrollbar;
+  /** Outer CSS-pixel padding around the content and scrollbar. Defaults to zero. */
+  padding?: TerminalPadding;
+  /** Coherent local layout, including displayed cell dimensions, for external UI. */
+  onLayoutChange?: (layout: TerminalLayout) => void;
+  /** Retained producer-backed markers, not a stream of shell executions. */
+  onMarkersChange?: (markers: readonly TerminalMarker[]) => void;
+  /** Optional module-worker entry, resolved against the page URL. Defaults to this bundle with #hex1b-terminal-worker. */
   workerUrl?: string | URL;
-  /** Optional isolated regex worker entry, resolved against the page URL. */
+  /** Optional isolated regex worker entry, resolved against the page URL. Defaults to this bundle with #hex1b-link-detection-worker. */
   linkDetectionWorkerUrl?: string | URL;
   /** Per-view link interaction. Detection is opt-in; omitted preserves legacy OSC 8 navigation. */
   links?: false | TerminalLinkOptions;
@@ -251,7 +271,8 @@ export interface WebTerminalOptions extends InputPolicyOptions {
   /**
    * Receives the first authoritative presented command mark before mount resolves (null if none
    * yet reported), then distinct presented changes. Only the latest marker is transmitted, not a
-   * history; entire commands may occur between frames. No notifications after disposal.
+   * history; entire commands may occur between frames. Use onMarkersChange for the retained
+   * inventory. No notifications after disposal.
    */
   onCommandMarkChange?: (commandMark: TerminalCommandMark | null) => void;
   onStats?: (stats: TerminalStats, text: string | undefined) => void;
@@ -285,10 +306,26 @@ export interface WebTerminalHandle {
   readonly inputBindings: InputBinding[];
   readonly inputContext: TerminalInputContext;
   readonly viewport: TerminalViewport;
+  readonly layout: TerminalLayout;
+  readonly padding: TerminalInsets;
+  readonly scrollbar: false | TerminalScrollbarConfiguration;
+  readonly markers: readonly TerminalMarker[];
   readonly selection: TerminalSelection;
   runAction: RunTerminalAction;
   scrollLines(delta: number): void;
+  /** Request an absolute row in the currently presented history coordinate space. */
+  scrollToRow(top: number): void;
   scrollToLive(): void;
+  /** Resolve a retained marker on the producer; rejects unavailable or removed anchors. */
+  scrollToMarker(id: string): Promise<void>;
+  /** Register a per-view, reflow-aware marker. The server enforces the per-view quota. */
+  addMarker(options: TerminalMarkerOptions): Promise<TerminalMarker>;
+  removeMarker(id: string): Promise<void>;
+  getCommandMarkDetails(id: string): Promise<TerminalCommandMark>;
+  setPadding(padding: TerminalPadding): void;
+  setScrollbar(scrollbar: TerminalScrollbar): void;
+  /** Repaint after changing host-owned painter state or embedding theme colors. */
+  refreshScrollbar(): void;
   clearSelection(): void;
   refreshSelectionUI(): void;
   copySelection(options?: CopySelectionOptions): Promise<string>;

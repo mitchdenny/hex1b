@@ -9,7 +9,7 @@ async page => {
   try {
     await test.goto(`${origin}/health`);
     const results = await test.evaluate(async () => {
-      const { TerminalRenderer } = await import("/web-terminal/renderer.js");
+      const { TerminalRenderer } = await import("/web-terminal-test/renderer.js");
       const check = (condition, message) => { if (!condition) throw new Error(message); };
       // Same native framebuffer readback as renderers.browser.js; never infer
       // image coverage from quad counts or screenshots of a scaled DOM canvas.

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setImmediate as nextTurn } from "node:timers/promises";
-import { linkAction } from "../dist/index.js";
-import { extractLinkText } from "../dist/link-text.js";
+import { linkAction } from "../.build/index.js";
+import { extractLinkText } from "../.build/link-text.js";
 import { browser, mounting, present } from "./fixtures/browser.mjs";
 
 function screen(text, columns = 60, rows = 3, start = columns + 1) {

@@ -101,7 +101,7 @@ async page => {
       reflowPrimary.requestPrimary();
     }, instanceId);
     await test.waitForFunction(() => reflowPrimary.peer.isPrimary && reflowPrimary.stats.gpu === "ready" &&
-      /[$#%>]$/.test(reflowPrimary.screenText.trimEnd()), null, { timeout: 30000 });
+      /[\u276f$#%>]$/.test(reflowPrimary.screenText.trimEnd()), null, { timeout: 30000 });
     await command("exec /usr/bin/env -i PATH=/usr/bin:/bin TERM=xterm-256color LC_ALL=en_US.UTF-8 PS1='RF> ' /bin/bash --noprofile --norc -i", "RF>");
     await command("stty -echo; printf '\\033[2J\\033[H__RF_CLEAN__\\n'", "__RF_CLEAN__");
     await command(`printf '\\033[2J\\033[H'; printf '%s\\n' '${lines.join("' '")}'`, "__RF_END__");

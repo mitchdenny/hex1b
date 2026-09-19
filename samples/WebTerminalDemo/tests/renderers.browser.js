@@ -4,12 +4,13 @@ async page => {
   const context = await browser.newContext({ viewport: { width: 1000, height: 900 }, deviceScaleFactor: 2 });
   const test = await context.newPage();
   const errors = [];
+  let parity;
   test.on("pageerror", error => errors.push(error.message));
   const check = (condition, message) => { if (!condition) throw new Error(message); };
   try {
     await test.goto(`${origin}/health`);
-    const parity = await test.evaluate(async () => {
-      const { TerminalRenderer } = await import("/web-terminal/renderer.js");
+    parity = await test.evaluate(async () => {
+      const { TerminalRenderer } = await import("/web-terminal-test/renderer.js");
       const check = (condition, message) => { if (!condition) throw new Error(message); };
       async function pixels(renderer) {
         const { backend, canvas } = renderer;
@@ -130,7 +131,8 @@ async page => {
             const thumbnail = renderer.metrics();
             check(thumbnail.imageUploadBytes === initial.imageUploadBytes &&
               thumbnail.glyphUploadBytes === initial.glyphUploadBytes, "Resize reuploaded retained resources");
-            renderer.resize(1000, 200);
+            // Exercise a large logical grid without a multi-hundred-MB backing buffer at scale 3.
+            renderer.resize(1000, 200, { width: 600, height: 160 });
             check(canvas.width <= renderer.backend.maxCanvasDimension2D &&
               canvas.height <= renderer.backend.maxCanvasDimension2D, "Canvas exceeded backend limits");
             renderer.resize(12, 8, { width: 0, height: 0 });
@@ -183,9 +185,16 @@ async page => {
         version: 1, revision: 1, baseRevision: 0, full: true,
         columns: 20, rows: 10, cellWidth: 10, cellHeight: 20, mouseTracking: 0,
         peer: { id: null, primaryId: null, isPrimary: true },
-        cursor: { x: 0, y: 0, visible: false, shape: 0 }, history: null,
+        cursor: { x: 0, y: 0, visible: false, shape: 0 },
+        history: {
+          generation: "1", buffer: "main", totalRows: 10, liveTop: 0, top: 0, following: true,
+          rowIds: Array.from({ length: 10 }, (_, i) => String(i + 1)), requestId: 0,
+          selection: { requestId: 0, status: "none", mode: "character", ranges: [], text: null },
+          copy: null, markers: [], markerResult: null
+        },
         images: [], retainedImages: [], placements: [], warnings: [], hyperlinks: [], title: "",
         progress: { state: "none", percentage: null }, shellIntegration: { phase: "unknown", lastExitCode: null },
+        workingDirectory: { uri: null, host: null, path: null }, commandMark: null,
         stats: { workloadBytes: 0, outputBatches: 0, captureMs: 0, elapsedMs: 0 }
       };
       const json = Uint8Array.from(JSON.stringify(metadata), character => character.charCodeAt(0));
@@ -217,22 +226,47 @@ async page => {
             readyState = 0;
             constructor() {
               super();
+              this.metadata = ${JSON.stringify(metadata)};
+              this.cells = new Uint8Array(${JSON.stringify([...bytes.slice(8 + json.length)])});
               queueMicrotask(() => {
                 this.readyState = 1;
                 this.dispatchEvent(new Event("open"));
-                this.dispatchEvent(new MessageEvent("message", {
-                  data: new Uint8Array(${JSON.stringify([...bytes])}).buffer
-                }));
+                this.present();
               });
             }
+            present() {
+              const json = new TextEncoder().encode(JSON.stringify(this.metadata));
+              const bytes = new Uint8Array(8 + json.length + this.cells.length);
+              const view = new DataView(bytes.buffer);
+              view.setUint32(0, 0x31545748, true);
+              view.setUint32(4, json.length, true);
+              bytes.set(json, 8);
+              bytes.set(this.cells, 8 + json.length);
+              this.dispatchEvent(new MessageEvent("message", { data: bytes.buffer }));
+            }
             send(message) {
-              if (JSON.parse(message).type === "ack") self.postMessage({
+              const command = JSON.parse(message);
+              if (command.type === "marker") {
+                const history = this.metadata.history;
+                if (command.action === "add") {
+                  if (command.generation !== history.generation || !history.rowIds.includes(command.rowId))
+                    throw new Error("Bookmark did not use a presented row identity");
+                  history.markers.push({ id: command.id, source: "custom", buffer: "main",
+                    row: history.rowIds.indexOf(command.rowId), column: command.column });
+                } else if (command.action === "remove") {
+                  history.markers = history.markers.filter(marker => marker.id !== command.id);
+                } else throw new Error("Unexpected fixture marker action");
+                history.markerResult = { requestId: command.requestId, success: true, markerId: command.id };
+                this.metadata.revision++;
+                queueMicrotask(() => this.present());
+              }
+              if (command.type === "ack") self.postMessage({
                 type: "status", message: "Fixture frame acknowledged", level: "info"
               });
             }
             close() { this.readyState = 3; }
           };
-          await import("${httpOrigin}/web-terminal/terminal-worker.js");
+          await import("${httpOrigin}/web-terminal/index.js#hex1b-terminal-worker");
           self.removeEventListener("message", capture);
           for (const data of pending) self.dispatchEvent(new MessageEvent("message", { data }));
         `;
@@ -240,6 +274,8 @@ async page => {
     await test.goto(`${httpOrigin}/health`);
     const http = await test.evaluate(async workerSource => {
       if (isSecureContext || navigator.gpu) throw new Error("HTTP fixture unexpectedly has WebGPU privileges");
+      if (typeof crypto.randomUUID !== "undefined" || typeof crypto.getRandomValues !== "function")
+        throw new Error("HTTP fixture did not exercise the native UUID fallback");
       const { WebTerminal } = await import("/web-terminal/index.js");
       const results = [];
       const workerUrl = URL.createObjectURL(new Blob([workerSource], { type: "text/javascript" }));
@@ -273,7 +309,23 @@ async page => {
                 }
                 if (!!stats.rendererFallbackReason !== (preference === "auto")) throw new Error("Incorrect fallback diagnostics");
                 if (!status.includes("Fixture frame acknowledged")) throw new Error("Worker did not acknowledge its rendered frame");
-                results.push({ preference, renderer: stats.renderer, fallback: stats.rendererFallbackReason, frames: stats.frames });
+                const uuid = "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+                const canvasId = terminal.element.shadowRoot.querySelector("canvas:not(.scrollbar-canvas)").id;
+                if (!new RegExp("^hex1b-content-" + uuid + "$").test(canvasId))
+                  throw new Error("HTTP canvas did not get a valid v4 identity");
+                const viewport = terminal.viewport;
+                const bookmark = await terminal.addMarker({
+                  position: { generation: viewport.generation, rowId: viewport.rowIds[0], column: 0 },
+                  label: "HTTP bookmark"
+                });
+                if (!new RegExp("^custom:" + uuid + "$").test(bookmark.id) ||
+                    bookmark.label !== "HTTP bookmark" || !terminal.markers.some(marker => marker.id === bookmark.id))
+                  throw new Error("HTTP bookmark did not register its v4 identity and label");
+                await terminal.removeMarker(bookmark.id);
+                if (terminal.markers.some(marker => marker.id === bookmark.id))
+                  throw new Error("HTTP bookmark removal was not acknowledged");
+                results.push({ preference, renderer: stats.renderer, fallback: stats.rendererFallbackReason,
+                  frames: stats.frames, canvasId, bookmark: bookmark.id, bookmarkRemoved: true });
               } finally { terminal.dispose(); }
               if (host.children.length) throw new Error("Disposed mount leaked its wrapper");
             }
@@ -284,5 +336,7 @@ async page => {
     }, workerSource);
     check(errors.length === 0, errors.join("; "));
     return { passed: true, parity, http };
+  } catch (error) {
+    throw new Error(`${error.message}\nCompleted GPU parity: ${JSON.stringify(parity ?? [])}`);
   } finally { await context.close(); }
 }

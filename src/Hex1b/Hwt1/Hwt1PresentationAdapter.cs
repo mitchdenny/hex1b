@@ -27,6 +27,31 @@ namespace Hex1b;
 /// 1..300 columns, and 1..100 rows. A directly attached
 /// <see cref="Hmp1WorkloadAdapter"/> supplies authoritative geometry and primary
 /// ownership instead; producer dimensions are not clamped to this request profile.
+/// An HMP1-backed terminal must enable its own scrollback, for example with
+/// <see cref="Hex1bTerminalBuilder.WithScrollback"/>; its capacity remains authoritative.
+/// Optional HMP1 history negotiation transfers a bounded suffix of retained main-buffer
+/// text after the screen and mandatory activity checkpoint. The complete checkpoint is
+/// validated before screen, activity, history, and negotiated command marks are atomically applied. History replaces
+/// rather than appends, so reconnects and resyncs do not duplicate retained rows.
+/// <see cref="Hmp1ClientOptions.ScrollbackHistoryRows"/> defaults to 10,000; zero opts out.
+/// The producer must retain scrollback and enable
+/// <see cref="Hmp1PresentationAdapter.EnableScrollbackHistory"/> (true by default).
+/// Without scrollback negotiation, existing HMP1 peers keep screen-only text replay and a fresh replica
+/// has only subsequent locally observed history. An unavailable history checkpoint
+/// does not additionally replace local history; explicit clearing operations in
+/// the screen replay still take effect. An available empty checkpoint clears history.
+/// Main-buffer history received during an alternate screen stays hidden until returning.
+/// Retained OSC 133 command marks are negotiated independently through
+/// <see cref="Hmp1ClientOptions.EnableCommandMarkHistory"/> and
+/// <see cref="Hmp1PresentationAdapter.EnableCommandMarkHistory"/> (true by default).
+/// Eligible marks restore raw details, phase, status, positions, IDs, and the ID high-water
+/// mark without synthesizing command events. Repeated checkpoints replace command history;
+/// local capacities and backing-text lifetime still apply. Missing negotiation falls back
+/// independently of text history. Historical graphics and custom/browser-owned markers are
+/// not transferred; marks on an untransferred saved main screen are omitted.
+/// Producer-backed views created with
+/// <see cref="Hmp1PresentationAdapter.CreateBrowserViewAsync"/> instead read retained
+/// history directly from the shared producer.
 /// Frames support up to 1024 columns, 512 rows, and 262144 total cells.
 /// Larger authoritative grids fail projection without resizing the producer.
 /// Reconnection requires a new adapter; resync repairs the existing connection only.
@@ -58,6 +83,8 @@ public sealed class Hwt1PresentationAdapter :
         new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite });
     private readonly Hwt1RenderProjection _projection = new();
     private readonly object _projectionLock = new();
+    internal const int MarkerPageSize = 2048;
+    private readonly Queue<(byte[] Bytes, uint Revision)> _markerFrames = new();
     private readonly object _ackLock = new();
     private readonly CancellationTokenSource _disposedCancellation = new();
     private readonly TimeProvider _timeProvider;
@@ -240,6 +267,15 @@ public sealed class Hwt1PresentationAdapter :
             if (acknowledgement is not null)
                 await acknowledgement.WaitAsync(AcknowledgementTimeout, _timeProvider, linked.Token);
 
+            lock (_projectionLock)
+            {
+                linked.Token.ThrowIfCancellationRequested();
+                if (_markerFrames.TryDequeue(out var next))
+                {
+                    PrepareAcknowledgement(next.Revision);
+                    return next.Bytes;
+                }
+            }
             _ = await _dirty.Reader.ReadAsync(linked.Token);
             consumedInvalidation = true;
             linked.Token.ThrowIfCancellationRequested();
@@ -281,14 +317,33 @@ public sealed class Hwt1PresentationAdapter :
             lock (_projectionLock)
             {
                 linked.Token.ThrowIfCancellationRequested();
-                bytes = _projection.Encode(snapshot, Capabilities, terminal.OutputBytesRead,
-                    Interlocked.Read(ref _outputBatches), Stopwatch.GetElapsedTime(_started).TotalMilliseconds,
-                    Interlocked.Exchange(ref _forceFull, 0) != 0, snapshotMs, peer, history);
-            }
-            lock (_ackLock)
-            {
-                _awaitedRevision = _projection.Revision;
-                _ack = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                var full = Interlocked.Exchange(ref _forceFull, 0) != 0;
+                if (history.Markers.Length > MarkerPageSize)
+                {
+                    var revision = checked(_projection.Revision + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    for (var offset = 0; offset < history.Markers.Length; offset += MarkerPageSize)
+                    {
+                        var page = history with
+                        {
+                            Markers = history.Markers.Skip(offset).Take(MarkerPageSize).ToArray(),
+                            MarkerPage = new(revision, offset, history.Markers.Length)
+                        };
+                        var encoded = _projection.Encode(snapshot, Capabilities, terminal.OutputBytesRead,
+                            Interlocked.Read(ref _outputBatches), Stopwatch.GetElapsedTime(_started).TotalMilliseconds,
+                            full && offset == 0, snapshotMs, peer, page);
+                        _markerFrames.Enqueue((encoded, _projection.Revision));
+                    }
+                    var first = _markerFrames.Dequeue();
+                    bytes = first.Bytes;
+                    PrepareAcknowledgement(first.Revision);
+                }
+                else
+                {
+                    bytes = _projection.Encode(snapshot, Capabilities, terminal.OutputBytesRead,
+                        Interlocked.Read(ref _outputBatches), Stopwatch.GetElapsedTime(_started).TotalMilliseconds,
+                        full, snapshotMs, peer, history);
+                    PrepareAcknowledgement(_projection.Revision);
+                }
             }
             return bytes;
         }
@@ -303,9 +358,18 @@ public sealed class Hwt1PresentationAdapter :
         }
     }
 
+    private void PrepareAcknowledgement(uint revision)
+    {
+        lock (_ackLock)
+        {
+            _awaitedRevision = revision;
+            _ack = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+    }
+
     /// <summary>Processes one complete UTF-8 HWT1 client JSON message.</summary>
     /// <param name="utf8Json">An acknowledgement, resync, resize, requestPrimary, input, paste, key, mouse,
-    /// viewport, selection, or copy message, at most 64 KiB.</param>
+    /// viewport, marker, selection, or copy message, at most 64 KiB.</param>
     /// <param name="cancellationToken">Cancels processing and workload input writes.</param>
     /// <returns>A task that completes when the message has been handled.</returns>
     /// <remarks>
@@ -347,7 +411,11 @@ public sealed class Hwt1PresentationAdapter :
                 }
                 break;
             case "resync":
-                Interlocked.Exchange(ref _forceFull, 1);
+                lock (_projectionLock)
+                {
+                    _markerFrames.Clear();
+                    Interlocked.Exchange(ref _forceFull, 1);
+                }
                 InvalidatePresentation();
                 break;
             case "resize":
@@ -403,6 +471,7 @@ public sealed class Hwt1PresentationAdapter :
             case "viewport":
             case "selection":
             case "copy":
+            case "marker":
                 terminal.HandleBrowserHistoryMessage(_view, command);
                 InvalidatePresentation();
                 break;
@@ -506,11 +575,15 @@ public sealed class Hwt1PresentationAdapter :
             _width = terminal.Width;
             _height = terminal.Height;
             terminal.PresentationInvalidated -= InvalidatePresentation;
+            terminal.ReleaseBrowserMarkers(_view);
         }
         _disposedCancellation.Cancel();
         _dirty.Writer.TryComplete();
         lock (_projectionLock)
+        {
+            _markerFrames.Clear();
             _projection.Clear();
+        }
         var muxer = _muxer;
         var session = _session;
         _terminal = null;

@@ -67,8 +67,11 @@ public sealed partial class Hex1bTerminal
     /// </summary>
     /// <remarks>
     /// Capacity is configured via <see cref="Hex1bTerminalOptions.CommandMarkHistoryCapacity"/>;
-    /// once exceeded, the oldest marks are evicted. RIS and reflow do not remove existing
-    /// entries, but their row anchors become unresolvable (see <see cref="TerminalCommandMark"/>).
+    /// once exceeded, the oldest marks are evicted. Marks are also removed when their
+    /// backing text is cleared, reset, or evicted from the screen and scrollback.
+    /// Retained main-buffer marks survive alternate-screen use. Browser marker positions
+    /// survive supported reflow while their text is retained; the capture-time coordinates
+    /// in <see cref="TerminalCommandMark"/> remain unchanged.
     /// </remarks>
     public IReadOnlyList<TerminalCommandMark> CommandMarks
     {
@@ -88,12 +91,29 @@ public sealed partial class Hex1bTerminal
                 out var rawParameters))
             return;
 
+        CollectExpiredTextAnchors();
         EnsureTextRows();
         var mark = new TerminalCommandMark(phase, exitCode, rawParameters, _textGeneration, _textScreenRowIds[_cursorY]);
+        var buffer = GetTextBuffer();
+        var anchor = RegisterTextAnchor($"command:{checked(++_nextCommandAnchorId)}", buffer,
+            buffer.HistoryCount + _cursorY, _cursorX + (_pendingWrap ? 1 : 0));
+        _commandAnchors.Add(mark, anchor);
         _commandMarks.Add(mark);
-        while (_commandMarks.Count > _commandMarkHistoryCapacity)
-            _commandMarks.RemoveAt(0);
+        TrimCommandMarks();
+        ReleaseExpiredMarkerDetails();
         CommandMarkAdded?.Invoke(mark);
+    }
+
+    private void TrimCommandMarks()
+    {
+        while (_commandMarks.Count > _commandMarkHistoryCapacity)
+        {
+            var oldest = _commandMarks[0];
+            _historyTextAnchors.Remove(_commandAnchors[oldest]);
+            _textAnchors.Remove(_commandAnchors[oldest]);
+            _commandAnchors.Remove(oldest);
+            _commandMarks.RemoveAt(0);
+        }
     }
 
     internal void SubscribeActivityStateChanged(Action<TerminalActivityState> handler)

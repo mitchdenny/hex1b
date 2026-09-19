@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decodeFrame } from "../dist/protocol.js";
+import { decodeFrame } from "../.build/protocol.js";
 
 function metadata() {
   return {

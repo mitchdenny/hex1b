@@ -13,7 +13,7 @@
     "sourceMap": true,
     "inlineSources": true,
     "rootDir": "src",
-    "outDir": "dist",
+    "outDir": ".build",
     "forceConsistentCasingInFileNames": true
   },
   "include": ["src/**/*.ts"]

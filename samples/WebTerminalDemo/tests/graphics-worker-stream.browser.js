@@ -5,7 +5,7 @@ async page => {
     if (!name || name.startsWith("/") || name.split("/").some(part => part === ".."))
       throw new Error("A reviewed relative frame path is required");
     const frameUrl = new URL(`/evidence/${name}`, location.href).href;
-    const workerModule = new URL("/web-terminal/terminal-worker.js", location.href).href;
+    const workerModule = new URL("/web-terminal/index.js#hex1b-terminal-worker", location.href).href;
     const source = `
       const pending = [];
       const capture = event => pending.push(event.data);

@@ -4,11 +4,14 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DefaultItemExcludes>$(DefaultItemExcludes);wwwroot/web-terminal-test/**;wwwroot/web-terminal/**;wwwroot/playground/**</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Hex1b/Hex1b.csproj" />
     <None Remove="Tapes/**/*.tape" />
     <Content Include="Tapes/**/*.tape" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Remove="wwwroot/web-terminal-test/**;wwwroot/web-terminal/**;wwwroot/playground/**" />
+    <None Remove="wwwroot/web-terminal-test/**;wwwroot/web-terminal/**;wwwroot/playground/**" />
   </ItemGroup>
   <PropertyGroup>
     <WindowsPtyShimRid Condition="'$(RuntimeIdentifier)' == 'win-x64' or '$(RuntimeIdentifier)' == 'win-arm64'">$(RuntimeIdentifier)</WindowsPtyShimRid>
@@ -51,6 +54,7 @@
     <Error Condition="!Exists('$(MSBuildProjectDirectory)/node_modules/typescript/bin/tsc')"
            Text="Restore the demo frontend first: npm ci --prefix samples/WebTerminalDemo (from the repository root)." />
     <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="npm run build" />
+    <!-- Discover generated assets only after copying; old distribution files may have been removed. -->
     <ItemGroup>
       <Content Remove="wwwroot/web-terminal/**/*;wwwroot/playground/**/*" />
       <Content Include="wwwroot/web-terminal/**/*;wwwroot/playground/**/*"

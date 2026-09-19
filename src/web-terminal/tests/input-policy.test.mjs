@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { InputPolicy, InputRoute, TerminalAction, defaultInputBindings, inputModifiers } from "../dist/input-policy.js";
-import { assertCommandSize, LIMITS } from "../dist/protocol.js";
+import { InputPolicy, InputRoute, TerminalAction, defaultInputBindings, inputModifiers } from "../.build/input-policy.js";
+import { assertCommandSize, LIMITS } from "../.build/protocol.js";
 
 const key = (key, overrides = {}) => ({ type: "key", key, ctrl: false, alt: false, shift: false, meta: false, ...overrides });
 const pointer = (overrides = {}) => ({ type: "pointer", button: "right", ...inputModifiers({}), ...overrides });

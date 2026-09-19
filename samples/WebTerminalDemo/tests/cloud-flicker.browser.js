@@ -12,13 +12,14 @@ async page => {
       const created = test.waitForResponse(response =>
         response.url() === `${origin}/api/terminals` && response.request().method() === "POST" && response.status() === 201);
       await test.goto(`${origin}/?scene=shell&scale=auto&transport=${encodeURIComponent(transport)}`);
+      await test.locator("#terminal-controls > summary").click();
       instances.push((await (await created).json()).id);
       await test.waitForFunction(() => webTerminalViews.get("1")?.terminal?.peer.isPrimary &&
         /[❯$#%>]$/.test(webTerminalViews.get("1").terminal.screenText.trimEnd()));
       await test.evaluate(() => webTerminalViews.get("1").terminal.setSizing({ mode: "fixed", columns: 80, rows: 24 }));
       await test.waitForFunction(() => webTerminalViews.get("1").stats.columns === 80 &&
         webTerminalViews.get("1").stats.rows === 24);
-      await test.locator('.terminal-window[data-view="1"] canvas').click({ position: { x: 100, y: 100 } });
+      await test.locator('.terminal-window[data-view="1"] canvas:not(.scrollbar-canvas)').click({ position: { x: 100, y: 100 } });
       await test.keyboard.type(`dotnet ../${sample}/bin/Release/net10.0/${sample}.dll --motes 700 --frame-ms 33`);
       await test.keyboard.press("Enter");
       await test.waitForFunction(() => webTerminalViews.get("1").stats.mouseTracking === 1003 &&

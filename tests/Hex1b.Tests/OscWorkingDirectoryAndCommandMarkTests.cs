@@ -209,8 +209,9 @@ public class OscCommandMarkTests
 
         // RIS invalidates the text-row identity space (bumps the generation).
         terminal.ApplyTokens([RisToken.Instance]);
+        Assert.AreEqual(0, terminal.CommandMarks.Count);
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]133;C\x07"));
-        var third = terminal.CommandMarks[2];
+        var third = TestSeq.Single(terminal.CommandMarks);
         Assert.AreNotEqual(first.TextGeneration, third.TextGeneration);
     }
 }

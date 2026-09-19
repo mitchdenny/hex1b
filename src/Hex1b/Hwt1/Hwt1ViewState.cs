@@ -26,6 +26,27 @@ internal sealed class Hwt1ViewState
     private string _mode = "character";
     private string _status = "none";
     private Hwt1CopyState? _copy;
+    private long _lastMarkerRequestId;
+    private string? _viewportError;
+    internal Dictionary<string, TerminalTextAnchor> CustomMarkers { get; } = new(StringComparer.Ordinal);
+    internal Hwt1MarkerResult? MarkerResult { get; set; }
+
+    internal bool AcceptMarkerRequest(long requestId)
+    {
+        if (requestId < 1 || requestId > 9007199254740991)
+            throw new InvalidDataException("Marker requestId must be a positive safe integer.");
+        if (requestId <= _lastMarkerRequestId)
+            return false;
+        _lastMarkerRequestId = requestId;
+        return true;
+    }
+
+    internal void JumpToRow(TerminalTextBuffer buffer, int row)
+    {
+        Synchronize(buffer);
+        var top = Math.Clamp(row, 0, buffer.HistoryCount);
+        _topRowId = top == buffer.HistoryCount ? null : buffer.RowId(top);
+    }
 
     internal void GoLive()
     {
@@ -53,9 +74,27 @@ internal sealed class Hwt1ViewState
         {
             case "viewport":
                 _requestId = requestId;
+                _viewportError = null;
                 var top = ResolveTop(buffer);
                 if (command.TryGetProperty("live", out var live) && live.GetBoolean())
                     _topRowId = null;
+                else if (command.TryGetProperty("top", out var absoluteTop))
+                {
+                    var requestedTop = absoluteTop.GetInt64();
+                    var originTop = command.GetProperty("originTop").GetInt64();
+                    if (requestedTop < -9007199254740991 || requestedTop > 9007199254740991 ||
+                        originTop < 0 || originTop > 9007199254740991)
+                        throw new InvalidDataException("Viewport coordinates must be safe integers.");
+                    if (command.GetProperty("generation").GetString() == Format(buffer.Generation) &&
+                        long.TryParse(command.GetProperty("originRowId").GetString(),
+                            CultureInfo.InvariantCulture, out var originId) && buffer.FindRow(originId) is >= 0 and var origin)
+                    {
+                        top = (int)Math.Clamp(origin + requestedTop - originTop, 0, buffer.HistoryCount);
+                        _topRowId = top == buffer.HistoryCount ? null : buffer.RowId(top);
+                    }
+                    else
+                        _viewportError = "stale-position";
+                }
                 else
                 {
                     var delta = command.GetProperty("delta").GetInt32();
@@ -144,7 +183,8 @@ internal sealed class Hwt1ViewState
         if (_copy is { Status: "valid" } && selection.Status != "valid")
             _copy = _copy with { Status = selection.Status, Text = null };
         return new(Format(buffer.Generation), buffer.Alternate ? "alternate" : "main",
-            buffer.TotalRows, top, buffer.HistoryCount, _topRowId is null, ids, _requestId, selection, _copy);
+            buffer.TotalRows, top, buffer.HistoryCount, _topRowId is null, ids, _requestId, selection, _copy)
+            { MarkerResult = MarkerResult, ViewportError = _viewportError };
     }
 
     private void Synchronize(TerminalTextBuffer buffer)

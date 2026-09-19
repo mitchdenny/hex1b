@@ -37,6 +37,7 @@ public sealed partial class Hex1bTerminal
 
     private void InvalidateTextRows(int first, int last)
     {
+        InvalidateTextAnchorRetention();
         EnsureTextRows();
         for (var row = Math.Max(0, first); row <= Math.Min(last, _height - 1); row++)
             _textScreenRowIds[row] = checked(++_nextTextRowId);
@@ -44,6 +45,7 @@ public sealed partial class Hex1bTerminal
 
     private void AdvanceTextRowsForScroll(int left, int right)
     {
+        InvalidateTextAnchorRetention();
         EnsureTextRows();
         if (_scrollTop != 0 || _scrollBottom != _height - 1 || left != 0 || right != _width - 1)
         {
@@ -81,7 +83,13 @@ public sealed partial class Hex1bTerminal
     internal void HandleBrowserHistoryMessage(Hwt1ViewState view, JsonElement command)
     {
         lock (_bufferLock)
-            view.Handle(command, GetTextBuffer());
+        {
+            var buffer = GetTextBuffer();
+            if (command.GetProperty("type").GetString() == "marker")
+                HandleMarkerMessage(view, command, buffer);
+            else
+                view.Handle(command, buffer);
+        }
     }
 
     internal void ResetBrowserView(Hwt1ViewState view)
@@ -111,7 +119,8 @@ public sealed partial class Hex1bTerminal
             // Checking the mode and capturing must be atomic: another begin marker
             // may arrive after a waiter wakes but before it acquires the buffer lock.
             remoteState = _hmp1State;
-            history = view.Capture(GetTextBuffer());
+            var buffer = GetTextBuffer();
+            history = view.Capture(buffer) with { Markers = CaptureMarkers(view, buffer) };
             snapshot = history.Following
                 ? CreateSnapshot()
                 : new Hex1bTerminalSnapshot(this,

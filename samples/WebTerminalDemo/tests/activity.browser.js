@@ -14,6 +14,7 @@ async page => {
   { progress, phase }, { timeout: 30000 });
   try {
     await test.goto(`${origin}/?scene=activity&renderer=webgl2`);
+    await test.locator("#terminal-controls > summary").click();
     await test.waitForFunction(() => [...webTerminalViews.values()].some(view => view.terminal?.connected),
       null, { timeout: 30000 });
     instanceId = await test.evaluate(() => [...webTerminalViews.values()][0].instance.id);

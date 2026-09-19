@@ -19,6 +19,7 @@ async page => {
           worker.dispatchEvent(new MessageEvent("message", { data: {
             type: "geometry", ...grid, cellWidth: 10, cellHeight: 20, mouseTracking: 1003, hyperlinks: [], title: "",
             progress: { state: "none", percentage: null }, shellIntegration: { phase: "unknown", lastExitCode: null },
+            workingDirectory: { uri: null, host: null, path: null }, commandMark: null,
             peer: { id: worker.id, primaryId, isPrimary: worker.id === primaryId }
           } }));
           worker.dispatchEvent(new MessageEvent("message", { data: {
@@ -37,6 +38,7 @@ async page => {
                 this.dispatchEvent(new MessageEvent("message", { data: {
                   type: "geometry", ...grid, cellWidth: 10, cellHeight: 20, mouseTracking: 0, hyperlinks: [], title: "",
                   progress: { state: "none", percentage: null }, shellIntegration: { phase: "unknown", lastExitCode: null },
+                  workingDirectory: { uri: null, host: null, path: null }, commandMark: null,
                   peer: { id: null, primaryId: null, isPrimary: false }
                 } }));
                 this.dispatchEvent(new MessageEvent("message", { data: { type: "stats", stats: { revision: 1 } } }));
@@ -100,7 +102,7 @@ async page => {
       try { a.resize(90, 30); return false; } catch (error) { return error.message.includes("primary"); }
     }), "Public resize accepted a secondary request");
     await test.evaluate(() => b.requestPrimary());
-    await test.waitForFunction(() => b.peer.isPrimary && b.geometry.columns === 20 && b.geometry.rows === 16);
+    await test.waitForFunction(() => b.peer.isPrimary && b.geometry.columns === 16 && b.geometry.rows === 16);
     const beforeHide = await test.evaluate(() => commands.length);
     await test.evaluate(() => document.getElementById("b").style.display = "none");
     await test.waitForTimeout(150);
@@ -109,12 +111,12 @@ async page => {
     await test.waitForTimeout(150);
     check(await test.evaluate(before => commands.length === before, beforeHide), "Restoring matching geometry sent an echo");
 
-    await test.locator("#a canvas").click({ position: { x: 50, y: 50 } });
+    await test.locator("#a canvas:not(.scrollbar-canvas)").click({ position: { x: 50, y: 50 } });
     await test.keyboard.type("alpha");
     check(await test.evaluate(() => commands.filter(item => item.type === "input" && item.peer === "1").map(item => item.text).join("") === "alpha"), "Keyboard was not scoped to first mount");
     check(await test.evaluate(() => !commands.some(item => item.type === "input" && item.peer === "2")), "Keyboard leaked to second mount");
     check(await test.evaluate(() => c.element.shadowRoot.querySelector("textarea").disabled), "Read-only mount enabled keyboard");
-    await test.locator("#b canvas").click({ position: { x: 50, y: 50 } });
+    await test.locator("#b canvas:not(.scrollbar-canvas)").click({ position: { x: 50, y: 50 } });
     await test.keyboard.type("beta");
     check(await test.evaluate(() => commands.filter(item => item.type === "input" && item.peer === "2").map(item => item.text).join("") === "beta"), "Secondary input focus was not isolated");
     check(await test.evaluate(() => commands.some(item => item.type === "mouse" && item.peer === "2" && item.x >= 0 && item.x < 20)), "Scaled mouse did not reach correct mount");
@@ -131,7 +133,7 @@ async page => {
         .then(() => { window.pendingResolved = true; })
         .catch(error => { window.pendingError = error.name; });
     });
-    await test.locator("#d canvas").click({ position: { x: 50, y: 50 } });
+    await test.locator("#d canvas:not(.scrollbar-canvas)").click({ position: { x: 50, y: 50 } });
     const beforePendingInput = await test.evaluate(() => commands.length);
     await test.keyboard.type("ignored");
     check(await test.evaluate(before => commands.length === before, beforePendingInput), "Clicking an unready mount left keyboard focus in a different terminal");
@@ -184,6 +186,10 @@ async page => {
     await test.waitForTimeout(100);
     check(errors.length === 0, `Unexpected browser errors: ${errors.join("; ")}`);
     return { passed: true, covered: ["arbitrary padded div", "aspect fit", "local primary resize", "secondary scaling", "remote role and aspect changes", "no feedback", "hidden mount", "keyboard/mouse isolation", "read-only", "pending focus/abort", "disposal", "failed mount cleanup", "initial fixed sizing", "queued resize cancellation on role loss", "hidden fixed sizing"], browserErrors: errors };
+  } catch (error) {
+    const state = await test.evaluate(() => ({ grid: window.grid, commands: window.commands?.slice(-5),
+      a: window.a?.geometry, b: window.b?.geometry, fixed: window.fixedView?.geometry }));
+    throw new Error(`${error.message}; ${JSON.stringify(state)}; browser errors: ${errors.join("; ")}`, { cause: error });
   } finally {
     await context.close();
   }

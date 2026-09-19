@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cellPoint, WheelAccumulator, SelectionGesture } from "../dist/selection-input.js";
-import { captureMouse } from "../dist/mouse-input.js";
+import { cellPoint, WheelAccumulator, SelectionGesture } from "../.build/selection-input.js";
+import { captureMouse } from "../.build/mouse-input.js";
 
 const point = { x: 4, y: 3 };
 const local = { tracking: 0, historical: false, readOnly: false };

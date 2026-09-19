@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractLinkText, mapLinkRange } from "../dist/link-text.js";
+import { extractLinkText, mapLinkRange } from "../.build/link-text.js";
 
 const cell = (text, index, width = 1, attributes = 0) => ({
   text, index, width, attributes, foreground: 0, background: 0, underlineColor: 0, underlineStyle: 0,

@@ -135,39 +135,71 @@ workloads on your target browsers and devices.
 
 ### Module and worker deployment
 
-The package contains browser ES modules, not a single bundle. For bare static
-hosting, copy **all of `dist/`**, preserving its directory structure, and import
-`/web-terminal/index.js` from a module script. `dist/web-terminal.js` also remains
-available for relative static imports. Package consumers should import only from
-`@hex1b/web-terminal`; internal protocol/renderer modules are not public exports.
+The package ships **one JavaScript file: `dist/index.js`**. This ESM bundle
+contains the public main-thread API, terminal worker, and link-detection worker;
+there is no runtime JavaScript module tree to copy. npm imports and public
+exports are unchanged: import from `@hex1b/web-terminal`, not internal modules.
 
-The worker is created with
-`new Worker(new URL("./terminal-worker.js", import.meta.url), { type: "module" })`.
-The default font is resolved relative to its module, not the host page.
-Bundlers differ in whether they discover and rewrite assets inside dependencies;
-this package does not claim universal or individually verified bundler support.
-The reliable static deployment layout is the complete emitted tree described
-above.
+For static hosting or vendoring, copy `index.js` and `dist/fonts/` into the same
+served directory, preserving the font paths and their license/provenance files.
+Keep the package's MIT license too. Fonts are separate assets, not embedded in
+the JavaScript. Alternatively, supply your own explicit `font.faces` URLs.
+`index.js.map` is optional for runtime use; declarations and declaration maps
+support TypeScript consumers.
 
-If your bundler does not handle the dependency's worker URL, explicitly provide
-the entry point you deployed:
+With the bundle at `/web-terminal/index.js` and fonts at `/web-terminal/fonts/`,
+this is a complete mount example (the host supplies the matching HWT1 endpoint):
+
+```html
+<div id="terminal" style="width: 100%; height: 480px"></div>
+<script type="module">
+  import { WebTerminal } from "/web-terminal/index.js";
+
+  const terminal = await WebTerminal.mount(document.getElementById("terminal"), {
+    url: "/ws/terminal",
+    sizing: { mode: "auto", fontSize: 16 },
+    onStatus(message, level) { console.log(level, message); }
+  });
+  terminal.focus();
+  window.addEventListener("pagehide", () => terminal.dispose(), { once: true });
+</script>
+```
+
+Workers load the **same bundle URL**, replacing its fragment with
+`#hex1b-terminal-worker` or `#hex1b-link-detection-worker`. The actual filename,
+path, and query string are preserved, so renaming the unmodified bundle works:
+`/vendor/terminal.js?v=42` uses `/vendor/terminal.js?v=42#hex1b-terminal-worker`.
+Worker entry selection runs only in dedicated worker contexts, not when importing
+the API into a page. The default font resolves relative to the JavaScript URL,
+not the page.
+
+Both workers are module workers; they need neither Blob URLs nor `eval`.
+Same-origin deployment works with `worker-src 'self'` without adding `blob:`.
+Also configure JavaScript/WOFF2 MIME types and CSP permissions for scripts, fonts,
+and the intended WebSocket endpoint. Browser worker-origin restrictions still apply.
+
+**Rebundling into an application is a separate deployment choice.** Defaults
+assume the unmodified ESM bundle's URL, not an arbitrary application bundle with
+DOM startup side effects. A bundler may rewrite asset URLs or tree-shake worker
+code. If needed, separately host the unmodified `index.js` from the same package
+build and explicitly point both workers to it, with explicit font URLs:
 
 ```ts
 const terminal = await WebTerminal.mount(container, {
   url: "/ws/terminal",
-  workerUrl: "/web-terminal/terminal-worker.js"
+  workerUrl: "/web-terminal/index.js#hex1b-terminal-worker",
+  linkDetectionWorkerUrl: "/web-terminal/index.js#hex1b-link-detection-worker",
+  font: {
+    family: "My Terminal Font",
+    faces: [{ url: "/fonts/my-terminal.woff2", weight: "100 900", style: "normal" }]
+  }
 });
 ```
 
-`workerUrl` accepts a nonempty string or URL and resolves relative strings against
-the page, not the package module. It still creates a **module** worker. Deploy its
-complete relative module tree, or provide a separately bundled worker entry from
-the same package build. The override does not automatically copy fonts: retain
-the default font asset URL or provide explicit `font.faces` URLs as shown below.
-The browser's worker origin and CSP restrictions still apply.
-
-Configure your server's JavaScript and WOFF2 MIME types and CSP to allow these
-workers, fonts, and the intended WebSocket endpoint.
+`workerUrl` and `linkDetectionWorkerUrl` accept nonempty strings or URLs;
+relative strings resolve against the **page**, not the package. Overrides do
+not copy fonts. Bundlers differ in dependency and asset handling; this package
+does not claim universal or individually verified bundler support.
 
 ## Configuration and state
 
@@ -183,6 +215,9 @@ workers, fonts, and the intended WebSocket endpoint.
 | `renderer` | `"auto"` (prefer WebGPU), `"webgpu"`, or `"webgl2"`; selected once per mount. |
 | `font` | One family and optional downloadable font faces; see below. |
 | `sizing` | `{ mode: "auto", fontSize?: number }` or `{ mode: "fixed", columns, rows, fontSize?: number }`. |
+| `scrollbar` | Auto-hiding canvas overlay by default; `{ placement: "beside" }` reserves a gutter and stays visible while scrollable; `false` disables built-in chrome. |
+| `padding` | Nonnegative CSS pixels: a uniform number or `{ top?, right?, bottom?, left? }`. Omitted edges are zero. |
+| `onLayoutChange`, `onMarkersChange` | Local content/gutter geometry and authoritative retained marker inventory for host-owned chrome. |
 | `readOnly` | Initial per-view input policy; change it later with `setReadOnly(boolean)`. |
 | `label` | Accessible label for the terminal's hidden keyboard input. |
 | `onTitleChange` | Initial authoritative workload title, then distinct presented changes; see below. |
@@ -202,7 +237,7 @@ ownership. `requestPrimary()` explicitly requests ownership; inspect `peer` or
 
 The handle exposes `geometry`, `peer`, `connected`, `readOnly`, `title`, `progress`, `shellIntegration`,
 `workingDirectory`, `commandMark`, `stats`, `screenText`,
-`sizing`, `viewport`, `selection`, `inputBindings`, and `inputContext`.
+`sizing`, `viewport`, `layout`, `padding`, `scrollbar`, `markers`, `selection`, `inputBindings`, and `inputContext`.
 Metrics start empty; check optional fields before using them. History may be
 unavailable, and selection can be unavailable, none, pending, valid, or
 invalidated. Narrow `viewport.available` and `selection.status` before using
@@ -361,9 +396,10 @@ only on a `finished` (D) marker. `rawParameters` is the verbatim
 `cmdline_url` extension on marker C), or `null` when none was present; use the
 exported `parseCommandMarkParameters(rawParameters)` helper to parse it into a
 `Map`, or `getCmdlineUrl(mark)` as a shortcut for the `cmdline_url` entry. This
-is **not** a command-mark history — only the latest marker is exposed, mirroring
-`shellIntegration`. A host that wants its own history should accumulate
-distinct values from `onCommandMarkChange` itself.
+is **not** a command-mark history — this getter exposes only the latest marker,
+mirroring `shellIntegration`. Use `markers` / `onMarkersChange` for the retained
+inventory and `getCommandMarkDetails(id)` for raw parameters on demand. Do not
+reconstruct history from coalesced `onCommandMarkChange` callbacks.
 
 All four getters return defensive copies. Their callbacks receive the first
 authoritative presented state before mount resolves, then distinct presented
@@ -444,6 +480,567 @@ The raw-output presentation path still forwards the original sequences to
 supporting outer terminals. Required activity metadata needs the matching
 server build; invalid/missing wire fields fail the connection, not silently
 fall back to default state.
+
+## Scrollbars, padding, and retained markers
+
+The terminal canvas remains GPU-rendered. Scrollbar chrome uses a separate,
+transparent main-thread Canvas2D layer with the same behavior under WebGPU and
+WebGL2. Change presentation without remounting or replacing the WebSocket:
+
+```ts
+terminal.setPadding({ top: 8, right: 16, bottom: 12, left: 24 });
+terminal.setScrollbar({ placement: "beside", width: 12, markers: true });
+terminal.setScrollbar({ placement: "overlay", hideDelay: 900, fadeDuration: 300 });
+terminal.setScrollbar(false); // Keep history/navigation; paint your own chrome.
+```
+
+Padding is **outside** cells and scrollbar chrome, in CSS pixels, not rows or
+backing-store pixels. `setPadding(8)` sets all four edges; omitted edges in an
+object become zero. Beside mode stays visible without fading while scrollback is
+available, and reserves its gutter even when there is no history. Its default
+frame opacity is always `1`; `hideDelay` and `fadeDuration` apply only to overlay
+mode. Idle beside scrollbars do not schedule fade timers or animation frames.
+Overlay mode auto-hides and does not reduce columns. An auto-sized primary
+can request a new producer grid when the available space changes. Fixed grids
+and secondary/read-only views instead fit the authoritative grid; changing
+chrome never claims primary. Tiny/hidden containers may have no drawable area.
+
+`layout` / `onLayoutChange` expose immutable CSS-pixel measurements relative to
+`terminal.element`: outer `width`/`height`, displayed `content` rectangle,
+`scrollbar` rectangle (or `null`), normalized `padding`, and displayed
+`cellWidth`/`cellHeight`. Use the content rectangle for host hit testing, not the
+outer mount box. `padding` and `scrollbar` getters expose normalized current
+settings; the latter is `false` when disabled. Selection, links, input, and
+graphics remain aligned to content, not the added padding/gutter.
+
+Layout and marker notifications may occur before `mount()` resolves. Read
+their supplied snapshot during initialization, then initialize host-owned UI
+from the returned handle as well. Related getters update before notification;
+notifications may coalesce and do not form a change log. No notifications run
+after disposal. Check `connected` and `viewport.available` before navigating
+or synchronizing external chrome; retained display state on disconnect does
+not imply an available producer.
+
+### Configure the default capsule painter
+
+`createDefaultScrollbarRenderer(appearance?)` returns an ordinary synchronous
+`TerminalScrollbarRenderer`. The built-in `renderDefaultScrollbar(frame)` uses
+the same factory with no overrides; there is no separate rendering API or
+controller path for styled defaults. Given a mounted `terminal`:
+
+```ts
+import { createDefaultScrollbarRenderer } from "@hex1b/web-terminal";
+
+const painter = createDefaultScrollbarRenderer({
+  track: { opacity: 0.12 },
+  thumb: { opacity: 0.7 },
+  markers: { opacity: 0.85 }
+});
+terminal.setScrollbar({ placement: "beside", render: painter });
+```
+
+The readonly `TerminalScrollbarAppearance` has optional `track`, `thumb`, and
+`markers` parts. Each accepts `color?: string` and `opacity?: number`;
+`TerminalScrollbarMarkerAppearance` also accepts `errorColor?: string`.
+
+| Part | Default opacity | Default color |
+| --- | --- | --- |
+| Track | `0.35` | `frame.colors.track` |
+| Thumb | `1` | `frame.colors.thumb` |
+| Markers | `1` | Each tick's resolved `color`, distinguishing its kind/outcome; falls back to `frame.colors.marker`/`error` |
+
+The default canvas palette is monochrome: a grey thumb (`#999999`) over a
+translucent dark track (`#202020`). Command input, execution, successful
+completion, failed completion, and bookmarks use `#888888`, `#bbbbbb`,
+`#999999`, `#eeeeee`, and `#dddddd`, respectively. Unknown outcomes use
+`#aaaaaa`. These defaults do not inherit the embedding app's accent or danger
+colors. Prompt marks remain omitted from the canvas rail.
+
+Embedding CSS can override the live palette through `--cp-scrollbar-track`,
+`--cp-scrollbar-thumb`, `--cp-scrollbar-marker`, `--cp-scrollbar-error`,
+`--cp-scrollbar-command-line`, `--cp-scrollbar-executing`,
+`--cp-scrollbar-success`, and `--cp-scrollbar-custom`. Explicit factory
+`markers.color`/`errorColor` overrides remain available, as do per-marker
+colors. Custom painters receive the resolved default shade on each
+`TerminalScrollbarMarker.color`; `marker.color` is the explicit host override.
+
+Part opacity must be finite and between `0` and `1`, inclusive. It **multiplies**
+the frame's fade opacity and incoming `context.globalAlpha`; it does not replace
+either. Color alpha is applied by Canvas2D as usual. A marker's explicit `color`
+takes precedence over configured marker/error colors, then theme fallbacks.
+Invalid per-marker CSS colors retain the safe fallback. The rounded focus
+outline uses the configured thumb color or neutral thumb default and remains
+independent of track/thumb/marker opacity. Thumb dragging suppresses both the
+canvas outline and the DOM focus outline; keyboard focus remains visible.
+
+Supplied appearance colors are validated when the factory is called. Use
+nonempty **concrete CSS colors** supported by the browser's Canvas2D parser
+(for example `#8b5cf6`, `rebeccapurple`, or `rgb(139 92 246 / 80%)`), at most
+256 characters. Unresolved `var()`, CSS-wide keywords such as `inherit`,
+`currentColor`, system/context-dependent colors, escapes, and comments are
+rejected rather than silently ignored. Resolve host CSS variables first if
+you want to snapshot their values. **Omit a color to keep theme changes live**:
+the painter reads that fallback from each frame.
+
+Options are snapshotted; mutating your original object does not change an
+existing painter. Create and install another renderer to change its overrides.
+The visible thumb is a capsule, inset by `min(2, width / 4)` CSS pixels on each
+side, with radius half its smaller painted dimension. Styling changes painting
+only: track, thumb, marker hit regions, and all navigation APIs remain unchanged.
+
+### Custom synchronous painting and fade
+
+This complete painter delegates geometry and colors to the default renderer but
+uses a longer quadratic fade. It is the same policy demonstrated by
+[the playground painter](../../samples/WebTerminalDemo/client/scrollbar-renderer.ts).
+This example opts into its own fade policy for overlay placement. The playground
+uses the non-fading default painter for this choice in beside mode.
+
+```ts
+import {
+  WebTerminal, renderDefaultScrollbar, type TerminalScrollbarRenderer
+} from "@hex1b/web-terminal";
+
+const softFade: TerminalScrollbarRenderer = frame => {
+  const { interaction, now } = frame;
+  const active = interaction.near || interaction.hovered ||
+    interaction.dragging || interaction.focused;
+  const elapsed = Math.max(0, now - interaction.lastActivityAt - 1200);
+  const remaining = active ? 1 : Math.max(0, 1 - elapsed / 700);
+  const opacity = interaction.reducedMotion
+    ? (active || elapsed === 0 ? 1 : 0)
+    : remaining * remaining;
+  renderDefaultScrollbar({ ...frame, opacity });
+  return !active && opacity > 0; // Request the next animation frame until hidden.
+};
+
+const host = document.getElementById("terminal");
+if (!host) throw new Error("Missing sized terminal host");
+const terminal = await WebTerminal.mount(host, {
+  url: "/ws/terminal",
+  padding: 8,
+  scrollbar: { placement: "overlay", render: softFade }
+});
+// After changing host-owned painter state or theme colors:
+terminal.refreshScrollbar();
+// On component teardown: terminal.dispose();
+```
+
+The callback is synchronous: never return a Promise. `frame.context` is prepared
+for CSS-pixel drawing on `frame.canvas`; context state is isolated between
+calls. The frame includes layout, viewport, nullable `pendingTarget` (the locally
+desired row during navigation), track/thumb rectangles, marker rectangles,
+nullable `hoveredMarker` (the hovered `TerminalScrollbarMarker`, including its bounds),
+interaction state, monotonic `now` and `lastActivityAt`, default
+`opacity`, and resolved theme colors. Return `true` only while another frame is
+needed; an unconditional `true` creates an unnecessary animation loop.
+`refreshScrollbar()` invalidates painting without sending terminal frames.
+Painter failures are local scrollbar errors, not reasons to stop terminal output.
+
+Painting does not redefine hit testing: the library owns thumb dragging,
+track paging, marker clicks, proximity activation, and keyboard interaction.
+The thumb takes precedence over overlapping marker ticks so dense markers cannot
+prevent dragging. Alt+ArrowUp/ArrowDown navigates adjacent available markers.
+The default painter respects reduced motion and the embedding theme.
+`markers: false` hides ticks without removing the inventory or disabling
+`scrollToMarker`. Inventory changes briefly reveal the scrollbar, including when
+a bookmark is added after it has faded out. A custom painter can call `renderDefaultScrollbar(frame)` and
+then add decoration; use `frame.colors` or your embedding theme rather than
+assuming a dark terminal.
+
+To draw completely different chrome, use the same callback without calling a
+default painter. This snippet uses square geometry and keeps the normal fade;
+the playground's **Custom Canvas2D** mode adds thumb grips and diamond markers.
+
+```ts
+import { type TerminalScrollbarRenderer } from "@hex1b/web-terminal";
+
+const squareScrollbar: TerminalScrollbarRenderer = frame => {
+  const { context, track, thumb, colors } = frame;
+  context.save();
+  try {
+    const alpha = context.globalAlpha * frame.opacity;
+    context.globalAlpha = alpha * 0.2;
+    context.fillStyle = colors.track;
+    context.fillRect(track.left, track.top, track.width, track.height);
+    context.globalAlpha = alpha;
+    context.fillStyle = colors.thumb;
+    context.fillRect(thumb.left, thumb.top, thumb.width, thumb.height);
+    for (const { marker, bounds } of frame.markers) {
+      context.fillStyle = marker.exitCode != null && marker.exitCode !== 0
+        ? colors.error : colors.marker;
+      if (marker.color) context.fillStyle = marker.color;
+      context.fillRect(bounds.left, bounds.top, bounds.width, bounds.height);
+    }
+    if (frame.interaction.focused) {
+      context.strokeStyle = colors.marker;
+      context.lineWidth = 1;
+      context.strokeRect(thumb.left + 0.5, thumb.top + 0.5,
+        Math.max(0, thumb.width - 1), Math.max(0, thumb.height - 1));
+    }
+  } finally {
+    context.restore();
+  }
+};
+terminal.setScrollbar({ render: squareScrollbar });
+```
+
+### Marker hover tooltips
+
+Canvas marker tooltips are enabled by default. They show a custom bookmark's
+label or retained command details: shell phase, exit code, decoded `cmdline_url`
+when supplied, or raw parameters when no command text was provided. A shell
+mark is **not** proof of a particular command line; the default never invents
+command text. Labels, decoded text, raw parameters, and errors are rendered as
+text, not HTML or navigation links.
+
+Use `tooltip: false` to suppress hover content without hiding marker ticks,
+removing the Marks inventory, or disabling marker navigation:
+
+```ts
+terminal.setScrollbar({ render: painter, tooltip: false });
+```
+
+`tooltip` also accepts a synchronous `TerminalScrollbarTooltipRenderer`:
+`(context: TerminalScrollbarTooltipContext) => HTMLElement | null`. Its readonly
+context contains:
+
+| Field | Meaning |
+| --- | --- |
+| `marker` | The retained `TerminalMarker` being hovered. |
+| `anchor` | Marker bounds in terminal-local CSS pixels. |
+| `layout` | Current `TerminalLayout`. |
+| `details` | `TerminalCommandMark` after successful lookup, otherwise `null`. |
+| `loading` | Whether retained command details are being fetched. |
+| `error` | Detail-fetch failure text, otherwise `null`. |
+| `signal` | Aborted when this rendering is replaced or hidden. |
+
+Return an element and the library mounts it in a **light-DOM overlay slot**,
+positions it beside the marker, and clamps it inside the terminal. You do not
+need to calculate viewport offsets or install mouse listeners. This is a
+non-interactive hover preview, not a popover of clickable controls.
+
+`renderDefaultScrollbarTooltip(context): HTMLElement` builds the same safe
+content as the default. Decorate it without reimplementing command parsing:
+
+```ts
+import {
+  renderDefaultScrollbarTooltip, type TerminalScrollbarTooltipRenderer
+} from "@hex1b/web-terminal";
+
+const tooltip: TerminalScrollbarTooltipRenderer = context => {
+  const element = renderDefaultScrollbarTooltip(context);
+  // These --cp-* variables belong to this example's embedding application.
+  element.style.background = "var(--cp-surface)";
+  element.style.color = "var(--cp-text)";
+  element.style.borderLeft = "3px solid var(--cp-accent)";
+  const heading = document.createElement("strong");
+  heading.textContent = context.marker.source === "custom" ? "Bookmark" : "Shell mark";
+  heading.style.display = "block";
+  element.prepend(heading);
+  return element;
+};
+terminal.setScrollbar({ render: painter, tooltip });
+```
+
+Callbacks run initially (with `loading` for command details), again when details
+or an error arrive, and when relevant geometry changes. **Do not make either
+the painter or tooltip callback `async`, or return a Promise.** The library
+fetches retained details on demand, with the same 8,192 UTF-16-unit bound as
+`getCommandMarkDetails`. Oversized, unavailable, or expired details produce an
+error state rather than truncated or guessed command text. The callback receives
+that state; it does not need to issue its own detail request on every frame.
+
+Tooltips are suppressed during thumb dragging and hidden when the pointer
+leaves the marker/terminal, the view disconnects, configuration changes, or the
+terminal is disposed. Replacement/hide aborts the rendering's `signal`, so late
+work cannot resurrect an old tooltip. For externally owned UI, return `null`
+and use that signal to clean up your node. For example, given a host-owned
+`inspector` element:
+
+```ts
+terminal.setScrollbar({
+  tooltip(context) {
+    const element = renderDefaultScrollbarTooltip(context);
+    inspector.replaceChildren(element);
+    context.signal.addEventListener("abort", () => element.remove(), { once: true });
+    return null; // Host owns mounting and placement, not the terminal overlay.
+  }
+});
+```
+
+These refinements do not change the external layout, viewport, marker,
+navigation, or native-wrapper APIs. `markers: false`, native host chrome, and
+`scrollbar: false` do not acquire canvas hover targets.
+
+### Navigation and marker lifetime
+
+`scrollToRow(top)` requests an absolute row, clamped to the current scrollable
+range. It does not calculate a relative delta from stale presented state.
+`viewport.pending` distinguishes a requested view from a presented one;
+`viewport.top`, `liveTop`, `totalRows`, and `rowIds` remain authoritative.
+Rejected stale-position requests settle pending state and expose
+`viewport.navigationError`; a new navigation request clears the previous error.
+At the live end, following resumes. Reading history never claims primary,
+and these operations are available in read-only views.
+
+The retained `markers` array contains command and custom points with stable
+string `id`, `source`, `buffer`, `row`, and `column`, plus optional shell
+`phase`/`exitCode` or host `label`/`color`. A `null` row means unavailable, **not
+row zero**. Filter by the current buffer before painting an external rail.
+The inventory is not a command-execution event stream. Same-row shell marks
+remain distinct; do not infer command starts from an isolated finish marker.
+Raw command parameters are fetched on demand by command tooltips or an explicit
+`getCommandMarkDetails(id)` call, not included in the marker inventory.
+Details exceeding 8,192 UTF-16 units reject explicitly instead of truncating.
+Large inventories are paged internally and published only after a coherent
+replacement is complete. The accumulated serialized marker index is bounded
+to 8 MiB; exceeding that transport budget fails explicitly rather than exposing
+a silently incomplete inventory.
+
+```ts
+const viewport = terminal.viewport;
+if (viewport.available && viewport.rowIds.length) {
+  const bookmark = await terminal.addMarker({
+    position: {
+      generation: viewport.generation,
+      rowId: viewport.rowIds[0],
+      column: 0
+    },
+    label: "Review this output"
+  });
+  // The producer resolves the current anchor, including after retained-text reflow.
+  await terminal.scrollToMarker(bookmark.id);
+  await terminal.removeMarker(bookmark.id);
+}
+```
+
+Registration uses a **presented** producer-backed position. It can reject if
+that position has expired before acceptance. Catch registration/navigation/
+details errors and show them as text. Labels and colors stay in the browser;
+labels and shell details are untrusted and must not be inserted as HTML.
+Anchors track positions, not immutable search matches: recompute search hits
+when their text changes.
+
+Surviving text anchors follow supported producer reflow and horizontal character
+insertion/deletion (ICH/DCH). Insertions at a marked cell move the anchor with that
+cell; deleting it or pushing it beyond the right margin collects the marker.
+Insert-mode typing into a blank marked cursor position binds the marker to the
+newly printed text instead. An end-of-row position remains a boundary until the
+following glyph wraps onto the next row. Wide-glyph positions follow the leading
+cell and expire if editing splits and discards the glyph.
+
+When backing text is evicted, destructively cleared, reset, or discarded by
+reflow, its markers and
+retained metadata are collected rather than accumulated as unavailable entries.
+Navigation to a collected ID rejects rather than guessing. Main and alternate
+buffers are isolated: switching away from retained main-buffer content does not
+collect its markers; those markers are temporarily unavailable in the other
+buffer. Custom markers belong to their owning view and are also released on
+removal/disconnect/disposal, not carried into a reconnect. Browser-only labels
+and colors are released when their markers leave the authoritative inventory.
+The default server quota is 1,000 custom markers per view, configured through
+`Hex1bTerminalOptions.CustomMarkerLimit`; zero disables registration and exceeding
+the limit rejects explicitly. Collection reclaims custom-marker quota slots.
+Shell markers also have a producer-configured count limit.
+Late direct HWT1 attachment can see retained producer marks. HMP1 negotiates
+**retained text** and **retained OSC 133 command marks** independently, so a late
+relay or fresh reconnect can recover both when supported. Raw command details,
+phase, exit status, and producer IDs are restored without replaying command events.
+Historical graphics and custom/browser-owned markers are not transferred.
+Custom markers still belong to their view and do not survive reconnect.
+
+#### HMP1 relay history
+
+An HMP1-backed replica needs its own `WithScrollback(capacity)` configuration,
+even when the upstream producer retains history. Local capacity remains
+authoritative: requesting more rows never increases it. For example, this server
+configuration snippet assumes a connected bidirectional HMP1 `stream` and a
+terminal builder named `replicaBuilder`:
+
+```csharp
+replicaBuilder
+    .WithScrollback(1000)
+    .WithHmp1Stream(stream, options =>
+    {
+        options.ScrollbackHistoryRows = 10_000;
+        options.EnableCommandMarkHistory = true;
+    });
+```
+
+`Hmp1ClientOptions.ScrollbackHistoryRows` defaults to 10,000, accepts 0..100,000,
+and uses `0` to opt out. The producer must have scrollback storage and permit
+transfer through `Hmp1ServerOptions.EnableScrollbackHistory` (or the direct
+`Hmp1PresentationAdapter.EnableScrollbackHistory` property), both defaulting to
+`true`. The first builder listener's setting wins for a shared adapter.
+The separate `EnableCommandMarkHistory` option defaults to `true` on
+`Hmp1ClientOptions`, `Hmp1ServerOptions`, and `Hmp1PresentationAdapter`.
+The server setting is also captured from the first builder listener.
+
+This extension does **not** change the HMP1 version. Optional `ClientHello`
+history fields request version `1` and a row limit; `Hello` acknowledges them
+only when supported and enabled. Missing fields preserve screen-only text replay
+with existing HMP1 peers that support the current mandatory `ActivityState`
+baseline, not ancient pre-`ActivityState` peers.
+Command marks use their own `commandMarkHistoryVersion: 1` field in
+`ClientHello` and `Hello`. Missing acknowledgement disables only command-mark
+transfer; negotiated text history still works, and vice versa. Without transferred
+history, only marks backed by the transferred active screen are eligible.
+
+After each negotiated screen/activity checkpoint, the replica receives the
+newest contiguous retained suffix, bounded by the requested/accepted row limit,
+32 MiB of row-chunk payloads (including row-length prefixes, not the 8-byte
+header), and two million cells. Complete checkpoints are
+validated before screen, activity, history, and negotiated command marks are atomically applied, then
+graphics and live output resume. Reconnect/resync **replaces**, rather than
+appends to, history, avoiding duplication. An available empty checkpoint clears
+history; an unavailable checkpoint from a relay with a non-supporting upstream
+does not perform an additional history replacement. Explicit history-clearing
+operations in the screen replay still have their normal effect.
+Main-buffer history also transfers while the alternate
+screen is active but stays hidden until returning to the main buffer.
+
+Transferred rows preserve graphemes, continuation cells, soft wraps, padding,
+palette colors, and hyperlinks as inert data, never ANSI to execute. Normal
+scrolling output afterward accumulates local history as before. If negotiation
+is absent or disabled, a new replica still starts without pre-attachment history;
+an existing replica retains history according to normal screen/output processing.
+A direct producer-backed
+HWT1 view reads shared retained history without this transport limit.
+
+When negotiated, `CommandMarkState` follows activity and any text-history rows.
+It transfers up to 10,000 newest eligible marks in an 8 MiB frame, preserving raw
+OSC 133 parameters (at most 65,536 UTF-8 bytes each), statuses, phases, and IDs.
+Positions refer to the accompanying retained text and active screen, not
+producer-only row identities. Local command-mark and scrollback capacities
+still apply; markers whose backing text was omitted or later redrawn/evicted
+are not kept. Main-history marks remain available after returning from the
+alternate screen, but marks on the untransferred saved main screen are omitted.
+
+Available checkpoints replace command history rather than append duplicates;
+unavailable checkpoints do not additionally replace it. ID high-water state
+keeps subsequent live marks aligned even if the latest old record was collected.
+No `CommandMarkAdded` events are synthesized for imported records. On close and
+reattach, restored retained shell marks support normal inventory, details, hover,
+and navigation; custom bookmarks from the closed view are not restored.
+Disable `EnableCommandMarkHistory` to retain legacy locally observed command
+marks independently of the scrollback setting. See
+[CommandMarkState](../../docs/muxer-protocol.md#commandmarkstate-0x10) for the wire contract.
+
+These are transport/retention rules, not differences between canvas and HTML
+scrollbars. See the [HMP1 protocol](../../docs/muxer-protocol.md#scrollbackstate-0x0e-and-scrollbackrows-0x0f)
+for wire layout, omitted-row counts, bounds, and failure behavior.
+
+### A native HTML scrollbar using only public APIs
+
+Keep a fixed terminal mount **beside** an overflowing rail; never place the
+terminal itself inside the spacer. This complete module example uses native
+scrolling and separate clickable marker ticks. It caps the spacer below browser
+scroll-height limits, then maps the browser's **actual** pixel range to rows.
+For a reusable lifecycle-owned version and live mode switching, see
+[`NativeScrollbar`](../../samples/WebTerminalDemo/client/native-scrollbar.ts).
+
+```html
+<div id="terminal-wrapper" style="display:flex;width:100%;height:480px">
+  <div id="terminal" style="flex:1;min-width:0;overflow:hidden"></div>
+  <div id="history" style="display:flex;flex:0 0 32px;align-self:flex-start">
+    <div id="ticks" style="position:relative;width:12px"></div>
+    <div id="rail" tabindex="0" aria-label="Terminal history"
+         style="flex:1;min-width:0;overflow-y:scroll;overflow-x:hidden;overscroll-behavior:contain">
+      <div id="spacer" aria-hidden="true" style="width:1px"></div>
+    </div>
+  </div>
+</div>
+<p id="scroll-status" role="status"></p>
+```
+
+```js
+import { WebTerminal } from "@hex1b/web-terminal";
+
+const host = document.getElementById("terminal");
+const history = document.getElementById("history");
+const rail = document.getElementById("rail");
+const spacer = document.getElementById("spacer");
+const ticks = document.getElementById("ticks");
+const status = document.getElementById("scroll-status");
+const lifetime = new AbortController();
+let terminal, frame = 0, desired, synchronizedTop = 0, markerKey = "";
+const report = error => { status.textContent = String(error); };
+
+function update() {
+  if (!terminal) return; // Initial notifications can precede mount resolution.
+  const { viewport: v, layout: l } = terminal;
+  history.style.marginTop = `${l.content.top}px`;
+  history.style.height = `${l.content.height}px`;
+  history.inert = !terminal.connected || !v.available;
+  const maximum = v.available ? v.liveTop : 0;
+  spacer.style.height = `${Math.min(8_000_000,
+    rail.clientHeight + maximum * l.cellHeight)}px`;
+  const range = Math.max(0, rail.scrollHeight - rail.clientHeight);
+  if (!v.pending && desired === undefined && !frame)
+    rail.scrollTop = maximum ? v.top / maximum * range : 0;
+  synchronizedTop = rail.scrollTop;
+
+  const markers = v.available
+    ? terminal.markers.filter(m => m.buffer === v.buffer && m.row !== null) : [];
+  const nextKey = JSON.stringify([markers, v.totalRows]);
+  if (markerKey === nextKey) return;
+  markerKey = nextKey;
+  ticks.replaceChildren(...markers.map(marker => {
+    const tick = document.createElement("button");
+    tick.type = "button";
+    tick.textContent = "–";
+    tick.title = marker.label ?? marker.phase ?? "Bookmark";
+    tick.setAttribute("aria-label", tick.title);
+    tick.style.cssText = "position:absolute;left:0;padding:0;border:0;" +
+      "width:12px;height:6px;line-height:6px;transform:translateY(-50%)";
+    tick.style.top = `${marker.row / Math.max(1, v.totalRows - 1) * 100}%`;
+    tick.onclick = () => terminal.scrollToMarker(marker.id).catch(report);
+    return tick;
+  }));
+}
+
+rail.addEventListener("scroll", () => {
+  if (!terminal?.connected || !terminal.viewport.available ||
+      Math.abs(rail.scrollTop - synchronizedTop) < .5) return;
+  synchronizedTop = rail.scrollTop;
+  const range = rail.scrollHeight - rail.clientHeight;
+  desired = range > 0 ? Math.round(rail.scrollTop / range * terminal.viewport.liveTop) : 0;
+  if (!frame) frame = requestAnimationFrame(() => {
+    frame = 0;
+    const target = desired;
+    desired = undefined;
+    if (terminal.connected && target !== undefined) terminal.scrollToRow(target);
+  });
+}, { signal: lifetime.signal });
+
+function dispose() {
+  lifetime.abort();
+  cancelAnimationFrame(frame);
+  terminal?.dispose();
+  ticks.replaceChildren();
+}
+window.addEventListener("pagehide", dispose, { signal: lifetime.signal });
+try {
+  terminal = await WebTerminal.mount(host, {
+    url: "/ws/terminal", signal: lifetime.signal, scrollbar: false, padding: 8,
+    onLayoutChange: update, onViewportChange: update, onMarkersChange: update,
+    onClose: () => { history.inert = true; },
+    onStatus: (message, level) => { if (level === "error") report(message); }
+  });
+  update();
+} catch (error) { report(error); dispose(); }
+// On SPA component teardown, call dispose() explicitly.
+```
+
+Do not synchronize the native thumb to older presentations while navigation is
+pending; doing so causes feedback oscillation. Coalesce scroll events to one
+absolute request per animation frame. Native scrollbar appearance and visibility
+are platform preferences; the spacer does not force a permanently visible OS
+thumb. At extreme history sizes scaling trades subpixel precision for a bounded
+DOM extent. The separate marker rail and `scrollToMarker` retain precise
+producer-backed jumps. The terminal's wheel/key/history controls still work
+when no built-in scrollbar is painted.
 
 ## Input and clipboard
 
@@ -722,22 +1319,24 @@ errors also use `onStatus`. Detection failure leaves the terminal running.
 Activation failures instead use existing `onInputError`/status handling and
 never fall back to navigation.
 
-Deploy the complete package tree, including the detection worker and its
-relative dependencies. If your bundler requires explicit worker entries:
+The link-detection worker is included in the same `index.js` bundle as the
+terminal worker. If your deployment requires explicit worker URLs:
 
 ```ts
 const terminal = await WebTerminal.mount(container, {
   url: "/ws/terminal",
-  workerUrl: "/web-terminal/terminal-worker.js",
-  linkDetectionWorkerUrl: "/web-terminal/link-detection-worker.js",
+  workerUrl: "/web-terminal/index.js#hex1b-terminal-worker",
+  linkDetectionWorkerUrl: "/web-terminal/index.js#hex1b-link-detection-worker",
   links: { detection: false }
 });
 ```
 
 `linkDetectionWorkerUrl` accepts `string | URL`, resolves relative strings
 against the page like `workerUrl`, and is a mount-time override. Without it the
-entry resolves relative to the package module. Worker origin/CSP restrictions
-still apply. Rules and matched text are not sent to an external service.
+entry uses the actual bundle URL with the link-detection fragment, preserving its
+path, filename, and query. Worker origin/CSP restrictions still apply. For app
+rebundling and fonts, see [deployment](#module-and-worker-deployment).
+Rules and matched text are not sent to an external service.
 See the [opt-in demo](../../samples/WebTerminalDemo/README.md#try-local-link-previews).
 
 ## Selection UI hooks
@@ -796,10 +1395,14 @@ npm test
 npm pack
 ```
 
-The strict TypeScript build emits JavaScript, declarations, declaration maps,
-and source maps (with embedded sources), then copies fonts into `dist/`.
-`npm test` runs zero-dependency `node:test` tests against those emitted modules
-and strict public-consumer declaration checks in NodeNext and bundler modes.
+The strict TypeScript build emits private modules into ignored `.build/`;
+esbuild bundles the public API and both workers into `dist/index.js`.
+`dist/` contains that single JavaScript file, `index.js.map`, declarations,
+declaration maps, and font/license/provenance assets. `.build/` is not shipped.
+Run `npm run build` **before** `npm test`: private unit tests import `.build/`,
+while packaging checks exercise the actual `dist/` bundle. Tests use
+zero-dependency `node:test`, plus strict public-consumer declaration checks in
+NodeNext and bundler modes.
 `npm run typecheck` validates sources without emitting.
 
 `prepack` rebuilds for `npm pack` and manual `npm publish` from this directory.

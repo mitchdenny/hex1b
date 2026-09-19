@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Hyperlinks, hyperlinkUri } from "../dist/hyperlinks.js";
+import { Hyperlinks, hyperlinkUri } from "../.build/hyperlinks.js";
 
 test("OSC 8 links allow only absolute web and mail destinations", () => {
   for (const uri of ["https://example.com/docs?a=b#section", "http://localhost:5290/", "mailto:hello@example.com"])

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace WebTerminalDemo;
 
 internal sealed class BrowserSession(WebSocket socket, TerminalView view, string? name, bool relay, ILogger logger,
-    InitialViewFailure initialFailure = InitialViewFailure.None)
+    InitialViewFailure initialFailure = InitialViewFailure.None, bool readOnly = false)
 {
     private TerminalInstance Instance => view.Instance;
 
@@ -131,6 +131,7 @@ internal sealed class BrowserSession(WebSocket socket, TerminalView view, string
             }
             else
                 presentation = await Instance.Presentation.CreateBrowserViewAsync(name, operations.Token);
+            presentation.IsReadOnly = readOnly;
         }
     }
 

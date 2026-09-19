@@ -5,7 +5,7 @@ import { isRecord } from "./validation.js";
 const selectionFields = ["status", "mode", "requestId", "active", "pending", "canExtend",
   "text", "message", "copying", "copyError"] as const;
 const viewportFields = ["available", "following", "pending", "generation", "buffer",
-  "top", "liveTop", "totalRows", "requestId"] as const;
+  "top", "liveTop", "totalRows", "requestId", "navigationError"] as const;
 const geometryFields = ["columns", "rows", "cellWidth", "cellHeight", "mouseTracking"] as const;
 const rangeFields = ["row", "startColumn", "endColumn"] as const;
 const equalFields = <T>(a: T | undefined, b: T | undefined, fields: readonly (keyof T)[]) =>
