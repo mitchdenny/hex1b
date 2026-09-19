@@ -14,6 +14,14 @@ describe state transfer between the first-party server and browser client.
 evolve together without wire-compatibility guarantees; keep their versions
 paired and upgrade them together.
 
+**Terminal controls** is a collapsible panel for creating/attaching terminals,
+choosing renderers, and playing scenario tapes. It starts collapsed when the
+page opens a terminal automatically, leaving more room for terminal content.
+An explicit empty workspace (`?empty=1`) starts with these controls expanded.
+Collapsing or expanding the panel does not reconnect any views.
+Narrow windows use a compact title bar; very short windows hide the activity and
+failure-demo strips to preserve terminal space. Enlarge the window to restore them.
+
 ## Run
 
 From the repository root, using Node.js 24 or newer for the frontend build:
@@ -26,11 +34,23 @@ dotnet run --project samples/WebTerminalDemo -c Release
 
 Open <http://localhost:5290> in a browser with WebGPU or WebGL2 and worker
 `OffscreenCanvas` support. The .NET build compiles the package and the
-TypeScript playground, then copies the package's complete `dist/` tree to
-`wwwroot/web-terminal/`. The playground consumes the package by its npm name,
+TypeScript playground, then copies the package's `dist/` assets to
+`wwwroot/web-terminal/`: one package JavaScript bundle, `index.js`, containing
+the public API and both workers, plus its source map, declarations, and separate
+font/license assets. The playground's own application modules remain separate.
+The playground consumes the package by its npm name,
 resolved by a browser import map. The generated assets are included in
 `dotnet publish`; Node.js is not needed by the deployed ASP.NET host. Neither
 WASM nor xterm.js is required.
+
+For vendoring elsewhere, copy the bundle plus its `fonts/` directory and licenses,
+or provide explicit `font.faces` URLs. Workers reuse the actual bundle URL with
+`#hex1b-terminal-worker` / `#hex1b-link-detection-worker` fragments; no separate
+worker JavaScript files or Blob URLs are needed. Renaming the unmodified bundle
+preserves this behavior, including its query string. Same-origin workers support
+`worker-src 'self'`. Rebundling into an application may require explicit worker
+URLs pointing to a separately hosted unmodified bundle and explicit font URLs;
+see the package's [deployment examples](../../src/web-terminal/README.md#module-and-worker-deployment).
 
 If another run occupies 5290, stop that run or choose a separate port:
 
@@ -109,11 +129,205 @@ See the package's [complete link API examples](../../src/web-terminal/README.md#
 for all text modes, action payloads, rule disabling, and worker deployment.
 This walkthrough is not a claim of browser validation or performance measurements.
 
+## Scrollbars, padding, and bookmarks
+
+Each view has independent, live **Scrollbar** controls:
+
+| Mode | Behavior |
+| --- | --- |
+| **Canvas overlay** (default) | An auto-hiding Canvas2D track over the terminal's right edge. |
+| **Canvas beside** | A non-fading scrollbar in a reserved gutter, outside terminal cells, while scrollback is available. |
+| **Native HTML** | A fixed terminal mount beside a native overflow rail and external marker ticks. |
+| **Disabled** | No scrollbar chrome; wheel, keyboard, and public history APIs still work. |
+
+These controls use `setScrollbar`, not a new mount or socket. **T/R/B/L** set
+asymmetric outer padding in CSS pixels. The compact scrolling row has per-view
+**Painter** and **Tooltip** selectors; it scrolls horizontally rather than
+adding more rows of controls.
+
+| Painter | Behavior |
+| --- | --- |
+| **Default** | Monochrome inset capsule with a grey thumb and kind/outcome-specific marker shades; track opacity `0.35`, thumb and markers `1`. |
+| **Custom soft fade** | Delegates to `renderDefaultScrollbar` with a longer quadratic fade in overlay mode and respects reduced motion. Beside mode stays visible. |
+| **Styled default** | Uses `createDefaultScrollbarRenderer` with track/thumb/marker opacity `0.12`/`0.7`/`0.85`, retaining live theme colors. |
+| **Custom Canvas2D** | Draws a narrow rail, square thumb with grips, and diamond markers directly; the hovered marker gets an outline. |
+
+Painter selection affects canvas modes only; the operating system controls
+native-thumb visibility. Canvas thumb dragging has no focus outline; keyboard
+focus uses a neutral grey indicator. The default, soft-fade, styled, and custom
+Canvas2D painters use grey marker shades for command input, execution, success,
+failure, and bookmarks, unless a host explicitly overrides a color.
+Every part's configured opacity multiplies the frame
+fade and incoming canvas alpha. The default factory is built on the same
+`render(frame)` callback as the fully custom painter; it does not change hit
+regions or interaction. Supplied appearance colors must be bounded concrete
+CSS colors, not `var()` or `currentColor`. Explicit per-marker colors override
+configured success/error colors and theme fallbacks. See the package's
+[appearance options](../../src/web-terminal/README.md#configure-the-default-capsule-painter)
+for validation and snapshot semantics.
+
+**Tooltip → Default** shows safe built-in hover content. **Custom HTML**
+decorates `renderDefaultScrollbarTooltip(context)` with a source/row heading
+and the playground's existing `--cp-*` theme variables. **Off** disables canvas
+tooltips without disabling marker clicks. Returned HTML is automatically mounted
+in a light-DOM overlay and positioned beside the mark, clamped within the terminal.
+The callback stays synchronous: command details arrive in subsequent calls as
+loading, ready, or error states; the 8,192 UTF-16-unit detail limit still applies.
+Tooltips hide during thumb dragging, on pointer leave, disconnect, configuration
+changes, and disposal. Their abort signals also support cleanup of externally
+owned DOM when a host returns `null`.
+
+**Tooltip → Terminal preview** embeds a real, independently scrolled
+`WebTerminal` at the hovered command mark. To try it, run the **Shell integration**
+tape in an **Interactive shell**, select this tooltip mode, and hover a canvas
+command tick. The popup includes command metadata and a miniature terminal showing
+retained output at that mark. This is not a historical screen recording:
+subsequent output remains live, historical graphics are not reconstructed, and
+discarded marks cannot be previewed.
+
+The demo's [terminal-preview.ts](client/terminal-preview.ts) returns `null` from
+the synchronous tooltip callback and positions its own larger HTML popup in the
+document body, avoiding clipping by the floating window. After details arrive
+and a brief hover delay, it mounts a secondary view using the parent's transport,
+renderer, and font. The terminal stays hidden until `scrollToMarker` succeeds.
+The main view's scroll position, focus, selection, and resize authority are
+unchanged. Preview input, links, and scrollbars are disabled; `/ws?preview=true`
+also sets server-side `Hwt1PresentationAdapter.IsReadOnly` before processing input.
+The tooltip abort signal disposes both the embedded view and popup on leave,
+dragging, mode changes, or parent disposal. Connection/navigation failures appear
+in the popup rather than showing an unrelated live screen.
+
+Each open preview temporarily consumes one of the demo's eight browser-view
+slots. Custom bookmarks remain per-view and use the ordinary HTML tooltip,
+not a second terminal connection.
+
+Default and custom HTML previews show labels or retained shell phase, exit
+status, and `cmdline_url`/raw parameters as text. They never invent command text
+for shells that did not supply it or interpret command content as HTML.
+**Markers** hides/shows ticks without removing the underlying retained inventory.
+The native wrapper and public layout, viewport, marker, and navigation APIs
+remain unchanged; native mode does not use these canvas tooltip settings.
+
+For fixtures, the painter retains the existing `.view-scrollbar-fade` selector
+and `default`/`custom` values (the latter is still **Custom soft fade**).
+Its new values are `styled` and `drawn`. The tooltip selector is
+`.view-scrollbar-tooltip`, with values `default`, `custom`, `terminal`, and `off`.
+
+The **Marks (N)** menu in each window's title bar lists retained shell marks and
+bookmarks with clickable row locations and command exit statuses. It remains
+available when the scrollbar fades, when there is no scrollback yet, or when
+scrollbar chrome is disabled. Marks in an inactive buffer are disabled; marks
+whose backing content was discarded are collected and disappear from the menu.
+Escape closes the menu and returns focus to its toggle.
+
+Scrollbar ticks require scrollback and fade with the overlay scrollbar; beside
+mode keeps them visible. For overlay mode, hover its right
+edge to reveal them. Adding or updating marks briefly reveals the scrollbar.
+Command marks require OSC 133 output from the shell/application: ordinary
+commands are not automatically inferred. With an idle Interactive shell, expand
+**Terminal controls**, select **Scenario tape > Shell integration**, and play
+the tape to generate real command marks. The empty Marks menu also explains this.
+The tape adds labeled history rows so the scrollbar is visible. Hover its command
+ticks to inspect decoded command details, including spaces, quotes, `&&`, and
+slashes. Prompt/input/executing marks (OSC 133 A/B/C) carry the percent-encoded
+details; finished marks (D) carry exit status only. Input and executing marks can
+share a row, so a hovered tick may resolve to the input mark for that command.
+Prompt/input anchors may be pruned by shell redraw; the tape gives finished marks
+their own durable output rows.
+Direct views read producer marks directly; relay views restore retained shell
+marks through the separate optional HMP1 command-mark extension. Restart the sample after
+editing a tape because the catalog loads tape content at startup.
+
+**Bookmark** anchors the first presented row. **Remove bookmark** removes the
+most recent custom bookmark in that view, not a shell mark. Shell marks and
+bookmarks come from the authoritative `markers` inventory; the demo no longer
+approximates command locations from latest-mark callbacks or limits its own
+history to 20 entries. Current progress, shell phase, directory, and latest-mark
+status remain separate activity indicators. Scrollbar ticks jump using
+`scrollToMarker`, including after supported producer reflow. Unavailable,
+evicted, or expired anchors reject rather than jumping to an unrelated row.
+Collection also releases retained marker metadata and custom-bookmark quota
+slots. Retained main-buffer marks survive temporary alternate-screen use.
+
+Try an Interactive shell, print retained output, scroll back, and bookmark it:
+
+```sh
+i=1; while [ "$i" -le 120 ]; do printf 'ROW-%03d alpha beta gamma\n' "$i"; i=$((i+1)); done
+```
+
+Switch all four scrollbar modes, change padding, select a smaller fixed grid,
+and click the bookmark tick. In either canvas mode, compare all four painters,
+then hover a bookmark or shell mark with each Tooltip setting. The Marks menu
+still works with Tooltip Off or scrollbar chrome disabled. In Auto mode a primary may resize the producer to fit the
+remaining content box; fixed grids and secondary views fit without taking
+primary. Reconnecting retains presentation settings but creates a new
+view-owned bookmark lifetime. Custom markers do not survive disconnect.
+The native wrapper is disposed on mode replacement, closure, reconnect, and
+view removal. It stays available in minimal-chrome mode.
+
+The wrapper in [`client/native-scrollbar.ts`](client/native-scrollbar.ts) uses
+only public layout, viewport, marker, and navigation APIs. It caps its spacer
+at 8 million CSS pixels and maps the browser's actual scroll range to retained
+rows. Pending navigation does not feed older positions back into the native
+thumb, and drag events are coalesced per animation frame. Only the spacer
+scrolls; the terminal canvas remains fixed.
+
+The implementations live together in
+[`client/scrollbar-renderer.ts`](client/scrollbar-renderer.ts). To reuse the styled
+default and decorated HTML in another host, provide callbacks on the same options
+object:
+
+```ts
+import {
+  createDefaultScrollbarRenderer, renderDefaultScrollbarTooltip
+} from "@hex1b/web-terminal";
+
+terminal.setScrollbar({
+  render: createDefaultScrollbarRenderer({
+    track: { opacity: 0.12 }, thumb: { opacity: 0.7 }, markers: { opacity: 0.85 }
+  }),
+  tooltip(context) {
+    const element = renderDefaultScrollbarTooltip(context);
+    element.style.borderLeft = "3px solid var(--cp-accent)";
+    return element;
+  }
+});
+```
+
+Here `terminal` is an existing mounted handle and `--cp-accent` is supplied by
+the embedding page. See the package guide for [complete custom-fade and native-wrapper examples,
+marker lifetime, and limitations](../../src/web-terminal/README.md#scrollbars-padding-and-retained-markers).
+HMP1 relay views recover bounded retained text when the optional scrollback
+extension is negotiated. Without negotiation they retain only locally observed
+history. Retained shell marks use an independently negotiated extension;
+custom/browser-owned bookmarks are not transferred. See
+[Optional HMP1 relay](#optional-hmp1-relay) for configuration and fallback.
+
+Run the persistent browser fixture against a running demo:
+
+```sh
+playwright-cli -s=sb open 'http://localhost:5290/?empty=1'
+playwright-cli -s=sb run-code --filename samples/WebTerminalDemo/tests/scrollbars.browser.js
+playwright-cli -s=sb run-code --filename samples/WebTerminalDemo/tests/native-scrollbar.browser.js
+playwright-cli -s=sb run-code --filename samples/WebTerminalDemo/tests/controls-markers.browser.js
+playwright-cli -s=sb close
+```
+
+It exercises both renderers, real default scrollbar pixels/fading, synchronous
+custom painting, live mode changes, asymmetric padding, native navigation,
+retained command details, bookmark jumps after reflow, and cleanup without
+replacing the connection. It holds real worker frame acknowledgements while
+dragging during live output and checks that gestures do not leak application
+input when mouse tracking is enabled.
+The focused native fixture checks browser extent limits, scaled row mapping,
+pending-navigation feedback suppression, and listener disposal using a public
+handle stub; it needs only the emitted demo assets.
+
 ## Minimal chrome
 
 Click **Minimal chrome** in a terminal view's title bar to fill the browser page
-with that view. Playground controls, other views, title bars, status bars, and
-the command-history rail are hidden. A small **Restore controls** button stays
+with that view. Playground controls, other views, title bars, and status bars
+are hidden; the selected scrollbar presentation remains usable. A small **Restore controls** button stays
 in the top-right corner and restores the previous floating-window layout.
 
 The terminal stays connected and retains its sizing mode: **Auto** adjusts the
@@ -218,6 +432,7 @@ and overlapping starts or cancellation without an active tape return 409.
 From the repository root:
 
 ```sh
+npm run build --prefix src/web-terminal
 npm test --prefix src/web-terminal
 ```
 
@@ -226,8 +441,21 @@ peer/primary metadata validation,
 native/thumbnail framebuffer sizing, large-grid GPU caps, hidden/restored
 surfaces, and logical-uniform updates. They use a stub GPU interface and do not
 exercise actual GPU rendering, mounted DOM/input, `ResizeObserver`, or view
-lifetime. They exercise the package's compiled ES modules using Node's built-in
-test runner.
+lifetime. Private unit tests use the ignored `.build/` modules; packaging checks
+use the real single-file `dist/index.js` bundle. Build first so both are current.
+Tests use Node's built-in test runner.
+
+Some browser fixtures inspect private renderer/protocol modules. After the
+package build, prepare those **test-only** assets explicitly:
+
+```sh
+npm --prefix samples/WebTerminalDemo run test:assets
+```
+
+This copies private `.build/` modules to `wwwroot/web-terminal-test/` for those
+fixtures only. That directory is excluded from publishing; it is not a package
+export or part of normal demo deployment. Production package assets remain the
+single JavaScript bundle under `wwwroot/web-terminal/`.
 
 With the sample serving assets and an existing WebGPU-enabled Playwright CLI
 browser session, run the persisted mounted-DOM fixture from the repository root:
@@ -257,8 +485,15 @@ origin:
 | `lifecycle.browser.js` | Closure overlays, native close details before/after mounting, rejected upgrades, local initialization failures, explicit reconnect, per-view isolation, and owner completion through direct/relay transports. |
 | `input.browser.js` | Real POSIX shell input, Backspace, history, paste, MouseTest, thumbnail coordinates, and window-chrome focus. Build `samples/MouseTest` in Release first. |
 | `tapes.browser.js` | Scene-filtered tapes in an existing shell, shared-view output, retained identity/geometry, overlap rejection, cancellation, visible failures, and shutdown cleanup. |
+| `shell-integration.browser.js` | Plays the actual Shell integration tape at normal demo sizing; checks retained A/B/C metadata, all three executing marks, real exit statuses on three status-only D marks, execution-before-completion row ordering, and decoded hover labels for all three commands, including spaces, quotes, `&&`, and slashes. Prompt/input anchors may be pruned by shell redraw. |
+| `terminal-preview.browser.js` | Embedded command previews through direct and HMP1 views: decoded HWT output at distinct marks, hidden-until-confirmed rendering, source viewport/selection/focus/geometry preservation, server-enforced read-only behavior, cancellation and disposal, bookmark fallback, connection errors, and parent closure. |
 | `hyperlinks.browser.js` | Real OSC 8 output through HWT1 and the worker, Ctrl/Cmd activation, safe new tabs, selection/capture isolation, read-only thumbnails, destination updates, and scrollback. |
 | `history.browser.js` | Shared producer history, independent viewports, character/word/logical-line/block selection, held/released wheel scrolling, clipboard intent, capture override, read-only inspection, and eviction. Clipboard writes are intercepted rather than changing the user's clipboard. |
+| `relay-history.browser.js` | Relayed history, read-only wheel navigation, independent viewports, return-to-live, late history matching direct attachment, and reconnect preserving the retained range without duplication. |
+| `relay-reattach.browser.js` | Two real UI close/reattach cycles after the Shell integration tape: the sole primary closes, the producer stays active with zero peers, and a secondary reattaches. Checks retained geometry, history range/text, B/C/D marks, command details, exit statuses, jumps, real decoded hover labels, and no browser errors; takes primary before repeating. |
+| `marker-retention.browser.js` | Real scrollback-capacity eviction collects command marks and custom bookmarks, removes menu entries, and rejects navigation to collected IDs. |
+| `scrollbar-monochrome.browser.js` | Light/dark themes across all four canvas painters: neutral thumb and distinct marker pixels, no canvas or DOM outline during real dragging, preserved grey keyboard focus/navigation, and explicit color overrides. |
+| `scrollbar-beside.browser.js` | Real WebGPU/WebGL2 pixels across all four demo painters: beside remains visible beyond the fade thresholds, while switching to overlay restores auto-hide. |
 | `reflow.browser.js` | Real shell output and retained history through repeated shrink/grow cycles, hard/soft breaks, wide/combining text, primary-only resize, selection invalidation, and editing a pending shell command. |
 | `reflow-options.browser.js` | Creation-time strategy selection through the playground and HTTP API, preserved defaults, shared-instance policy, and real shell crop versus reflow through direct and relay views. |
 | `bindings.browser.js` | Per-view input overrides, named actions, Windows-style right-click copy/paste, clipboard failures/races, capture ownership, and native text/paste/IME paths. Clipboard access is mocked. |
@@ -598,7 +833,7 @@ Producer Hex1bTerminal -> HMP1 -> per-view Hex1bTerminal -> HWT1 -> browser
 
 Each browser connection creates a fresh HMP1 client and terminal replica over
 bounded in-memory duplex pipes. This uses the real HMP1 handshake, state/image
-replay, live output, input, and primary/resize messages without requiring a
+replay, negotiated retained text history, live output, input, and primary/resize messages without requiring a
 socket or another process. Closing the view disposes its peer and replica, not
 the shared producer. Attaching again or reloading creates a new replica.
 Initial screen replay preserves hard breaks and soft continuations, including
@@ -614,9 +849,113 @@ All scenes and workload controls work in both modes. For retained-image replay,
 start the Kitty graphics or Graphics animation scene, then attach a relay view
 after pixels were uploaded, close it, and attach again. The shell scene can run
 `KgpCloudDemo` to exercise upload-once sprites and synchronized placement
-replacement. Relay views receive the live screen at attachment and accumulate
-their own subsequent scrollback; they do not receive the producer's pre-existing
-history. Direct views retain the existing shared-history behavior.
+replacement. Relay views receive the live screen and a negotiated suffix of
+pre-existing producer history. Direct views still read shared history directly.
+
+**Two-tier scrollback configuration:** Both producer and replica need their own
+`WithScrollback(...)` configuration; this demo configures 1,000 rows on each.
+`Hmp1ClientOptions.ScrollbackHistoryRows` defaults to 10,000 and accepts
+0..100,000 (`0` disables the request). The receiver's configured capacity remains
+authoritative. `Hmp1ServerOptions.EnableScrollbackHistory` and the direct
+`Hmp1PresentationAdapter.EnableScrollbackHistory` property default to `true`;
+the first builder listener's setting wins on a shared adapter.
+The demo relay requests the client defaults automatically; no additional UI
+selector is needed.
+Retained shell marks are requested separately: `EnableCommandMarkHistory`
+defaults to `true` on `Hmp1ClientOptions`, `Hmp1ServerOptions`, and the direct
+presentation adapter, with first-listener settings on the shared server adapter.
+
+For a separately hosted relay, these configuration snippets assume existing
+builders and a connected bidirectional HMP1 `stream`:
+
+```csharp
+producerBuilder
+    .WithScrollback(1000)
+    .WithHmp1UdsServer("terminal.sock", options =>
+        options.EnableScrollbackHistory = true);
+
+replicaBuilder
+    .WithScrollback(1000)
+    .WithHmp1Stream(stream, options =>
+    {
+        options.ScrollbackHistoryRows = 1000;
+        options.EnableCommandMarkHistory = true;
+    });
+```
+
+No HMP1 version bump is required: optional `ClientHello` history fields request
+version `1` and a row limit, and `Hello` acknowledges them only when the producer
+has storage and allows transfer. A negotiated `StateSync` is followed by mandatory
+`ActivityState`, then `ScrollbackState` and bounded `ScrollbackRows` chunks.
+Separately negotiated `commandMarkHistoryVersion: 1` adds `CommandMarkState`
+after those rows (or directly after activity when text history is not negotiated).
+The full checkpoint is validated before screen, activity, history, and command marks are
+atomically applied; graphics replay, parser continuation, and live output follow.
+Malformed/truncated history fails the connection without partial replay.
+
+The newest contiguous suffix is bounded by the requested/accepted row limit,
+32 MiB of chunk payloads (including row-length prefixes, excluding the 8-byte
+header), and two million cells. The header exposes how many
+producer rows were omitted, rather than inventing text. Checkpoints replace
+history, so a fresh reconnect recovers the retained range and resync does not
+append duplicates. An available empty checkpoint clears history; an unavailable
+checkpoint forwarded from an upstream without this extension does not perform
+an additional history replacement. Explicit CSI 3 J or RIS in the screen replay
+still has its normal effect on local history. Text retains graphemes,
+continuation cells, soft wraps, padding,
+colors, and hyperlinks as inert data. `CommandMarkState` restores eligible OSC 133
+marks with raw details, phase, status, producer IDs, and the ID high-water mark.
+It is bounded to 10,000 newest eligible marks and an 8 MiB frame; local command
+and text capacities still apply. Custom/browser-owned markers and historical
+graphics are not transferred.
+
+Closing the last view does not dispose its shared producer. Reattaching a relay
+can recover the producer's retained history and shell marks, including details,
+hover labels, and jumps, when both extensions are negotiated. Checkpoints replace
+records rather than append duplicates and do not synthesize `CommandMarkAdded`
+events. Marks backed by omitted history, the untransferred saved main screen
+while alternate-screen output is active, or subsequently redrawn/evicted text
+cannot be recovered. The tape's prompt/input marks can still disappear naturally
+when their backing rows change; its durable executing/finished rows remain
+subject to ordinary retention.
+
+**Fallback troubleshooting:** With a current HMP1 peer that lacks this extension,
+or when either side opts out, missing history negotiation keeps screen-only text replay.
+A new relay then has no pre-attachment history, and reconnecting with a fresh
+replica has the same limitation. This compatibility applies to the current
+mandatory-`ActivityState` baseline, not ancient pre-`ActivityState` peers.
+Changing the HTML/canvas scrollbar cannot recover history the transport omitted.
+Command marks fall back independently: missing command-mark capability fields or
+`EnableCommandMarkHistory = false` preserves the old locally observed behavior
+without disabling negotiated text history. Conversely, command marks on the
+transferred active screen can be restored when scrollback transfer is disabled.
+New scrolling output is retained locally as before, including for read-only views.
+Stored main-buffer history transfers even while an alternate screen is active,
+but remains hidden until returning; alternate-screen output does not contribute
+ordinary main-buffer history.
+
+To compare late attachment and reconnect, print enough numbered shell lines to
+scroll, pause output, and open direct and relay views. With negotiation and equal
+capacity, both should expose the same retained text range. Reconnecting the relay
+should recover that range without duplication. Repeat with
+`ScrollbackHistoryRows = 0` to observe the text-history fallback (command marks
+remain independently negotiated). See
+[the wire contract](../../docs/muxer-protocol.md#scrollbackstate-0x0e-and-scrollbackrows-0x0f)
+for binary layout and validation limits.
+To check retained marks manually, play **Shell integration** in the sole relay
+window, close that window, then reattach to the same instance (do not delete the
+instance). Inspect **Marks**, hover a retained command tick, and jump to its text.
+Custom bookmarks from the closed view are intentionally absent. See
+[CommandMarkState](../../docs/muxer-protocol.md#commandmarkstate-0x10) for mark
+negotiation, positioning, and independent fallback.
+
+Run the corresponding full-stack regression against an isolated demo server
+using its current-page origin:
+
+```sh
+playwright-cli -s=relay-reattach open 'http://localhost:5290/?empty=1'
+playwright-cli -s=relay-reattach run-code "$(< samples/WebTerminalDemo/tests/relay-reattach.browser.js)"
+```
 
 Run `tests/relay.browser.js` with the Playwright CLI invocation above for a
 focused direct/relay lifecycle comparison. The existing `graphics.browser.js`,
@@ -674,7 +1013,8 @@ that call until the user chooses Take primary.
 | Options / handle members | Current sample behavior |
 |---|---|
 | `url` | Required view WebSocket URL; the sample uses the page's origin. |
-| `workerUrl` | Optional URL for the package's worker entry when your asset pipeline hosts it elsewhere. Preserve its relative module dependencies; defaults to the module-relative packaged worker. |
+| `workerUrl` | Optional `string \| URL` for the terminal module worker, such as `/web-terminal/index.js#hex1b-terminal-worker`. Relative strings resolve against the page; default is the actual bundle URL with this fragment. |
+| `linkDetectionWorkerUrl` | Parallel override for the detection worker, such as `/web-terminal/index.js#hex1b-link-detection-worker`. Both workers are included in the package's single JS bundle. |
 | `scale` | `"auto"` (default) snapshots DPR at mount and clamps it to 0.5..3; an explicit numeric raster-scale setting must also be 0.5..3. |
 | `font` | Optional `{ family, faces?: [{ url, weight?, style? }] }`. Defaults to bundled Cascadia Mono NF; see font selection below. |
 | `sizing` | Initial sizing policy: `{ mode: "auto", fontSize: 16 }` by default, or `{ mode: "fixed", columns, rows }`. Secondary views still follow the primary. |

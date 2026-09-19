@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
-import { extractLinkText } from "../dist/link-text.js";
-import { scanLinks } from "../dist/link-detection-worker.js";
-import { LINK_LIMITS } from "../dist/link-options.js";
+import { extractLinkText } from "../.build/link-text.js";
+import { scanLinks } from "../.build/link-detection-worker.js";
+import { LINK_LIMITS } from "../.build/link-options.js";
 
 test("representative and maximum grids stay within extraction and preset scan budgets", t => {
   for (const [columns, rows] of [[80, 24], [1024, 256], [512, 512]]) {

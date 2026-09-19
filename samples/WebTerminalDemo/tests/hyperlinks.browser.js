@@ -66,7 +66,7 @@ async page => {
     stage = "real Cmd-click navigation";
     const position = await cell("primary", 1, 0);
     await test.mouse.move(position.x, position.y);
-    const canvas = test.locator("#a canvas");
+    const canvas = test.locator("#a canvas:not(.scrollbar-canvas)");
     check((await canvas.getAttribute("title")).includes(target), "Presented OSC 8 destination was lost");
     await test.keyboard.down("Meta");
     check(await canvas.evaluate(element => element.style.cursor === "pointer"), "Link affordance missing");

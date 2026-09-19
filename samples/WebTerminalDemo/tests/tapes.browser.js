@@ -32,6 +32,7 @@ async page => {
     const before = await list();
     const created = creation();
     await test.goto(`${origin}/?scene=shell&renderer=webgl2`);
+    await test.locator("#terminal-controls > summary").click();
     const shell = await (await created).json();
     instances.push(shell.id);
     check(shell.tapes.length >= 2 && shell.tapes.every(tape => tape.scene === "shell"), "Shell catalog is missing or crosses scenes");
@@ -130,7 +131,9 @@ async page => {
       "Input crossed independent terminal instances");
 
     stage = "zero-view playback and terminal shutdown";
+    await test.locator('.terminal-window[data-view="2"]').focus();
     await test.locator('.terminal-window[data-view="2"] .close-view').click();
+    await test.locator('.terminal-window[data-view="1"]').focus();
     await test.locator('.terminal-window[data-view="1"] .close-view').click();
     await test.locator("#instances").selectOption(shell.id);
     await play("hello");

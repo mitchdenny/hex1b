@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Hex1b;
 
@@ -86,7 +87,10 @@ internal static class Hmp1Protocol
         var length = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(1));
 
         if (length < 0 || length > MaxPayloadSize ||
-            (type == Hmp1FrameType.ActivityState && length > Hmp1ActivityState.MaxPayloadSize))
+            (type == Hmp1FrameType.ActivityState && length > Hmp1ActivityState.MaxPayloadSize) ||
+            (type == Hmp1FrameType.ScrollbackState && length != 8) ||
+            (type == Hmp1FrameType.ScrollbackRows && length > Hmp1ScrollbackState.MaxChunkBytes) ||
+            (type == Hmp1FrameType.CommandMarkState && length > Hmp1CommandMarkState.MaxPayloadSize))
             throw new InvalidOperationException($"Invalid frame payload length: {length}");
 
         ReadOnlyMemory<byte> payload;
@@ -132,7 +136,9 @@ internal static class Hmp1Protocol
         string peerId,
         string? primaryPeerId,
         IReadOnlyList<HelloPeerInfo> peers,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int scrollbackHistoryRows = 0,
+        bool commandMarkHistory = false)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(
             new HelloPayload
@@ -142,7 +148,10 @@ internal static class Hmp1Protocol
                 Height = height,
                 PeerId = peerId,
                 PrimaryPeerId = primaryPeerId,
-                Peers = peers.ToList()
+                Peers = peers.ToList(),
+                ScrollbackHistoryVersion = scrollbackHistoryRows > 0 ? Hmp1ScrollbackState.Version : 0,
+                ScrollbackHistoryRows = scrollbackHistoryRows,
+                CommandMarkHistoryVersion = commandMarkHistory ? Hmp1CommandMarkState.Version : 0
             },
             Hmp1JsonContext.Default.HelloPayload);
         return WriteFrameAsync(stream, Hmp1FrameType.Hello, json, ct);
@@ -179,13 +188,18 @@ internal static class Hmp1Protocol
         Stream stream,
         string? displayName,
         string? defaultRole,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int scrollbackHistoryRows = 0,
+        bool commandMarkHistory = false)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(
             new ClientHelloPayload
             {
                 DisplayName = displayName,
-                DefaultRole = defaultRole
+                DefaultRole = defaultRole,
+                ScrollbackHistoryVersion = scrollbackHistoryRows > 0 ? Hmp1ScrollbackState.Version : 0,
+                ScrollbackHistoryRows = scrollbackHistoryRows,
+                CommandMarkHistoryVersion = commandMarkHistory ? Hmp1CommandMarkState.Version : 0
             },
             Hmp1JsonContext.Default.ClientHelloPayload);
         return WriteFrameAsync(stream, Hmp1FrameType.ClientHello, json, ct);
@@ -376,6 +390,15 @@ internal readonly record struct Hmp1Frame(Hmp1FrameType Type, ReadOnlyMemory<byt
 /// </summary>
 internal sealed class HelloPayload
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int CommandMarkHistoryVersion { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int ScrollbackHistoryVersion { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int ScrollbackHistoryRows { get; set; }
+
     /// <summary>Protocol version. Always <see cref="Hmp1Protocol.Version"/>.</summary>
     public int Version { get; set; }
 
@@ -426,6 +449,15 @@ internal sealed class HelloPeerInfo
 /// </summary>
 internal sealed class ClientHelloPayload
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int CommandMarkHistoryVersion { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int ScrollbackHistoryVersion { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int ScrollbackHistoryRows { get; set; }
+
     /// <summary>
     /// Optional human-readable label that the producer surfaces in its peer
     /// roster (e.g. "dashboard", "aspire-cli").

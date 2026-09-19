@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setImmediate as nextTurn } from "node:timers/promises";
-import { WebTerminal, TerminalAction, InputRoute } from "../dist/index.js";
+import { WebTerminal, TerminalAction, InputRoute } from "../.build/index.js";
 import { browser, Element, mounting, present } from "./fixtures/browser.mjs";
 
 function history(overrides = {}) {

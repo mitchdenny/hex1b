@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Worker as NodeWorker } from "node:worker_threads";
-import { LinkDetection } from "../dist/link-detection.js";
-import { scanLinks } from "../dist/link-detection-worker.js";
-import { LINK_LIMITS } from "../dist/link-options.js";
+import { LinkDetection } from "../.build/link-detection.js";
+import { scanLinks } from "../.build/link-detection-worker.js";
+import { LINK_LIMITS } from "../.build/link-options.js";
 
 function snapshot(text = " foo ", revision = 1) {
   return { revision, columns: text.length, rows: 1, hyperlinks: [],
@@ -282,6 +282,7 @@ test("real isolated worker terminates pathological regex and recovers unrelated 
   const completion = Promise.withResolvers();
   const errors = [];
   const detector = new LinkDetection({ actions: new Set(["open"]),
+    workerUrl: new URL("../.build/link-detection-worker.js", import.meta.url),
     onChange: (_, links) => { if (links.length) completion.resolve(links); },
     onError: error => {
       errors.push(error);

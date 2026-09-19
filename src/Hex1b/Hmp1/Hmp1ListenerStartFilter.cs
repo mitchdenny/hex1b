@@ -44,10 +44,14 @@ internal sealed class Hmp1ListenerStartFilter : IHex1bTerminalPresentationFilter
         var onClientDisconnected = options?.OnClientDisconnected;
         var onResized = options?.OnResized;
         var onPrimaryChanged = options?.OnPrimaryChanged;
+        var enableScrollbackHistory = options?.EnableScrollbackHistory ?? true;
+        var enableCommandMarkHistory = options?.EnableCommandMarkHistory ?? true;
         builder.SetPresentationFactory((width, height) =>
         {
             var adapter = new Hmp1PresentationAdapter(width, height)
             {
+                EnableScrollbackHistory = enableScrollbackHistory,
+                EnableCommandMarkHistory = enableCommandMarkHistory,
                 OnClientConnected = onClientConnected,
                 OnClientDisconnected = onClientDisconnected,
                 OnResized = onResized,

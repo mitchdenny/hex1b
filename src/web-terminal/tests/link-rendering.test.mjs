@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { TerminalRenderer } from "../dist/renderer.js";
+import { TerminalRenderer } from "../.build/renderer.js";
 
 function render(cellOverrides = {}, mask = new Uint8Array([1]), blink = true, placements = []) {
   const operations = [];

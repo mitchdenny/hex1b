@@ -1,4 +1,9 @@
-import { WebTerminal, MIN_FONT_SIZE, MAX_FONT_SIZE, getCmdlineUrl, linkAction, type TerminalCloseDetails, type TerminalCommandMark } from "@hex1b/web-terminal";
+import { WebTerminal, MIN_FONT_SIZE, MAX_FONT_SIZE, getCmdlineUrl, linkAction, type TerminalCloseDetails, type TerminalScrollbar, type TerminalPadding, type TerminalScrollbarTooltipRenderer } from "@hex1b/web-terminal";
+import { NativeScrollbar } from "./native-scrollbar.js";
+import { createTerminalPreviewTooltip } from "./terminal-preview.js";
+import {
+  customCanvasScrollbar, customScrollbarTooltip, softFadeScrollbar, styledDefaultScrollbar
+} from "./scrollbar-renderer.js";
 
 interface TerminalInstance {
   id: string;
@@ -31,19 +36,6 @@ interface TapePlayback {
   diagnostics: string[];
 }
 
-/**
- * A single command-mark rail entry, demo-only bookkeeping layered on top of the library's
- * `onCommandMarkChange` callback. `anchor` captures the viewport coordinates in effect when the
- * command line started, letting the demo scroll back to (roughly) that point later. It is null
- * when no viewport snapshot was available yet, in which case the dot cannot be jumped to.
- */
-interface CommandMarkEntry {
-  phase: TerminalCommandMark["phase"];
-  exitCode: number | null;
-  cmdlineUrl: string | null;
-  anchor: { generation: string; top: number } | null;
-}
-
 interface TerminalView {
   id: string;
   instance: TerminalInstance;
@@ -59,7 +51,10 @@ interface TerminalView {
   transport: "direct" | "hmp1";
   viewport?: WebTerminal["viewport"];
   selection?: WebTerminal["selection"];
-  commandMarks: CommandMarkEntry[];
+  nativeScrollbar?: NativeScrollbar;
+  previewTooltip?: TerminalScrollbarTooltipRenderer;
+  bookmarkPending?: boolean;
+  markerPanelSignature?: string;
 }
 
 interface ViewClosure {
@@ -425,10 +420,64 @@ function updateViewControls(view: TerminalView) {
   const previewLinks = connected && elementAt(view.element, ".view-links", HTMLSelectElement).value === "preview";
   elementAt(view.element, ".view-link-decoration", HTMLSelectElement).disabled = !previewLinks;
   elementAt(view.element, ".view-link-style", HTMLSelectElement).disabled = !previewLinks;
+  for (const selector of [".view-scrollbar", ".view-scrollbar-fade", ".view-scrollbar-tooltip"])
+    elementAt(view.element, selector, HTMLSelectElement).disabled = !connected;
+  for (const input of view.element.querySelectorAll<HTMLInputElement>(".view-padding input, .view-markers"))
+    input.disabled = !connected;
+  const viewport = view.terminal?.viewport;
+  elementAt(view.element, ".add-bookmark", HTMLButtonElement).disabled =
+    !connected || !!view.bookmarkPending || !viewport?.available || !viewport.rowIds.length;
+  const bookmarks = view.terminal?.markers.filter(marker => marker.source === "custom") ?? [];
+  elementAt(view.element, ".remove-bookmark", HTMLButtonElement).disabled =
+    !connected || !!view.bookmarkPending || bookmarks.length === 0;
+  updateMarkerPanel(view);
   elementAt(view.element, ".thumbnail", HTMLButtonElement).disabled = !!view.closure && !view.closure.reconnect;
   elementAt(view.element, ".reconnect-view", HTMLButtonElement).disabled =
     view.phase !== "closed" || !view.closure?.reconnect;
   updateSizingControls(view);
+}
+
+function updateMarkerPanel(view: TerminalView) {
+  const terminal = view.terminal;
+  const markers = terminal?.markers ?? [];
+  const viewport = terminal?.viewport;
+  const signature = JSON.stringify([view.phase, viewport?.available, viewport?.buffer, markers]);
+  if (signature === view.markerPanelSignature) return;
+  view.markerPanelSignature = signature;
+  elementAt(view.element, ".marker-count", HTMLElement).textContent = String(markers.length);
+  const hint = elementAt(view.element, ".marker-hint", HTMLElement);
+  hint.textContent = markers.length
+    ? "Choose a mark to jump to its retained text. Scrollbar ticks appear at the right edge when there is scrollback; move the pointer there to reveal them."
+    : "No marks yet. Add a Bookmark, or use a shell that emits OSC 133. In an idle shell, try Terminal controls > Scenario tape > Shell integration.";
+  const phases = { unknown: "Shell mark", prompt: "Prompt", commandLine: "Command input",
+    executing: "Command started", finished: "Command finished" };
+  const list = elementAt(view.element, ".marker-list", HTMLElement);
+  const focusedId = list.contains(document.activeElement) && document.activeElement instanceof HTMLElement
+    ? document.activeElement.dataset.marker : undefined;
+  list.replaceChildren(...[...markers].reverse().map(marker => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "marker-jump";
+    item.dataset.marker = marker.id;
+    item.dataset.source = marker.source;
+    item.dataset.error = String(marker.exitCode != null && marker.exitCode !== 0);
+    const available = view.phase === "connected" && viewport?.available &&
+      marker.buffer === viewport.buffer && marker.row !== null;
+    item.disabled = !available;
+    if (!available) item.title = view.phase !== "connected" ? "This view is not connected."
+      : marker.buffer !== viewport?.buffer ? "This mark belongs to an inactive terminal buffer."
+      : "The marked text was cleared, evicted, or could not be preserved during reflow.";
+    item.textContent = (marker.label ?? (marker.source === "custom" ? "Bookmark" : phases[marker.phase ?? "unknown"])) +
+      (available ? ` - row ${marker.row}` : " - unavailable") +
+      (marker.exitCode == null ? "" : ` (exit ${marker.exitCode})`);
+    return item;
+  }));
+  if (focusedId) {
+    const replacement = [...list.querySelectorAll<HTMLButtonElement>("button")]
+      .find(item => item.dataset.marker === focusedId && !item.disabled);
+    (replacement ?? elementAt(view.element, ".view-marker-details > summary", HTMLElement))
+      .focus({ preventScroll: true });
+  }
 }
 
 function showClosure(view: TerminalView, closure: ViewClosure) {
@@ -452,6 +501,8 @@ function showClosure(view: TerminalView, closure: ViewClosure) {
   status.title = closure.summary;
   status.dataset.level = closure.close?.code === 1000 || closure.close?.code === 4000 ? "info" : "error";
   updateViewControls(view);
+  view.nativeScrollbar?.dispose();
+  view.nativeScrollbar = undefined;
   view.terminal?.dispose();
   if (hadTerminalFocus) {
     elementAt(view.element, closure.reconnect ? ".reconnect-view" : ".dismiss-view", HTMLButtonElement)
@@ -460,42 +511,62 @@ function showClosure(view: TerminalView, closure: ViewClosure) {
   return closure;
 }
 
-/** Rebuilds the left-edge command-mark dots for `view` from `view.commandMarks`. */
-function renderCommandMarksRail(view: TerminalView) {
-  const rail = elementAt(view.element, ".command-marks-rail", HTMLElement);
-  rail.replaceChildren(...view.commandMarks.map(entry => {
-    const dot = document.createElement("button");
-    dot.type = "button";
-    dot.className = "command-mark-dot";
-    dot.setAttribute("role", "listitem");
-    dot.dataset.phase = entry.phase;
-    if (entry.exitCode !== null) dot.dataset.exit = entry.exitCode === 0 ? "ok" : "error";
-    const description = entry.phase === "finished"
-      ? `Command finished${entry.exitCode === null ? "" : ` (exit ${entry.exitCode})`}`
-      : entry.phase === "executing" ? "Command running" : "Command entered";
-    const detail = [description, entry.cmdlineUrl ?? ""].filter(Boolean).join("\n");
-    dot.title = entry.anchor ? `${detail}\nClick to jump back to this point.`
-      : `${detail}\nThis point can no longer be located in scrollback.`;
-    dot.setAttribute("aria-label", dot.title.replace(/\n/g, ". "));
-    dot.disabled = entry.anchor === null;
-    dot.addEventListener("click", () => jumpToCommandMark(view, entry));
-    return dot;
-  }));
+function viewScrollbar(view: TerminalView): TerminalScrollbar {
+  const placement = elementAt(view.element, ".view-scrollbar", HTMLSelectElement).value;
+  if (placement !== "overlay" && placement !== "beside") return false;
+  const painter = elementAt(view.element, ".view-scrollbar-fade", HTMLSelectElement).value;
+  const tooltip = elementAt(view.element, ".view-scrollbar-tooltip", HTMLSelectElement).value;
+  return {
+    placement,
+    markers: elementAt(view.element, ".view-markers", HTMLInputElement).checked,
+    render: painter === "custom" && placement === "overlay" ? softFadeScrollbar
+      : painter === "styled" ? styledDefaultScrollbar
+      : painter === "drawn" ? customCanvasScrollbar : undefined,
+    tooltip: tooltip === "off" ? false : tooltip === "custom" ? customScrollbarTooltip
+      : tooltip === "terminal" ? view.previewTooltip : undefined
+  };
 }
 
-/**
- * Scrolls `view`'s terminal back to where `entry.anchor` was captured, using a relative delta from
- * the current viewport top (the library only exposes relative scrolling). Refuses to jump when the
- * viewport generation has changed since capture (resize/reflow/reset/history-clear/alt-screen
- * transition), since row coordinates are no longer comparable at that point.
- */
-function jumpToCommandMark(view: TerminalView, entry: CommandMarkEntry) {
-  const viewport = view.viewport;
-  if (!view.terminal || !entry.anchor || !viewport?.available || viewport.generation !== entry.anchor.generation) {
-    report("That point is no longer reachable in scrollback (the view was reset, resized, or reflowed since).", "error");
-    return;
+function viewPadding(view: TerminalView): TerminalPadding {
+  const edge = (name: string) => Number(elementAt(view.element, `.padding-${name}`, HTMLInputElement).value);
+  return { top: edge("top"), right: edge("right"), bottom: edge("bottom"), left: edge("left") };
+}
+
+function updateScrollbar(view: TerminalView) {
+  const terminal = mounted(view);
+  const native = elementAt(view.element, ".view-scrollbar", HTMLSelectElement).value === "native";
+  if (!native) {
+    view.nativeScrollbar?.dispose();
+    view.nativeScrollbar = undefined;
   }
-  view.terminal.scrollLines(entry.anchor.top - viewport.top);
+  terminal.setScrollbar(viewScrollbar(view));
+  if (native && !view.nativeScrollbar)
+    view.nativeScrollbar = new NativeScrollbar(terminal,
+      elementAt(view.element, ".terminal-stage", HTMLElement),
+      error => reportLink(view, message(error), "error"));
+  view.nativeScrollbar?.setMarkers(elementAt(view.element, ".view-markers", HTMLInputElement).checked);
+}
+
+async function changeBookmark(view: TerminalView, remove: boolean) {
+  const terminal = mounted(view);
+  view.bookmarkPending = true;
+  updateViewControls(view);
+  try {
+    if (remove) {
+      const marker = terminal.markers.filter(marker => marker.source === "custom").at(-1);
+      if (marker) await terminal.removeMarker(marker.id);
+    } else {
+      const viewport = terminal.viewport;
+      if (!viewport.available || !viewport.rowIds.length) throw new Error("No presented row to bookmark");
+      await terminal.addMarker({
+        position: { generation: viewport.generation, rowId: viewport.rowIds[0], column: 0 },
+        label: `Bookmark at row ${viewport.top}`
+      });
+    }
+  } finally {
+    view.bookmarkPending = false;
+    if (!view.controller.signal.aborted) updateViewControls(view);
+  }
 }
 
 function connectionClosed(view: TerminalView, close: TerminalCloseDetails) {
@@ -538,7 +609,7 @@ function moveAndResize(view: TerminalView) {
     } | undefined;
     handle.addEventListener("pointerdown", event => {
       if (activePointer !== undefined || event.button !== 0 ||
-          event.target instanceof Element && event.target.closest("button")) return;
+          event.target instanceof Element && event.target.closest("button, details")) return;
       event.preventDefault();
       selectView(view);
       gesture = {
@@ -592,6 +663,7 @@ function closeView(view: TerminalView) {
   if (minimalView === view) setMinimalChrome();
   view.controller.abort();
   view.connectionController?.abort();
+  view.nativeScrollbar?.dispose();
   view.terminal?.dispose();
   view.element.remove();
   views.delete(view.id);
@@ -625,7 +697,14 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
   element.innerHTML = `
     <header class="view-titlebar">
       <span class="view-title"></span><span class="view-role">Joining</span>
-      <button class="minimal-chrome-toggle" aria-pressed="false" title="Fill the page with this terminal and hide playground controls">Minimal chrome</button>
+      <details class="view-marker-details">
+        <summary title="Browse retained shell marks and bookmarks">Marks (<span class="marker-count">0</span>)</summary>
+        <div class="marker-panel">
+          <p class="marker-hint"></p>
+          <div class="marker-list" role="group" aria-label="Retained marks"></div>
+        </div>
+      </details>
+      <button class="minimal-chrome-toggle" aria-label="Minimal chrome" aria-pressed="false" title="Fill the page with this terminal and hide playground controls">Minimal chrome</button>
       <button class="close-view" title="Close this view; keep the terminal running" aria-label="Close view">Close</button>
     </header>
     <div class="view-tools">
@@ -655,6 +734,33 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
       </label>
       <span class="view-grid"></span>
     </div>
+    <div class="view-scrollbars" role="group" aria-label="Local scrolling and padding">
+      <label>Scrollbar <select class="view-scrollbar" disabled aria-label="Scrollbar presentation">
+        <option value="overlay">Canvas overlay</option>
+        <option value="beside">Canvas beside</option>
+        <option value="native">Native HTML</option>
+        <option value="disabled">Disabled</option>
+      </select></label>
+      <label>Painter <select class="view-scrollbar-fade" disabled aria-label="Scrollbar painter" title="Canvas modes only; native scrolling stays browser-owned">
+        <option value="default">Default</option>
+        <option value="custom">Custom soft fade</option>
+        <option value="styled">Styled default</option>
+        <option value="drawn">Custom Canvas2D</option>
+      </select></label>
+      <label>Tooltip <select class="view-scrollbar-tooltip" disabled aria-label="Scrollbar marker tooltip" title="Hover a canvas marker to preview retained details">
+        <option value="default">Default</option>
+        <option value="custom">Custom HTML</option>
+        <option value="terminal">Terminal preview</option>
+        <option value="off">Off</option>
+      </select></label>
+      <span class="view-padding" role="group" aria-label="Outer padding in CSS pixels">
+        ${["top", "right", "bottom", "left"].map(edge =>
+          `<label>${edge[0].toUpperCase()}<input class="padding-${edge}" type="number" min="0" max="128" step="1" value="0" disabled aria-label="${edge} padding"></label>`).join("")}
+      </span>
+      <label class="marker-toggle"><input type="checkbox" class="view-markers" checked disabled>Markers</label>
+      <button class="add-bookmark" disabled title="Bookmark the first presented row">Bookmark</button>
+      <button class="remove-bookmark" disabled title="Remove this view's most recent bookmark">Remove bookmark</button>
+    </div>
     <div class="view-failures" role="group" aria-label="Connection failure demonstration">
       <label>Failure
         <select class="view-failure" aria-label="Failure condition" disabled>
@@ -674,7 +780,6 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
       <span class="command-mark-status"></span>
     </div>
     <div class="terminal-stage">
-      <div class="command-marks-rail" role="list" aria-label="Command history"></div>
       <div class="terminal-mount"></div>
       <div class="closed-overlay" hidden>
         <div class="closed-card">
@@ -716,21 +821,33 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
   workspace.append(element);
   workspace.classList.remove("empty");
   const view: TerminalView = {
-    id, instance, element, controller: new AbortController(), phase: "connecting", stats: {}, text: "", transport,
-    commandMarks: []
+    id, instance, element, controller: new AbortController(), phase: "connecting", stats: {}, text: "", transport
   };
   views.set(id, view);
   selectView(view);
   moveAndResize(view);
   element.addEventListener("pointerdown", event => {
     if (selected !== view) selectView(view);
-    if (!(event.target instanceof Element && event.target.closest("button, select, input"))) {
+    if (!(event.target instanceof Element && event.target.closest("button, select, input, details, .native-scrollbar"))) {
       if (view.phase === "connected" && view.terminal) view.terminal.focus();
       else element.focus({ preventScroll: true });
     }
   }, { capture: true, signal: view.controller.signal });
   element.addEventListener("focusin", () => {
     if (selected !== view) selectView(view);
+  }, { signal: view.controller.signal });
+  const markerDetails = elementAt(element, ".view-marker-details", HTMLDetailsElement);
+  markerDetails.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    markerDetails.open = false;
+    elementAt(markerDetails, "summary", HTMLElement).focus({ preventScroll: true });
+  }, { signal: view.controller.signal });
+  elementAt(element, ".marker-list", HTMLElement).addEventListener("click", event => {
+    const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>(".marker-jump") : null;
+    if (!target?.dataset.marker || target.disabled) return;
+    void mounted(view).scrollToMarker(target.dataset.marker).catch(error => reportLink(view, message(error), "error"));
   }, { signal: view.controller.signal });
   elementAt(element, ".close-view", HTMLButtonElement).addEventListener("click", () => closeView(view), { signal: view.controller.signal });
   elementAt(element, ".minimal-chrome-toggle", HTMLButtonElement).addEventListener("click", () => setMinimalChrome(view), { signal: view.controller.signal });
@@ -752,6 +869,23 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
   };
   for (const selector of [".view-links", ".view-link-decoration", ".view-link-style"])
     elementAt(element, selector, HTMLSelectElement).addEventListener("change", updateLinks, { signal: view.controller.signal });
+  for (const selector of [".view-scrollbar", ".view-scrollbar-fade", ".view-scrollbar-tooltip", ".view-markers"])
+    elementAt(element, selector, HTMLElement).addEventListener("change", () => {
+      try { updateScrollbar(view); }
+      catch (error) { reportLink(view, message(error), "error"); }
+    }, { signal: view.controller.signal });
+  for (const input of element.querySelectorAll<HTMLInputElement>(".view-padding input"))
+    input.addEventListener("change", () => {
+      if (!input.checkValidity() || !input.value) {
+        input.value = "0";
+      }
+      try { mounted(view).setPadding(viewPadding(view)); }
+      catch (error) { reportLink(view, message(error), "error"); }
+    }, { signal: view.controller.signal });
+  action(elementAt(element, ".add-bookmark", HTMLButtonElement), () => changeBookmark(view, false),
+    () => updateViewControls(view));
+  action(elementAt(element, ".remove-bookmark", HTMLButtonElement), () => changeBookmark(view, true),
+    () => updateViewControls(view));
   action(elementAt(element, ".reconnect-view", HTMLButtonElement), () => mountView(view), () => updateViewControls(view));
   action(elementAt(element, ".trigger-failure", HTMLButtonElement), async () => {
     if (view.phase !== "connected" || !view.connectionId) throw new Error("Connect this view before triggering a failure");
@@ -777,6 +911,8 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
   if (view.controller.signal.aborted) return;
   if (view.closure && !view.closure.reconnect) return;
   view.connectionController?.abort();
+  view.nativeScrollbar?.dispose();
+  view.nativeScrollbar = undefined;
   view.terminal?.dispose();
   view.terminal = undefined;
   const controller = new AbortController();
@@ -786,15 +922,13 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
   view.closure = undefined;
   view.stats = {};
   view.text = "";
-  view.commandMarks = [];
-  let previousMarkPhase: TerminalCommandMark["phase"] | null = null;
+  view.bookmarkPending = false;
   const { element, instance, id, transport } = view;
   const current = () => !controller.signal.aborted && !view.controller.signal.aborted;
   element.dataset.phase = "connecting";
   element.dataset.connected = "false";
   elementAt(element, ".closed-overlay", HTMLElement).hidden = true;
   elementAt(element, ".terminal-mount", HTMLElement).inert = false;
-  elementAt(element, ".command-marks-rail", HTMLElement).replaceChildren();
   elementAt(element, ".view-role", HTMLElement).textContent = "Joining";
   elementAt(element, ".view-role", HTMLElement).title = "";
   updateViewControls(view);
@@ -808,11 +942,21 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
   try {
     const renderer = select("renderer").value;
     if (renderer !== "auto" && renderer !== "webgpu" && renderer !== "webgl2") throw new Error("Invalid renderer selection");
+    const font = select("font").value === "monospace" ? { family: "monospace" } : undefined;
+    view.previewTooltip = createTerminalPreviewTooltip({ url, terminal: () => view.terminal, renderer, font });
     const terminal = await WebTerminal.mount(elementAt(element, ".terminal-mount", HTMLElement), {
       url, signal: controller.signal,
       renderer,
+      scrollbar: viewScrollbar(view),
+      padding: viewPadding(view),
+      onLayoutChange() { if (current()) view.nativeScrollbar?.update(); },
+      onMarkersChange() {
+        if (!current()) return;
+        view.nativeScrollbar?.update();
+        updateViewControls(view);
+      },
       scale: select("scale").value === "auto" ? "auto" : Number(select("scale").value),
-      font: select("font").value === "monospace" ? { family: "monospace" } : undefined,
+      font,
       label: `${instance.name}, view ${id}, terminal input`,
       links: viewLinks(view),
       actions: {
@@ -863,28 +1007,12 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
         const status = elementAt(element, ".command-mark-status", HTMLElement);
         if (mark === null) {
           status.textContent = "";
-          previousMarkPhase = null;
           return;
         }
         const cmdlineUrl = getCmdlineUrl(mark);
         status.textContent = `mark: ${mark.phase}` +
           (mark.exitCode === null ? "" : ` (exit ${mark.exitCode})`) +
           (cmdlineUrl === null ? "" : ` / ${cmdlineUrl}`);
-        // A rising edge into "commandLine" starts a new logical command; every other phase update
-        // (executing, finished) refines the same trailing rail entry in place.
-        if (mark.phase === "commandLine" && previousMarkPhase !== "commandLine") {
-          const viewport = view.viewport;
-          const anchor = viewport?.available ? { generation: viewport.generation, top: viewport.top } : null;
-          view.commandMarks.push({ phase: mark.phase, exitCode: mark.exitCode, cmdlineUrl, anchor });
-          if (view.commandMarks.length > 20) view.commandMarks.shift();
-        } else if (view.commandMarks.length > 0) {
-          const entry = view.commandMarks[view.commandMarks.length - 1];
-          entry.phase = mark.phase;
-          entry.exitCode = mark.exitCode;
-          if (cmdlineUrl !== null) entry.cmdlineUrl = cmdlineUrl;
-        }
-        previousMarkPhase = mark.phase;
-        renderCommandMarksRail(view);
       },
       onStatus(message, level) {
         if (!current() || view.closure?.close) return;
@@ -918,6 +1046,8 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
       onViewportChange(viewport) {
         view.viewport = viewport;
         element.dataset.following = String(viewport.following);
+        view.nativeScrollbar?.update();
+        updateViewControls(view);
       },
       onSelectionChange(selection) {
         view.selection = selection;
@@ -942,6 +1072,7 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
     }
     view.phase = "connected";
     element.dataset.phase = "connected";
+    updateScrollbar(view);
     updateViewControls(view);
     if (primary) view.terminal.requestPrimary();
     if (selected === view && (focus || element.contains(document.activeElement))) view.terminal.focus();
@@ -1010,12 +1141,14 @@ window.addEventListener("pagehide", () => {
   for (const view of views.values()) {
     view.controller.abort();
     view.connectionController?.abort();
+    view.nativeScrollbar?.dispose();
     view.terminal?.dispose();
   }
 });
 
 try {
   const parameters = new URLSearchParams(location.search);
+  elementAt(document, "#terminal-controls", HTMLDetailsElement).open = parameters.get("empty") === "1";
   const transport = parameters.get("transport");
   if (transport !== null) {
     if (transport !== "direct" && transport !== "hmp1") throw new Error("Invalid transport query parameter");

@@ -7,14 +7,15 @@ namespace Hex1b;
 /// <remarks>
 /// <para>
 /// This is history — a sequence of past markers — unlike <see cref="TerminalShellIntegration"/>,
-/// which reflects only the current phase. Marks are captured in a bounded, most-recent-first
-/// list; older marks are evicted as new ones arrive.
+/// which reflects only the current phase. Marks are captured in a bounded
+/// list; marks are ordered oldest first. Marks are collected when their backing
+/// text is discarded, and the capacity also bounds how many can remain retained.
 /// </para>
 /// <para>
-/// A mark's row anchor (<see cref="TextGeneration"/>, <see cref="TextRowId"/>) becomes stale
-/// once the terminal's text-row identity space is invalidated (for example by <c>RIS</c> or a
-/// resize-driven reflow) — a mark whose <see cref="TextGeneration"/> no longer matches the
-/// terminal's current generation cannot be resolved back to a row.
+/// <see cref="TextGeneration"/> and <see cref="TextRowId"/> are capture-time coordinates,
+/// not a live position. Browser navigation uses separate anchors which follow supported
+/// reflow. Retained main-buffer content is not discarded just because an alternate buffer
+/// becomes active. References already returned to callers remain immutable after collection.
 /// </para>
 /// </remarks>
 public sealed record TerminalCommandMark

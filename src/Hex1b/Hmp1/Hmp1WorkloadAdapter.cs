@@ -65,6 +65,8 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     private readonly TaskCompletionSource<Exception?> _initialReplay =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _connectionStarted;
+    private int _scrollbackHistoryRows;
+    private bool _commandMarkHistory;
 
     internal bool ConnectionStarted => Volatile.Read(ref _connectionStarted) != 0;
     /// <summary>
@@ -303,11 +305,13 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
 
         // Send ClientHello first. The producer reads this before sending its
         // Hello, so a slow server cannot deadlock here.
+        var requestedHistoryRows = _options.ScrollbackHistoryRows;
+        var requestedCommandMarks = _options.EnableCommandMarkHistory;
         await Hmp1Protocol.WriteClientHelloAsync(
             _stream,
             _localDisplayName,
             _options.DefaultRole?.ToWireString(),
-            ct).ConfigureAwait(false);
+            ct, requestedHistoryRows, requestedCommandMarks).ConfigureAwait(false);
 
         // Read Hello frame
         var helloFrame = await Hmp1Protocol.ReadFrameAsync(_stream, ct).ConfigureAwait(false)
@@ -317,6 +321,19 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             throw new InvalidOperationException($"Expected Hello frame, got {helloFrame.Type}.");
 
         var hello = Hmp1Protocol.ParseHello(helloFrame.Payload);
+        if (hello.CommandMarkHistoryVersion != 0)
+        {
+            if (!requestedCommandMarks || hello.CommandMarkHistoryVersion != Hmp1CommandMarkState.Version)
+                throw new InvalidDataException("Server selected an unrequested command mark capability.");
+            _commandMarkHistory = true;
+        }
+        if (hello.ScrollbackHistoryVersion != 0)
+        {
+            if (hello.ScrollbackHistoryVersion != Hmp1ScrollbackState.Version ||
+                hello.ScrollbackHistoryRows <= 0 || hello.ScrollbackHistoryRows > requestedHistoryRows)
+                throw new InvalidDataException("Server selected an unrequested scrollback history capability.");
+            _scrollbackHistoryRows = hello.ScrollbackHistoryRows;
+        }
         lock (_stateLock)
         {
             _peerId = hello.PeerId ?? string.Empty;
@@ -342,8 +359,16 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         // Hello geometry must be applied before StateSync, even when the adapter
         // was connected before its consuming terminal was constructed.
         var activityState = await Hmp1Protocol.ReadActivityStateAsync(_stream, ct).ConfigureAwait(false);
-        _outputChannel.Writer.TryWrite(new(syncFrame.Payload, CaptureTerminalState(connected: true),
-            IsStateSync: true, ActivityState: activityState));
+        var scrollbackState = _scrollbackHistoryRows > 0
+            ? await Hmp1ScrollbackState.ReadAsync(_stream, _scrollbackHistoryRows, ct).ConfigureAwait(false)
+            : null;
+        var terminalState = CaptureTerminalState(connected: true);
+        var commandMarkState = _commandMarkHistory
+            ? await Hmp1CommandMarkState.ReadAsync(_stream, terminalState, scrollbackState, ct).ConfigureAwait(false)
+            : null;
+        _outputChannel.Writer.TryWrite(new(syncFrame.Payload, terminalState,
+            IsStateSync: true, ActivityState: activityState, ScrollbackState: scrollbackState,
+            CommandMarkState: commandMarkState));
 
         // Start the background read pump. Important: do NOT capture the caller-supplied
         // CancellationToken here. A "handshake timeout" CT must NOT keep cancelling
@@ -600,10 +625,23 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                 {
                     case Hmp1FrameType.StateSync:
                         var activityState = await Hmp1Protocol.ReadActivityStateAsync(_stream, ct).ConfigureAwait(false);
+                        var scrollbackState = _scrollbackHistoryRows > 0
+                            ? await Hmp1ScrollbackState.ReadAsync(_stream, _scrollbackHistoryRows, ct).ConfigureAwait(false)
+                            : null;
+                        var terminalState = CaptureTerminalState(connected: true);
+                        var commandMarkState = _commandMarkHistory
+                            ? await Hmp1CommandMarkState.ReadAsync(_stream, terminalState, scrollbackState, ct).ConfigureAwait(false)
+                            : null;
                         await _outputChannel.Writer.WriteAsync(
-                            new(frame.Payload, CaptureTerminalState(connected: true),
-                                IsStateSync: true, ActivityState: activityState), ct).ConfigureAwait(false);
+                            new(frame.Payload, terminalState,
+                                IsStateSync: true, ActivityState: activityState, ScrollbackState: scrollbackState,
+                                CommandMarkState: commandMarkState), ct).ConfigureAwait(false);
                         break;
+
+                    case Hmp1FrameType.ScrollbackState:
+                    case Hmp1FrameType.ScrollbackRows:
+                    case Hmp1FrameType.CommandMarkState:
+                        throw new InvalidDataException("Unexpected or unnegotiated scrollback checkpoint.");
 
                     case Hmp1FrameType.ActivityState:
                         throw new InvalidDataException("ActivityState checkpoint without StateSync.");
@@ -666,7 +704,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException or InvalidDataException)
         {
-            // Stream error
+            Debug.WriteLine($"[Hmp1WorkloadAdapter] Read pump disconnected: {ex}");
         }
         finally
         {

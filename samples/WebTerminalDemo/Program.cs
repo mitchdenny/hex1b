@@ -119,6 +119,17 @@ app.MapGet("/ws", async (HttpContext context) =>
     var name = context.Request.Query["name"].ToString();
     var transport = context.Request.Query["transport"].ToString();
     var viewId = context.Request.Query["view"].ToString();
+    var preview = context.Request.Query["preview"].ToString() switch
+    {
+        "" or "false" => false,
+        "true" => true,
+        _ => (bool?)null
+    };
+    if (preview is null)
+    {
+        await Results.BadRequest(new { error = "preview must be true or false." }).ExecuteAsync(context);
+        return;
+    }
     var failure = context.Request.Query["failure"].ToString() switch
     {
         "" => InitialViewFailure.None,
@@ -169,7 +180,7 @@ app.MapGet("/ws", async (HttpContext context) =>
         }
         using var socket = await context.WebSockets.AcceptWebSocketAsync();
         await new BrowserSession(socket, view, string.IsNullOrEmpty(name) ? null : name,
-                transport == "hmp1", app.Logger, failure.Value)
+                transport == "hmp1", app.Logger, failure.Value, readOnly: preview.Value)
             .RunAsync(context.RequestAborted);
     }
 });

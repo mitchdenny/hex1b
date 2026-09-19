@@ -14,6 +14,7 @@ async page => {
       const created = test.waitForResponse(response =>
         response.url() === `${origin}/api/terminals` && response.request().method() === "POST" && response.status() === 201);
       await test.goto(`${origin}/?scene=${scene}&scale=auto&transport=${encodeURIComponent(transport)}`);
+      await test.locator("#terminal-controls > summary").click();
       const instance = await (await created).json();
       instances.push(instance.id);
       stage = `${scene}/primary`;

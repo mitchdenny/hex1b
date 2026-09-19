@@ -72,6 +72,9 @@
     header p { margin: 0; color: var(--cp-text-muted); }
     .panel { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; padding: 12px; }
     .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+    #terminal-controls > summary { color: var(--cp-text); font-weight: 600; }
+    #terminal-controls > summary span { margin-left: 8px; color: var(--cp-text-muted); font-size: 12px; font-weight: 400; }
+    #terminal-controls[open] > summary { margin-bottom: 12px; }
     .instance-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; border-left: 1px solid var(--cp-border); padding-left: 12px; }
     label { display: grid; gap: 4px; color: var(--cp-text-muted); font-size: 13px; }
     button, select, input { font: inherit; min-height: 34px; border: 1px solid var(--cp-border-strong); border-radius: .625rem; padding: 6px 10px; background: var(--cp-bg-elevated); color: var(--cp-text); }
@@ -94,11 +97,20 @@
     #warnings { color: var(--cp-warning); white-space: pre-wrap; margin: 8px 0; }
     #workspace { position: relative; overflow: auto; flex: 1; min-height: 320px; background: var(--cp-bg-elevated); border: 1px solid var(--cp-border); border-radius: 16px; }
     #workspace.empty::before { content: "Create a terminal or attach a view above. Closing a view keeps its terminal running."; display: block; padding: 32px; color: var(--cp-text-muted); }
-    .terminal-window { position: absolute; display: flex; flex-direction: column; min-width: 240px; min-height: 180px; border: 1px solid var(--cp-border-strong); border-radius: .625rem; background: var(--cp-surface); }
+    .terminal-window { position: absolute; display: flex; flex-direction: column; min-width: 240px; min-height: 180px; border: 1px solid var(--cp-border-strong); border-radius: .625rem; background: var(--cp-surface); container-type: size; }
     .terminal-window.selected { border-color: var(--cp-accent); }
     .view-titlebar { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 8px; padding: 4px 8px; border-radius: .625rem .625rem 0 0; background: var(--cp-surface-soft); cursor: grab; touch-action: none; user-select: none; }
     .view-title { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 600; }
     .view-role { flex: none; font-size: 11px; color: var(--cp-text-muted); }
+    .view-marker-details { flex: none; overflow: visible; max-height: none; color: var(--cp-text); font-size: 11px; cursor: auto; }
+    .view-marker-details > summary { padding: 3px 6px; border: 1px solid var(--cp-border-strong); border-radius: 6px; background: var(--cp-bg-elevated); white-space: nowrap; }
+    .marker-panel { position: absolute; top: 36px; right: 8px; z-index: 4; width: min(360px, calc(100% - 16px)); max-height: min(320px, 55dvh); overflow: auto; padding: 12px; border: 1px solid var(--cp-border-strong); border-radius: 8px; background: var(--cp-surface); box-shadow: var(--cp-shadow); user-select: text; cursor: auto; }
+    .marker-panel p { margin: 0 0 8px; white-space: normal; font-size: 12px; }
+    .marker-list { display: grid; gap: 4px; }
+    .marker-list .marker-jump { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+    .marker-jump::before { content: ""; flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--cp-accent); }
+    .marker-jump[data-source=custom]::before { background: var(--cp-link); }
+    .marker-jump[data-error=true]::before { background: var(--cp-danger); }
     .terminal-window[data-primary=true] .view-role { color: var(--cp-accent); font-weight: 600; }
     .view-tools { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 4px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; padding: 4px 6px; border-bottom: 1px solid var(--cp-border); }
     .view-tools label { display: flex; flex: none; align-items: center; gap: 4px; font-size: 11px; white-space: nowrap; }
@@ -116,16 +128,31 @@
     [data-connected=false] .view-activity { visibility: hidden; }
     .terminal-stage { display: flex; position: relative; flex: 1 1 0; min-width: 0; min-height: 0; }
     .terminal-mount { flex: 1 1 0; min-width: 0; min-height: 0; contain: size; overflow: hidden; }
-    .command-marks-rail { display: flex; flex: 0 0 14px; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; overflow-y: auto; background: var(--cp-surface-soft); border-right: 1px solid var(--cp-border); }
-    .command-marks-rail:empty { border-right-color: transparent; }
-    .command-mark-dot { width: 8px; height: 8px; min-height: 0; flex: none; padding: 0; margin: 0; border: 1px solid var(--cp-border-strong); border-radius: 50%; background: var(--cp-text-muted); cursor: pointer; }
-    .command-mark-dot:hover { transform: scale(1.35); }
-    .command-mark-dot:focus-visible { outline: 2px solid var(--cp-link); outline-offset: 1px; }
-    .command-mark-dot:disabled { cursor: not-allowed; opacity: 0.4; transform: none; }
-    .command-mark-dot[data-phase=executing] { background: var(--cp-warning); border-color: var(--cp-warning); animation: command-mark-pulse 1.1s ease-in-out infinite; }
-    .command-mark-dot[data-exit=ok] { background: var(--cp-success); border-color: var(--cp-success); }
-    .command-mark-dot[data-exit=error] { background: var(--cp-danger); border-color: var(--cp-danger); }
-    @keyframes command-mark-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .view-scrollbars { display: flex; flex: none; align-items: center; gap: 8px; padding: 4px 8px; overflow-x: auto; border-top: 1px solid var(--cp-border); }
+    .view-scrollbars label { display: flex; flex: none; align-items: center; gap: 4px; font-size: 11px; }
+    .view-scrollbars select, .view-scrollbars input, .view-scrollbars button { min-height: 24px; padding: 2px 4px; font-size: 11px; }
+    .view-scrollbars button, .marker-count { flex: none; white-space: nowrap; }
+    .demo-scrollbar-tooltip-heading { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid var(--cp-border); white-space: normal; }
+    .demo-scrollbar-tooltip-heading strong { color: var(--cp-accent); }
+    .demo-scrollbar-tooltip-heading span { margin-left: auto; color: var(--cp-text-muted); font-size: 11px; }
+    .demo-terminal-preview { position: fixed; z-index: 10000; box-sizing: border-box; padding: 12px; max-height: calc(100dvh - 24px); overflow: hidden; pointer-events: none; border: 1px solid var(--cp-border-strong); border-radius: .625rem; background: var(--cp-surface); color: var(--cp-text); box-shadow: var(--cp-shadow); font: 12px/1.4 "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif; }
+    .demo-terminal-preview-command { max-height: 48px; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; font-family: Consolas, "Courier New", Courier, monospace; }
+    .demo-terminal-preview-status, .demo-terminal-preview-caption { margin-top: 8px; color: var(--cp-text-muted); }
+    .demo-terminal-preview-mount { position: relative; width: 100%; margin-top: 8px; overflow: hidden; border-radius: 4px; background: var(--cp-bg-elevated); }
+    .demo-terminal-preview:not([data-state="ready"]) .hex1b-terminal { visibility: hidden; }
+    .demo-terminal-preview[data-state="error"] .demo-terminal-preview-status { color: var(--cp-danger); }
+    .demo-terminal-preview[data-state="error"] .demo-terminal-preview-mount { display: none; }
+    .view-padding { display: flex; gap: 4px; }
+    .view-padding input { width: 44px; }
+    .marker-count { font-size: 11px; color: var(--cp-text-muted); }
+    .native-scrollbar { display: flex; flex: 0 0 32px; min-height: 0; align-self: flex-start; background: var(--cp-surface-soft); }
+    .native-scrollbar-rail { flex: 1; min-width: 0; overflow-y: scroll; overflow-x: hidden; overscroll-behavior: contain; scrollbar-gutter: stable; }
+    .native-scrollbar-spacer { width: 1px; pointer-events: none; }
+    .native-scrollbar-markers { position: relative; flex: 0 0 12px; }
+    .native-marker { position: absolute; left: 1px; width: 10px; height: 4px; min-height: 0; padding: 0; border: 0; border-radius: 0; transform: translateY(-50%); background: var(--cp-accent); }
+    .native-marker[data-source=custom] { background: var(--cp-link); }
+    .native-marker[data-error=true] { background: var(--cp-danger); }
+    .native-marker:focus-visible, .native-marker:hover { z-index: 1; height: 8px; }
     .closed-overlay { position: absolute; inset: 0; z-index: 1; display: flex; overflow: auto; padding: 12px; background: var(--cp-overlay); }
     .closed-overlay[hidden] { display: none; }
     .closed-card { margin: auto; width: 100%; max-width: 480px; padding: 16px; border: 1px solid var(--cp-border-strong); border-radius: 12px; background: var(--cp-surface); box-shadow: var(--cp-shadow); overflow-wrap: anywhere; }
@@ -141,6 +168,15 @@
     .view-resolution { width: 96px; }
     .font-size { flex: none; min-width: 28px; text-align: center; font: 10px Consolas, "Courier New", Courier, monospace; color: var(--cp-text-muted); }
     .view-status[data-level=error] { color: var(--cp-danger); }
+    @container (max-width: 420px) {
+      .view-titlebar { gap: 4px; }
+      .view-role { display: none; }
+      .view-titlebar .minimal-chrome-toggle { font-size: 0; }
+      .minimal-chrome-toggle::after { content: "Full"; font-size: 11px; }
+    }
+    @container (max-height: 220px) {
+      .view-failures, .view-activity { display: none; }
+    }
     .resize-handle { position: absolute; z-index: 2; touch-action: none; user-select: none; }
     .resize-handle::after { content: ""; position: absolute; border: 0 solid var(--cp-border-strong); border-radius: 3px; opacity: .45; pointer-events: none; transition: border-color 100ms, opacity 100ms; }
     .resize-handle:hover::after, .resize-handle[data-active=true]::after { border-color: var(--cp-accent); opacity: 1; }
@@ -177,8 +213,7 @@
     body.minimal-chrome .terminal-window:not(.minimal-chrome) { visibility: hidden; }
     /* Override floating bounds without changing the inline geometry restored on exit. */
     .terminal-window.minimal-chrome { position: fixed; inset: 0 !important; width: 100% !important; height: 100dvh !important; min-width: 0; min-height: 0; border: 0; border-radius: 0; }
-    .terminal-window.minimal-chrome > :not(.terminal-stage),
-    .terminal-window.minimal-chrome .command-marks-rail { display: none; }
+    .terminal-window.minimal-chrome > :not(.terminal-stage) { display: none; }
   </style>
   <script type="importmap">
     { "imports": { "@hex1b/web-terminal": "./web-terminal/index.js" } }
@@ -192,7 +227,9 @@
       <h1>WebTerminalDemo</h1>
       <p>HMP1 shared terminals · HWT1 GPU-rendered views · primary-owned geometry</p>
     </header>
-    <section class="panel controls" aria-label="Terminal controls">
+    <details id="terminal-controls" class="panel">
+      <summary>Terminal controls <span>New terminal, attach, and scenario tapes</span></summary>
+      <section class="controls" aria-label="Terminal controls">
       <label>Scene
         <select id="scene">
           <option value="mixed">Mixed text + graphics</option>
@@ -272,7 +309,8 @@
         <button id="stop-tape" disabled title="Cancel automation without stopping the terminal or undoing input">Stop tape</button>
         <p id="tape-status" role="status">Choose an existing terminal to play a tape.</p>
       </div>
-    </section>
+      </section>
+    </details>
     <p id="status" role="status" aria-live="polite">Create a terminal or attach to an existing instance.</p>
     <section id="workspace" class="empty" aria-label="Floating terminal views"></section>
     <details class="panel">

@@ -1,6 +1,7 @@
 import { decodeFrame, screenText } from "./protocol.js";
 import { TerminalRenderer } from "./renderer.js";
 import { LinkPresentation } from "./link-presentation.js";
+import { MarkerPages } from "./marker-pages.js";
 import type { TerminalSize, TerminalStatusLevel } from "./types.js";
 import type { FrameMetadata, TerminalCell, TerminalCommand, WorkerInputMessage, WorkerOutputMessage, WorkerStats } from "./wire-types.js";
 import { errorMessage } from "./validation.js";
@@ -36,6 +37,8 @@ let metricsTimer: ReturnType<typeof setInterval> | undefined;
 let blinkTimer: ReturnType<typeof setInterval> | undefined;
 let viewport: TerminalSize | undefined;
 const links = new LinkPresentation();
+const markerPages = new MarkerPages();
+let awaitingFull = false;
 const stats: WorkerStats = {
   revision: 0, fullFrames: 0, frames: 0, presentations: 0,
   changedCells: 0, lastChangedCells: 0, discardedFrames: 0,
@@ -87,11 +90,11 @@ self.addEventListener("unhandledrejection", event => {
 /** At most one state frame, one decode, and one GPU submission are outstanding. */
 function scheduleRender() {
   needsRender = true;
-  if (scheduled || drawing || processing || failed || stopped || !metadata) return;
+  if (scheduled || drawing || processing || failed || stopped || !metadata || markerPages.pending || awaitingFull) return;
   scheduled = true;
   self.requestAnimationFrame(() => {
     scheduled = false;
-    if (processing || drawing || failed || stopped) return;
+    if (processing || drawing || failed || stopped || markerPages.pending || awaitingFull) return;
     renderPromise = drawFrame();
   });
 }
@@ -170,10 +173,14 @@ async function receiveFrame(buffer: ArrayBuffer): Promise<void> {
   try {
     const frame = decodeFrame(buffer);
     const next = frame.metadata;
-    if (!next.full && (next.baseRevision !== localRevision || next.revision <= localRevision ||
+    if (!next.full && (awaitingFull || next.baseRevision !== localRevision || next.revision <= localRevision ||
         !metadata || next.columns !== metadata.columns || next.rows !== metadata.rows)) {
       stats.discardedFrames++;
       frameInFlight = false;
+      markerPages.reset();
+      awaitingFull = true;
+      needsRender = false;
+      pendingFrame = undefined;
       // A discarded frame must release the server's one-in-flight gate before resync.
       send({ type: "ack", revision: next.revision });
       send({ type: "resync" });
@@ -194,10 +201,23 @@ async function receiveFrame(buffer: ArrayBuffer): Promise<void> {
     cells = nextCells;
     metadata = next;
     localRevision = next.revision;
-    pendingFrame = { revision: next.revision, full: next.full, changedCells: frame.cells.length };
+    const wasPaging = markerPages.pending && !next.full;
+    const history = markerPages.accept(next.history);
+    awaitingFull = false;
+    pendingFrame = { revision: next.revision,
+      full: next.full || (wasPaging && !!pendingFrame?.full),
+      changedCells: frame.cells.length + (wasPaging ? pendingFrame?.changedCells ?? 0 : 0) };
     hasBlink = cells.some(cell => cell && (cell.attributes & 16) && !(cell.attributes & 64)) ||
       (next.cursor.visible && (next.cursor.shape === 0 || next.cursor.shape % 2 === 1));
     stats.preparationCpuMs = performance.now() - preparationStart;
+    if (history === undefined) {
+      // Acknowledge an inventory fragment, but expose/draw only the completed snapshot.
+      needsRender = false;
+      frameInFlight = false;
+      send({ type: "ack", revision: next.revision });
+      return;
+    }
+    next.history = history;
     needsRender = true;
   } finally {
     processing = false;

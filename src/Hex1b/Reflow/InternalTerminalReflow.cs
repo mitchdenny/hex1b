@@ -20,7 +20,9 @@ internal static class InternalTerminalReflow
                 out result);
         }
 
-        if (context.InAlternateScreen ||
+        if ((context.InAlternateScreen &&
+             provider is KittyReflowStrategy or WezTermReflowStrategy or GhosttyReflowStrategy or
+                 FootReflowStrategy or VteReflowStrategy or AlacrittyReflowStrategy or WindowsTerminalReflowStrategy) ||
             provider is NoReflowStrategy or XtermReflowStrategy or ITerm2ReflowStrategy)
         {
             result = PerformNoReflow(provider, context, anchors);
@@ -69,14 +71,21 @@ internal static class InternalTerminalReflow
         {
             if (anchor.Row < oldHistoryCount)
             {
-                if (anchor.Row < newHistoryCount)
+                if (anchor.Row < newHistoryCount &&
+                    (!anchor.IsTextPosition || anchor.Column <= reflow.ScrollbackRows[anchor.Row].Cells.Length))
                     mapped.Add(anchor);
 
                 continue;
             }
 
             var screenRow = anchor.Row - oldHistoryCount;
-            if (screenRow >= 0 && screenRow < context.NewHeight)
+            if (screenRow >= 0 && screenRow < context.NewHeight &&
+                (!anchor.IsTextPosition || (anchor.Column <= context.NewWidth &&
+                    (anchor.Column == context.OldWidth || anchor.Column < context.NewWidth) &&
+                    (anchor.Column >= context.OldWidth ||
+                        string.IsNullOrEmpty(context.ScreenRows[screenRow][anchor.Column].Character) ||
+                        DisplayWidth.GetGraphemeWidth(context.ScreenRows[screenRow][anchor.Column].Character) <=
+                        context.NewWidth - anchor.Column))))
             {
                 mapped.Add(anchor with
                 {

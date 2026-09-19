@@ -159,6 +159,7 @@ jobs:
           dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
             --no-build \
             -- --report-trx --report-trx-filename test-results.trx \
+               --timeout 10m --diagnostic --diagnostic-output-directory ./TestResults/diagnostics \
                --results-directory ./TestResults
           dotnet test tests/Hex1b.Analyzers.Tests/Hex1b.Analyzers.Tests.csproj \
             --no-build \

@@ -1,6 +1,6 @@
 import { parentPort } from "node:worker_threads";
 import { setImmediate as nextTurn } from "node:timers/promises";
-import { TerminalRenderer } from "../../dist/renderer.js";
+import { TerminalRenderer } from "../../.build/renderer.js";
 
 // Execute the real worker with only its transport, GPU, and animation clock doubled.
 const listeners = new Map();
@@ -45,7 +45,7 @@ const renderer = {
   dispose() { this.disposed = true; }
 };
 TerminalRenderer.create = async () => renderer;
-await import("../../dist/terminal-worker.js");
+await import("../../.build/terminal-worker.js");
 
 let sequence = Promise.resolve();
 parentPort.on("message", ({ id, action, message, buffer, details }) => {

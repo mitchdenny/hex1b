@@ -7,6 +7,7 @@ import { extractLinkText, mapLinkRange } from "./link-text.js";
 import type { MappedLinkChunk } from "./link-text.js";
 import type { LinkScanMatch, LinkScanRequest, LinkScanResponse } from "./link-worker-protocol.js";
 import { linkMatchTextSize } from "./link-worker-protocol.js";
+import { defaultWorkerUrl } from "./worker-url.js";
 
 export interface LinkDetectionSnapshot {
   revision: number; columns: number; rows: number;
@@ -162,7 +163,7 @@ export class LinkDetection {
         if (!missing.length) continue;
         try {
           if (!this.#worker) {
-            const worker = new Worker(this.#options.workerUrl ?? new URL("./link-detection-worker.js", import.meta.url),
+            const worker = new Worker(this.#options.workerUrl ?? defaultWorkerUrl("link-detection"),
               { type: "module", name: "hex1b-link-detection" });
             this.#worker = worker;
             worker.addEventListener("message", event => {

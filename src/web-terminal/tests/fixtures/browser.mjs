@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { Worker as NodeWorker } from "node:worker_threads";
 import { setImmediate as nextTurn } from "node:timers/promises";
-import { WebTerminal } from "../../dist/web-terminal.js";
+import { WebTerminal } from "../../.build/web-terminal.js";
 
 export class Target {
   listeners = new Map();

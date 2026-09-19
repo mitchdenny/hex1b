@@ -9,8 +9,8 @@ async page => {
   if (!frames.length) throw new Error("At least one frame query parameter is required");
   await page.setContent('<canvas id="capture"></canvas>');
   return await page.evaluate(async ({ frames, backend, minimum }) => {
-    const { decodeFrame } = await import("/web-terminal/protocol.js");
-    const { TerminalRenderer } = await import("/web-terminal/renderer.js");
+    const { decodeFrame } = await import("/web-terminal-test/protocol.js");
+    const { TerminalRenderer } = await import("/web-terminal-test/renderer.js");
     const canvas = document.querySelector("#capture");
     const errors = [];
     const renderer = await TerminalRenderer.create(canvas, 1, error => errors.push(error.message), undefined, backend);

@@ -15,6 +15,18 @@ namespace Hex1b;
 public sealed class Hmp1ServerOptions
 {
     /// <summary>
+    /// Gets or sets whether clients may negotiate retained OSC 133 mark transfer.
+    /// Defaults to true. Marks are sent only for accompanying screen and history content.
+    /// </summary>
+    public bool EnableCommandMarkHistory { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether clients may negotiate retained scrollback transfer.
+    /// Defaults to true. A producer without scrollback storage still uses screen-only replay.
+    /// </summary>
+    public bool EnableScrollbackHistory { get; set; } = true;
+
+    /// <summary>
     /// Optional async stream-wrap applied to every accepted client
     /// connection before the server reads the ClientHello frame. Use
     /// this to layer TLS, compression, or other framing on top of the

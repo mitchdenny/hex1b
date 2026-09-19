@@ -109,10 +109,19 @@ public sealed class Hex1bTerminalOptions
 
     /// <summary>
     /// Maximum number of OSC 133 command marks to retain in <see cref="Hex1bTerminal.CommandMarks"/>.
-    /// Oldest marks are evicted first once the capacity is exceeded. Default is 200; set to 0
-    /// to disable command mark history entirely.
+    /// Oldest marks are evicted first once the capacity is exceeded. Marks are also collected
+    /// when their backing text is discarded. Default is 200; set to 0 to disable command mark
+    /// history entirely.
     /// </summary>
     public int CommandMarkHistoryCapacity { get; set; } = 200;
+
+    /// <summary>
+    /// Gets or sets the maximum number of custom markers registered by each browser view.
+    /// Defaults to 1,000. Zero disables registration; exceeding the limit is explicitly
+    /// rejected without evicting existing markers. Discarding a marker's backing content
+    /// reclaims its quota slot. Disposal releases the view's remaining markers.
+    /// </summary>
+    public int CustomMarkerLimit { get; set; } = 1000;
 
     /// <summary>
     /// Optional callback invoked each time a row is scrolled off the top of the terminal
@@ -152,6 +161,7 @@ public sealed class Hex1bTerminalOptions
     /// </summary>
     internal void Validate()
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(CustomMarkerLimit);
         if (WorkloadAdapter is null)
         {
             throw new InvalidOperationException("WorkloadAdapter is required.");

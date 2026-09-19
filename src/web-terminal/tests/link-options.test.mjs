@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeLinks, linkAction, LINK_LIMITS } from "../dist/link-options.js";
+import { normalizeLinks, linkAction, LINK_LIMITS } from "../.build/link-options.js";
 
 const actions = new Set(["open"]);
 const rule = () => ({ id: "test", pattern: /x/gu, kind: "custom", action: "open" });

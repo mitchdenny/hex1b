@@ -33,6 +33,34 @@ namespace Hex1b;
 public sealed class Hmp1ClientOptions
 {
     /// <summary>
+    /// Gets or sets whether retained OSC 133 marks and details are requested with StateSync.
+    /// Defaults to true. Peers without this optional capability continue screen-only mark behavior.
+    /// </summary>
+    public bool EnableCommandMarkHistory { get; set; } = true;
+
+    private int _scrollbackHistoryRows = 10_000;
+
+    /// <summary>
+    /// Gets or sets the maximum retained rows requested during state synchronization.
+    /// Defaults to 10,000; zero disables history transfer. Valid values are 0 through 100,000.
+    /// </summary>
+    /// <remarks>
+    /// Negotiated independently of the HMP1 version. Peers without this extension keep
+    /// screen-only replay. The receiving terminal must also configure scrollback storage;
+    /// its capacity and the protocol byte/cell limits can retain fewer rows.
+    /// </remarks>
+    public int ScrollbackHistoryRows
+    {
+        get => _scrollbackHistoryRows;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, Hmp1ScrollbackState.MaxRows);
+            _scrollbackHistoryRows = value;
+        }
+    }
+
+    /// <summary>
     /// Transport factory invoked when the workload starts. Returns a
     /// bidirectional stream connected to the producer. <c>required
     /// init</c> so callers cannot accidentally replace the transport

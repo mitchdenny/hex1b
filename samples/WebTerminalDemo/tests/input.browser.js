@@ -23,7 +23,7 @@ async page => {
     await test.evaluate(() => webTerminalViews.get("1").terminal.setSizing({ mode: "fixed", columns: 120, rows: 40 }));
     await test.waitForFunction(() => webTerminalViews.get("1").stats.columns === 120 && webTerminalViews.get("1").stats.rows === 40);
     const first = test.locator('.terminal-window[data-view="1"]');
-    await first.locator("canvas").click({ position: { x: 100, y: 100 } });
+    await first.locator("canvas:not(.scrollbar-canvas)").click({ position: { x: 100, y: 100 } });
     await test.keyboard.type("printf '__SHELL_READY__\\n'");
     await test.keyboard.press("Enter");
     await marker("__SHELL_READY__");
@@ -72,7 +72,7 @@ async page => {
       const row = lines.findIndex(line => line.includes("Button 1"));
       return { row, column: lines[row].indexOf("Button 1") };
     });
-    let box = await first.locator("canvas").boundingBox();
+    let box = await first.locator("canvas:not(.scrollbar-canvas)").boundingBox();
     await test.mouse.click(box.x + (position.column + 3.5) * box.width / 120, box.y + (position.row + .5) * box.height / 40);
     await test.waitForFunction(() => webTerminalViews.get("1").terminal.screenText.includes("Button 1 (1)"));
     await test.mouse.move(box.x + 21.5 * box.width / 120, box.y + 12.5 * box.height / 40);
@@ -87,7 +87,7 @@ async page => {
     const second = test.locator('.terminal-window[data-view="2"]');
     await test.waitForFunction(() => webTerminalViews.get("2")?.terminal?.connected &&
       webTerminalViews.get("2").terminal.screenText.includes("Button 1 (1)") && webTerminalViews.get("2").stats.mouseTracking === 1003);
-    box = await second.locator("canvas").boundingBox();
+    box = await second.locator("canvas:not(.scrollbar-canvas)").boundingBox();
     await test.mouse.click(box.x + (position.column + 13.5) * box.width / 120, box.y + (position.row + .5) * box.height / 40);
     await test.waitForFunction(() => webTerminalViews.get("1").terminal.screenText.includes("Button 1 (2)") &&
       webTerminalViews.get("2").terminal.screenText.includes("Button 1 (2)"));
@@ -96,12 +96,13 @@ async page => {
     // Selecting a different window's chrome must move input focus too.
     const createdSecond = creationResponse();
     stage = "second shell";
+    await test.locator("#terminal-controls > summary").click();
     await test.locator("#scene").selectOption("shell");
     await test.locator("#create").click();
     instances.push((await (await createdSecond).json()).id);
     await test.waitForFunction(() => webTerminalViews.get("3")?.terminal?.peer.isPrimary &&
       /[❯$#%>]$/.test(webTerminalViews.get("3").terminal.screenText.trimEnd()));
-    await test.locator('.terminal-window[data-view="3"] canvas').click({ position: { x: 100, y: 100 } });
+    await test.locator('.terminal-window[data-view="3"] canvas:not(.scrollbar-canvas)').click({ position: { x: 100, y: 100 } });
     await test.keyboard.type("printf '__SECOND_READY__\\n'");
     await test.keyboard.press("Enter");
     await test.waitForFunction(() => webTerminalViews.get("3").terminal.screenText.split("\n").some(line => line.trim() === "__SECOND_READY__") &&

@@ -13,7 +13,7 @@ async page => {
     await test.goto(`${origin}/health`);
     await test.setContent('<canvas id="pixels"></canvas><div id="a" style="width:300px;height:200px"></div><div id="b" style="width:300px;height:200px"></div><div id="c" style="width:300px;height:200px"></div>');
     const pixels = await test.evaluate(async () => {
-      const { TerminalRenderer } = await import("/web-terminal/renderer.js");
+      const { TerminalRenderer } = await import("/web-terminal-test/renderer.js");
       const canvas = document.getElementById("pixels");
       const results = [];
       for (const scale of [1, 1.25, 1.5, 2, 3]) {
@@ -108,7 +108,7 @@ async page => {
       window.WebTerminal = WebTerminal;
       window.wsUrl = `/ws?instance=${instanceId}`;
       window.pending = WebTerminal.mount(document.getElementById("a"), {
-        url: wsUrl, workerUrl: "/web-terminal/terminal-worker.js",
+        url: wsUrl, workerUrl: "/web-terminal/index.js#hex1b-terminal-worker",
         font: { family: "Developer Font", faces: [{ url: "/fonts/delayed.woff2", weight: "200 700" }] }
       }).then(view => { window.fontViewA = view; });
     }, instanceId);

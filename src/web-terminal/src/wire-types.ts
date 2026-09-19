@@ -3,6 +3,7 @@ import type { InputModifiers, PointerButton, SelectionMode, SelectionRange, Term
   TerminalRendererPreference, TerminalStatusLevel, TerminalProgress, TerminalShellIntegration,
   TerminalWorkingDirectory, TerminalCommandMark, TerminalCloseDetails } from "./types.js";
 import type { LinkDetectionSnapshot } from "./link-detection.js";
+import type { MarkerResult, TerminalMarker } from "./scrollbar-types.js";
 
 export type SelectionText =
   | { status: "valid"; text: string }
@@ -15,6 +16,10 @@ export interface HistoryMetadata {
   following: boolean; requestId: number; rowIds: string[];
   selection: HistorySelection;
   copy: (SelectionText & { requestId: number }) | null;
+  markers?: TerminalMarker[];
+  markerResult?: MarkerResult | null;
+  viewportError?: string | null;
+  markerPage?: { revision: string; offset: number; total: number } | null;
 }
 export interface TerminalCell {
   index: number; foreground: number; background: number; underlineColor: number;
@@ -59,7 +64,10 @@ export type InputCommand =
   | MouseCommand;
 export type TerminalCommand = InputCommand
   | { type: "viewport"; requestId: number; delta?: number; live?: boolean;
+      top?: number; generation?: string; originRowId?: string; originTop?: number;
       extend?: { row: number; column: number } }
+  | { type: "marker"; action: "add" | "remove" | "jump" | "details"; requestId: number;
+      id: string; generation?: string; rowId?: string; column?: number }
   | { type: "selection"; action: "clear"; requestId: number }
   | { type: "selection"; action: "start" | "extend"; mode: SelectionMode;
       requestId: number; generation: string; rowId: string; column: number }

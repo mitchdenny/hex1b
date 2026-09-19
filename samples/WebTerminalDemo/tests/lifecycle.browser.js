@@ -6,6 +6,7 @@ async page => {
   const instances = new Set();
   const results = [];
   const sockets = [];
+  let stage = "transport failure modes";
   test.on("pageerror", error => errors.push(error.message));
   test.on("websocket", socket => sockets.push(socket.url()));
   const check = (condition, message) => { if (!condition) throw new Error(message); };
@@ -112,14 +113,26 @@ async page => {
       await test.locator("#failure").selectOption("");
 
       // Local initialization failure has no fabricated native WebSocket details.
-      await test.route("**/web-terminal/terminal-worker.js", route => route.abort());
+      // A deliberate missing worker keeps the shared public entry available to the page.
+      await test.evaluate(() => {
+        window.lifecycleNativeWorker = window.Worker;
+        window.Worker = class extends lifecycleNativeWorker {
+          constructor(url, options) {
+            const target = new URL(url, location.href);
+            super(target.hash === "#hex1b-terminal-worker"
+              ? new URL("/web-terminal/fixture-missing-worker.js", location.href) : target, options);
+          }
+        };
+      });
+      await test.route("**/web-terminal/fixture-missing-worker.js", route => route.abort());
       await test.locator("#attach").click();
       const failedMount = await lastId();
       await test.waitForFunction(id => webTerminalViews.get(id)?.phase === "closed", failedMount);
       const localFailure = await closure(failedMount);
       check(!localFailure.close && localFailure.reconnect && await tile(failedMount).locator(".closed-overlay").isVisible(),
         "Local mount failure fabricated a native close or failed to show its overlay");
-      await test.unroute("**/web-terminal/terminal-worker.js");
+      await test.evaluate(() => { window.Worker = window.lifecycleNativeWorker; });
+      await test.unroute("**/web-terminal/fixture-missing-worker.js");
       await reconnect(failedMount);
       await tile(failedMount).locator(".close-view").click();
 
@@ -151,10 +164,15 @@ async page => {
     instances.add(shellId);
     const shellView = await lastId();
     await waitConnected(shellView);
+    stage = "shell prompt readiness";
+    await test.waitForFunction(id => /([#$%>]|[^\x00-\x7f])$/.test(
+      webTerminalViews.get(id).terminal.screenText.trimEnd()), shellView);
+    stage = "attaching shell peer";
     await test.locator("#transport").selectOption("direct");
     await test.locator("#attach").click();
     const shellPeer = await lastId();
     await waitConnected(shellPeer);
+    stage = "shell readiness command";
     await test.evaluate(id => {
       const terminal = webTerminalViews.get(id).terminal;
       terminal.focus();
@@ -163,6 +181,7 @@ async page => {
     await test.keyboard.press("Enter");
     await test.waitForFunction(id => webTerminalViews.get(id).text.split("\n")
       .some(line => line.trim() === "__LIFECYCLE_READY__"), shellView);
+    stage = "natural shell exit";
     await test.evaluate(id => {
       const terminal = webTerminalViews.get(id).terminal;
       terminal.focus();
@@ -187,7 +206,7 @@ async page => {
       revision: view.stats.revision, frames: view.stats.frames, text: view.text.slice(-500),
       status: view.element.querySelector(".view-status").textContent
     })));
-    throw new Error(`${error.message}\nCompleted: ${JSON.stringify(results)}\nViews: ${JSON.stringify(state)}\nBrowser errors: ${errors.join("; ")}`);
+    throw new Error(`${stage}: ${error.message}\nCompleted: ${JSON.stringify(results)}\nViews: ${JSON.stringify(state)}\nBrowser errors: ${errors.join("; ")}`);
   } finally {
     try {
       for (const id of instances) await test.request.delete(`${origin}/api/terminals/${id}`, { headers: { Origin: origin } });

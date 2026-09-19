@@ -1,7 +1,30 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { terminalThemeCss } from "../dist/terminal-theme.js";
-import { WebTerminal } from "../dist/web-terminal.js";
+import { terminalThemeCss } from "../.build/terminal-theme.js";
+import { WebTerminal } from "../.build/web-terminal.js";
+import { scrollbarColors, scrollbarMarkerColor } from "../.build/scrollbar-colors.js";
+
+test("scrollbar defaults are neutral with distinct kind/outcome shades and dedicated embedding overrides", () => {
+  for (const [name, color] of Object.entries(scrollbarColors)) {
+    assert.match(color, /^#([0-9a-f]{2})\1\1$/u, name);
+    assert.ok(terminalThemeCss.includes(`--cp-view-scrollbar-${name}: var(--cp-scrollbar-${name}, ${color});`));
+  }
+  const resolve = name => scrollbarColors[name];
+  const shades = [
+    scrollbarMarkerColor({ source: "command", phase: "commandLine" }, resolve),
+    scrollbarMarkerColor({ source: "command", phase: "executing" }, resolve),
+    scrollbarMarkerColor({ source: "command", phase: "finished", exitCode: 0 }, resolve),
+    scrollbarMarkerColor({ source: "command", phase: "finished", exitCode: 1 }, resolve),
+    scrollbarMarkerColor({ source: "command", phase: "finished", exitCode: null }, resolve),
+    scrollbarMarkerColor({ source: "custom" }, resolve),
+    scrollbarMarkerColor({ source: "command", phase: "prompt" }, resolve)
+  ];
+  assert.equal(new Set(shades).size, shades.length);
+  assert.equal(scrollbarMarkerColor({ source: "command", exitCode: -1 }, resolve), scrollbarColors.error);
+  assert.equal(scrollbarMarkerColor({ source: "command" }, resolve), scrollbarColors.marker);
+  assert.equal(scrollbarMarkerColor({ source: "command", phase: "executing" }, name => `custom-${name}`),
+    "custom-executing");
+});
 
 test("Standalone component preserves the extracted light and dark Clawpilot colors", () => {
   const colors = {

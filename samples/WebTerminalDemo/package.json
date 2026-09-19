@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "npm --prefix ../../src/web-terminal run build && tsc -p tsconfig.json && node scripts/copy-assets.mjs",
+    "test:assets": "node scripts/copy-test-assets.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

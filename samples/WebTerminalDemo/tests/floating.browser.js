@@ -139,6 +139,7 @@ async page => {
     check(sent.filter(command => command.type === "resize").length === noEcho, `Geometry update caused resize loop: ${JSON.stringify(sent.filter(command => command.type === "resize"))}`);
 
     // Explicit takeover changes the grid to the new primary's host box.
+    await second.focus();
     await second.locator(".view-title").click();
     await second.locator(".take-primary").click();
     await test.waitForFunction(() => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { WebTerminal } from "../dist/web-terminal.js";
+import { WebTerminal } from "../.build/web-terminal.js";
 import { browser, Element, frame, mounting, present } from "./fixtures/browser.mjs";
 
 const closures = [

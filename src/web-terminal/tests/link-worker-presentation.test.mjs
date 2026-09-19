@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { LinkPresentation } from "../dist/link-presentation.js";
+import { LinkPresentation } from "../.build/link-presentation.js";
 import { browser, frame } from "./fixtures/browser.mjs";
 
 const cell = Object.freeze({ index: 0, text: "a", width: 1, attributes: 0, foreground: 1,

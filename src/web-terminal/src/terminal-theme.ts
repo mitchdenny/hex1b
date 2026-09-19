@@ -1,3 +1,5 @@
+import { scrollbarColors } from "./scrollbar-colors.js";
+
 const light = `
   --cp-terminal-surface: #ffffff;
   --cp-terminal-text: #242424;
@@ -28,6 +30,8 @@ export const terminalThemeCss = `
   :host-context([data-theme="light"]) { ${light} }
   :host-context([data-theme="dark"]) { ${dark} }
   .viewport {
+    ${Object.entries(scrollbarColors).map(([name, value]) =>
+      `--cp-view-scrollbar-${name}: var(--cp-scrollbar-${name}, ${value});`).join("\n")}
     --cp-view-surface: var(--cp-surface, var(--cp-terminal-surface));
     --cp-view-text: var(--cp-text, var(--cp-terminal-text));
     --cp-view-text-muted: var(--cp-text-muted, var(--cp-terminal-text-muted));

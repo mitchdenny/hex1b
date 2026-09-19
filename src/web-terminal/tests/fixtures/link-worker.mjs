@@ -7,7 +7,7 @@ globalThis.self = {
   postMessage(message) { parentPort.postMessage({ type: "output", message }); },
 };
 globalThis.postMessage = globalThis.self.postMessage;
-await import("../../dist/link-detection-worker.js");
+await import("../../.build/link-detection-worker.js");
 
 parentPort.on("message", async ({ id, action, message }) => {
   try {

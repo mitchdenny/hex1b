@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decodeFrame } from "../dist/protocol.js";
-import { TerminalRenderer } from "../dist/renderer.js";
-import { normalizeFont, measureFont } from "../dist/terminal-font.js";
-import { normalizeSizing, requestedGrid, fittedScale } from "../dist/terminal-sizing.js";
+import { decodeFrame } from "../.build/protocol.js";
+import { TerminalRenderer } from "../.build/renderer.js";
+import { normalizeFont, measureFont } from "../.build/terminal-font.js";
+import { normalizeSizing, requestedGrid, fittedScale } from "../.build/terminal-sizing.js";
 import { browser, mounting, present } from "./fixtures/browser.mjs";
 
 test("Sizing defaults to Auto at the original 16px cell scale", () => {

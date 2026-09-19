@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { QUAD_STRIDE, RendererUnavailableError } from "../dist/render-backend.js";
-import { WebGl2Backend } from "../dist/webgl2-backend.js";
+import { QUAD_STRIDE, RendererUnavailableError } from "../.build/render-backend.js";
+import { WebGl2Backend } from "../.build/webgl2-backend.js";
 
 function harness(options = {}) {
   const calls = [];
