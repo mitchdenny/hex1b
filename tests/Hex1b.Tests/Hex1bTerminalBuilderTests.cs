@@ -545,7 +545,14 @@ public class Hex1bTerminalBuilderTests
         await new Hex1bTerminalInputSequenceBuilder()
             // Keep the child alive until we've observed its output; otherwise a
             // fast one-shot PTY can exit before CI captures the rendered text.
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(30))
+            .WaitUntil(s =>
+            {
+                if (s.SearchPattern(pattern).HasMatches)
+                    return true;
+                if (runTask.IsCompleted)
+                    Assert.Fail($"PTY exited before producing output (exit code {runTask.GetAwaiter().GetResult()}).");
+                return false;
+            }, TimeSpan.FromSeconds(30), "PTY startup output")
             .Type("q")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -573,7 +580,14 @@ public class Hex1bTerminalBuilderTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(readyPattern).HasMatches, TimeSpan.FromSeconds(30))
+            .WaitUntil(s =>
+            {
+                if (s.SearchPattern(readyPattern).HasMatches)
+                    return true;
+                if (runTask.IsCompleted)
+                    Assert.Fail($"PTY exited before becoming ready (exit code {runTask.GetAwaiter().GetResult()}).");
+                return false;
+            }, TimeSpan.FromSeconds(30), "interactive PTY readiness")
             .Type("q")
             .WaitUntil(s => s.SearchPattern(exitPattern).HasMatches, TimeSpan.FromSeconds(10))
             .Build()
