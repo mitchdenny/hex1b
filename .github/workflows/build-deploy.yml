@@ -48,7 +48,7 @@ jobs:
       - name: Isolate PTY startup tests
         run: >-
           dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj -v normal
-          --filter "FullyQualifiedName~WithPtyProcess_ExecutesProcess|FullyQualifiedName~WithPtyProcess_InteractiveProcess_RespondsToInput|FullyQualifiedName~Diagnostic_EchoCommand_OutputAppearsInBuffer"
+          --filter "FullyQualifiedName~Hex1bTerminalBuilderTests"
           --report-trx --results-directory artifacts/pty
       - uses: actions/upload-artifact@v6
         if: always()

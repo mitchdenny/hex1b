@@ -697,15 +697,13 @@ public class Hex1bTerminalBuilderTests
     [TestMethod]
     public async Task WithProcess_ProcessStartInfo_ExecutesProcess()
     {
-        // Inline C# echo script
-        const string script = """Console.WriteLine(string.Join(" ", args));""";
-        
-        using var workspace = TestWorkspace.Create("psi_exec");
-        var scriptFile = workspace.CreateCSharpProgram("echo.cs", script);
-        
-        var startInfo = new ProcessStartInfo("dotnet");
-        startInfo.ArgumentList.Add("run");
-        startInfo.ArgumentList.Add(scriptFile.FullName);
+        var startInfo = new ProcessStartInfo(OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/echo");
+        if (OperatingSystem.IsWindows())
+        {
+            startInfo.ArgumentList.Add("/d");
+            startInfo.ArgumentList.Add("/c");
+            startInfo.ArgumentList.Add("echo");
+        }
         startInfo.ArgumentList.Add("Hello");
         startInfo.ArgumentList.Add("from");
         startInfo.ArgumentList.Add("ProcessStartInfo");
@@ -733,19 +731,18 @@ public class Hex1bTerminalBuilderTests
     [TestMethod]
     public async Task WithProcess_ProcessStartInfo_PreservesWorkingDirectory()
     {
-        // Inline C# pwd script
-        const string script = """Console.WriteLine(Environment.CurrentDirectory);""";
-        
         using var workspace = TestWorkspace.Create("psi_workdir");
-        var scriptFile = workspace.CreateCSharpProgram("pwd.cs", script);
-        
-        var tempDir = Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar);
-        var startInfo = new ProcessStartInfo("dotnet")
+        var tempDir = workspace.BaseDirectory.FullName;
+        var startInfo = new ProcessStartInfo(OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/pwd")
         {
             WorkingDirectory = tempDir
         };
-        startInfo.ArgumentList.Add("run");
-        startInfo.ArgumentList.Add(scriptFile.FullName);
+        if (OperatingSystem.IsWindows())
+        {
+            startInfo.ArgumentList.Add("/d");
+            startInfo.ArgumentList.Add("/c");
+            startInfo.ArgumentList.Add("cd");
+        }
         
         var pattern = new CellPatternSearcher().Find(tempDir);
         
@@ -770,23 +767,16 @@ public class Hex1bTerminalBuilderTests
     [TestMethod]
     public async Task WithProcess_ProcessStartInfo_PreservesEnvironmentVariables()
     {
-        // Inline C# env script
-        const string script = """
-            if (args.Length > 0)
-            {
-                var value = Environment.GetEnvironmentVariable(args[0]);
-                if (value != null)
-                    Console.WriteLine(value);
-            }
-            """;
-        
-        using var workspace = TestWorkspace.Create("psi_env");
-        var scriptFile = workspace.CreateCSharpProgram("env.cs", script);
-        
-        var startInfo = new ProcessStartInfo("dotnet");
-        startInfo.ArgumentList.Add("run");
-        startInfo.ArgumentList.Add(scriptFile.FullName);
-        startInfo.ArgumentList.Add("MY_CUSTOM_VAR");
+        var startInfo = new ProcessStartInfo(OperatingSystem.IsWindows() ? "cmd.exe" : "/usr/bin/printenv");
+        if (OperatingSystem.IsWindows())
+        {
+            startInfo.ArgumentList.Add("/d");
+            startInfo.ArgumentList.Add("/c");
+            startInfo.ArgumentList.Add("echo");
+            startInfo.ArgumentList.Add("%MY_CUSTOM_VAR%");
+        }
+        else
+            startInfo.ArgumentList.Add("MY_CUSTOM_VAR");
         startInfo.Environment["MY_CUSTOM_VAR"] = "TestValue12345";
         
         var pattern = new CellPatternSearcher().Find("TestValue12345");
