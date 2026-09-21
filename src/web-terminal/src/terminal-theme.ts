@@ -29,6 +29,8 @@ export const terminalThemeCss = `
   @media (prefers-color-scheme: dark) { :host { ${dark} } }
   :host-context([data-theme="light"]) { ${light} }
   :host-context([data-theme="dark"]) { ${dark} }
+  :host([data-theme="light"]) { ${light} }
+  :host([data-theme="dark"]) { ${dark} }
   .viewport {
     ${Object.entries(scrollbarColors).map(([name, value]) =>
       `--cp-view-scrollbar-${name}: var(--cp-scrollbar-${name}, ${value});`).join("\n")}

@@ -2,6 +2,7 @@ import {
   WebTerminal, getCmdlineUrl, type WebTerminalOptions, type TerminalScrollbarTooltipRenderer
 } from "@hex1b/web-terminal";
 import { customScrollbarTooltip } from "./scrollbar-renderer.js";
+import { followTerminalAppearance, forgetTerminalAppearance, terminalAppearance } from "./appearance.js";
 
 /** A host-owned portal: its connection and DOM share the tooltip rendering's lifetime. */
 export function createTerminalPreviewTooltip(options: {
@@ -63,6 +64,7 @@ export function createTerminalPreviewTooltip(options: {
       card.dataset.state = "error";
       status.setAttribute("role", "alert");
       status.textContent = `Preview unavailable: ${error instanceof Error ? error.message : String(error)}`;
+      forgetTerminalAppearance(preview);
       preview?.dispose();
     };
     const position = () => {
@@ -98,6 +100,7 @@ export function createTerminalPreviewTooltip(options: {
         url.searchParams.set("view", crypto.randomUUID());
         url.searchParams.delete("failure");
         preview = await WebTerminal.mount(mount, {
+          ...terminalAppearance(),
           url, signal: context.signal, renderer: options.renderer, font: options.font,
           readOnly: true, scrollbar: false, links: false, padding: 0,
           label: "Read-only command output preview",
@@ -108,6 +111,7 @@ export function createTerminalPreviewTooltip(options: {
           preview.dispose();
           return;
         }
+        followTerminalAppearance(preview, context.signal);
         await preview.scrollToMarker(context.marker.id);
         if (context.signal.aborted || failed) return;
         card.dataset.state = "ready";

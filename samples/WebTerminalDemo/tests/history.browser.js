@@ -34,6 +34,33 @@ async page => {
     const value = window[name].selection;
     return value?.active && !value.pending && typeof value.text === "string";
   }, name);
+  const selectionPixels = async (foreground, background) => {
+    let counts;
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const png = await test.locator("#history-secondary .highlight").first().screenshot();
+      counts = await test.evaluate(async ({ png, foreground, background }) => {
+        const bitmap = await createImageBitmap(new Blob([new Uint8Array(png)], { type: "image/png" }));
+        const canvas = document.createElement("canvas");
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const context = canvas.getContext("2d");
+        context.drawImage(bitmap, 0, 0);
+        bitmap.close();
+        const bytes = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        const count = hex => {
+          const rgb = [1, 3, 5].map(offset => parseInt(hex.slice(offset, offset + 2), 16));
+          let result = 0;
+          for (let i = 0; i < bytes.length; i += 4)
+            if (rgb.every((channel, j) => bytes[i + j] === channel)) result++;
+          return result;
+        };
+        return { foreground: count(foreground), background: count(background), pixels: bytes.length / 4 };
+      }, { png: [...png], foreground, background });
+      if (counts.foreground > 0 && counts.background > counts.pixels / 2) return;
+      await test.waitForTimeout(100);
+    }
+    throw new Error(`Selection colors ${foreground}/${background} missing from compositor: ${JSON.stringify(counts)}`);
+  };
   try {
     await test.goto(`${origin}/health`);
     const created = await test.request.post(`${origin}/api/terminals`, {
@@ -99,8 +126,21 @@ async page => {
       const style = getComputedStyle(highlight);
       return bounds.width > 0 && bounds.height > 0 && bounds.left >= canvas.left &&
         bounds.right <= canvas.right + .1 && bounds.top >= canvas.top && bounds.bottom <= canvas.bottom + .1 &&
-        style.backgroundColor !== "rgba(0, 0, 0, 0)" && Number(style.opacity) > 0;
-    }), "Selection was not visibly highlighted when mounted without playground CSS");
+        style.backgroundColor === "rgba(0, 0, 0, 0)";
+    }), "Selection geometry is missing or still paints a DOM overlay");
+    await selectionPixels("#323232", "#d4d0c8");
+    await test.evaluate(() => historySecondary.setColorMode("light"));
+    await selectionPixels("#d4d0c8", "#323232");
+    check((await selection("historySecondary")).text === retained.text, "Changing mode cleared selection");
+    await test.evaluate(async () => {
+      const { defaultLightPalette } = await import("/web-terminal/index.js");
+      historySecondary.setPalette("light", {
+        ...defaultLightPalette, selectionForeground: "#112233", selectionBackground: "#eebb44"
+      });
+    });
+    await selectionPixels("#112233", "#eebb44");
+    await test.evaluate(() => historySecondary.setColorMode("dark"));
+    await selectionPixels("#323232", "#d4d0c8");
     check(await test.evaluate(() => clipboardWrites.length === 0), "Selection automatically overwrote the clipboard");
     await test.keyboard.press("Meta+c");
     await test.waitForFunction(text => clipboardWrites.at(-1) === text, retained.text);
@@ -296,7 +336,9 @@ async page => {
     await test.keyboard.press("Control+c");
     await shell("printf '__RIGHT_CLICK_DONE__\\n'", "__RIGHT_CLICK_DONE__");
     check(errors.length === 0, `Browser errors: ${errors.join("; ")}`);
-    return { passed: true, covered: ["late shared history", "independent viewports", "character selection",
+    return { passed: true, renderer: await test.evaluate(() => historySecondary.stats.renderer),
+      covered: ["late shared history", "independent viewports", "character selection",
+      "opaque palette selection pixels", "live light/dark and custom selection colors",
       "copy without clipboard side effects", "output while anchored", "held and released wheel", "edge autoscroll",
       "word selection and Shift extension", "triple-click logical-line drag", "rectangular soft-wrap copy", "wide and combining cells", "Ctrl+C passthrough",
       "Shift capture override", "latched gesture ownership", "read-only selection",

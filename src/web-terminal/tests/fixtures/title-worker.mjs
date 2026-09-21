@@ -1,6 +1,7 @@
 import { parentPort } from "node:worker_threads";
 import { setImmediate as nextTurn } from "node:timers/promises";
 import { TerminalRenderer } from "../../.build/renderer.js";
+import { foregroundColor } from "../../.build/terminal-palette.js";
 
 // Execute the real worker with only its transport, GPU, and animation clock doubled.
 const listeners = new Map();
@@ -10,6 +11,7 @@ let nextInterval = 0;
 let socket;
 let holdPresentation = false;
 let presentation;
+let renderedForeground;
 globalThis.self = {
   addEventListener(type, handler) { listeners.set(type, handler); },
   postMessage(message) { parentPort.postMessage({ type: "output", message }); },
@@ -36,7 +38,8 @@ const renderer = {
   resize() {},
   updateImages() {},
   prepareGlyphs() {},
-  render() {
+  render(cells, metadata, _blink, _links, palette) {
+    renderedForeground = cells[0] ? foregroundColor(cells[0], metadata, palette) : undefined;
     if (holdPresentation) presentation = Promise.withResolvers();
     return { cpuMs: 0, quads: 1, drawCalls: 1 };
   },
@@ -78,6 +81,7 @@ parentPort.on("message", ({ id, action, message, buffer, details }) => {
         break;
     }
     await nextTurn();
-    parentPort.postMessage({ type: "done", id });
+    parentPort.postMessage({ type: "done", id,
+      ...(action === "renderedForeground" ? { result: renderedForeground } : {}) });
   }).catch(error => parentPort.postMessage({ type: "failure", id, error: error.stack }));
 });

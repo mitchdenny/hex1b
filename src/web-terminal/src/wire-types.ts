@@ -3,6 +3,7 @@ import type { InputModifiers, PointerButton, SelectionMode, SelectionRange, Term
   TerminalRendererPreference, TerminalStatusLevel, TerminalProgress, TerminalShellIntegration,
   TerminalWorkingDirectory, TerminalCommandMark, TerminalCloseDetails } from "./types.js";
 import type { LinkDetectionSnapshot } from "./link-detection.js";
+import type { TerminalPalette } from "./terminal-palette.js";
 import type { MarkerResult, TerminalMarker } from "./scrollbar-types.js";
 
 export type SelectionText =
@@ -40,6 +41,8 @@ export interface ImagePlacement {
 }
 export interface FrameMetadata extends TerminalGeometry {
   version: 1; full: boolean; revision: number; baseRevision: number;
+  colorEncodings?: string[];
+  colorEncoding?: "indexed-v1" | null;
   peer: TerminalPeer; history: HistoryMetadata | null;
   title: string;
   progress: TerminalProgress;
@@ -63,6 +66,7 @@ export type InputCommand =
   | { type: "key"; key: string; ctrl: boolean; alt: boolean; shift: boolean }
   | MouseCommand;
 export type TerminalCommand = InputCommand
+  | { type: "colorEncoding"; value: "indexed-v1" }
   | { type: "viewport"; requestId: number; delta?: number; live?: boolean;
       top?: number; generation?: string; originRowId?: string; originTop?: number;
       extend?: { row: number; column: number } }
@@ -77,7 +81,8 @@ export type TerminalCommand = InputCommand
   | { type: "ack"; revision: number };
 export type WorkerInputMessage =
   | { type: "init"; canvas: OffscreenCanvas; url: string; scale: number; font: TerminalFont;
-      renderer: TerminalRendererPreference }
+      renderer: TerminalRendererPreference; palette?: TerminalPalette }
+  | { type: "palette"; palette: TerminalPalette }
   | ({ type: "viewport" } & TerminalSize)
   | { type: "linkDetection"; enabled: boolean; generation: number }
   | { type: "linkDecorations"; revision: number; generation: number; serial: number;

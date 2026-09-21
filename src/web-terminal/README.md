@@ -51,6 +51,101 @@ terminal.focus();
 or disposes a mounted view. Disposal removes only the appended element and its
 connection, not the container or server-side shared terminal.
 
+### Light and dark terminal palettes
+
+Supply JSON-compatible palettes independently for light and dark mode. Palette names
+are not required: hosts own their presets and may derive terminal-specific colors
+from their design system. Colors must be opaque `#RRGGBB` strings.
+
+```ts
+import { WebTerminal, defaultDarkPalette, defaultLightPalette } from "@hex1b/web-terminal";
+
+const container = document.getElementById("terminal");
+if (!container) throw new Error("Missing terminal container");
+const terminal = await WebTerminal.mount(container, {
+  url: "/ws/terminal",
+  colorMode: "system", // "light", "dark", or the browser's prefers-color-scheme.
+  lightModePalette: { ...defaultLightPalette, background: "#fafafa" },
+  darkModePalette: { ...defaultDarkPalette, background: "#202020" },
+});
+
+// A host such as a dashboard can drive the mode instead of following the OS.
+terminal.setColorMode("light");
+terminal.setPalette("dark", { ...defaultDarkPalette, foreground: "#eeeeee" });
+```
+
+`TerminalPalette` requires `foreground`, `background`, and `ansi` (exactly 16
+colors: black, red, green, yellow, blue, magenta, cyan, white, then their bright
+variants). Optional `cursor` overrides the cursor tint. `selectionForeground`
+and `selectionBackground` control selected text and its opaque background;
+when omitted, they default to the palette's background and foreground,
+respectively. Optional `extended`
+maps indices 16–255 to custom colors. Unspecified extended entries use the xterm
+216-color cube and gray ramp. Palettes are validated and copied on assignment.
+
+Dark mode is the default. Omitting the palette options selects **Hex1b Dark**
+and **Hex1b Light**, exported as `defaultDarkPalette` and `defaultLightPalette`.
+These are the package's only built-in palettes. The
+`colorMode` and `resolvedColorMode` getters expose the requested and effective
+modes. Changing the active palette or mode repaints existing cells without
+reconnecting, sending application input, resizing, or clearing selection.
+Previously captured scrollback retains its color references and uses the active
+palette when viewed. Explicit RGB colors and image pixels are not remapped.
+Reverse and dim apply after color resolution; bold uses the bold font, not an
+automatic bright-color substitution.
+
+Selection is rendered by both GPU backends using the active palette, including
+over explicit RGB text and image placements. It swaps the terminal's default
+colors, not each cell's colors. Selected text decorations use the selection
+foreground; colored emoji retain their colors and concealed text stays hidden.
+Changing palettes recolors an existing selection without changing its text or
+range. This replaces the translucent UI-accent overlay; selection colors no
+longer depend on the embedding page's `--cp-accent`.
+
+The client opts into `indexed-v1` colors only after the matching HWT server
+advertises support, then receives a full reference-colored frame. Older clients
+continue receiving resolved RGBA; this client can still display older RGBA
+frames, but cannot recolor their already-resolved text. The wire extension uses
+the existing cell color fields, not extra per-cell JSON. This spike does not add
+application-driven OSC palette mutation or change server color-query responses.
+Use matching client/server builds for the palette feature.
+
+#### Hex1b's default color pair
+
+The defaults adapt Chris Kempson's **Tomorrow Night Eighties**, not Ghostty's
+Tomorrow Night-like palette. They use a neutral-charcoal/warm-stone pair,
+with the default foreground and background exchanged between modes:
+
+| Mode | Background | Foreground |
+|---|---|---|
+| Hex1b Dark | `#323232` | `#d4d0c8` |
+| Hex1b Light | `#d4d0c8` | `#323232` |
+
+The named chromatic slots are retuned in **OKLCH**, rather than RGB-inverted.
+Starting from Eighties red, green, yellow, blue, purple, and aqua, the hue
+adjustments are respectively -4, -7, +4, -5, -7, and +4 degrees. Dark-mode normal
+slots use 81% of the original chroma and bright slots 89%; light mode uses 95%
+and 100% for richer accents. Chroma is reduced when necessary to stay in the
+sRGB gamut. Lightness is solved independently for each background: dark mode
+targets approximately **5.2:1** normal and **6.3:1** bright contrast; light mode
+targets **4.6:1** and **5.2:1**, allowing lighter colors that remain readable.
+The resulting rounded hex values are shipped as constants; no color
+conversion or palette-generation dependency runs in the browser.
+
+This preserves each slot's hue across modes while softening Eighties' stronger
+accents. Default text contrast is **8.34:1** in both modes (original Eighties:
+approximately 8.58:1). Bright chromatic slots are *darker* in light mode, giving
+them more emphasis rather than washing them out. Bright black is a readable
+mid-gray in each mode; the remaining ANSI black/white slots retain their
+conventional neutral roles for applications that explicitly choose them.
+
+These contrast targets apply to opaque, non-dim chromatic text against the
+default background, not every foreground/background combination, selection,
+image overlay, or explicit RGB color.
+
+The npm package and `dist/` include Hex1b's `LICENSE`. Preserve it and the bundled
+font license when vendoring.
+
 ### Connection closure and workload completion
 
 Use `onClose(details)` to observe the browser's actual WebSocket close event.
@@ -1360,7 +1455,9 @@ cancel the default UI.
 
 Inspection UI inherits the embedding page's `--cp-*` theme tokens and otherwise
 uses its own light/dark defaults. Shadow parts include `selection-highlights`,
-`selection-highlight`, and `selection-copy-button`.
+`selection-highlight`, and `selection-copy-button`. The first two retain
+transparent geometry for host adornments; use the terminal palette to control
+the rendered selection colors rather than CSS background/opacity on those parts.
 
 ## Fonts and licenses
 

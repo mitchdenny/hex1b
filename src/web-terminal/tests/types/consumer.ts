@@ -5,6 +5,7 @@ import {
   type TerminalRendererKind, type TerminalRendererPreference, type TerminalProgress,
   type TerminalShellIntegration, type TerminalCloseDetails
 } from "@hex1b/web-terminal";
+import { defaultDarkPalette, defaultLightPalette, type TerminalPalette, type TerminalColorMode } from "@hex1b/web-terminal";
 import {
   createDefaultScrollbarRenderer, renderDefaultScrollbarTooltip,
   type TerminalScrollbarAppearance, type TerminalScrollbarTooltipContext, type TerminalScrollbarTooltipRenderer
@@ -34,6 +35,9 @@ const maximumFontSize: 32 = MAX_FONT_SIZE;
 console.log(minimumFontSize, maximumFontSize);
 const bindings: InputBinding[] = defaultInputBindings();
 const options: WebTerminalOptions = {
+  colorMode: "system",
+  lightModePalette: defaultLightPalette,
+  darkModePalette: { ...defaultDarkPalette, selectionForeground: "#ffffff", selectionBackground: "#334455" },
   url: new URL("wss://example.test/terminal"),
   workerUrl: new URL("/web-terminal/index.js#hex1b-terminal-worker", "https://example.test"),
   linkDetectionWorkerUrl: "/web-terminal/index.js#hex1b-link-detection-worker",
@@ -71,6 +75,12 @@ const options: WebTerminalOptions = {
     { id: "inspect", match: input => input.type === "pointer" && input.button === "left", action: "inspect" }
   ],
   onInput(input, context) {
+    const palette: TerminalPalette = { ...defaultDarkPalette, extended: { 42: "#123456" } };
+    const mode: TerminalColorMode = context.terminal.colorMode;
+    context.terminal.setPalette("dark", palette);
+    context.terminal.setColorMode(mode);
+    // @ts-expect-error System is a mode selector, not a palette slot.
+    context.terminal.setPalette("system", palette);
     if (input.type === "key") {
       const repeat: boolean = input.repeat;
       if (repeat) return InputRoute.Consume;

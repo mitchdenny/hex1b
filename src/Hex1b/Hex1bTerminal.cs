@@ -7427,9 +7427,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         else if (index < 232)
         {
             var i = index - 16;
-            var r = (i / 36) * 51;
-            var g = ((i / 6) % 6) * 51;
-            var b = (i % 6) * 51;
+            var r = i / 36;
+            var g = (i / 6) % 6;
+            var b = i % 6;
+            r = r == 0 ? 0 : 55 + r * 40;
+            g = g == 0 ? 0 : 55 + g * 40;
+            b = b == 0 ? 0 : 55 + b * 40;
             return Hex1bColor.FromIndexed((byte)index, (byte)r, (byte)g, (byte)b);
         }
         else

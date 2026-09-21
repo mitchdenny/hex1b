@@ -12,7 +12,7 @@ const read = path => readFileSync(new URL(path, root), "utf8");
 test("Package entry exposes only the supported runtime API", () => {
   assert.deepEqual(Object.keys(entry).sort(), [
     "InputRoute", "MAX_FONT_SIZE", "MIN_FONT_SIZE", "TerminalAction", "WebTerminal",
-    "createDefaultScrollbarRenderer", "defaultInputBindings",
+    "createDefaultScrollbarRenderer", "defaultDarkPalette", "defaultInputBindings", "defaultLightPalette",
     "getCmdlineUrl", "linkAction", "parseCommandMarkParameters", "renderDefaultScrollbar", "renderDefaultScrollbarTooltip"
   ]);
   assert.equal(entry.MIN_FONT_SIZE, 8);
@@ -34,7 +34,7 @@ test("Packed allowlist ships a complete, registry-neutral browser package", () =
   assert.deepEqual(Object.keys(manifest.exports), ["."]);
   const paths = new Set(packed.files.map(file => file.path));
   for (const file of ["package.json", "README.md", "LICENSE", "dist/index.js", "dist/index.d.ts",
-    "dist/index.js.map", "dist/web-terminal.d.ts", "dist/types.d.ts",
+    "dist/index.js.map", "dist/web-terminal.d.ts", "dist/types.d.ts", "dist/LICENSE",
     "dist/scrollbar-types.d.ts", "dist/scrollbar-appearance.d.ts",
     "dist/fonts/cascadia-mono-nf/CascadiaMonoNF.woff2",
     "dist/fonts/cascadia-mono-nf/LICENSE.txt", "dist/fonts/cascadia-mono-nf/README.md"]) {
@@ -58,6 +58,7 @@ test("Packed allowlist ships a complete, registry-neutral browser package", () =
     }
   }
   assert.match(read("LICENSE"), /MIT License/u);
+  assert.equal(paths.has("dist/THIRD-PARTY-NOTICES.txt"), false);
 });
 
 test("Both workers and the default font resolve relative to the single bundle", () => {

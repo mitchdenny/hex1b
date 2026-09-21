@@ -1,6 +1,7 @@
 import { WebTerminal, MIN_FONT_SIZE, MAX_FONT_SIZE, getCmdlineUrl, linkAction, type TerminalCloseDetails, type TerminalScrollbar, type TerminalPadding, type TerminalScrollbarTooltipRenderer } from "@hex1b/web-terminal";
 import { NativeScrollbar } from "./native-scrollbar.js";
 import { createTerminalPreviewTooltip } from "./terminal-preview.js";
+import { followTerminalAppearance, forgetTerminalAppearance, initializeAppearanceControls, terminalAppearance } from "./appearance.js";
 import {
   customCanvasScrollbar, customScrollbarTooltip, softFadeScrollbar, styledDefaultScrollbar
 } from "./scrollbar-renderer.js";
@@ -106,6 +107,7 @@ const gridPresets = ["80x24", "80x25", "100x30", "120x40", "132x43", "160x50", "
 window.webTerminalViews = views;
 window.webTerminalStats = {};
 window.webTerminalScreenText = "";
+initializeAppearanceControls();
 
 function report(message: string, level = "info") {
   byId("status").textContent = message;
@@ -503,6 +505,7 @@ function showClosure(view: TerminalView, closure: ViewClosure) {
   updateViewControls(view);
   view.nativeScrollbar?.dispose();
   view.nativeScrollbar = undefined;
+  forgetTerminalAppearance(view.terminal);
   view.terminal?.dispose();
   if (hadTerminalFocus) {
     elementAt(view.element, closure.reconnect ? ".reconnect-view" : ".dismiss-view", HTMLButtonElement)
@@ -945,6 +948,7 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
     const font = select("font").value === "monospace" ? { family: "monospace" } : undefined;
     view.previewTooltip = createTerminalPreviewTooltip({ url, terminal: () => view.terminal, renderer, font });
     const terminal = await WebTerminal.mount(elementAt(element, ".terminal-mount", HTMLElement), {
+      ...terminalAppearance(),
       url, signal: controller.signal,
       renderer,
       scrollbar: viewScrollbar(view),
@@ -1071,6 +1075,7 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
       return;
     }
     view.phase = "connected";
+    followTerminalAppearance(terminal, controller.signal);
     element.dataset.phase = "connected";
     updateScrollbar(view);
     updateViewControls(view);

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Hex1b;
 
 internal sealed record Hwt1FrameMetadata(
@@ -8,4 +10,8 @@ internal sealed record Hwt1FrameMetadata(
     Hwt1FrameStatistics Stats, List<string> Warnings, Hwt1Peer Peer, Hwt1History? History,
     List<Hwt1Hyperlink> Hyperlinks, string Title,
     Hwt1Progress Progress, Hwt1ShellIntegration ShellIntegration, Hwt1WorkingDirectory WorkingDirectory,
-    Hwt1CommandMark? CommandMark);
+    Hwt1CommandMark? CommandMark,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ColorEncoding = null)
+{
+    public string[] ColorEncodings { get; } = ["indexed-v1"];
+}

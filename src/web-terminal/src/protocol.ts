@@ -1,6 +1,7 @@
 import type { FrameMetadata, HistoryMetadata, SelectionText, TerminalCell, TerminalFrame } from "./wire-types.js";
 import { isRecord } from "./validation.js";
 import { validateMarkerId } from "./marker-state.js";
+import { validateColorReference } from "./terminal-palette.js";
 
 // Binary validation is deliberately independent of the GPU and the transport.
 export const LIMITS = Object.freeze({
@@ -157,6 +158,13 @@ function validateMetadata(metadata: unknown): asserts metadata is FrameMetadata 
   }
   integer(metadata.revision, "revision", 1);
   integer(metadata.baseRevision, "base revision");
+  if (metadata.colorEncoding !== undefined && metadata.colorEncoding !== null &&
+      metadata.colorEncoding !== "indexed-v1") throw new Error("Unsupported color encoding");
+  if (metadata.colorEncodings !== undefined) {
+    array(metadata.colorEncodings, "color encodings", 16);
+    if (metadata.colorEncodings.some(value => typeof value !== "string" || value.length > 64))
+      throw new Error("Invalid color encodings");
+  }
   if (typeof metadata.title !== "string" || metadata.title.length > LIMITS.titleUnits ||
       /[\u0000-\u001f\u007f-\u009f\ud800-\udfff]/u.test(metadata.title)) {
     throw new Error("Invalid terminal title");
@@ -315,6 +323,11 @@ export function decodeFrame(buffer: unknown): TerminalFrame {
     const foreground = u32();
     const background = u32();
     const underlineColor = u32();
+    if (metadata.colorEncoding === "indexed-v1") {
+      validateColorReference(foreground);
+      validateColorReference(background);
+      validateColorReference(underlineColor, true);
+    }
     const attributes = view.getUint16(offset, true);
     const width = view.getUint8(offset + 2);
     const underlineStyle = view.getUint8(offset + 3);
