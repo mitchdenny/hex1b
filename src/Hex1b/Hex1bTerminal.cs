@@ -1414,8 +1414,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Notify workload filters with tokens
                 await NotifyWorkloadFiltersOutputAsync(tokens);
                 
-                // Apply tokens to our internal buffer and collect cell impacts
-                var appliedTokens = ApplyTokensWithImpacts(tokens, framedDcs);
+                // HWT reads snapshots, but filters and captures still need applied tokens.
+                var appliedTokens = ApplyTokensWithImpacts(tokens, framedDcs,
+                    collectImpacts: PresentationRequiresAppliedTokens);
                 if (_disposed)
                     continue;
                 
@@ -3046,8 +3047,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         PresentationInvalidated?.Invoke();
     }
 
+    // Active captures are checked separately under the buffer lock during application.
+    private bool PresentationRequiresAppliedTokens =>
+        _presentation is not Hwt1PresentationAdapter || _presentationFilters.Count != 0;
+
     /// <summary>
-    /// Applies a list of ANSI tokens to the screen buffer and captures the impact of each token.
+    /// Applies a list of ANSI tokens to the screen buffer and optionally captures each token's impact.
     /// </summary>
     /// <remarks>
     /// This method tracks which cells were modified by each token and captures cursor movement.
@@ -3056,10 +3061,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </remarks>
     /// <param name="tokens">The tokens to apply.</param>
     /// <param name="framedDcs">Structured DCS frames already parsed from raw bytes.</param>
-    /// <returns>A list of applied tokens with their cell impacts and cursor state changes.</returns>
+    /// <param name="collectImpacts">Whether to collect impacts. Active captures always collect impacts.</param>
+    /// <returns>Applied tokens with impacts and cursor changes, or an empty list when collection is disabled.</returns>
     internal IReadOnlyList<AppliedToken> ApplyTokensWithImpacts(
         IReadOnlyList<AnsiToken> tokens,
-        IReadOnlyDictionary<DcsToken, DcsFrame>? framedDcs = null)
+        IReadOnlyDictionary<DcsToken, DcsFrame>? framedDcs = null,
+        bool collectImpacts = true)
     {
         lock (_bufferLock)
         {
@@ -3067,7 +3074,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 return [];
 
             using var application = new CaptureApplication(this);
-            var result = new List<AppliedToken>(tokens.Count);
+            collectImpacts |= _captures is not null;
+            var result = new List<AppliedToken>(collectImpacts ? tokens.Count : 0);
             
             foreach (var token in tokens)
             {
@@ -3077,8 +3085,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 int cursorXBefore = _cursorX;
                 int cursorYBefore = _cursorY;
                 
-                var impacts = new List<CellImpact>();
-                var graphicsImpacts = new List<TerminalGraphicsImpact>();
+                var impacts = collectImpacts ? new List<CellImpact>() : null;
+                var graphicsImpacts = collectImpacts ? new List<TerminalGraphicsImpact>() : null;
                 _currentGraphicsImpacts = graphicsImpacts;
                 bool applied;
                 try
@@ -3098,14 +3106,17 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     break;
                 }
                 
-                result.Add(new AppliedToken(
-                    token,
-                    impacts,
-                    cursorXBefore, cursorYBefore,
-                    _cursorX, _cursorY)
+                if (impacts is not null && graphicsImpacts is not null)
                 {
-                    GraphicsImpacts = graphicsImpacts
-                });
+                    result.Add(new AppliedToken(
+                        token,
+                        impacts,
+                        cursorXBefore, cursorYBefore,
+                        _cursorX, _cursorY)
+                    {
+                        GraphicsImpacts = graphicsImpacts
+                    });
+                }
             }
 
             CollectExpiredTextAnchors();
