@@ -1,4 +1,6 @@
 import type { TerminalLinkOptions, TerminalLinkDetectionError } from "./link-types.js";
+import type { TerminalColorMode, TerminalPalette } from "./terminal-palette.js";
+export type { TerminalColorMode, TerminalPalette } from "./terminal-palette.js";
 import type { TerminalLayout, TerminalMarker, TerminalMarkerOptions, TerminalPadding, TerminalInsets,
   TerminalScrollbar, TerminalScrollbarConfiguration } from "./scrollbar-types.js";
 export type * from "./link-types.js";
@@ -205,6 +207,10 @@ export interface TerminalCommandMark {
 }
 export interface WebTerminalOptions extends InputPolicyOptions {
   url: string | URL;
+  /** Local terminal palette selection. Defaults to dark; system follows prefers-color-scheme. */
+  colorMode?: TerminalColorMode;
+  lightModePalette?: TerminalPalette;
+  darkModePalette?: TerminalPalette;
   /** Canvas2D scrollbar: overlay auto-hides (default); beside stays visible. False enables host-owned chrome. */
   scrollbar?: TerminalScrollbar;
   /** Outer CSS-pixel padding around the content and scrollbar. Defaults to zero. */
@@ -285,6 +291,12 @@ export interface WebTerminalOptions extends InputPolicyOptions {
 /** Owns only the appended element and browser connection, not the server terminal. */
 export interface WebTerminalHandle {
   readonly element: HTMLDivElement;
+  readonly colorMode: TerminalColorMode;
+  readonly resolvedColorMode: "light" | "dark";
+  /** Recolors retained indexed/default text without reconnecting or changing explicit RGB colors. */
+  setColorMode(mode: TerminalColorMode): void;
+  /** Replaces one mode's palette. The active mode repaints immediately. */
+  setPalette(mode: "light" | "dark", palette: TerminalPalette): void;
   readonly geometry: TerminalGeometry;
   readonly peer: TerminalPeer;
   readonly connected: boolean;

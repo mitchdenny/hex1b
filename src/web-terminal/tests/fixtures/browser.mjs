@@ -17,7 +17,7 @@ export class Target {
 }
 
 export class Element extends Target {
-  style = {};
+  style = { setProperty(name, value) { this[name] = value; } };
   dataset = {};
   attributes = new Map();
   children = [];
@@ -91,7 +91,7 @@ class WorkerBridge extends Target {
         if (!pending) return;
         this.pending.delete(envelope.id);
         if (envelope.type === "failure") pending.reject(new Error(envelope.error));
-        else pending.resolve();
+        else pending.resolve(envelope.result);
       }
     });
     this.worker.on("error", error => {
@@ -184,6 +184,9 @@ export function frame({ title = "", revision = 1, full = revision === 1, baseRev
   let offset = 12 + json.length;
   for (const cell of encodedCells) {
     view.setUint32(offset, cell.index, true);
+    view.setUint32(offset + 4, cell.foreground ?? 0, true);
+    view.setUint32(offset + 8, cell.background ?? 0, true);
+    view.setUint32(offset + 12, cell.underlineColor ?? 0, true);
     view.setUint16(offset + 16, cell.attributes ?? 0, true);
     view.setUint8(offset + 18, cell.width ?? 1);
     view.setUint8(offset + 19, cell.underlineStyle ?? 0);

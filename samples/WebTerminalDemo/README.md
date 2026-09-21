@@ -75,6 +75,70 @@ Selections are invalidated by resize. Generated text/graphics scenes retain
 crop behavior. The library's adapter defaults have not changed: consumers must
 [opt in on their producer](../../docs/web-terminal.md#shell-reflow-configuration).
 
+## Try light/dark terminal palettes
+
+The always-visible **Color mode**, **Light palette**, and **Dark palette** controls
+update every current view and subsequent mount, including command previews.
+**System** follows your browser's preferred color scheme. Each mode retains its
+own palette selection for the lifetime of the page; choosing an inactive mode's
+palette does not switch the current mode. The demo's `--cp-*` CSS tokens separately
+theme the surrounding page chrome. Changes do not recreate sessions or send
+terminal input. `?scoutTheme=light` or `?scoutTheme=dark` sets the initial mode.
+
+Both selectors start with **Hex1b Light / Hex1b Dark**, the library defaults.
+The pair adapts Tomorrow Night Eighties: neutral charcoal and warm stone exchange
+foreground/background roles, while OKLCH-adjusted ANSI colors keep the same hues
+and controlled text contrast in each mode. No palette options are needed to get
+this behavior when mounting the library directly.
+
+Additional comparison presets live in the demo's
+[client/palettes.ts](client/palettes.ts), not the library:
+
+- **Ghostty-compatible dark**: a muted, classic dark terminal palette.
+- **Campbell dark**: the familiar Windows terminal ANSI colors.
+- **Fluent-inspired light/dark (experimental)**: neutral surfaces and blue accents
+  inspired by Fluent and Aspire dashboard styling. These are exploratory demo
+  palettes, **not official Fluent or Aspire themes**.
+- **Hex1b Light / Hex1b Dark**: the package's two exported default palettes.
+
+Upstream notices for the comparison presets are retained in
+[wwwroot/THIRD-PARTY-NOTICES.txt](wwwroot/THIRD-PARTY-NOTICES.txt).
+The copied library assets carry Hex1b's license and the bundled font license.
+
+Each preset is an ordinary JSON-compatible `TerminalPalette` object supplied by
+the consumer. Colors are `#RRGGBB`; `ansi` has exactly 16 entries in ANSI order:
+black, red, green, yellow, blue, magenta, cyan, white, then the same eight bright
+colors. `foreground` and `background` are required; `cursor`,
+`selectionBackground`, and `extended` (indexed colors 16–255) are optional.
+You can copy a preset object or load the same shape from your application's JSON.
+The library does not know the demo's preset names.
+
+At mount time the host supplies `colorMode`, `lightModePalette`, and
+`darkModePalette`. Live changes call `terminal.setColorMode("light")` or
+`terminal.setPalette("dark", palette)`. See
+[client/appearance.ts](client/appearance.ts) for the shared demo wiring, including
+applying the latest choices to mounts that finish asynchronously.
+
+The ANSI swatches show the active palette, not server output. To compare actual
+indexed rendering with literal RGB output, paste this into an idle **Interactive
+shell** once, then use the appearance controls:
+
+```sh
+printf '\033[0mDefault colors\n\033[41m ANSI red \033[0m\n\033[48;2;18;58;188m Truecolor #123abc \033[0m\n'
+```
+
+Default and ANSI colors follow the selected palette. Explicit RGB text/background
+colors remain literal; switching palettes does not recolor application-chosen
+truecolor or image pixels.
+
+With the demo running, exercise the controls and real worker-rendered pixels:
+
+```sh
+playwright-cli -s=palettes open 'http://localhost:5290/?empty=1'
+playwright-cli -s=palettes run-code --filename samples/WebTerminalDemo/tests/palettes.browser.js
+playwright-cli -s=palettes close
+```
+
 ## Try local link previews
 
 Open <http://localhost:5290>, create an **Interactive shell** terminal, and choose
@@ -479,6 +543,7 @@ origin:
 |---|---|
 | `gpu.browser.js` | Real WebGPU readback of a native 3x3 sprite, framebuffer resizing, and retained image/glyph resources. |
 | `fonts.browser.js` | Real font-rendered borders at five raster scales, Nerd Font symbols, delayed worker font readiness, per-view font selection, and font-load failure cleanup. |
+| `palettes.browser.js` | Visible independent light/dark selectors, live and subsequent mounts, system preference, Ghostty SGR42 green, retained scrollback recoloring without text/row loss, no input/reconnect, and real ANSI/default versus unchanged truecolor pixels. |
 | `sizing.browser.js` | Auto font-size controls, fixed-grid presets, keyboard selection, resize authority, and retained sizing policy across primary handoff. |
 | `floating.browser.js` | Real workers/WebSockets/HMP1, dragging, primary-only resize, takeover, detach/reattach, and independent instances. |
 | `resize-handles.browser.js` | Eight-direction window resizing, proximity highlights, pointer capture/cancellation, size/origin limits, and primary versus secondary/fixed-grid sizing. |

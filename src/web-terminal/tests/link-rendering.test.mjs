@@ -19,7 +19,7 @@ function render(cellOverrides = {}, mask = new Uint8Array([1]), blink = true, pl
 test("Detected underlines use projected foreground without changing authored cells", () => {
   for (const attributes of [0, 2, 32, 34]) {
     const { lines, cell } = render({ attributes });
-    assert.deepEqual(lines, [{ type: "solid", args: [0, 18, 10, 1, [32 / 255, 64 / 255, 128 / 255, 1]] }]);
+    assert.deepEqual(lines, [{ type: "solid", args: [0, 18, 10, 1, [32 / 255, 64 / 255, 128 / 255, 1], undefined] }]);
     assert.equal(cell.attributes, attributes);
     assert.equal(cell.underlineStyle, 0);
     assert.equal(cell.underlineColor, 0xff123456);
@@ -44,8 +44,8 @@ test("Dashed detected underlines use the shared dashed primitive and projected f
   const { lines, cell } = render({}, new Uint8Array([5]));
   const color = [32 / 255, 64 / 255, 128 / 255, 1];
   assert.deepEqual(lines, [
-    { type: "solid", args: [0, 18, 3, 1, color] },
-    { type: "solid", args: [5, 18, 3, 1, color] }
+    { type: "solid", args: [0, 18, 3, 1, color, undefined] },
+    { type: "solid", args: [5, 18, 3, 1, color, undefined] }
   ]);
   assert.equal(cell.underlineStyle, 0);
   for (const hidden of [{ attributes: 64 }, { width: 0 }, { text: "\u{10eeee}" }])

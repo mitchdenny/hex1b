@@ -3,6 +3,8 @@ import { defaultWorkerUrl } from "./worker-url.js";
 import { randomId } from "./random-id.js";
 import { normalizeFont } from "./terminal-font.js";
 import { normalizeRenderer } from "./renderer-options.js";
+import { defaultDarkPalette, defaultLightPalette, normalizeColorMode, normalizePalette } from "./terminal-palette.js";
+import type { TerminalColorMode, TerminalPalette } from "./terminal-palette.js";
 import { dimensions, normalizeSizing, requestedGrid } from "./terminal-sizing.js";
 import { HistoryState } from "./history-state.js";
 import { MarkerState } from "./marker-state.js";
@@ -44,6 +46,12 @@ export class WebTerminal implements WebTerminalHandle {
   readonly element: HTMLDivElement;
   #options: WebTerminalOptions;
   #renderer: TerminalRendererPreference;
+  #colorMode: TerminalColorMode;
+  #palettes: { light: TerminalPalette; dark: TerminalPalette };
+  #colorScheme: MediaQueryList | undefined;
+  #systemColorChanged = () => {
+    if (!this.#disposed && this.#colorMode === "system") this.#applyPalette();
+  };
   // DOM and worker fields are initialized by mount before a handle is returned.
   #worker!: Worker;
   #surface!: HTMLDivElement;
@@ -140,6 +148,11 @@ export class WebTerminal implements WebTerminalHandle {
       throw new TypeError("readOnly must be a boolean");
     this.#readOnly = options.readOnly ?? false;
     this.#renderer = normalizeRenderer(options.renderer);
+    this.#colorMode = normalizeColorMode(options.colorMode);
+    this.#palettes = {
+      light: normalizePalette(options.lightModePalette === undefined ? defaultLightPalette : options.lightModePalette),
+      dark: normalizePalette(options.darkModePalette === undefined ? defaultDarkPalette : options.darkModePalette),
+    };
     this.#padding = normalizePadding(options.padding);
     this.#scrollbar = normalizeScrollbar(options.scrollbar);
     this.#layout = terminalLayout(this.#size, this.#geometry, false, this.#sizing, this.#padding, this.#scrollbar);
@@ -234,7 +247,7 @@ export class WebTerminal implements WebTerminalHandle {
         .scrollbar-accessibility { position: absolute; pointer-events: none; outline: none; }
         .scrollbar-accessibility:focus-visible:not([data-pointer-active="true"]) { outline: 2px solid var(--cp-view-scrollbar-thumb); outline-offset: -2px; }
         .highlights { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-        .highlight { position: absolute; background: var(--cp-view-accent); opacity: .3; }
+        .highlight { position: absolute; }
         .selection-ui-slot { position: absolute; inset: 0; display: block; pointer-events: none; font: 11px/1.4 var(--cp-view-font-family); color: var(--cp-view-text); }
         .inspection { position: absolute; right: 4px; bottom: 4px; left: 4px; display: flex; flex-wrap: wrap; gap: 4px; justify-content: end; align-items: center; pointer-events: none; font: 11px/1.4 var(--cp-view-font-family); }
         .inspection [hidden] { display: none; }
@@ -382,8 +395,11 @@ export class WebTerminal implements WebTerminalHandle {
     });
     this.#worker.addEventListener("messageerror", () => this.#fail(new Error("Terminal worker message could not be decoded")));
     const canvas = this.#canvas.transferControlToOffscreen();
+    this.#colorScheme = window.matchMedia?.("(prefers-color-scheme: dark)");
+    this.#colorScheme?.addEventListener("change", this.#systemColorChanged);
     this.#post({ type: "init", canvas, url: url.href, scale, font,
-      renderer: this.#renderer }, [canvas]);
+      renderer: this.#renderer, palette: this.#palettes[this.resolvedColorMode] }, [canvas]);
+    this.#applyPalette();
     this.#postLinkConfiguration();
   }
 
@@ -799,6 +815,33 @@ export class WebTerminal implements WebTerminalHandle {
     return text;
   }
 
+  get colorMode(): TerminalColorMode { return this.#colorMode; }
+  get resolvedColorMode(): "light" | "dark" {
+    return this.#colorMode === "system" ? (this.#colorScheme?.matches ? "dark" : "light") : this.#colorMode;
+  }
+
+  setColorMode(mode: TerminalColorMode): void {
+    if (this.#disposed) throw new Error("Terminal view is disposed");
+    if (mode === undefined) throw new TypeError("A color mode is required");
+    this.#colorMode = normalizeColorMode(mode);
+    this.#applyPalette();
+  }
+
+  setPalette(mode: "light" | "dark", palette: TerminalPalette): void {
+    if (this.#disposed) throw new Error("Terminal view is disposed");
+    if (mode !== "light" && mode !== "dark") throw new TypeError('Palette mode must be "light" or "dark"');
+    this.#palettes[mode] = normalizePalette(palette);
+    if (this.resolvedColorMode === mode) this.#applyPalette();
+  }
+
+  #applyPalette(): void {
+    const palette = this.#palettes[this.resolvedColorMode];
+    this.element.dataset.theme = this.resolvedColorMode;
+    this.element.style.colorScheme = this.resolvedColorMode;
+    this.element.style.backgroundColor = palette.background;
+    this.#post({ type: "palette", palette });
+  }
+
   /** Changes per-view input policy without reconnecting; server authorization remains host-owned. */
   setReadOnly(readOnly: boolean): void {
     if (typeof readOnly !== "boolean") throw new TypeError("readOnly must be a boolean");
@@ -1097,6 +1140,7 @@ export class WebTerminal implements WebTerminalHandle {
     clearTimeout(this.#readyTimer);
     clearTimeout(this.#compositionTimer);
     this.#observer?.disconnect();
+    this.#colorScheme?.removeEventListener("change", this.#systemColorChanged);
     this.#mouse?.dispose();
     this.#scrollbarController?.dispose();
     this.#scrollbarTooltip?.dispose();

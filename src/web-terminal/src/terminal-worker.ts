@@ -5,6 +5,7 @@ import { MarkerPages } from "./marker-pages.js";
 import type { TerminalSize, TerminalStatusLevel } from "./types.js";
 import type { FrameMetadata, TerminalCell, TerminalCommand, WorkerInputMessage, WorkerOutputMessage, WorkerStats } from "./wire-types.js";
 import { errorMessage } from "./validation.js";
+import { compilePalette, defaultDarkPalette, normalizePalette } from "./terminal-palette.js";
 
 // This module is only executed as a dedicated worker. Keeping its global local to
 // this module avoids leaking worker/WebGPU ambient dependencies to public declarations.
@@ -39,6 +40,8 @@ let viewport: TerminalSize | undefined;
 const links = new LinkPresentation();
 const markerPages = new MarkerPages();
 let awaitingFull = false;
+let requestedColorEncoding = false;
+let palette = compilePalette(defaultDarkPalette);
 const stats: WorkerStats = {
   revision: 0, fullFrames: 0, frames: 0, presentations: 0,
   changedCells: 0, lastChangedCells: 0, discardedFrames: 0,
@@ -109,7 +112,7 @@ async function drawFrame() {
     const linkSubmission = links.submission();
     renderer.resize(metadata.columns, metadata.rows, viewport);
     const blink = Math.floor(performance.now() / 600) % 2 === 0;
-    const result = renderer.render(cells, metadata, blink, linkSubmission.mask);
+    const result = renderer.render(cells, metadata, blink, linkSubmission.mask, palette);
     // This is bounded completion/backpressure, not GPU readback or a GPU timing measurement.
     await renderer.idle();
     if (failed || stopped) return;
@@ -173,8 +176,13 @@ async function receiveFrame(buffer: ArrayBuffer): Promise<void> {
   try {
     const frame = decodeFrame(buffer);
     const next = frame.metadata;
+    if (!requestedColorEncoding && next.colorEncodings?.includes("indexed-v1")) {
+      requestedColorEncoding = true;
+      send({ type: "colorEncoding", value: "indexed-v1" });
+    }
     if (!next.full && (awaitingFull || next.baseRevision !== localRevision || next.revision <= localRevision ||
-        !metadata || next.columns !== metadata.columns || next.rows !== metadata.rows)) {
+        !metadata || next.columns !== metadata.columns || next.rows !== metadata.rows ||
+        (next.colorEncoding ?? null) !== (metadata.colorEncoding ?? null))) {
       stats.discardedFrames++;
       frameInFlight = false;
       markerPages.reset();
@@ -227,6 +235,7 @@ async function receiveFrame(buffer: ArrayBuffer): Promise<void> {
 
 async function initialize(message: Extract<WorkerInputMessage, { type: "init" }>): Promise<void> {
   if (renderer || socket) throw new Error("Worker is already initialized");
+  palette = compilePalette(normalizePalette(message.palette === undefined ? defaultDarkPalette : message.palette));
   if (typeof self.requestAnimationFrame !== "function") {
     throw new Error("This browser does not support requestAnimationFrame in a dedicated OffscreenCanvas worker");
   }
@@ -316,6 +325,11 @@ self.addEventListener("message", event => {
     scheduleRender();
   } else if (message.type === "command" && !failed && !stopped) {
     send(message.command);
+  } else if (message.type === "palette" && !failed && !stopped) {
+    try {
+      palette = compilePalette(normalizePalette(message.palette));
+      scheduleRender();
+    } catch (error) { fail(error); }
   } else if (message.type === "linkDetection" && !failed && !stopped) {
     try {
       if (!links.configure(message.enabled, message.generation)) return;

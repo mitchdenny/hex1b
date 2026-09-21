@@ -89,6 +89,17 @@ async page => {
       await play("ansi-colors");
       await completed();
       await marker("Red Green Blue");
+
+      stage = "named color swatches";
+      check(shell.tapes.some(tape => tape.id === "named-colors"), "Named color tape is missing");
+      await play("named-colors");
+      await completed();
+      await test.waitForFunction(() => ["1", "2"].every(id => {
+        const lines = webTerminalViews.get(id).terminal.screenText.split("\n");
+        return ["Black", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White"].every(name =>
+          lines.some(line => new RegExp(`^${name}\\s+\\[ {10}\\] Sample\\s+Bright ${name}\\s+\\[ {10}\\] Sample\\s*$`).test(line)));
+      }));
+      await marker("Default foreground on default background.");
     }
 
     stage = "scene filtering and selection retention";

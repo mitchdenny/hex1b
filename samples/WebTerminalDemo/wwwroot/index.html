@@ -8,7 +8,8 @@
     (() => {
       const param = new URLSearchParams(window.location.search).get("scoutTheme");
       const theme =
-        param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        param === "light" || param === "dark" ? param
+          : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
@@ -72,6 +73,12 @@
     header p { margin: 0; color: var(--cp-text-muted); }
     .panel { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; padding: 12px; }
     .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+    .appearance-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
+    .appearance-controls select { max-width: 100%; }
+    .appearance-controls p { margin: 0; font-size: 12px; color: var(--cp-text-muted); }
+    #palette-swatches { display: flex; align-items: center; gap: 3px; padding: 6px 8px; border: 1px solid var(--cp-border); border-radius: 6px; font-size: 11px; }
+    #palette-swatches > :first-child { margin-right: 5px; }
+    .palette-swatch { width: 12px; height: 16px; border: 1px solid var(--cp-border-strong); }
     #terminal-controls > summary { color: var(--cp-text); font-weight: 600; }
     #terminal-controls > summary span { margin-left: 8px; color: var(--cp-text-muted); font-size: 12px; font-weight: 400; }
     #terminal-controls[open] > summary { margin-bottom: 12px; }
@@ -227,6 +234,19 @@
       <h1>WebTerminalDemo</h1>
       <p>HMP1 shared terminals · HWT1 GPU-rendered views · primary-owned geometry</p>
     </header>
+    <section class="panel appearance-controls" aria-label="Terminal appearance">
+      <label>Color mode
+        <select id="color-mode">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+      <label>Light palette <select id="light-palette"></select></label>
+      <label>Dark palette <select id="dark-palette"></select></label>
+      <div id="palette-swatches" role="group" aria-label="Active palette ANSI swatches"></div>
+      <p>All views · live, no reconnect. Fluent-inspired palettes are experimental, not official Fluent or Aspire themes.</p>
+    </section>
     <details id="terminal-controls" class="panel">
       <summary>Terminal controls <span>New terminal, attach, and scenario tapes</span></summary>
       <section class="controls" aria-label="Terminal controls">

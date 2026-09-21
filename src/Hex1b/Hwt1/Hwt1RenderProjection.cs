@@ -20,6 +20,7 @@ internal sealed class Hwt1RenderProjection
     private Hwt1RenderCell[] _previous = [];
     private int _columns;
     private int _rows;
+    private bool _indexedColors;
     public uint Revision { get; private set; }
     internal int KgpMaterializationCount { get; private set; }
     internal int RetainedImageCount => _images.Count;
@@ -34,14 +35,17 @@ internal sealed class Hwt1RenderProjection
 
     public byte[] Encode(Hex1bTerminalSnapshot snapshot, TerminalCapabilities capabilities,
         long workloadBytes, long outputBatches, double elapsedMs, bool forceFull = false,
-        double snapshotMs = 0, Hwt1Peer? peer = null, Hwt1History? history = null)
+        double snapshotMs = 0, Hwt1Peer? peer = null, Hwt1History? history = null,
+        bool indexedColors = false)
     {
         if (snapshot.Width is < 1 or > 1024 || snapshot.Height is < 1 or > 512 ||
             (long)snapshot.Width * snapshot.Height > 262144)
             throw new InvalidDataException("The authoritative grid exceeds the HWT1 receiver limits.");
 
         var started = Stopwatch.GetTimestamp();
-        var full = forceFull || _previous.Length == 0 || _columns != snapshot.Width || _rows != snapshot.Height;
+        var full = forceFull || _previous.Length == 0 || _columns != snapshot.Width || _rows != snapshot.Height ||
+            _indexedColors != indexedColors;
+        _indexedColors = indexedColors;
         var plannedImages = PreflightImages(snapshot, out var sixelKeys);
         TrimImages(plannedImages, full);
         var baseRevision = full ? 0 : Revision;
@@ -58,7 +62,7 @@ internal sealed class Hwt1RenderProjection
             for (var x = 0; x < _columns; x++)
             {
                 var index = y * _columns + x;
-                cells[index] = ProjectCell(snapshot, x, y, capabilities);
+                cells[index] = ProjectCell(snapshot, x, y, capabilities, indexedColors);
                 if (full || cells[index] != _previous[index])
                     changed.Add(index);
                 var source = snapshot.GetCell(x, y);
@@ -183,7 +187,8 @@ internal sealed class Hwt1RenderProjection
             warnings, peer ?? Hwt1Peer.Standalone, history, hyperlinks, snapshot.WindowTitle,
             Hwt1Progress.From(snapshot.Progress), Hwt1ShellIntegration.From(snapshot.ShellIntegration),
             Hwt1WorkingDirectory.From(snapshot.WorkingDirectory),
-            Hwt1CommandMark.From(snapshot.CommandMarks.Count > 0 ? snapshot.CommandMarks[^1] : null)),
+            Hwt1CommandMark.From(snapshot.CommandMarks.Count > 0 ? snapshot.CommandMarks[^1] : null),
+            indexedColors ? "indexed-v1" : null),
             Hwt1JsonSerializerContext.Default.Hwt1FrameMetadata);
         if (metadata.Length > 8 * 1024 * 1024)
             throw new InvalidDataException("Frame metadata exceeds the HWT1 8 MiB limit.");
@@ -215,7 +220,8 @@ internal sealed class Hwt1RenderProjection
         return stream.ToArray();
     }
 
-    private static Hwt1RenderCell ProjectCell(Hex1bTerminalSnapshot snapshot, int x, int y, TerminalCapabilities capabilities)
+    private static Hwt1RenderCell ProjectCell(Hex1bTerminalSnapshot snapshot, int x, int y,
+        TerminalCapabilities capabilities, bool indexedColors)
     {
         var cell = snapshot.GetCell(x, y);
         var text = cell.Character ?? " ";
@@ -232,6 +238,10 @@ internal sealed class Hwt1RenderProjection
         }
         if (text == "\0" || text == "\uE000")
             text = " ";
+        if (indexedColors)
+            return new(text, PackReference(cell.Foreground, 0x02000000),
+                PackReference(cell.Background, 0x03000000), PackReference(cell.UnderlineColor, 0x04000000),
+                (ushort)cell.Attributes, checked((byte)width), (byte)cell.UnderlineStyle);
         var fg = Pack(cell.Foreground, capabilities.DefaultForeground);
         var bg = Pack(cell.Background, capabilities.DefaultBackground);
         if (cell.IsReverse)
@@ -244,6 +254,14 @@ internal sealed class Hwt1RenderProjection
         return new(text, fg, bg, cell.UnderlineColor is { IsDefault: false } ul ? Pack(ul, 0) : fg,
             (ushort)cell.Attributes, checked((byte)width), (byte)cell.UnderlineStyle);
     }
+
+    private static uint PackReference(Hex1bColor? color, uint defaultReference)
+        => color is not { IsDefault: false } c ? defaultReference : c.Kind switch
+        {
+            Hex1bColorKind.Standard or Hex1bColorKind.Indexed => 0x01000000u | c.AnsiIndex,
+            Hex1bColorKind.Bright => 0x01000000u | (uint)(8 + c.AnsiIndex),
+            _ => Pack(c, 0)
+        };
 
     private static uint Pack(Hex1bColor? color, int fallback)
         => color is { IsDefault: false } c

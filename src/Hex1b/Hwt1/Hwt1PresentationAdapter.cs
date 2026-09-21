@@ -98,6 +98,7 @@ public sealed class Hwt1PresentationAdapter :
     private TaskCompletionSource? _ack;
     private uint _awaitedRevision;
     private int _forceFull = 1;
+    private bool _indexedColors;
     private int _reading;
     private int _disposed;
     private bool _isReadOnly;
@@ -330,7 +331,7 @@ public sealed class Hwt1PresentationAdapter :
                         };
                         var encoded = _projection.Encode(snapshot, Capabilities, terminal.OutputBytesRead,
                             Interlocked.Read(ref _outputBatches), Stopwatch.GetElapsedTime(_started).TotalMilliseconds,
-                            full && offset == 0, snapshotMs, peer, page);
+                            full && offset == 0, snapshotMs, peer, page, _indexedColors);
                         _markerFrames.Enqueue((encoded, _projection.Revision));
                     }
                     var first = _markerFrames.Dequeue();
@@ -341,7 +342,7 @@ public sealed class Hwt1PresentationAdapter :
                 {
                     bytes = _projection.Encode(snapshot, Capabilities, terminal.OutputBytesRead,
                         Interlocked.Read(ref _outputBatches), Stopwatch.GetElapsedTime(_started).TotalMilliseconds,
-                        full, snapshotMs, peer, history);
+                        full, snapshotMs, peer, history, _indexedColors);
                     PrepareAcknowledgement(_projection.Revision);
                 }
             }
@@ -369,7 +370,7 @@ public sealed class Hwt1PresentationAdapter :
 
     /// <summary>Processes one complete UTF-8 HWT1 client JSON message.</summary>
     /// <param name="utf8Json">An acknowledgement, resync, resize, requestPrimary, input, paste, key, mouse,
-    /// viewport, marker, selection, or copy message, at most 64 KiB.</param>
+    /// viewport, marker, selection, copy, or colorEncoding message, at most 64 KiB.</param>
     /// <param name="cancellationToken">Cancels processing and workload input writes.</param>
     /// <returns>A task that completes when the message has been handled.</returns>
     /// <remarks>
@@ -383,6 +384,16 @@ public sealed class Hwt1PresentationAdapter :
     /// secondary peers can still send keyboard, mouse, and paste input.
     /// When <see cref="IsReadOnly"/> is enabled, producer-mutating commands are validated
     /// but ignored without changing this view's viewport or selection.
+    /// Every frame advertises colorEncodings: ["indexed-v1"]. Clients should wait for this
+    /// advertisement before sending a colorEncoding command, so older servers remain usable.
+    /// A colorEncoding message with value "indexed-v1" opts this connection into color
+    /// references, forcing a full frame after any outstanding acknowledgement. Repeated
+    /// opt-ins are harmless. Legacy connections retain resolved RGBA colors.
+    /// Opt-in frames carry colorEncoding: "indexed-v1" in their metadata. Cell colors
+    /// encode RGB as 0xFFBBGGRR, palette indices as 0x01000000 | index, default foreground
+    /// as 0x02000000, default background as 0x03000000, and inherited underline foreground
+    /// as 0x04000000. Reverse and dim remain unapplied attributes for the browser to resolve;
+    /// metadata defaultForeground and defaultBackground remain packed RGBA fallbacks.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The adapter is unattached or a JSON field has the wrong type.</exception>
     /// <exception cref="InvalidDataException">The command, its values, or its size are unsupported.</exception>
@@ -413,6 +424,19 @@ public sealed class Hwt1PresentationAdapter :
             case "resync":
                 lock (_projectionLock)
                 {
+                    _markerFrames.Clear();
+                    Interlocked.Exchange(ref _forceFull, 1);
+                }
+                InvalidatePresentation();
+                break;
+            case "colorEncoding":
+                if (command.GetProperty("value").GetString() != "indexed-v1")
+                    throw new InvalidDataException("Unsupported HWT1 color encoding.");
+                lock (_projectionLock)
+                {
+                    if (_indexedColors)
+                        break;
+                    _indexedColors = true;
                     _markerFrames.Clear();
                     Interlocked.Exchange(ref _forceFull, 1);
                 }
