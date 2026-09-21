@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.IO.Pipelines;
 using System.Text;
 using System.Text.Json;
@@ -125,6 +126,83 @@ public class Hmp1TitleStateTests
         finally
         {
             gate.Release.TrySetResult();
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false, false)]
+    [DataRow(true, false)]
+    [DataRow(false, true)]
+    [DataRow(true, true)]
+    public async Task StateSync_HwtWithOptionalObservers_ReattachPreservesReadyOrderingAndBatchAccounting(
+        bool filtered, bool captured)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var server = new Hmp1PresentationAdapter(20, 5);
+        await using var producer = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithPresentation(server).WithDimensions(20, 5).Build();
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var title = $"replay-{attempt}";
+            producer.ApplyTokens(AnsiTokenizer.Tokenize($"\x1b[Hscreen-{attempt}\x1b]2;{title}\x07"));
+            var connection = await ConnectAsync(server);
+            await using var handle = connection.Handle;
+            await using var client = connection.Client;
+            await using var view = new Hwt1PresentationAdapter();
+            var gate = new ReplayGate();
+            var observer = new ReplayImpactObserver();
+            var builder = Hex1bTerminal.CreateBuilder()
+                .WithWorkload(client).WithPresentation(view).AddWorkloadFilter(gate);
+            if (filtered)
+                builder.AddPresentationFilter(observer);
+            await using var mirror = builder.Build();
+            try
+            {
+                await gate.Entered.Task.WaitAsync(timeout.Token);
+                var output = new ConcurrentQueue<string>();
+                await using var capture = captured
+                    ? await mirror.BeginCaptureAsync((item, _) =>
+                    {
+                        if (item.Kind == TerminalCaptureEventKind.Output)
+                            output.Enqueue(item.Output!);
+                        return ValueTask.CompletedTask;
+                    }, timeout.Token)
+                    : null;
+                var ready = mirror.WaitForHmp1InitialReplayAsync(timeout.Token);
+                var pendingFrame = view.ReadFrameAsync(timeout.Token).AsTask();
+                Assert.IsFalse(ready.IsCompleted);
+                Assert.IsFalse(pendingFrame.IsCompleted);
+                gate.Release.TrySetResult();
+
+                await ready;
+                var frame = ParseMetadata(await pendingFrame);
+                Assert.IsNotNull(frame.GetProperty("peer").GetProperty("id").GetString());
+                Assert.AreEqual(title, frame.GetProperty("title").GetString());
+                Assert.AreEqual(1L, frame.GetProperty("stats").GetProperty("outputBatches").GetInt64());
+                Assert.IsTrue(frame.GetProperty("full").GetBoolean());
+                using var snapshot = mirror.CreateSnapshot();
+                Assert.IsTrue(snapshot.ContainsText($"screen-{attempt}"));
+                await AcknowledgeAsync(view, frame);
+                if (filtered)
+                {
+                    Assert.AreEqual(1, observer.Batches);
+                    Assert.IsTrue(observer.CellImpacts > 0);
+                }
+                if (capture is not null)
+                {
+                    using var boundary = await capture.BarrierAsync(timeout.Token);
+                    Assert.IsTrue(boundary.Snapshot.ContainsText($"screen-{attempt}"));
+                    Assert.Contains($"screen-{attempt}", string.Concat(output));
+                    Assert.Contains(title, string.Concat(output));
+                }
+            }
+            finally
+            {
+                gate.Release.TrySetResult();
+            }
         }
     }
 
@@ -257,6 +335,28 @@ public class Hmp1TitleStateTests
             catch (OperationCanceledException) { }
             throw;
         }
+    }
+
+    private sealed class ReplayImpactObserver : IHex1bTerminalPresentationFilter
+    {
+        internal int Batches { get; private set; }
+        internal int CellImpacts { get; private set; }
+
+        public ValueTask<IReadOnlyList<AnsiToken>> OnOutputAsync(
+            IReadOnlyList<AppliedToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
+        {
+            Batches++;
+            CellImpacts += tokens.Sum(token => token.CellImpacts.Count);
+            return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(tokens.Select(token => token.Token).ToArray());
+        }
+        public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+        public ValueTask OnInputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+        public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+        public ValueTask OnSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
     }
 
     private sealed class ReplayGate : IHex1bTerminalWorkloadFilter
