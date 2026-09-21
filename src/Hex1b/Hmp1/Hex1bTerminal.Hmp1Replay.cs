@@ -107,7 +107,8 @@ public sealed partial class Hex1bTerminal
                 }
                 else
                 {
-                    applied = ApplyTokensWithImpacts(tokens, tokenization.FramedDcs);
+                    applied = ApplyTokensWithImpacts(tokens, tokenization.FramedDcs,
+                        collectImpacts: PresentationRequiresAppliedTokens);
                 }
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 RestoreHmp1Scrollback(scrollback);
