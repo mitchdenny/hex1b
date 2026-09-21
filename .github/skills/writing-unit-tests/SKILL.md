@@ -535,6 +535,18 @@ Not every widget needs every combination, but consider which dimensions are rele
 
 ## Low-Level API Testing (Isolation)
 
+### Output-Pump Allocation Regressions
+
+Measure a synchronous application region, not total-process allocations. A workload
+filter can record `GC.GetAllocatedBytesForCurrentThread()` after tokenization;
+`PresentationInvalidated` can end the region before frame construction. Assert
+that both observations use the same thread and that the batch contains the expected
+token count. Use allocation-free tokens such as SGR reset and a budget derived from
+the unwanted per-token objects, with ample room for fixed batch overhead. Keep
+normal HWT frame and ACK checks alongside the probe. Verify a negative control
+that restores collection fails; avoid timing thresholds or process-wide counters.
+See `Hwt1UnusedImpactTests` for raw, pre-tokenized, and HMP1 StateSync examples.
+
 ### Keyboard Wire Conformance
 
 Use literal expected bytes independent of the production key/text mapper. For

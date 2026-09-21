@@ -108,6 +108,87 @@ public class Hwt1UnusedImpactTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task PumpOutput_UnfilteredHwt_DoesNotAllocatePerTokenImpacts(bool preTokenized)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var view = new Hwt1PresentationAdapter(20, 10);
+        var probe = new ApplicationAllocationProbe();
+        var options = new Hex1bTerminalOptions
+        {
+            Width = 20,
+            Height = 10,
+            WorkloadAdapter = workload,
+            PresentationAdapter = view
+        };
+        options.WorkloadFilters.Add(probe);
+        await using var terminal = new Hex1bTerminal(options);
+        terminal.PresentationInvalidated += probe.Complete;
+        await ReadUntilAsync(view, _ => true, timeout.Token);
+
+        // Parsing happens before the probe. SGR itself needs no per-token allocation;
+        // constructing even the two empty impact lists would exceed this budget.
+        const int tokenCount = 4096;
+        var bytes = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("\x1b[0m", tokenCount)));
+        if (preTokenized)
+            await workload.WriteTokensWithBytesAsync(AnsiTokenizer.Tokenize(Encoding.UTF8.GetString(bytes)), bytes,
+                cancellationToken: timeout.Token);
+        else
+            workload.Write(bytes.AsMemory());
+        var (allocated, sameThread, count) = await probe.Result.Task.WaitAsync(timeout.Token);
+        Assert.IsTrue(sameThread, "The allocation region must not cross an asynchronous continuation.");
+        Assert.AreEqual(tokenCount, count);
+        Assert.IsLessThan(tokenCount * 32L, allocated,
+            $"Token application allocated {allocated} bytes for {tokenCount} SGR tokens.");
+        await ReadUntilAsync(view, metadata =>
+            metadata.GetProperty("stats").GetProperty("outputBatches").GetInt64() == 1, timeout.Token);
+    }
+
+    [TestMethod]
+    public async Task StateSync_UnfilteredHwt_DoesNotAllocatePerTokenImpacts()
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        var streams = WebTerminalDemo.DuplexPipeStream.CreatePair();
+        await using var wire = streams.Server;
+        await using var workload = Hmp1TestHelpers.NewClient(streams.Client);
+        await using var view = new Hwt1PresentationAdapter(20, 10);
+        var probe = new ApplicationAllocationProbe();
+        var options = new Hex1bTerminalOptions
+        {
+            Width = 20,
+            Height = 10,
+            WorkloadAdapter = workload,
+            PresentationAdapter = view
+        };
+        options.WorkloadFilters.Add(probe);
+        await using var terminal = new Hex1bTerminal(options);
+        terminal.PresentationInvalidated += probe.Complete;
+
+        const int tokenCount = 4096;
+        var bytes = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("\x1b[0m", tokenCount)));
+        var connecting = workload.ConnectAsync(timeout.Token);
+        var hello = await Hmp1Protocol.ReadFrameAsync(wire, timeout.Token);
+        Assert.AreEqual(Hmp1FrameType.ClientHello, hello!.Value.Type);
+        await Hmp1Protocol.WriteHelloAsync(wire, 20, 10, "impact-replay", null, [], timeout.Token);
+        await Hmp1Protocol.WriteFrameAsync(wire, Hmp1FrameType.StateSync, bytes, timeout.Token);
+        await Hmp1Protocol.WriteActivityStateAsync(wire, Hmp1ActivityState.Default, timeout.Token);
+        await connecting.WaitAsync(timeout.Token);
+        await terminal.WaitForHmp1InitialReplayAsync(timeout.Token);
+
+        var (allocated, sameThread, count) = await probe.Result.Task.WaitAsync(timeout.Token);
+        Assert.IsTrue(sameThread, "The allocation region must not cross an asynchronous continuation.");
+        Assert.AreEqual(tokenCount, count);
+        Assert.IsLessThan(tokenCount * 32L, allocated,
+            $"Replay application allocated {allocated} bytes for {tokenCount} SGR tokens.");
+        await ReadUntilAsync(view, metadata =>
+            metadata.GetProperty("stats").GetProperty("outputBatches").GetInt64() == 1, timeout.Token);
+    }
+
+    [TestMethod]
     public async Task ApplyTokensWithImpacts_CollectionDisabled_AppliesTokensWithoutResults()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -205,6 +286,45 @@ public class Hwt1UnusedImpactTests
             if (predicate(metadata))
                 return metadata.Clone();
         }
+    }
+
+    private sealed class ApplicationAllocationProbe : IHex1bTerminalWorkloadFilter
+    {
+        private long _before;
+        private int _thread;
+        private int _tokenCount;
+        private bool _measuring;
+        public TaskCompletionSource<(long Allocated, bool SameThread, int Count)> Result { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask OnOutputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
+        {
+            _thread = Environment.CurrentManagedThreadId;
+            _tokenCount = tokens.Count;
+            _measuring = true;
+            _before = GC.GetAllocatedBytesForCurrentThread();
+            return ValueTask.CompletedTask;
+        }
+
+        public void Complete()
+        {
+            if (!_measuring)
+                return;
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - _before;
+            _measuring = false;
+            Result.TrySetResult((allocated, _thread == Environment.CurrentManagedThreadId, _tokenCount));
+        }
+
+        public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+        public ValueTask OnFrameCompleteAsync(TimeSpan elapsed, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+        public ValueTask OnInputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+        public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+        public ValueTask OnSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
     }
 
     private sealed class ImpactObserver : IHex1bTerminalPresentationFilter
