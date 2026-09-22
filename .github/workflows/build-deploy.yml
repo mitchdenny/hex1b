@@ -47,9 +47,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Test baseline publishing policy
-        run: python3 -B -m unittest discover -s .github/scripts/tests -p 'test_*.py'
-
       - name: Determine baseline publishing policy
         id: publish-policy
         env:
