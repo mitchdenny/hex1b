@@ -7,6 +7,36 @@ public class WindowsConsoleProbeTests
 {
     private const string ChildEnvironmentVariable = "HEX1B_WINDOWS_CONSOLE_PROBE_TEST";
     private const string ProbeStarted = "PROBE_STARTED";
+    internal const string PtyIoChildEnvironmentVariable = "HEX1B_WINDOWS_PTY_IO_TEST";
+
+    [TestMethod]
+    public async Task PtyIoChild()
+    {
+        if (Environment.GetEnvironmentVariable(PtyIoChildEnvironmentVariable) != "1")
+            return;
+
+        using var driver = new WindowsConsoleDriver();
+        driver.EnterRawMode();
+        driver.Resized += (width, height) =>
+            driver.Write(Encoding.UTF8.GetBytes($"PTY_RESIZED:{width}x{height};\r\n"));
+        driver.Write(Encoding.UTF8.GetBytes($"PTY_READY:{driver.Width}x{driver.Height};\r\n"));
+
+        var buffer = new byte[32];
+        while (true)
+        {
+            var count = await driver.ReadAsync(buffer, TestContext.Current.CancellationToken);
+            Assert.IsTrue(count > 0, "PTY probe input ended before the quit command.");
+            for (var i = 0; i < count; i++)
+            {
+                var input = (char)buffer[i];
+                if (input == 'q')
+                    return;
+
+                Assert.IsTrue(input is 'a' or 'b' or 'c', $"Unexpected PTY probe input: {(int)input}");
+                driver.Write(Encoding.UTF8.GetBytes($"PTY_INPUT:{input}:{driver.Width}x{driver.Height};\r\n"));
+            }
+        }
+    }
 
     [TestMethod]
     [TestCategory("Windows")]
