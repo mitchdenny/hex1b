@@ -3,58 +3,6 @@ using Hex1b.Sixel;
 
 namespace Hex1b;
 
-internal enum SixelStateEventKind
-{
-    ImageAllocated,
-    ImageDeduplicated,
-    ImageRejected,
-    ImageReleased,
-    PlacementAdded,
-    PlacementDamaged,
-    PlacementEvicted,
-}
-
-internal readonly record struct SixelStateEvent(
-    SixelStateEventKind Kind,
-    int Count = 1,
-    string? Reason = null);
-
-internal readonly record struct SixelPlacementCreationResult(
-    SixelPlacement Placement,
-    bool Retained);
-
-/// <summary>
-/// A single tracked placement participating in a Sixel reflow pass: its
-/// reflow anchor id, the placement geometry to re-derive from, and (when it
-/// originated from history) the retained-window descriptor to slice before
-/// re-deriving. Mirrors <c>KgpTerminalGraphicsState.ReflowPlacement</c>.
-/// </summary>
-internal readonly record struct SixelReflowPlacement(
-    int Id,
-    SixelPlacement Placement,
-    SixelHistoryPlacement? History);
-
-/// <summary>
-/// The anchors and tracked placements built by <see cref="SixelGraphicsState.PrepareActiveReflow"/>,
-/// ready to be merged with another subsystem's anchors for a single combined
-/// <c>ReflowHelper.PerformReflowWithAnchors</c> call. Mirrors
-/// <c>KgpTerminalGraphicsState.KgpReflowPlan</c>.
-/// </summary>
-internal sealed class SixelReflowPlan
-{
-    internal SixelReflowPlan(
-        IReadOnlyList<TerminalReflowAnchor> anchors,
-        IReadOnlyList<SixelReflowPlacement> placements)
-    {
-        Anchors = anchors;
-        Placements = placements;
-    }
-
-    internal IReadOnlyList<TerminalReflowAnchor> Anchors { get; }
-
-    internal IReadOnlyList<SixelReflowPlacement> Placements { get; }
-}
-
 /// <summary>
 /// Independent terminal-graphics storage and placement state for Sixel,
 /// completely decoupled from <see cref="TerminalCell"/>. Stage #451 replaces

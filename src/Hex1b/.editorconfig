@@ -1,0 +1,2 @@
+[*.cs]
+dotnet_diagnostic.HEX1B0011.severity = error

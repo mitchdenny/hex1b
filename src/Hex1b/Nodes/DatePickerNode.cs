@@ -5,16 +5,6 @@ using Hex1b.Widgets;
 namespace Hex1b.Nodes;
 
 /// <summary>
-/// The current step in the date picker drill-down flow.
-/// </summary>
-public enum PickerStep
-{
-    Year,
-    Month,
-    Calendar,
-}
-
-/// <summary>
 /// Render node for <see cref="DatePickerWidget"/>. Wraps a <see cref="ButtonNode"/>
 /// trigger and manages the multi-step picker state (year → month → calendar).
 /// Delegates layout, rendering, and focus traversal to the child button.

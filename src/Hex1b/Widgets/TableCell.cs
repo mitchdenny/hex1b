@@ -38,10 +38,3 @@ public record TableCell
     public static TableCell FromWidget(Func<TableCellContext, Hex1bWidget> builder) 
         => new() { WidgetBuilder = builder };
 }
-
-/// <summary>
-/// Context provided when building a widget cell.
-/// </summary>
-public class TableCellContext : RootContext
-{
-}

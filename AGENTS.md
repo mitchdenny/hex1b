@@ -87,8 +87,10 @@ This repo ships a Roslyn analyzer (`src/Hex1b.Analyzers/`) that runs against eve
 | HEX1B0007  | Receiver of widget instance extension must be named `widget` | Applies when the receiver is `Hex1bWidget`-derived (or a generic constrained to it). `WidgetContext<T>` receivers are governed by HEX1B0006. |
 | HEX1B0008  | A single widget-builder callback parameter must be named `builder` | "Widget-builder callback" = `Func<…, Hex1bWidget>` (or array / `IEnumerable<>` / derived widget). `On[A-Z]…` event-handler methods are excluded. |
 | HEX1B0009  | A widget extension/instance method should declare at most one widget-builder callback parameter | Multi-builder shapes (e.g. `HSplitter(left, right)`) require explicit `[SuppressMessage("Hex1b.ApiDesign", "HEX1B0009")]`. Same `On*` exclusion as HEX1B0008. |
+| HEX1B0010  | Widgets must not override both `Build` and `ReconcileAsync` | Choose the compositional or primitive path. |
+| HEX1B0011  | One distinct top-level type per file | Enabled as an error only under `src/Hex1b/`. Includes classes, records, structs, interfaces, enums, and delegates. Nested types and generated files are exempt; partial declarations of the same type are allowed. |
 
-All nine rules default to `Warning` severity and the lib builds under `TreatWarningsAsErrors=true`. Suppressions exist only where they encode a deliberate API decision (HEX1B0009 on `Splitter`'s two-pane shape).
+The API-design rules default to `Warning` severity and the lib builds under `TreatWarningsAsErrors=true`. HEX1B0011 is disabled by default and enabled via `src/Hex1b/.editorconfig`, so tests, samples, and other projects are unaffected. None of these analyzers are shipped to package consumers. Suppressions exist only where they encode a deliberate API decision (HEX1B0009 on `Splitter`'s two-pane shape).
 
 Tests for the analyzers live in `tests/Hex1b.Analyzers.Tests/`. New rules should follow the existing pattern: implement in `src/Hex1b.Analyzers/`, declare the ID in `Hex1bDiagnosticIds.cs` and `AnalyzerReleases.Unshipped.md`, and add positive + negative tests.
 

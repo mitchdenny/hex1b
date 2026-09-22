@@ -4,27 +4,6 @@ using Hex1b.Theming;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// Alignment options for content within an info bar section.
-/// </summary>
-public enum InfoBarSectionAlignment
-{
-    /// <summary>
-    /// Align content to the left (default).
-    /// </summary>
-    Left,
-    
-    /// <summary>
-    /// Center content within the section.
-    /// </summary>
-    Center,
-    
-    /// <summary>
-    /// Align content to the right.
-    /// </summary>
-    Right
-}
-
-/// <summary>
 /// A section within an info bar that contains content (text or widgets).
 /// Sections can have custom colors, width hints, and alignment.
 /// </summary>

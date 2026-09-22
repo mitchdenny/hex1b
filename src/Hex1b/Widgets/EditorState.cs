@@ -882,14 +882,3 @@ public class EditorState
         }
     }
 }
-
-/// <summary>
-/// Specifies the direction of cursor movement within an editor.
-/// </summary>
-public enum CursorDirection
-{
-    Left,
-    Right,
-    Up,
-    Down
-}

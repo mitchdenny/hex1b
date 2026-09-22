@@ -5,17 +5,6 @@ using Hex1b.Theming;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// Arguments provided to the WhenNotRunning callback.
-/// </summary>
-/// <param name="Handle">The terminal handle.</param>
-/// <param name="State">The current terminal state.</param>
-/// <param name="ExitCode">The exit code if the terminal completed, null otherwise.</param>
-public sealed record TerminalNotRunningArgs(
-    TerminalWidgetHandle Handle,
-    TerminalState State,
-    int? ExitCode);
-
-/// <summary>
 /// A widget that displays an embedded terminal session.
 /// </summary>
 /// <remarks>

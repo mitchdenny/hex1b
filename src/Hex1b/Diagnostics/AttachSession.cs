@@ -3,29 +3,6 @@ using System.Threading.Channels;
 namespace Hex1b.Diagnostics;
 
 /// <summary>
-/// The type of frame sent through an attach session.
-/// </summary>
-public enum AttachFrameType
-{
-    /// <summary>Raw terminal output (ANSI data).</summary>
-    Output,
-
-    /// <summary>Terminal was resized. Data is "cols,rows".</summary>
-    Resize,
-
-    /// <summary>Leader status changed. Data is "true" or "false".</summary>
-    LeaderChanged,
-
-    /// <summary>Terminal session ended.</summary>
-    Exit
-}
-
-/// <summary>
-/// A single frame received from an attach session.
-/// </summary>
-public readonly record struct AttachFrame(AttachFrameType Type, string? Data);
-
-/// <summary>
 /// Represents an active attach session to a terminal's diagnostics interface.
 /// Provides streaming access to terminal output and the ability to send input.
 /// </summary>
