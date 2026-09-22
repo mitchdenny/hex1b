@@ -5,6 +5,7 @@ using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace Hex1b.Tests;
 
@@ -254,12 +255,32 @@ public class WindowsPtySocketPathTests
             info.SetAccessControl(security);
             try
             {
-                Assert.ThrowsExactly<UnauthorizedAccessException>(() =>
-                    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!));
-                Assert.ThrowsExactly<UnauthorizedAccessException>(() =>
+                var rules = info.GetAccessControl().GetAccessRules(true, true, typeof(SecurityIdentifier));
+                var deniesWrite = false;
+                foreach (FileSystemAccessRule rule in rules)
                 {
-                    using var listener = WindowsPtySocketPaths.CreateListener(path);
-                });
+                    deniesWrite |= rule.IdentityReference.Equals(identity.User) &&
+                        rule.AccessControlType == AccessControlType.Deny &&
+                        (rule.FileSystemRights & FileSystemRights.Write) == FileSystemRights.Write;
+                }
+                Assert.IsTrue(deniesWrite, "The fixture must deny writes to the current user.");
+
+                const uint disableMaxPrivilege = 1;
+                if (!CreateRestrictedToken(identity.AccessToken, disableMaxPrivilege,
+                    0, IntPtr.Zero, 0, IntPtr.Zero, 0, IntPtr.Zero, out var restrictedToken))
+                    throw new Win32Exception(Marshal.GetLastPInvokeError());
+                using (restrictedToken)
+                {
+                    WindowsIdentity.RunImpersonated(restrictedToken, () =>
+                    {
+                        Assert.ThrowsExactly<UnauthorizedAccessException>(() =>
+                            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!));
+                        Assert.ThrowsExactly<UnauthorizedAccessException>(() =>
+                        {
+                            using var listener = WindowsPtySocketPaths.CreateListener(path);
+                        });
+                    });
+                }
                 Assert.IsFalse(System.IO.Path.Exists(path));
             }
             finally
@@ -482,6 +503,16 @@ public class WindowsPtySocketPathTests
 
     [DllImport("libc", EntryPoint = "geteuid")]
     private static extern uint GetEffectiveUserId();
+
+    [SupportedOSPlatform("windows")]
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateRestrictedToken(
+        SafeAccessTokenHandle existingToken, uint flags,
+        uint disableSidCount, IntPtr sidsToDisable,
+        uint deletePrivilegeCount, IntPtr privilegesToDelete,
+        uint restrictedSidCount, IntPtr sidsToRestrict,
+        out SafeAccessTokenHandle newToken);
 
     private sealed class SocketDirectory : IDisposable
     {
