@@ -174,10 +174,10 @@ public class WindowsPtyDisposeTests
         var shimPath = ResolveShimPath();
 
         await using var process = new Hex1bTerminalChildProcess(
-            "cmd.exe",
-            ["/q", "/d", "/k", "prompt PTYTEST$G"],
-            workingDirectory: null,
-            environment: null,
+            Path.Combine(AppContext.BaseDirectory, "Hex1b.Tests.exe"),
+            ["--filter", "FullyQualifiedName=Hex1b.Tests.WindowsConsoleProbeTests.PtyIoChild", "--no-progress", "--no-ansi"],
+            workingDirectory: AppContext.BaseDirectory,
+            environment: new Dictionary<string, string> { [WindowsConsoleProbeTests.PtyIoChildEnvironmentVariable] = "1" },
             inheritEnvironment: true,
             initialWidth: 80,
             initialHeight: 12,
@@ -188,35 +188,41 @@ public class WindowsPtyDisposeTests
         await process.StartAsync(TestContext.Current.CancellationToken);
         Assert.AreEqual("WindowsShimPtyHandle", GetActivePtyHandleTypeName(process));
 
-        var startup = await ReadUntilContainsAsync(
-            process,
-            "PTYTEST>",
+        await ReadUntilContainsAsync(
+            process.ReadOutputAsync,
+            "PTY_READY:80x12;",
             TimeSpan.FromSeconds(15),
             TestContext.Current.CancellationToken);
-        Assert.Contains("PTYTEST>", startup, StringComparison.Ordinal);
 
-        await process.WriteInputAsync(Encoding.UTF8.GetBytes("echo UDS_SHIM_OK\r\n"), TestContext.Current.CancellationToken);
-        var echoed = await ReadUntilContainsAsync(
-            process,
-            "UDS_SHIM_OK",
+        // The acknowledgement is produced only after the child consumes input, not by console echo.
+        await process.WriteInputAsync("a"u8.ToArray(), TestContext.Current.CancellationToken);
+        await ReadUntilContainsAsync(
+            process.ReadOutputAsync,
+            "PTY_INPUT:a:80x12;",
             TimeSpan.FromSeconds(15),
             TestContext.Current.CancellationToken);
-        Assert.Contains("UDS_SHIM_OK", echoed, StringComparison.Ordinal);
 
-        await process.ResizeAsync(123, 37, TestContext.Current.CancellationToken);
-        await process.WriteInputAsync(
-            Encoding.UTF8.GetBytes("powershell -NoLogo -NoProfile -Command \"Write-Output ([Console]::WindowWidth.ToString() + 'x' + [Console]::WindowHeight)\"\r\n"),
-            TestContext.Current.CancellationToken);
+        foreach (var (width, height, input) in new[] { (123, 37, "b"), (64, 16, "c") })
+        {
+            await process.ResizeAsync(width, height, TestContext.Current.CancellationToken);
+            // ResizeAsync queues a shim frame; wait for the running child to observe the new size.
+            await ReadUntilContainsAsync(
+                process.ReadOutputAsync,
+                $"PTY_RESIZED:{width}x{height};",
+                TimeSpan.FromSeconds(20),
+                TestContext.Current.CancellationToken);
 
-        var resizeReport = await ReadUntilContainsAsync(
-            process,
-            "123x37",
-            TimeSpan.FromSeconds(20),
-            TestContext.Current.CancellationToken);
-        Assert.Contains("123x37", resizeReport, StringComparison.Ordinal);
+            await process.WriteInputAsync(Encoding.UTF8.GetBytes(input), TestContext.Current.CancellationToken);
+            await ReadUntilContainsAsync(
+                process.ReadOutputAsync,
+                $"PTY_INPUT:{input}:{width}x{height};",
+                TimeSpan.FromSeconds(15),
+                TestContext.Current.CancellationToken);
+        }
 
-        await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\r\n"), TestContext.Current.CancellationToken);
-        var exitCode = await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+        await process.WriteInputAsync("q"u8.ToArray(), TestContext.Current.CancellationToken);
+        var exitCode = await process.WaitForExitAsync(TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
         Assert.AreEqual(0, exitCode);
     }
 
@@ -538,40 +544,124 @@ public class WindowsPtyDisposeTests
         }
     }
 
+    [TestMethod]
+    public async Task ReadUntilContainsAsync_FragmentedChildReport_DoesNotMatchEchoOrHostResize()
+    {
+        string[] chunks = ["b\x1b[8;37;123tPTY_RESIZED:123x370;", "PTY_RES", "IZED:123x", "37;"];
+        var reads = 0;
+        var output = await ReadUntilContainsAsync(
+            _ => ValueTask.FromResult<ReadOnlyMemory<byte>>(Encoding.UTF8.GetBytes(chunks[reads++])),
+            "PTY_RESIZED:123x37;",
+            TimeSpan.FromSeconds(1),
+            TestContext.Current.CancellationToken);
+
+        Assert.AreEqual(chunks.Length, reads);
+        Assert.AreEqual(string.Concat(chunks), output);
+    }
+
+    [TestMethod]
+    public async Task ReadUntilContainsAsync_OutputEnds_FailsWithTranscript()
+    {
+        var reads = 0;
+        var failure = await Assert.ThrowsExactlyAsync<AssertFailedException>(() => ReadUntilContainsAsync(
+            _ =>
+            {
+                reads++;
+                Assert.IsTrue(reads <= 2, "An ended output stream must not be polled again.");
+                return ValueTask.FromResult<ReadOnlyMemory<byte>>(reads == 1 ? "child failed"u8.ToArray() : []);
+            },
+            "PTY_READY",
+            TimeSpan.FromSeconds(1),
+            TestContext.Current.CancellationToken));
+
+        Assert.Contains("Output ended", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("child failed", failure.Message, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public async Task ReadUntilContainsAsync_CallerCanceledWithEmptyRead_PreservesCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var failure = await Assert.ThrowsExactlyAsync<OperationCanceledException>(() => ReadUntilContainsAsync(
+            _ =>
+            {
+                cancellation.Cancel();
+                return ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+            },
+            "PTY_READY",
+            TimeSpan.FromSeconds(1),
+            cancellation.Token));
+
+        Assert.AreEqual(cancellation.Token, failure.CancellationToken);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ReadUntilContainsAsync_DeadlineExpires_FailsWithTranscript(bool swallowCancellation)
+    {
+        var reads = 0;
+        async ValueTask<ReadOnlyMemory<byte>> ReadAsync(CancellationToken ct)
+        {
+            if (++reads == 1)
+                return "PTY_READY:80x12"u8.ToArray();
+
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            }
+            catch (OperationCanceledException) when (swallowCancellation)
+            {
+                // Native PTY reads return empty on cancellation.
+            }
+            return ReadOnlyMemory<byte>.Empty;
+        }
+
+        var failure = await Assert.ThrowsExactlyAsync<AssertFailedException>(() => ReadUntilContainsAsync(
+            ReadAsync, "PTY_RESIZED:123x37", TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken));
+
+        Assert.AreEqual(2, reads);
+        Assert.Contains("Timed out", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("PTY_READY:80x12", failure.Message, StringComparison.Ordinal);
+    }
+
     private static async Task<string> ReadUntilContainsAsync(
-        Hex1bTerminalChildProcess process,
+        Func<CancellationToken, ValueTask<ReadOnlyMemory<byte>>> readAsync,
         string text,
         TimeSpan timeout,
         CancellationToken ct)
     {
-        var deadline = DateTime.UtcNow + timeout;
+        using var readCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        readCts.CancelAfter(timeout);
         var output = new StringBuilder();
 
-        while (DateTime.UtcNow < deadline)
+        while (!readCts.IsCancellationRequested)
         {
-            using var readCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            readCts.CancelAfter(TimeSpan.FromMilliseconds(100));
-
             ReadOnlyMemory<byte> data;
             try
             {
-                data = await process.ReadOutputAsync(readCts.Token).AsTask();
+                data = await readAsync(readCts.Token);
             }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            catch (OperationCanceledException) when (readCts.IsCancellationRequested)
             {
-                data = ReadOnlyMemory<byte>.Empty;
+                break;
             }
 
-            if (!data.IsEmpty)
+            ct.ThrowIfCancellationRequested();
+            if (readCts.IsCancellationRequested)
+                break;
+
+            if (data.IsEmpty)
             {
-                output.Append(Encoding.UTF8.GetString(data.Span));
-                if (output.ToString().Contains(text, StringComparison.Ordinal))
-                {
-                    return output.ToString();
-                }
+                Assert.Fail($"Output ended before \"{text}\". Output so far:{Environment.NewLine}{output}");
             }
+
+            output.Append(Encoding.UTF8.GetString(data.Span));
+            if (output.ToString().Contains(text, StringComparison.Ordinal))
+                return output.ToString();
         }
 
+        ct.ThrowIfCancellationRequested();
         Assert.Fail($"Timed out waiting for \"{text}\". Output so far:{Environment.NewLine}{output}");
         return output.ToString();
     }
