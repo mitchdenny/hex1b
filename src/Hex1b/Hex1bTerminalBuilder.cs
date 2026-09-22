@@ -413,8 +413,8 @@ public sealed class Hex1bTerminalBuilder
     /// <para>
     /// This method provides full control over PTY process configuration including
     /// working directory, environment variables, and whether to inherit the parent
-    /// environment. On Windows it also lets you choose whether to prefer the
-    /// out-of-process PTY proxy, require it, or bypass it entirely.
+    /// environment. On Windows it also lets you require the out-of-process PTY
+    /// proxy, configure its socket path, or bypass it entirely.
     /// Use this for advanced scenarios requiring custom process setup.
     /// </para>
     /// <para>
@@ -453,6 +453,10 @@ public sealed class Hex1bTerminalBuilder
         var unixPtyStartupTimeout = options.UnixPtyStartupTimeout;
 #pragma warning restore HEX1B_UNIX_PTY_STARTUP
 
+        var windowsPtyMode = options.WindowsPtyMode;
+        var windowsPtyHostPath = options.WindowsPtyHostPath;
+        var windowsPtyProxySocketPath = options.WindowsPtyProxySocketPath;
+
         SetWorkloadFactory(presentation =>
         {
             var width = presentation?.Width ?? _width;
@@ -468,9 +472,10 @@ public sealed class Hex1bTerminalBuilder
                 initialWidth: width,
                 initialHeight: height,
                 ptyHandleFactory: timeout => Hex1bTerminalChildProcess.CreatePtyHandle(
-                    options.WindowsPtyMode,
-                    options.WindowsPtyHostPath,
-                    timeout))
+                    windowsPtyMode,
+                    windowsPtyHostPath,
+                    timeout,
+                    windowsPtyProxySocketPath))
             {
                 UnixPtyStartupTimeout = unixPtyStartupTimeout
             };

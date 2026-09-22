@@ -1,8 +1,3 @@
-using System.Diagnostics;
-using System.Net.WebSockets;
-using Hex1b.Automation;
-using Hex1b.Widgets;
-
 namespace Hex1b;
 
 /// <summary>
@@ -78,4 +73,23 @@ public sealed class Hex1bTerminalProcessOptions
     /// When null, Hex1b searches the application output and packaged runtime locations automatically.
     /// </remarks>
     public string? WindowsPtyHostPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the exact filesystem socket path used to connect to <c>hex1bpty.exe</c>.
+    /// </summary>
+    /// <remarks>
+    /// Applies only on Windows with <see cref="Hex1b.WindowsPtyMode.RequireProxy"/>.
+    /// The builder snapshots this value after configuration. Supply a normalized, absolute
+    /// path in a dedicated directory; no suffix is appended. The UTF-8 path must fit the
+    /// platform's Unix-domain socket limit (107 bytes on Windows).
+    /// When null, a unique filename is generated in <c>HEX1B_PTY_SHIM_SOCKET_DIR</c>
+    /// or the default user-profile socket directory.
+    /// The directory and socket are restricted to the current user before listening.
+    /// Roots, shared temporary directories, and final-directory links are rejected.
+    /// Existing endpoints are never replaced; use a distinct path for each concurrent session.
+    /// Invalid paths or permission failures fail startup. On Windows, setting this option
+    /// with any mode other than <see cref="Hex1b.WindowsPtyMode.RequireProxy"/> throws
+    /// <see cref="InvalidOperationException"/> when the process starts. Ignored on Unix.
+    /// </remarks>
+    public string? WindowsPtyProxySocketPath { get; set; }
 }

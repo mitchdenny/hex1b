@@ -10,14 +10,17 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
 {
     private readonly WindowsPtyMode _mode;
     private readonly string? _windowsPtyHostPath;
+    private readonly string? _windowsPtyProxySocketPath;
     private IPtyHandle? _activeHandle;
 
     internal WindowsProxyPtyHandle(
         WindowsPtyMode mode = WindowsPtyMode.RequireProxy,
-        string? windowsPtyHostPath = null)
+        string? windowsPtyHostPath = null,
+        string? windowsPtyProxySocketPath = null)
     {
         _mode = mode;
         _windowsPtyHostPath = windowsPtyHostPath;
+        _windowsPtyProxySocketPath = windowsPtyProxySocketPath;
     }
 
     public int ProcessId => _activeHandle?.ProcessId ?? -1;
@@ -36,12 +39,19 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
             throw new InvalidOperationException("The Windows PTY handle has already been started.");
         }
 
+        if (_windowsPtyProxySocketPath is not null && _mode != WindowsPtyMode.RequireProxy)
+        {
+            throw new InvalidOperationException(
+                $"{nameof(Hex1bTerminalProcessOptions.WindowsPtyProxySocketPath)} requires " +
+                $"{nameof(Hex1bTerminalProcessOptions.WindowsPtyMode)}.{nameof(WindowsPtyMode.RequireProxy)}.");
+        }
+
         // Windows PTY backend selection is now explicit:
         // - RequireProxy => use hex1bpty.exe and fail if it cannot be used
         // - Direct => bypass the helper entirely
         if (_mode == WindowsPtyMode.RequireProxy)
         {
-            var shimHandle = new WindowsShimPtyHandle(_windowsPtyHostPath);
+            var shimHandle = new WindowsShimPtyHandle(_windowsPtyHostPath, _windowsPtyProxySocketPath);
             try
             {
                 await shimHandle.StartAsync(fileName, arguments, workingDirectory, environment, width, height, ct).ConfigureAwait(false);
