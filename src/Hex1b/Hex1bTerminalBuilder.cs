@@ -413,8 +413,8 @@ public sealed class Hex1bTerminalBuilder
     /// <para>
     /// This method provides full control over PTY process configuration including
     /// working directory, environment variables, and whether to inherit the parent
-    /// environment. On Windows it also lets you choose whether to prefer the
-    /// out-of-process PTY proxy, require it, or bypass it entirely.
+    /// environment. On Windows it also lets you require the out-of-process PTY
+    /// proxy, configure its socket path, or bypass it entirely.
     /// Use this for advanced scenarios requiring custom process setup.
     /// </para>
     /// <para>
@@ -453,6 +453,10 @@ public sealed class Hex1bTerminalBuilder
         var unixPtyStartupTimeout = options.UnixPtyStartupTimeout;
 #pragma warning restore HEX1B_UNIX_PTY_STARTUP
 
+        var windowsPtyMode = options.WindowsPtyMode;
+        var windowsPtyHostPath = options.WindowsPtyHostPath;
+        var windowsPtySocketPath = options.WindowsPtySocketPath;
+
         SetWorkloadFactory(presentation =>
         {
             var width = presentation?.Width ?? _width;
@@ -468,9 +472,10 @@ public sealed class Hex1bTerminalBuilder
                 initialWidth: width,
                 initialHeight: height,
                 ptyHandleFactory: timeout => Hex1bTerminalChildProcess.CreatePtyHandle(
-                    options.WindowsPtyMode,
-                    options.WindowsPtyHostPath,
-                    timeout))
+                    windowsPtyMode,
+                    windowsPtyHostPath,
+                    timeout,
+                    windowsPtySocketPath))
             {
                 UnixPtyStartupTimeout = unixPtyStartupTimeout
             };
@@ -1684,4 +1689,21 @@ public sealed class Hex1bTerminalProcessOptions
     /// When null, Hex1b searches the application output and packaged runtime locations automatically.
     /// </remarks>
     public string? WindowsPtyHostPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the exact filesystem socket path used to connect to <c>hex1bpty.exe</c>.
+    /// </summary>
+    /// <remarks>
+    /// Applies only on Windows with <see cref="Hex1b.WindowsPtyMode.RequireProxy"/>.
+    /// The builder snapshots this value after configuration. Supply a normalized, absolute
+    /// path in a dedicated directory; no suffix is appended. The UTF-8 path must fit the
+    /// platform's Unix-domain socket limit (107 bytes on Windows).
+    /// When null, a unique filename is generated in <c>HEX1B_PTY_SHIM_SOCKET_DIR</c>
+    /// or the default user-profile socket directory.
+    /// The directory and socket are restricted to the current user before listening.
+    /// Roots, shared temporary directories, and final-directory links are rejected.
+    /// Existing endpoints are never replaced; use a distinct path for each concurrent session.
+    /// Invalid paths or permission failures fail startup. Ignored on Unix and in Direct mode.
+    /// </remarks>
+    public string? WindowsPtySocketPath { get; set; }
 }

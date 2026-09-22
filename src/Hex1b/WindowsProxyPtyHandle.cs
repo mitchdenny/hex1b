@@ -10,14 +10,17 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
 {
     private readonly WindowsPtyMode _mode;
     private readonly string? _windowsPtyHostPath;
+    private readonly string? _windowsPtySocketPath;
     private IPtyHandle? _activeHandle;
 
     internal WindowsProxyPtyHandle(
         WindowsPtyMode mode = WindowsPtyMode.RequireProxy,
-        string? windowsPtyHostPath = null)
+        string? windowsPtyHostPath = null,
+        string? windowsPtySocketPath = null)
     {
         _mode = mode;
         _windowsPtyHostPath = windowsPtyHostPath;
+        _windowsPtySocketPath = windowsPtySocketPath;
     }
 
     public int ProcessId => _activeHandle?.ProcessId ?? -1;
@@ -41,7 +44,7 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
         // - Direct => bypass the helper entirely
         if (_mode == WindowsPtyMode.RequireProxy)
         {
-            var shimHandle = new WindowsShimPtyHandle(_windowsPtyHostPath);
+            var shimHandle = new WindowsShimPtyHandle(_windowsPtyHostPath, _windowsPtySocketPath);
             try
             {
                 await shimHandle.StartAsync(fileName, arguments, workingDirectory, environment, width, height, ct).ConfigureAwait(false);
@@ -120,6 +123,7 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
 internal sealed class WindowsShimPtyHandle : IPtyHandle
 {
     private readonly string? _windowsPtyHostPath;
+    private readonly string? _windowsPtySocketPath;
     private readonly Channel<byte[]> _outputChannel = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(64)
     {
         SingleReader = true,
@@ -144,12 +148,14 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
     private Task? _sendLoopTask;
     private Task? _receiveLoopTask;
     private string? _socketPath;
+    private FileStream? _socketReservation;
     private int _processId;
     private bool _disposed;
 
-    internal WindowsShimPtyHandle(string? windowsPtyHostPath = null)
+    internal WindowsShimPtyHandle(string? windowsPtyHostPath = null, string? windowsPtySocketPath = null)
     {
         _windowsPtyHostPath = windowsPtyHostPath;
+        _windowsPtySocketPath = windowsPtySocketPath;
     }
 
     public int ProcessId => _processId;
@@ -175,8 +181,16 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
                 "hex1bpty.exe");
         }
 
+        ct.ThrowIfCancellationRequested();
         var sessionToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-        _socketPath = WindowsPtySocketPaths.CreateSocketPath();
+        _socketPath = WindowsPtySocketPaths.CreateSocketPath(_windowsPtySocketPath);
+        _socketReservation = new FileStream(_socketPath + ".lock", new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+            Options = FileOptions.DeleteOnClose
+        });
         _helperProcess = StartHelperProcess(shimPath, _socketPath, sessionToken);
 
         _socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
@@ -314,6 +328,23 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
 
         _disposed = true;
 
+        // Complete an interrupted connection so the helper observes EOF even when
+        // cancellation occurred before the launch handshake.
+        if (_stream is null && _helperProcess is { HasExited: false })
+        {
+            using var cleanupSocket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            using var cleanupTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            try
+            {
+                await ConnectWithRetriesAsync(cleanupSocket, new UnixDomainSocketEndPoint(_socketPath!),
+                    _helperProcess, cleanupTimeout.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or IOException or InvalidOperationException)
+            {
+                TraceShimMessage($"Could not connect for helper shutdown: {ex.Message}");
+            }
+        }
+
         if (_stream != null)
         {
             try
@@ -366,6 +397,19 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
 
         if (_helperProcess is { HasExited: false })
         {
+            using var shutdownTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            try
+            {
+                await _helperProcess.WaitForExitAsync(shutdownTimeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                TraceShimMessage("Helper did not finish graceful socket cleanup before the shutdown timeout.");
+            }
+        }
+
+        if (_helperProcess is { HasExited: false })
+        {
             try
             {
                 _helperProcess.Kill(entireProcessTree: true);
@@ -383,7 +427,10 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
         _outputChannel.Writer.TryComplete();
         _exitCodeTcs.TrySetResult(-1);
 
-        WindowsPtySocketPaths.DeleteSocketFile(_socketPath);
+        // Only the helper's bound listener owns the endpoint. In particular, a failed
+        // launch must not unlink an endpoint belonging to another session.
+        _socketReservation?.Dispose();
+        _socketReservation = null;
     }
 
     private async Task RunSendLoopAsync(CancellationToken ct)
