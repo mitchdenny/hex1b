@@ -75,23 +75,3 @@ internal sealed record Hmp1ActivityState
         }
     }
 }
-
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-internal sealed record Hmp1ProgressState
-{
-    public required int State { get; init; }
-    public required int? Percentage { get; init; }
-}
-
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-internal sealed record Hmp1ShellIntegrationState
-{
-    public required int Phase { get; init; }
-    public required int? LastExitCode { get; init; }
-}
-
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-internal sealed record Hmp1WorkingDirectoryState
-{
-    public required string? Uri { get; init; }
-}

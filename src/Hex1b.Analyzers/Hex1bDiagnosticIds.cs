@@ -17,14 +17,14 @@ internal static class Hex1bDiagnosticIds
     public const string WidgetBuilderCallbackName = "HEX1B0008";
     public const string WidgetMultipleBuilderCallbacks = "HEX1B0009";
     public const string WidgetOverridesBuildAndReconcile = "HEX1B0010";
+    public const string OneTopLevelTypePerFile = "HEX1B0011";
 
     /// <summary>
     /// Help link template. Diagnostic-specific suffix is appended.
     /// </summary>
     /// <remarks>
-    /// The target docs file does not yet exist. Once docs are written under
-    /// docs/analyzers/, the link will resolve. Keeping the URL stable now so
-    /// that suppression metadata in downstream PRs does not need to change.
+    /// Rule documentation lives under docs/analyzers/. Keep the URL stable so
+    /// suppression metadata in downstream PRs does not need to change as documentation is added.
     /// </remarks>
     public const string HelpLinkBase = "https://github.com/mitchdenny/hex1b/blob/main/docs/analyzers/";
 

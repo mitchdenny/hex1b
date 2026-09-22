@@ -6,27 +6,6 @@ using Hex1b.Automation;
 namespace Hex1b;
 
 /// <summary>
-/// Represents the lifecycle state of a terminal session.
-/// </summary>
-public enum TerminalState
-{
-    /// <summary>
-    /// The terminal session has not started yet.
-    /// </summary>
-    NotStarted,
-    
-    /// <summary>
-    /// The terminal session is currently running.
-    /// </summary>
-    Running,
-    
-    /// <summary>
-    /// The terminal session has completed (process exited).
-    /// </summary>
-    Completed
-}
-
-/// <summary>
 /// A handle that connects a Hex1bTerminal to a TerminalWidget for embedding
 /// child terminal sessions within a TUI application.
 /// </summary>

@@ -14,18 +14,3 @@ public record FoldingRegion(
     /// <summary>Whether the region is currently collapsed.</summary>
     public bool IsCollapsed { get; init; }
 }
-
-/// <summary>
-/// Predefined folding region kinds.
-/// </summary>
-public enum FoldingRegionKind
-{
-    /// <summary>A generic foldable region.</summary>
-    Region,
-
-    /// <summary>A comment block.</summary>
-    Comment,
-
-    /// <summary>An import/using block.</summary>
-    Imports
-}

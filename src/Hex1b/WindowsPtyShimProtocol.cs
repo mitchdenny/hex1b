@@ -5,36 +5,6 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace Hex1b;
 
-internal enum WindowsPtyShimFrameType : byte
-{
-    LaunchRequest = 1,
-    Started = 2,
-    Output = 3,
-    Input = 4,
-    Resize = 5,
-    Kill = 6,
-    Exit = 7,
-    Error = 8,
-    Shutdown = 9
-}
-
-internal sealed record WindowsPtyShimLaunchRequest(
-    string FileName,
-    string[] Arguments,
-    string? WorkingDirectory,
-    Dictionary<string, string> Environment,
-    int Width,
-    int Height,
-    string SessionToken);
-
-internal sealed record WindowsPtyShimStartedResponse(int ProcessId);
-
-internal sealed record WindowsPtyShimResizeRequest(int Width, int Height);
-
-internal sealed record WindowsPtyShimExitNotification(int ExitCode);
-
-internal sealed record WindowsPtyShimErrorResponse(string Message);
-
 internal static class WindowsPtyShimProtocol
 {
     private static readonly JsonSerializerOptions s_jsonOptions = new(JsonSerializerDefaults.Web);
@@ -265,14 +235,4 @@ internal static class WindowsPtyShimProtocol
         {
         }
     }
-}
-
-[JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
-[JsonSerializable(typeof(WindowsPtyShimLaunchRequest))]
-[JsonSerializable(typeof(WindowsPtyShimStartedResponse))]
-[JsonSerializable(typeof(WindowsPtyShimResizeRequest))]
-[JsonSerializable(typeof(WindowsPtyShimExitNotification))]
-[JsonSerializable(typeof(WindowsPtyShimErrorResponse))]
-internal sealed partial class WindowsPtyShimJsonContext : JsonSerializerContext
-{
 }
