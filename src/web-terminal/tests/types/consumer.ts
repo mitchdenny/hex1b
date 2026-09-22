@@ -5,6 +5,34 @@ import {
   type TerminalRendererKind, type TerminalRendererPreference, type TerminalProgress,
   type TerminalShellIntegration, type TerminalCloseDetails
 } from "@hex1b/web-terminal";
+import {
+  createWebSocketTransport, type TerminalTransport, type TerminalTransportContext,
+  type TerminalTransportConnection, type TerminalTransportCloseDetails
+} from "@hex1b/web-terminal";
+
+const transport: TerminalTransport = {
+  async connect(context: TerminalTransportContext): Promise<TerminalTransportConnection> {
+    context.signal.throwIfAborted();
+    const close: TerminalTransportCloseDetails = { reason: "host detached" };
+    console.log(close);
+    return { async send(control: string) { console.log(control); }, dispose() {} };
+  }
+};
+const customOptions: WebTerminalOptions = {
+  transport,
+  onClose(details) {
+    const code: number | undefined = details.code;
+    console.log(code, details.reason);
+  }
+};
+const socketOptions: WebTerminalOptions = { transport: createWebSocketTransport("/ws") };
+// @ts-expect-error Exactly one live transport is required.
+const missingTransport: WebTerminalOptions = {};
+// @ts-expect-error URL is shorthand, not an override of an explicit transport.
+const conflictingTransport: WebTerminalOptions = { url: "/ws", transport };
+// @ts-expect-error connect must provide a ready connection.
+const invalidTransport: TerminalTransport = { connect() {} };
+console.log(customOptions, socketOptions, missingTransport, conflictingTransport, invalidTransport);
 import { defaultDarkPalette, defaultLightPalette, type TerminalPalette, type TerminalColorMode } from "@hex1b/web-terminal";
 import {
   createDefaultScrollbarRenderer, renderDefaultScrollbarTooltip,

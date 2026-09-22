@@ -12,7 +12,7 @@ const read = path => readFileSync(new URL(path, root), "utf8");
 test("Package entry exposes only the supported runtime API", () => {
   assert.deepEqual(Object.keys(entry).sort(), [
     "InputRoute", "MAX_FONT_SIZE", "MIN_FONT_SIZE", "TerminalAction", "WebTerminal",
-    "createDefaultScrollbarRenderer", "defaultDarkPalette", "defaultInputBindings", "defaultLightPalette",
+    "createDefaultScrollbarRenderer", "createWebSocketTransport", "defaultDarkPalette", "defaultInputBindings", "defaultLightPalette",
     "getCmdlineUrl", "linkAction", "parseCommandMarkParameters", "renderDefaultScrollbar", "renderDefaultScrollbarTooltip"
   ]);
   assert.equal(entry.MIN_FONT_SIZE, 8);

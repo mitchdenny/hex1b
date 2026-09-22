@@ -108,16 +108,16 @@ class WorkerBridge extends Target {
     this.onmessage?.(event);
     this.dispatchEvent(event);
   }
-  request(action, details = {}) {
+  request(action, details = {}, transfer = []) {
     const id = ++this.serial;
     const pending = Promise.withResolvers();
     this.pending.set(id, pending);
-    this.worker.postMessage({ id, action, ...details });
+    this.worker.postMessage({ id, action, ...details }, transfer);
     return pending.promise;
   }
-  postMessage(message) {
+  postMessage(message, transfer = []) {
     this.inputs.push(message);
-    this.request("input", { message }).catch(() => {});
+    this.request("input", { message }, transfer.filter(value => value instanceof ArrayBuffer)).catch(() => {});
   }
   terminate() { this.terminated = true; return this.worker.terminate(); }
 }

@@ -118,7 +118,7 @@ async function worker(t) {
   browser(t);
   const worker = new Worker("terminal-worker.js");
   await worker.request("input", { message: { type: "init", canvas: {}, scale: 1,
-    font: {}, renderer: "webgl2", url: "wss://example.test" } });
+    font: {}, renderer: "webgl2", transport: { type: "websocket", url: "wss://example.test" } } });
   await worker.request("open");
   return worker;
 }

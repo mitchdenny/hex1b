@@ -51,6 +51,111 @@ terminal.focus();
 or disposes a mounted view. Disposal removes only the appended element and its
 connection, not the container or server-side shared terminal.
 
+### Live transports
+
+Supply **exactly one** of `url` or `transport`. TypeScript rejects both/neither,
+and JavaScript callers receive a `TypeError` before a worker or connection is
+created. `url` is only shorthand for the same first-party transport:
+
+```ts
+import { WebTerminal, createWebSocketTransport } from "@hex1b/web-terminal";
+
+const container = document.getElementById("terminal");
+if (!container) throw new Error("Missing terminal container");
+const terminal = await WebTerminal.mount(container, {
+  transport: createWebSocketTransport("/ws/terminal"),
+});
+```
+
+Both forms normalize URLs identically and run the WebSocket directly in the
+rendering worker; frames and controls do not detour through the main thread.
+Custom transports run in the host JavaScript context. Hex1b supplies the bridge
+to its own worker, so adapters need neither a replacement worker nor knowledge
+of private worker messages. All exports are also available from the standalone
+`dist/index.js` ES module, with the same API and no framework dependencies.
+
+A `TerminalTransport` implements `connect(context)`, returning a
+`TerminalTransportConnection` synchronously or asynchronously. Return/resolve
+when the channel is ready for controls. `context` is provided **before** attachment,
+so even synchronous startup delivery has listeners. One early `onFrame` may
+wait for connection readiness; **do not await it inside `connect`**.
+
+The following adapter snippet assumes a host-provided `bridge.attach` operation.
+It must install the supplied listeners before enabling delivery, honor `signal`
+while attaching, and return a per-view channel (not the terminal workload):
+
+```ts
+import { WebTerminal, type TerminalTransport } from "@hex1b/web-terminal";
+
+// `bridge` is supplied by your host, not by Hex1b.
+const transport: TerminalTransport = {
+  async connect({ signal, onFrame, onClose, onError }) {
+    const channel = await bridge.attach({
+      signal,
+      onFrame, // (ArrayBuffer | Uint8Array) => Promise<void>
+      onClose: (reason: string) => onClose({ reason }),
+      onError,
+    });
+    return {
+      // Forward opaque serialized controls unchanged. No keyboard/mouse/ACK parsing.
+      send: (control: string) => channel.send(control),
+      dispose: () => channel.detach(),
+    };
+  },
+};
+
+const container = document.getElementById("terminal");
+if (!container) throw new Error("Missing terminal container");
+const terminal = await WebTerminal.mount(container, {
+  transport,
+  onClose: details => console.log("View detached", details.reason),
+  onStatus: (message, level) => console.log(level, message),
+});
+```
+
+**Ordering and ownership:** deliver complete binary HWT1 frames in order, awaiting
+each `onFrame` promise before delivering another. An `ArrayBuffer` is handed over
+exclusively and may be detached; do not read, mutate, or reuse it after the call.
+A `Uint8Array` backed by an `ArrayBuffer` is copied synchronously using only its
+slice, leaving the host's buffer intact. Other views and shared buffers are not
+supported. The existing 96 MiB HWT1 frame limit still applies.
+
+`onFrame` completion means worker acceptance, **not GPU presentation or producer
+ACK**. The worker forwards the actual HWT1 ACK only at its existing protocol
+boundary: after renderer completion for presented frames, or when discarding a
+mismatched revision / accepting an inventory fragment. Adapters must forward all
+outgoing controls independently and unchanged; they must not manufacture ACKs,
+wait for an ACK inside `send`, or use receipt completion to release the producer's
+one-unacknowledged-state-frame gate. This preserves image resource lifetimes and
+full-baseline/resync behavior. Concurrent deliveries or producer gate violations
+fail the view rather than dropping deltas or accumulating frames.
+
+`send(control)` may return `void` or `Promise<void>`. Hex1b waits for completion
+before invoking the next send, preserving completion order as well as invocation
+order. Resolve after the underlying channel accepts the control in order, not
+after a response frame. Throw/reject to report failure. Queued controls are bounded
+to 256 messages / 1 MiB (including the active send); overflow fails the view. The
+WebSocket adapter additionally caps the browser's outgoing buffer at 1 MiB.
+Adapters must keep their own native/channel buffering bounded too.
+
+**Lifetime:** `signal` aborts on disposal, timeout, failed attachment, fatal error,
+or close. Cancel pending attachment and detach listeners promptly. Hex1b disposes
+any connection returned after cancellation. `dispose()` is synchronous, idempotent,
+nonthrowing, and should initiate per-view channel teardown, never terminate the
+server terminal. Late callbacks cannot revive a disposed view. Use `onError(Error)`
+for a fatal transport failure (reported through `onStatus`, rejecting a pending
+mount), and `onClose({ reason })` for actual custom-channel closure. Neither errors
+nor local teardown invent WebSocket status codes. There is no automatic reconnect.
+Recording APIs and formats are unchanged.
+
+The public-bundle graphics regression needs only a static server, not a terminal
+server. After building, serve this package directory as the HTTP root, open its
+`/tests/` URL in an isolated Playwright CLI session, and run
+`playwright-cli -s=transports run-code --filename src/web-terminal/tests/transport.browser.js`
+from the repository root. It verifies real worker rendering, transferred buffers,
+KGP/Sixel pixels, retained-image movement/release, ACK ordering, controls, and
+closure without any WebSocket, using WebGL2 and WebGPU when available.
+
 ### Light and dark terminal palettes
 
 Supply JSON-compatible palettes independently for light and dark mode. Palette names
@@ -150,6 +255,9 @@ font license when vendoring.
 
 Use `onClose(details)` to observe the browser's actual WebSocket close event.
 `TerminalCloseDetails` contains readonly `code`, `reason`, and `wasClean` fields.
+This payload is unchanged for both WebSocket configuration forms. Custom
+transports use `TerminalTransportCloseDetails`; `code` and `wasClean` are absent
+unless the underlying channel actually reports native WebSocket details.
 The callback runs once with the view already disconnected, **even if the socket
 closes before the first HWT frame or authoritative HMP peer state**. A pending
 mount rejects after the callback, so capture any host state before calling mount.

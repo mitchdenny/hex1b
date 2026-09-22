@@ -56,7 +56,7 @@ test("A newly constructed view follows live before any worker history response",
   const original = globalThis.document;
   globalThis.document = { createElement: () => ({ style: {} }) };
   try {
-    const terminal = new WebTerminal({});
+    const terminal = new WebTerminal({ url: "/ws" });
     assert.deepEqual(terminal.viewport, {
       available: false, following: true, pending: false, followTail: true, offset: 0
     });
