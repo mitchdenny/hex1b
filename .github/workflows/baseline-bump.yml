@@ -15,6 +15,10 @@ name: Bump package validation baseline
 # never trigger this workflow. The version-input on workflow_dispatch lets
 # humans re-run the bumper against a known-good tag if a PR was closed by
 # mistake or the original run failed mid-flight.
+#
+# Deploy validates and packs these bot PRs and their merged pushes, but skips
+# publishing jobs when the complete change is confined to the baseline block.
+# This avoids production approval waits for automated baseline maintenance.
 
 on:
   release:
