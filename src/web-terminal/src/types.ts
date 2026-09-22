@@ -1,4 +1,6 @@
 import type { TerminalLinkOptions, TerminalLinkDetectionError } from "./link-types.js";
+import type { TerminalTransport, TerminalTransportCloseDetails } from "./transport-types.js";
+export type * from "./transport-types.js";
 import type { TerminalColorMode, TerminalPalette } from "./terminal-palette.js";
 export type { TerminalColorMode, TerminalPalette } from "./terminal-palette.js";
 import type { TerminalLayout, TerminalMarker, TerminalMarkerOptions, TerminalPadding, TerminalInsets,
@@ -205,8 +207,22 @@ export interface TerminalCommandMark {
   /** Verbatim `key=value[;key=value...]` trailing the marker, or null when none was present. */
   readonly rawParameters: string | null;
 }
-export interface WebTerminalOptions extends InputPolicyOptions {
-  url: string | URL;
+/**
+ * Supply exactly one live transport. url is shorthand for createWebSocketTransport(url).
+ * onClose receives actual transport close details once, with the view already disconnected,
+ * even before the first frame. A pending mount rejects after notification. No close is
+ * synthesized for abort, disposal, initialization failure, or timeout, and none runs after
+ * disposal. Callback exceptions reach the host. Transport close is not workload completion.
+ */
+export type WebTerminalOptions = WebTerminalCommonOptions & (
+  | { url: string | URL; transport?: never;
+      /** Receives native WebSocket close details, including failed connection attempts. */
+      onClose?: (details: TerminalCloseDetails) => void }
+  | { url?: never; transport: TerminalTransport;
+      /** Custom closes carry a reason without invented WebSocket codes or handshake status. */
+      onClose?: (details: TerminalTransportCloseDetails) => void }
+);
+interface WebTerminalCommonOptions extends InputPolicyOptions {
   /** Local terminal palette selection. Defaults to dark; system follows prefers-color-scheme. */
   colorMode?: TerminalColorMode;
   lightModePalette?: TerminalPalette;
@@ -237,15 +253,6 @@ export interface WebTerminalOptions extends InputPolicyOptions {
   /** Initial per-view input policy. Change it later with setReadOnly; not a server authorization boundary. */
   readOnly?: boolean;
   onStatus?: (message: string, level: TerminalStatusLevel) => void;
-  /**
-   * Receives the native WebSocket close details once, including connection failures and closes
-   * before the first frame. The view is disconnected before this callback; a pending mount
-   * rejects after notification. No callback is synthesized for abort, disposal, initialization
-   * failure, or mount timeout, and none runs after disposal. This client never reconnects
-   * automatically. Interpret application close codes in the host; even 1000 is not proof of
-   * workload completion. Callback exceptions reach the host and are not retried.
-   */
-  onClose?: (details: TerminalCloseDetails) => void;
   onGeometry?: (geometry: TerminalGeometry) => void;
   onSizingChange?: (sizing: TerminalSizingState) => void;
   onRoleChange?: (peer: TerminalPeer) => void;
@@ -288,7 +295,7 @@ export interface WebTerminalOptions extends InputPolicyOptions {
   /** Must return undefined synchronously; async handlers cannot claim default UI ownership. */
   onSelectionUI?: (event: SelectionUIEvent) => undefined;
 }
-/** Owns only the appended element and browser connection, not the server terminal. */
+/** Owns only the appended element and transport connection, not the server terminal. */
 export interface WebTerminalHandle {
   readonly element: HTMLDivElement;
   readonly colorMode: TerminalColorMode;

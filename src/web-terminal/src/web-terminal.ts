@@ -1,5 +1,8 @@
 import { captureMouse } from "./mouse-input.js";
 import { defaultWorkerUrl } from "./worker-url.js";
+import { selectTransport, workerWebSocketUrl } from "./websocket-transport.js";
+import { TransportSession } from "./transport-session.js";
+import type { TerminalTransport } from "./transport-types.js";
 import { randomId } from "./random-id.js";
 import { normalizeFont } from "./terminal-font.js";
 import { normalizeRenderer } from "./renderer-options.js";
@@ -45,6 +48,9 @@ function requiredElement<T extends Element>(root: ParentNode, selector: string, 
 export class WebTerminal implements WebTerminalHandle {
   readonly element: HTMLDivElement;
   #options: WebTerminalOptions;
+  #transport: TerminalTransport;
+  #transportSession: TransportSession | undefined;
+  #transportFrame: ReturnType<typeof Promise.withResolvers<void>> | undefined;
   #renderer: TerminalRendererPreference;
   #colorMode: TerminalColorMode;
   #palettes: { light: TerminalPalette; dark: TerminalPalette };
@@ -123,7 +129,7 @@ export class WebTerminal implements WebTerminalHandle {
   /** Resolves after a connected terminal frame is presented. Supply signal to cancel mounting. */
   static async mount(container: HTMLElement, options: WebTerminalOptions): Promise<WebTerminal> {
     if (!(container instanceof HTMLElement)) throw new TypeError("A terminal container HTMLElement is required");
-    if (!options?.url) throw new TypeError("A terminal WebSocket URL is required");
+    const transport = selectTransport(options);
     if (options.signal?.aborted) throw options.signal.reason;
     if (normalizeRenderer(options.renderer) === "webgpu" && (!window.isSecureContext || !navigator.gpu)) {
       throw new Error("The requested WebGPU renderer requires WebGPU over HTTPS or localhost");
@@ -132,7 +138,7 @@ export class WebTerminal implements WebTerminalHandle {
         !HTMLCanvasElement.prototype.transferControlToOffscreen) {
       throw new Error("WebTerminal requires module workers, ResizeObserver, and a transferable OffscreenCanvas");
     }
-    const terminal = new WebTerminal(options);
+    const terminal = new WebTerminal(options, transport);
     try {
       await Promise.all([terminal.#ready.promise, Promise.resolve().then(() => terminal.#start(container))]);
       return terminal;
@@ -142,8 +148,9 @@ export class WebTerminal implements WebTerminalHandle {
     }
   }
 
-  private constructor(options: WebTerminalOptions) {
+  private constructor(options: WebTerminalOptions, transport = selectTransport(options)) {
     this.#options = options;
+    this.#transport = transport;
     if (options.readOnly !== undefined && typeof options.readOnly !== "boolean")
       throw new TypeError("readOnly must be a boolean");
     this.#readOnly = options.readOnly ?? false;
@@ -225,10 +232,7 @@ export class WebTerminal implements WebTerminalHandle {
 
   #start(container: HTMLElement): void {
     if (this.#options.signal?.aborted) throw this.#options.signal.reason;
-    const url = new URL(this.#options.url, location.href);
-    if (url.protocol === "https:") url.protocol = "wss:";
-    if (url.protocol === "http:") url.protocol = "ws:";
-    if (!["ws:", "wss:"].includes(url.protocol)) throw new TypeError("A ws: or wss: URL is required");
+    const url = workerWebSocketUrl(this.#transport);
     const scale = this.#options.scale === undefined || this.#options.scale === "auto"
       ? Math.min(3, Math.max(0.5, window.devicePixelRatio || 1)) : this.#options.scale;
     if (!Number.isFinite(scale) || scale < 0.5 || scale > 3) throw new RangeError("Backing scale must be 0.5-3 or 'auto'");
@@ -397,7 +401,7 @@ export class WebTerminal implements WebTerminalHandle {
     const canvas = this.#canvas.transferControlToOffscreen();
     this.#colorScheme = window.matchMedia?.("(prefers-color-scheme: dark)");
     this.#colorScheme?.addEventListener("change", this.#systemColorChanged);
-    this.#post({ type: "init", canvas, url: url.href, scale, font,
+    this.#post({ type: "init", canvas, transport: url === undefined ? { type: "custom" } : { type: "websocket", url }, scale, font,
       renderer: this.#renderer, palette: this.#palettes[this.resolvedColorMode] }, [canvas]);
     this.#applyPalette();
     this.#postLinkConfiguration();
@@ -405,7 +409,32 @@ export class WebTerminal implements WebTerminalHandle {
 
   #message(message: WorkerOutputMessage): void {
     if (this.#disposed) return;
-    if (message.type === "connected") {
+    if (message.type === "transportConnect") {
+      if (this.#transportSession) { this.#fail(new Error("Transport is already initialized")); return; }
+      this.#transportSession = new TransportSession({
+        onReady: () => this.#post({ type: "transportConnected" }),
+        onFrame: buffer => {
+          this.#transportFrame = Promise.withResolvers<void>();
+          this.#post({ type: "transportFrame", buffer }, [buffer]);
+          return this.#transportFrame.promise;
+        },
+        onClose: details => this.#post({ type: "transportClosed", details }),
+        onError: error => this.#post({ type: "transportError", message: error.message })
+      });
+      this.#transportSession.start(this.#transport);
+    } else if (message.type === "transportSend") {
+      // An ACK can be emitted while accepting an inventory fragment. Release the
+      // inbound bridge slot before the adapter can synchronously deliver its reply.
+      void Promise.resolve(this.#transportFrame?.promise)
+        .then(() => this.#transportSession?.send(message.control))
+        .then(() => this.#post({ type: "transportSent" }))
+        .catch(error => {
+          if (!this.#disposed) this.#post({ type: "transportError", message: errorMessage(error) });
+        });
+    } else if (message.type === "transportReceived") {
+      this.#transportFrame?.resolve();
+      this.#transportFrame = undefined;
+    } else if (message.type === "connected") {
       this.#connected = true;
       this.#input.disabled = !this.#canInput();
     } else if (message.type === "closed") {
@@ -414,13 +443,19 @@ export class WebTerminal implements WebTerminalHandle {
       clearTimeout(this.#readyTimer);
       try {
         this.#disconnect();
-        if (!this.#disposed) this.#options.onClose?.(Object.freeze({ ...message.details }));
+        if (!this.#disposed) {
+          const details = Object.freeze({ ...message.details });
+          if (this.#options.transport !== undefined) this.#options.onClose?.(details);
+          else if (details.code !== undefined) this.#options.onClose?.(details);
+        }
       } finally {
-        this.#ready.reject(new Error(`Terminal WebSocket closed (${message.details.code}${
-          message.details.reason ? `: ${message.details.reason}` : ""}) before mounting completed`));
+        this.#ready.reject(new Error(`Terminal ${message.details.code === undefined ? "transport" : "WebSocket"} closed (${
+          message.details.code === undefined ? message.details.reason :
+            `${message.details.code}${message.details.reason ? `: ${message.details.reason}` : ""}`}) before mounting completed`));
       }
     } else if (message.type === "status") {
       if (message.level === "error") {
+        this.#stopTransport();
         this.#disconnect();
         this.#ready.reject(new Error(message.message));
       }
@@ -1124,6 +1159,8 @@ export class WebTerminal implements WebTerminalHandle {
   }
 
   #fail(error: Error): void {
+    if (this.#disposed) return;
+    this.#stopTransport();
     this.#disconnect();
     this.#ready.reject(error);
     this.#options.onStatus?.(error.message, "error");
@@ -1134,6 +1171,7 @@ export class WebTerminal implements WebTerminalHandle {
   dispose() {
     if (this.#disposed) return;
     this.#disposed = true;
+    this.#stopTransport();
     this.#disconnect();
     this.#linkDetector.dispose();
     this.#ready.reject(new DOMException("Terminal view was disposed", "AbortError"));
@@ -1148,5 +1186,11 @@ export class WebTerminal implements WebTerminalHandle {
     this.#post({ type: "stop" });
     this.#worker?.terminate();
     this.element.remove();
+  }
+
+  #stopTransport(): void {
+    this.#transportSession?.dispose();
+    this.#transportFrame?.reject(new DOMException("Terminal transport was disposed or closed", "AbortError"));
+    this.#transportFrame = undefined;
   }
 }

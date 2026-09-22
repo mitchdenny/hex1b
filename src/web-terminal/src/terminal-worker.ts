@@ -6,6 +6,9 @@ import type { TerminalSize, TerminalStatusLevel } from "./types.js";
 import type { FrameMetadata, TerminalCell, TerminalCommand, WorkerInputMessage, WorkerOutputMessage, WorkerStats } from "./wire-types.js";
 import { errorMessage } from "./validation.js";
 import { compilePalette, defaultDarkPalette, normalizePalette } from "./terminal-palette.js";
+import { createWebSocketTransport } from "./websocket-transport.js";
+import { TransportSession } from "./transport-session.js";
+import type { TerminalTransportConnection, TerminalTransportContext } from "./transport-types.js";
 
 // This module is only executed as a dedicated worker. Keeping its global local to
 // this module avoids leaking worker/WebGPU ambient dependencies to public declarations.
@@ -19,7 +22,10 @@ declare const self: {
 };
 
 let renderer: TerminalRenderer | undefined;
-let socket: WebSocket | undefined;
+let transport: TransportSession | undefined;
+let bridge: TerminalTransportContext | undefined;
+let bridgeReady: ReturnType<typeof Promise.withResolvers<TerminalTransportConnection>> | undefined;
+let bridgeSent: ReturnType<typeof Promise.withResolvers<void>> | undefined;
 let failed = false;
 let stopped = false;
 let processing = false;
@@ -59,7 +65,7 @@ function postStatus(message: string, level: TerminalStatusLevel = "info"): void 
 }
 
 function send(message: TerminalCommand): void {
-  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+  if (stats.connected && !failed && !stopped) void transport?.send(JSON.stringify(message)).catch(fail);
 }
 
 function emitStats(text?: string): void {
@@ -75,7 +81,7 @@ function fail(error: unknown): void {
   stats.connected = false;
   clearInterval(metricsTimer);
   clearInterval(blinkTimer);
-  socket?.close();
+  transport?.dispose();
   emitStats();
   postStatus(message, "error");
   renderer?.dispose();
@@ -234,7 +240,7 @@ async function receiveFrame(buffer: ArrayBuffer): Promise<void> {
 }
 
 async function initialize(message: Extract<WorkerInputMessage, { type: "init" }>): Promise<void> {
-  if (renderer || socket) throw new Error("Worker is already initialized");
+  if (renderer || transport) throw new Error("Worker is already initialized");
   palette = compilePalette(normalizePalette(message.palette === undefined ? defaultDarkPalette : message.palette));
   if (typeof self.requestAnimationFrame !== "function") {
     throw new Error("This browser does not support requestAnimationFrame in a dedicated OffscreenCanvas worker");
@@ -251,41 +257,28 @@ async function initialize(message: Extract<WorkerInputMessage, { type: "init" }>
   const rendererName = renderer.backend.kind === "webgpu" ? "WebGPU" : "WebGL2";
   if (renderer.fallbackReason) postStatus(`Using WebGL2: ${renderer.fallbackReason}`);
   postStatus(`${rendererName} ready. Attaching terminal view...`);
-  const url = new URL(message.url);
-  if (!["ws:", "wss:"].includes(url.protocol)) {
-    throw new Error("The terminal WebSocket URL must use ws: or wss:");
-  }
-  socket = new WebSocket(url);
-  socket.binaryType = "arraybuffer";
-  socket.addEventListener("open", () => {
-    if (failed || stopped) return;
-    stats.connected = true;
-    self.postMessage({ type: "connected" });
-    postStatus(`Connected · ${rendererName} worker · server-authoritative cells and graphics`, "ready");
-    emitStats();
-  });
-  socket.addEventListener("message", event => {
-    if (!(event.data instanceof ArrayBuffer)) {
-      fail(new Error(`Expected binary HWT1 frame, received ${String(event.data).slice(0, 200)}`));
-      return;
-    }
-    receiveFrame(event.data).catch(fail);
-  });
-  // WebSocket errors are followed by close, which carries the browser's actual status.
-  // Rejecting mount on error would terminate this worker before that status can be delivered.
-  socket.addEventListener("close", event => {
-    stats.connected = false;
-    if (!failed && !stopped) {
+  transport = new TransportSession({
+    onReady() {
+      if (failed || stopped) return;
+      stats.connected = true;
+      self.postMessage({ type: "connected" });
+      postStatus(`Connected · ${rendererName} worker · server-authoritative cells and graphics`, "ready");
+      emitStats();
+    },
+    onFrame: receiveFrame,
+    onError: fail,
+    onClose(details) {
+      if (failed || stopped) return;
+      stats.connected = false;
       stats.gpu = "stopped";
       stats.fps = 0;
       stopped = true;
       clearInterval(metricsTimer);
       clearInterval(blinkTimer);
       renderer?.dispose();
-      self.postMessage({ type: "closed", details: {
-        code: event.code, reason: event.reason, wasClean: event.wasClean
-      } });
-      postStatus(`View disconnected (${event.code}${event.reason ? `: ${event.reason}` : ""}). Attach another view to reconnect.`, "error");
+      self.postMessage({ type: "closed", details });
+      postStatus(`View disconnected (${details.code === undefined ? details.reason :
+        `${details.code}${details.reason ? `: ${details.reason}` : ""}`}). Attach another view to reconnect.`, "error");
       emitStats();
     }
   });
@@ -302,17 +295,49 @@ async function initialize(message: Extract<WorkerInputMessage, { type: "init" }>
     const blinkOn = Math.floor(performance.now() / 600) % 2 === 0;
     if (hasBlink && blinkOn !== lastBlink) scheduleRender();
   }, 100);
+  transport.start(message.transport.type === "websocket" ? createWebSocketTransport(message.transport.url) : {
+    connect(context) {
+      bridge = context;
+      bridgeReady = Promise.withResolvers<TerminalTransportConnection>();
+      context.signal.addEventListener("abort", () => {
+        bridgeReady?.reject(context.signal.reason);
+        bridgeSent?.reject(context.signal.reason);
+      }, { once: true });
+      self.postMessage({ type: "transportConnect" });
+      return bridgeReady.promise;
+    }
+  });
 }
 
 self.addEventListener("message", event => {
   const message = event.data;
   if (message.type === "init") {
     initialize(message).catch(fail);
+  } else if (message.type === "transportConnected" && bridge && !failed && !stopped) {
+    bridgeReady?.resolve({
+      send(control) {
+        bridgeSent = Promise.withResolvers<void>();
+        self.postMessage({ type: "transportSend", control });
+        return bridgeSent.promise;
+      },
+      dispose() {}
+    });
+  } else if (message.type === "transportFrame" && bridge && !failed && !stopped) {
+    void bridge.onFrame(message.buffer).then(() => {
+      if (!failed && !stopped) self.postMessage({ type: "transportReceived" });
+    }).catch(fail);
+  } else if (message.type === "transportSent" && !failed && !stopped) {
+    bridgeSent?.resolve();
+    bridgeSent = undefined;
+  } else if (message.type === "transportClosed") {
+    bridge?.onClose(message.details);
+  } else if (message.type === "transportError") {
+    bridge?.onError(new Error(message.message));
   } else if (message.type === "stop") {
     stopped = true;
     clearInterval(metricsTimer);
     clearInterval(blinkTimer);
-    socket?.close(1000, "View detached");
+    transport?.dispose();
     renderer?.dispose();
     self.close();
   } else if (message.type === "viewport" && !failed && !stopped) {
