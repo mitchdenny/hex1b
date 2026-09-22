@@ -246,20 +246,27 @@ public class WindowsPtySocketPathTests
         if (OperatingSystem.IsWindows())
         {
             var info = new DirectoryInfo(directory.Path);
-            var original = info.GetAccessControl();
-            var denied = info.GetAccessControl();
+            var security = info.GetAccessControl();
             using var identity = WindowsIdentity.GetCurrent();
-            denied.AddAccessRule(new FileSystemAccessRule(identity.User!,
-                FileSystemRights.CreateDirectories, AccessControlType.Deny));
-            info.SetAccessControl(denied);
+            var denyWrite = new FileSystemAccessRule(identity.User!,
+                FileSystemRights.Write, AccessControlType.Deny);
+            security.AddAccessRule(denyWrite);
+            info.SetAccessControl(security);
             try
             {
-                Assert.ThrowsExactly<UnauthorizedAccessException>(() => WindowsPtySocketPaths.CreateListener(path));
+                Assert.ThrowsExactly<UnauthorizedAccessException>(() =>
+                    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!));
+                Assert.ThrowsExactly<UnauthorizedAccessException>(() =>
+                {
+                    using var listener = WindowsPtySocketPaths.CreateListener(path);
+                });
                 Assert.IsFalse(System.IO.Path.Exists(path));
             }
             finally
             {
-                info.SetAccessControl(original);
+                // Persist only writes modified ACL sections; reusing an untouched snapshot does nothing.
+                security.RemoveAccessRuleSpecific(denyWrite);
+                info.SetAccessControl(security);
             }
         }
         else
@@ -269,7 +276,10 @@ public class WindowsPtySocketPathTests
             {
                 if (GetEffectiveUserId() == 0)
                     Assert.Inconclusive("Root can bypass directory permissions.");
-                Assert.ThrowsExactly<UnauthorizedAccessException>(() => WindowsPtySocketPaths.CreateListener(path));
+                Assert.ThrowsExactly<UnauthorizedAccessException>(() =>
+                {
+                    using var listener = WindowsPtySocketPaths.CreateListener(path);
+                });
                 Assert.IsFalse(System.IO.Path.Exists(path));
             }
             finally
