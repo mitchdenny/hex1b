@@ -32,21 +32,17 @@ internal sealed class PtyHostRunner(ILogger<PtyHostRunner> logger)
             return 1;
         }
 
-        WindowsPtySocketPaths.EnsureSocketDirectoryExistsForPath(options.SocketPath);
-        DeleteSocketFile(options.SocketPath, "startup cleanup");
-
         await using var ptyHandle = new WindowsPtyHandle();
-        using var listener = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        Socket? listener = null;
         Socket? clientSocket = null;
         NetworkStream? stream = null;
-
-        listener.Bind(new UnixDomainSocketEndPoint(options.SocketPath));
-        listener.Listen(1);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            listener = WindowsPtySocketPaths.CreateListener(options.SocketPath);
             _logger.LogInformation("Listening for Hex1b PTY client on {SocketPath}.", options.SocketPath);
 
             clientSocket = await listener.AcceptAsync(cts.Token).ConfigureAwait(false);
@@ -135,7 +131,7 @@ internal sealed class PtyHostRunner(ILogger<PtyHostRunner> logger)
             }
 
             clientSocket?.Dispose();
-            DeleteSocketFile(options.SocketPath, "shutdown cleanup");
+            listener?.Dispose();
         }
     }
 
@@ -265,18 +261,6 @@ internal sealed class PtyHostRunner(ILogger<PtyHostRunner> logger)
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Failed to send PTY error response to the client.");
-        }
-    }
-
-    private void DeleteSocketFile(string socketPath, string reason)
-    {
-        try
-        {
-            WindowsPtySocketPaths.DeleteSocketFile(socketPath);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Ignoring socket cleanup failure during {Reason}.", reason);
         }
     }
 

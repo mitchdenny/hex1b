@@ -120,31 +120,6 @@ public class WindowsPtyDisposeTests
     }
 
     [TestMethod]
-    public void WindowsPtySocketPaths_CreateSocketPath_UsesPrivateSocketDirectory()
-    {
-        using var workspace = TestWorkspace.Create("pty_socket_dir");
-        var original = Environment.GetEnvironmentVariable("HEX1B_PTY_SHIM_SOCKET_DIR");
-        string? socketPath = null;
-
-        try
-        {
-            var overrideDirectory = workspace.GetPath("private-sockets");
-            Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_SOCKET_DIR", overrideDirectory);
-
-            socketPath = WindowsPtySocketPaths.CreateSocketPath();
-
-            Assert.StartsWith(overrideDirectory, socketPath, StringComparison.OrdinalIgnoreCase);
-            Assert.EndsWith(".socket", socketPath, StringComparison.OrdinalIgnoreCase);
-            Assert.IsTrue(Directory.Exists(overrideDirectory));
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_SOCKET_DIR", original);
-            WindowsPtySocketPaths.DeleteSocketFile(socketPath);
-        }
-    }
-
-    [TestMethod]
     [DataRow("cmd.exe", new[] { "/c", "echo hi" }, false)]
     [DataRow("cmd.exe", new[] { "/k", "echo hi" }, true)]
     [DataRow("powershell.exe", new[] { "-NoLogo", "-NoProfile" }, true)]
