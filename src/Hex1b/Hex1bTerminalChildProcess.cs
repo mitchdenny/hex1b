@@ -411,7 +411,7 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         WindowsPtyMode windowsPtyMode = WindowsPtyMode.RequireProxy,
         string? windowsPtyHostPath = null,
         TimeSpan? unixPtyStartupTimeout = null,
-        string? windowsPtySocketPath = null)
+        string? windowsPtyProxySocketPath = null)
     {
         if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
         {
@@ -419,7 +419,7 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         }
         else if (OperatingSystem.IsWindows())
         {
-            return new WindowsProxyPtyHandle(windowsPtyMode, windowsPtyHostPath, windowsPtySocketPath);
+            return new WindowsProxyPtyHandle(windowsPtyMode, windowsPtyHostPath, windowsPtyProxySocketPath);
         }
         else
         {

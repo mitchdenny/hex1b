@@ -80,7 +80,7 @@ CI so the packaged runtime assets remain self-contained. The default
 
 #### Choosing the Windows PTY socket path
 
-`WindowsPtySocketPath` selects the exact filesystem socket path, separately from
+`WindowsPtyProxySocketPath` selects the exact filesystem socket path, separately from
 `WindowsPtyHostPath` (the helper executable). For example, on Windows:
 
 ```csharp
@@ -90,7 +90,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithPtyProcess(options =>
     {
         options.FileName = "cmd.exe";
-        options.WindowsPtySocketPath = Path.Combine(
+        options.WindowsPtyProxySocketPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".myapp-pty", "session.socket");
     })
@@ -106,7 +106,10 @@ device names, or alternate data streams. Use a distinct path for each concurrent
 session. When unset, Hex1b retains the unique `hex1bpty-<guid>.socket` filename in
 `HEX1B_PTY_SHIM_SOCKET_DIR`, or otherwise the user's `.hex1b/hex1bpty` directory
 (with LocalApplicationData as the fallback when the user profile is unavailable).
-The option is ignored on Linux/macOS and with `WindowsPtyMode.Direct`.
+On Windows, setting this option with a mode other than `WindowsPtyMode.RequireProxy`
+throws `InvalidOperationException` when the process starts, before launching a
+process or creating socket files. The option is ignored on Linux/macOS, like the
+other Windows-specific PTY settings.
 
 Choose a dedicated directory: Hex1b creates it with a protected, current-user-only
 inheritable DACL, or repairs an existing directory's DACL. Roots, shared temporary

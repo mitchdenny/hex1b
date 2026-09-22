@@ -10,17 +10,17 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
 {
     private readonly WindowsPtyMode _mode;
     private readonly string? _windowsPtyHostPath;
-    private readonly string? _windowsPtySocketPath;
+    private readonly string? _windowsPtyProxySocketPath;
     private IPtyHandle? _activeHandle;
 
     internal WindowsProxyPtyHandle(
         WindowsPtyMode mode = WindowsPtyMode.RequireProxy,
         string? windowsPtyHostPath = null,
-        string? windowsPtySocketPath = null)
+        string? windowsPtyProxySocketPath = null)
     {
         _mode = mode;
         _windowsPtyHostPath = windowsPtyHostPath;
-        _windowsPtySocketPath = windowsPtySocketPath;
+        _windowsPtyProxySocketPath = windowsPtyProxySocketPath;
     }
 
     public int ProcessId => _activeHandle?.ProcessId ?? -1;
@@ -39,12 +39,19 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
             throw new InvalidOperationException("The Windows PTY handle has already been started.");
         }
 
+        if (_windowsPtyProxySocketPath is not null && _mode != WindowsPtyMode.RequireProxy)
+        {
+            throw new InvalidOperationException(
+                $"{nameof(Hex1bTerminalProcessOptions.WindowsPtyProxySocketPath)} requires " +
+                $"{nameof(Hex1bTerminalProcessOptions.WindowsPtyMode)}.{nameof(WindowsPtyMode.RequireProxy)}.");
+        }
+
         // Windows PTY backend selection is now explicit:
         // - RequireProxy => use hex1bpty.exe and fail if it cannot be used
         // - Direct => bypass the helper entirely
         if (_mode == WindowsPtyMode.RequireProxy)
         {
-            var shimHandle = new WindowsShimPtyHandle(_windowsPtyHostPath, _windowsPtySocketPath);
+            var shimHandle = new WindowsShimPtyHandle(_windowsPtyHostPath, _windowsPtyProxySocketPath);
             try
             {
                 await shimHandle.StartAsync(fileName, arguments, workingDirectory, environment, width, height, ct).ConfigureAwait(false);
@@ -123,7 +130,7 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
 internal sealed class WindowsShimPtyHandle : IPtyHandle
 {
     private readonly string? _windowsPtyHostPath;
-    private readonly string? _windowsPtySocketPath;
+    private readonly string? _windowsPtyProxySocketPath;
     private readonly Channel<byte[]> _outputChannel = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(64)
     {
         SingleReader = true,
@@ -152,10 +159,10 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
     private int _processId;
     private bool _disposed;
 
-    internal WindowsShimPtyHandle(string? windowsPtyHostPath = null, string? windowsPtySocketPath = null)
+    internal WindowsShimPtyHandle(string? windowsPtyHostPath = null, string? windowsPtyProxySocketPath = null)
     {
         _windowsPtyHostPath = windowsPtyHostPath;
-        _windowsPtySocketPath = windowsPtySocketPath;
+        _windowsPtyProxySocketPath = windowsPtyProxySocketPath;
     }
 
     public int ProcessId => _processId;
@@ -183,7 +190,7 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
 
         ct.ThrowIfCancellationRequested();
         var sessionToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-        _socketPath = WindowsPtySocketPaths.CreateSocketPath(_windowsPtySocketPath);
+        _socketPath = WindowsPtySocketPaths.CreateSocketPath(_windowsPtyProxySocketPath);
         _socketReservation = new FileStream(_socketPath + ".lock", new FileStreamOptions
         {
             Mode = FileMode.CreateNew,

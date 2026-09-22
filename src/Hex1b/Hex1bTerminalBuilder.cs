@@ -455,7 +455,7 @@ public sealed class Hex1bTerminalBuilder
 
         var windowsPtyMode = options.WindowsPtyMode;
         var windowsPtyHostPath = options.WindowsPtyHostPath;
-        var windowsPtySocketPath = options.WindowsPtySocketPath;
+        var windowsPtyProxySocketPath = options.WindowsPtyProxySocketPath;
 
         SetWorkloadFactory(presentation =>
         {
@@ -475,7 +475,7 @@ public sealed class Hex1bTerminalBuilder
                     windowsPtyMode,
                     windowsPtyHostPath,
                     timeout,
-                    windowsPtySocketPath))
+                    windowsPtyProxySocketPath))
             {
                 UnixPtyStartupTimeout = unixPtyStartupTimeout
             };
@@ -1703,7 +1703,9 @@ public sealed class Hex1bTerminalProcessOptions
     /// The directory and socket are restricted to the current user before listening.
     /// Roots, shared temporary directories, and final-directory links are rejected.
     /// Existing endpoints are never replaced; use a distinct path for each concurrent session.
-    /// Invalid paths or permission failures fail startup. Ignored on Unix and in Direct mode.
+    /// Invalid paths or permission failures fail startup. On Windows, setting this option
+    /// with any mode other than <see cref="Hex1b.WindowsPtyMode.RequireProxy"/> throws
+    /// <see cref="InvalidOperationException"/> when the process starts. Ignored on Unix.
     /// </remarks>
-    public string? WindowsPtySocketPath { get; set; }
+    public string? WindowsPtyProxySocketPath { get; set; }
 }

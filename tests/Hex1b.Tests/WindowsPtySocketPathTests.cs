@@ -15,7 +15,7 @@ public class WindowsPtySocketPathTests
     [TestMethod]
     public void CreateSocketPath_DefaultAndExplicitPaths_PreserveSelectionRules()
     {
-        Assert.IsNull(new Hex1bTerminalProcessOptions().WindowsPtySocketPath);
+        Assert.IsNull(new Hex1bTerminalProcessOptions().WindowsPtyProxySocketPath);
         using var directory = new SocketDirectory();
         var original = Environment.GetEnvironmentVariable("HEX1B_PTY_SHIM_SOCKET_DIR");
         try
@@ -312,9 +312,9 @@ public class WindowsPtySocketPathTests
             captured = options;
             options.FileName = "cmd.exe";
             options.Arguments = ["/q", "/d", "/k"];
-            options.WindowsPtySocketPath = path;
+            options.WindowsPtyProxySocketPath = path;
         }).WithHeadless();
-        captured!.WindowsPtySocketPath = "invalid-after-configuration";
+        captured!.WindowsPtyProxySocketPath = "invalid-after-configuration";
         captured.WindowsPtyMode = WindowsPtyMode.Direct;
         captured.WindowsPtyHostPath = "missing-after-configuration";
 
@@ -345,7 +345,7 @@ public class WindowsPtySocketPathTests
         foreach (var occupied in new[] { path, path + ".lock" })
         {
             File.WriteAllText(occupied, "keep");
-            await using (var handle = new WindowsProxyPtyHandle(windowsPtySocketPath: path))
+            await using (var handle = new WindowsProxyPtyHandle(windowsPtyProxySocketPath: path))
             {
                 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
                 var error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
@@ -371,7 +371,7 @@ public class WindowsPtySocketPathTests
         using var directory = new SocketDirectory();
         var path = System.IO.Path.Combine(directory.Path, "s");
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-        await using (var handle = new WindowsProxyPtyHandle(windowsPtySocketPath: path))
+        await using (var handle = new WindowsProxyPtyHandle(windowsPtyProxySocketPath: path))
         {
             if (beforeStart)
             {
@@ -393,17 +393,67 @@ public class WindowsPtySocketPathTests
     }
 
     [TestMethod]
-    public async Task WithPtyProcess_DirectOrUnix_IgnoresSocketPath()
+    [DataRow(WindowsPtyMode.Direct)]
+    [DataRow(WindowsPtyMode.RequireProxy)]
+    public async Task WithPtyProcess_Unix_IgnoresWindowsProxySocketPath(WindowsPtyMode mode)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Requires a Unix PTY.");
+            return;
+        }
         await using var terminal = Hex1bTerminal.CreateBuilder().WithPtyProcess(options =>
         {
-            options.FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/echo";
-            options.Arguments = OperatingSystem.IsWindows() ? ["/d", "/c", "exit 0"] : ["hello"];
-            options.WindowsPtyMode = WindowsPtyMode.Direct;
-            options.WindowsPtySocketPath = "invalid\0ignored";
+            options.FileName = "/bin/echo";
+            options.Arguments = ["hello"];
+            options.WindowsPtyMode = mode;
+            options.WindowsPtyProxySocketPath = "invalid\0ignored";
         }).WithHeadless().Build();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         Assert.AreEqual(0, await terminal.RunAsync(timeout.Token));
+    }
+
+    [TestMethod]
+    [DataRow(WindowsPtyMode.Direct, "")]
+    [DataRow(WindowsPtyMode.Direct, " ")]
+    [DataRow(WindowsPtyMode.Direct, "session.socket")]
+    [DataRow((WindowsPtyMode)42, "session.socket")]
+    public async Task WindowsProxyPtyHandle_NonProxyModeWithSocketPath_RejectsBeforeLaunch(
+        WindowsPtyMode mode, string path)
+    {
+        await using var handle = new WindowsProxyPtyHandle(mode, windowsPtyProxySocketPath: path);
+        var error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+            handle.StartAsync("not-an-executable", [], null, new(), 80, 24, CancellationToken.None));
+        Assert.Contains(nameof(Hex1bTerminalProcessOptions.WindowsPtyProxySocketPath), error.Message);
+        Assert.Contains("WindowsPtyMode.RequireProxy", error.Message);
+        Assert.AreEqual(-1, handle.ProcessId);
+    }
+
+    [TestMethod]
+    [TestCategory("Windows")]
+    public async Task WithPtyProcess_DirectWithProxySocketPath_FailsAtStartupWithoutCreatingDirectory()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Requires Windows PTY backend selection.");
+            return;
+        }
+        using var directory = new SocketDirectory();
+        var missing = System.IO.Path.Combine(directory.Path, "missing");
+        await using var terminal = Hex1bTerminal.CreateBuilder().WithPtyProcess(options =>
+        {
+            options.FileName = "cmd.exe";
+            options.Arguments = ["/d", "/c", "exit 0"];
+            options.WindowsPtyMode = WindowsPtyMode.Direct;
+            options.WindowsPtyProxySocketPath = System.IO.Path.Combine(missing, "s");
+        }).WithHeadless().Build();
+
+        var process = TestSeq.IsType<Hex1bTerminalChildProcess>(terminal.Workload);
+        var error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => process.StartAsync());
+        Assert.Contains("WindowsPtyProxySocketPath requires WindowsPtyMode.RequireProxy", error.Message);
+        Assert.IsFalse(process.HasStarted);
+        Assert.AreEqual(-1, process.ProcessId);
+        Assert.IsFalse(Directory.Exists(missing));
     }
 
     [SupportedOSPlatform("windows")]
