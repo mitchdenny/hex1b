@@ -1,0 +1,24 @@
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directories:
+    - "/src/**/"
+    - "/tests/**/"
+    - "/samples/**/"
+    - "/benchmarks/**/"
+    - "/.github/skills/**/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/src/content"
+      - "/src/web-terminal"
+      - "/samples/WebTerminalDemo"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
