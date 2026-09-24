@@ -24,6 +24,7 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+
       - name: Submit NuGet dependencies
         uses: advanced-security/component-detection-dependency-submission-action@v0.1.6
         with:
