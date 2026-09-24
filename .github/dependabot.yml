@@ -7,6 +7,10 @@ updates:
     - "/samples/**/"
     - "/benchmarks/**/"
     - "/.github/skills/**/"
+    exclude-paths:
+      - "samples/BlazorDemo/**"
+      - "samples/BlazorPerfStressDemo/**"
+      - "samples/WasmDemo/**"
     schedule:
       interval: "weekly"
 
