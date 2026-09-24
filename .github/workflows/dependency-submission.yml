@@ -1,0 +1,31 @@
+name: Dependency Submission
+
+# Replaces the managed NuGet submission after it is disabled in repository
+# settings; the managed workflow does not expose directory exclusions.
+on:
+  push:
+    branches:
+      - main
+      - 'release/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  submit-nuget:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Submit NuGet dependencies
+        uses: advanced-security/component-detection-dependency-submission-action@v0.1.6
+        with:
+          detectorsCategories: NuGet
+          directoryExclusionList: samples/BlazorDemo;samples/BlazorPerfStressDemo;samples/WasmDemo
