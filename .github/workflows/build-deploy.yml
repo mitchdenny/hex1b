@@ -112,7 +112,7 @@ jobs:
         run: node .github/scripts/publish-web-terminal.mjs --verify
 
       - name: Upload npm artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: npm-web-terminal
           path: artifacts/npm/*.tgz
@@ -219,14 +219,14 @@ jobs:
           reporter: dotnet-trx
 
       - name: Upload test results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: success() || failure()
         with:
           name: test-results-${{ runner.os }}
           path: ./TestResults/
 
       - name: Upload SVG attachments
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: success() || failure()
         with:
           name: svg-attachments-${{ runner.os }}
@@ -245,7 +245,7 @@ jobs:
         run: make all test-startup check-exports
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native/libhex1binterop.so
@@ -261,7 +261,7 @@ jobs:
         run: make all test-startup check-exports
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: native-linux-arm64
           path: src/Hex1b/runtimes/linux-arm64/native/libhex1binterop.so
@@ -283,7 +283,7 @@ jobs:
           make TARGET_ARCH=x86_64 TEST_RUNNER="arch -x86_64" test-startup
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: native-osx-x64
           path: src/Hex1b/runtimes/osx-x64/native/libhex1binterop.dylib
@@ -299,7 +299,7 @@ jobs:
         run: make all test-startup check-exports
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native/libhex1binterop.dylib
@@ -320,7 +320,7 @@ jobs:
         run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-x64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-x64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: pty-host-windows-x64
           path: artifacts/pty-host/win-x64/
@@ -341,7 +341,7 @@ jobs:
         run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-arm64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-arm64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: pty-host-windows-arm64
           path: artifacts/pty-host/win-arm64/
@@ -431,7 +431,7 @@ jobs:
         run: bash .github/scripts/assert-nuget-contents.sh ./artifacts "${{ needs.version.outputs.version }}"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-packages-pr
           path: ./artifacts/*.nupkg
@@ -521,7 +521,7 @@ jobs:
         run: bash .github/scripts/assert-nuget-contents.sh ./artifacts "${{ needs.version.outputs.version }}"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-packages-release
           path: ./artifacts/*.nupkg
