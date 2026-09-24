@@ -71,7 +71,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           package-manager-cache: false
@@ -193,7 +193,7 @@ jobs:
 
       - name: Setup Node.js for content build
         if: runner.os == 'Linux'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
 
@@ -739,7 +739,7 @@ jobs:
 
       - name: Setup Node.js for npm trusted publishing
         if: vars.NPM_PUBLISH_ENABLED == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           package-manager-cache: false
