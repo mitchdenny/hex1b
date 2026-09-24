@@ -4,7 +4,6 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "types": ["@webgpu/types"],
     "strict": true,
     "noEmitOnError": true,
     "verbatimModuleSyntax": true,
