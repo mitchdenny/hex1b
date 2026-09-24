@@ -11,7 +11,7 @@
   "devDependencies": {
     "vitepress": "^1.5.0",
     "vue": "^3.5.43",
-    "@xterm/xterm": "^5.5.0",
+    "@xterm/xterm": "^6.0.0",
     "@xterm/addon-image": "^0.9.0",
     "@xterm/addon-unicode11": "^0.9.0",
     "@xterm/addon-web-links": "^0.12.0"
