@@ -788,8 +788,22 @@ the painter reads that fallback from each frame.
 Options are snapshotted; mutating your original object does not change an
 existing painter. Create and install another renderer to change its overrides.
 The visible thumb is a capsule, inset by `min(2, width / 4)` CSS pixels on each
-side, with radius half its smaller painted dimension. Styling changes painting
-only: track, thumb, marker hit regions, and all navigation APIs remain unchanged.
+side, with radius half its smaller painted dimension. Marks paint **behind**
+the thumb, so dense history does not interrupt its silhouette. Explicitly
+translucent thumb colors or opacities can still reveal marks underneath.
+
+Distant marks are circles centered in the track, at most 3 CSS pixels in
+diameter and smaller than the painted thumb's width. As the thumb approaches,
+each circle smoothly stretches left into a horizontal capsule, reaching up to
+12 CSS pixels beyond the track. Expansion uses distance to the nearest thumb
+edge over an 8 CSS pixel range and is maximal alongside the thumb. Narrow/short
+layouts reduce these dimensions, and extensions stop at the terminal's left
+edge. The right endpoint and vertical position stay fixed; the scrollbar's
+vertical mapping remains linear. Expansion follows scrolling directly, including
+pending drag targets, without hover activation or time-based animation.
+
+Appearance overrides change painting only; they do not change this shared
+geometry or navigation behavior.
 
 ### Custom synchronous painting and fade
 
@@ -832,7 +846,7 @@ terminal.refreshScrollbar();
 The callback is synchronous: never return a Promise. `frame.context` is prepared
 for CSS-pixel drawing on `frame.canvas`; context state is isolated between
 calls. The frame includes layout, viewport, nullable `pendingTarget` (the locally
-desired row during navigation), track/thumb rectangles, marker rectangles,
+desired row during navigation), track/thumb rectangles, circle/capsule marker bounds,
 nullable `hoveredMarker` (the hovered `TerminalScrollbarMarker`, including its bounds),
 interaction state, monotonic `now` and `lastActivityAt`, default
 `opacity`, and resolved theme colors. Return `true` only while another frame is
@@ -842,8 +856,20 @@ Painter failures are local scrollbar errors, not reasons to stop terminal output
 
 Painting does not redefine hit testing: the library owns thumb dragging,
 track paging, marker clicks, proximity activation, and keyboard interaction.
-The thumb takes precedence over overlapping marker ticks so dense markers cannot
-prevent dragging. Alt+ArrowUp/ArrowDown navigates adjacent available markers.
+Marker bounds vary with thumb proximity and can extend left of the track,
+including over terminal content in beside mode. Custom painters should use
+these bounds and draw their thumb after their marks.
+
+The thumb takes precedence over overlapping marks for both dragging and hover.
+Exposed capsule extensions support marker clicks and tooltips across their
+rounded shape, and wheel scrolling there scrolls history. Only the extensions
+claim input outside the track, not the empty space around them. Content
+selections started elsewhere remain content gestures even when crossing a mark.
+Hovering an extension keeps the scrollbar visible; fully faded extensions do
+not intercept content input until track proximity or other activity reveals
+the scrollbar again. Hit testing follows the library's fade state, not any
+additional transparency or custom fade chosen by a host painter.
+Alt+ArrowUp/ArrowDown navigates adjacent available markers.
 The default painter respects reduced motion and the embedding theme.
 `markers: false` hides ticks without removing the inventory or disabling
 `scrollToMarker`. Inventory changes briefly reveal the scrollbar, including when
@@ -867,14 +893,14 @@ const squareScrollbar: TerminalScrollbarRenderer = frame => {
     context.fillStyle = colors.track;
     context.fillRect(track.left, track.top, track.width, track.height);
     context.globalAlpha = alpha;
-    context.fillStyle = colors.thumb;
-    context.fillRect(thumb.left, thumb.top, thumb.width, thumb.height);
     for (const { marker, bounds } of frame.markers) {
       context.fillStyle = marker.exitCode != null && marker.exitCode !== 0
         ? colors.error : colors.marker;
       if (marker.color) context.fillStyle = marker.color;
       context.fillRect(bounds.left, bounds.top, bounds.width, bounds.height);
     }
+    context.fillStyle = colors.thumb;
+    context.fillRect(thumb.left, thumb.top, thumb.width, thumb.height);
     if (frame.interaction.focused) {
       context.strokeStyle = colors.marker;
       context.lineWidth = 1;
