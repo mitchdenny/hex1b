@@ -44,6 +44,12 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 const contains = (rect: TerminalRectangle, x: number, y: number, margin = 0) =>
   x >= rect.left - margin && x < rect.left + rect.width + margin &&
   y >= rect.top - margin && y < rect.top + rect.height + margin;
+const containsCapsule = (rect: TerminalRectangle, x: number, y: number) => {
+  if (!contains(rect, x, y)) return false;
+  const radius = Math.min(rect.width, rect.height) / 2;
+  const centerX = clamp(x, rect.left + radius, rect.left + rect.width - radius);
+  return (x - centerX) ** 2 + (y - rect.top - rect.height / 2) ** 2 <= radius ** 2;
+};
 
 export function scrollbarOpacity(now: number, lastActivityAt: number, active: boolean,
   configuration: TerminalScrollbarConfiguration, reducedMotion: boolean): number {
@@ -66,25 +72,36 @@ export function scrollbarGeometry(layout: TerminalLayout, viewport: TerminalView
       clamp(target ?? viewport.top, 0, viewport.liveTop) / viewport.liveTop,
     width: track.width, height
   });
+  const diameter = Math.min(3, track.height, (thumb.width - Math.min(2, thumb.width / 4) * 2) / 2);
+  const circleLeft = track.left + (track.width - diameter) / 2;
+  const expandedLeft = Math.max(0, track.left - Math.min(12, track.width));
+  const approachRange = Math.min(8, track.height);
   const ticks: TerminalScrollbarMarker[] = markers
     .filter(marker => marker.buffer === viewport.buffer && marker.row !== null &&
       Number.isFinite(marker.row) && marker.row >= 0 && marker.row < viewport.totalRows &&
       (marker.source === "custom" || marker.phase !== "prompt"))
     .map(marker => {
-      const height = Math.min(3, track.height);
+      const top = track.top + (track.height - diameter) * marker.row! / Math.max(1, viewport.totalRows - 1);
+      const distance = Math.max(thumb.top - top - diameter, top - thumb.top - thumb.height, 0);
+      const proximity = 1 - clamp(distance / approachRange, 0, 1);
+      const expansion = proximity * proximity * (3 - 2 * proximity);
+      const left = circleLeft + (expandedLeft - circleLeft) * expansion;
       return Object.freeze({
         marker: Object.freeze({ ...marker }),
         bounds: Object.freeze({
-          left: track.left, top: track.top + (track.height - height) *
-            marker.row! / Math.max(1, viewport.totalRows - 1), width: track.width, height
+          left, top, width: circleLeft + diameter - left, height: diameter
         })
       });
     });
   return Object.freeze({ track: Object.freeze({ ...track }), thumb, markers: Object.freeze(ticks) });
 }
 
-export function scrollbarMarkerAt(markers: readonly TerminalScrollbarMarker[], x: number, y: number) {
-  return markers.filter(tick => contains(tick.bounds, x, y, 3))
+export function scrollbarMarkerAt(markers: readonly TerminalScrollbarMarker[], x: number, y: number,
+  track?: TerminalRectangle) {
+  const inTrack = !!track && contains(track, x, y);
+  return markers.filter(({ bounds }) => inTrack
+    ? y >= bounds.top - 3 && y < bounds.top + bounds.height + 3
+    : containsCapsule(bounds, x, y))
     .sort((a, b) => Math.abs(a.bounds.top + a.bounds.height / 2 - y) -
       Math.abs(b.bounds.top + b.bounds.height / 2 - y) ||
       (a.marker.id < b.marker.id ? -1 : a.marker.id > b.marker.id ? 1 : 0))[0]?.marker;
@@ -127,6 +144,7 @@ export class ScrollbarController {
   private pointer: number | null = null;
   private dragOffset: number | null = null;
   private contentPointers = new Set<number>();
+  private contentClick = false;
   private suppressClick = false;
   private desired: number | null = null;
   private queued: number | null = null;
@@ -155,7 +173,7 @@ export class ScrollbarController {
     on(options.element, "wheel", event => this.wheel(event));
     for (const name of ["mousedown", "mouseup", "click", "dblclick", "contextmenu"] as const)
       on(options.element, name, event => {
-        if (this.contentPointers.size) return;
+        if (this.contentPointers.size || this.contentClick) return;
         if (this.pointer !== null || this.hit(event) ||
           (this.suppressClick && (name === "click" || name === "mouseup"))) {
           this.consume(event);
@@ -218,7 +236,7 @@ export class ScrollbarController {
     accessibility.setAttribute("aria-valuetext", state.viewport.following ? "Live terminal output" :
       `Scrollback row ${this.desired ?? state.viewport.top}`);
     accessibility.setAttribute("aria-busy", String(state.viewport.pending));
-    this.options.onMarkerHover?.(this.hoveredMarker());
+    this.refreshHover(geometry);
     this.schedule();
   }
 
@@ -240,6 +258,7 @@ export class ScrollbarController {
     this.clearHover();
     this.endGesture();
     this.contentPointers.clear();
+    this.contentClick = false;
     this.desired = this.queued = null;
     this.near = this.hovered = this.focused = this.suppressClick = false;
     this.dormant = false;
@@ -281,7 +300,17 @@ export class ScrollbarController {
   private hit(event: MouseEvent) {
     const geometry = this.geometry();
     const point = this.point(event);
-    return !!geometry && contains(geometry.track, point.x, point.y);
+    return !!geometry && (contains(geometry.track, point.x, point.y) || !!this.markerAt(geometry, point));
+  }
+
+  private markerAt(geometry: NonNullable<ReturnType<typeof scrollbarGeometry>>, point: { x: number; y: number }) {
+    if (contains(geometry.thumb, point.x, point.y)) return undefined;
+    const configuration = this.options.getState().configuration;
+    if (!contains(geometry.track, point.x, point.y) &&
+      (this.failed || !configuration || scrollbarOpacity(this.now(), this.lastActivityAt,
+        this.near || this.hovered || this.focused || this.pointer !== null,
+        configuration, this.motion?.matches ?? false) <= 0)) return undefined;
+    return scrollbarMarkerAt(geometry.markers, point.x, point.y, geometry.track);
   }
 
   private consume(event: Event) {
@@ -292,11 +321,13 @@ export class ScrollbarController {
   private pointerDown(event: PointerEvent) {
     this.clearHover();
     this.suppressClick = false;
+    this.contentClick = false;
     if (!this.hit(event)) {
       this.contentPointers.add(event.pointerId);
+      this.contentClick = true;
       return;
     }
-    if (this.contentPointers.size) return;
+    if (this.contentPointers.size) { this.contentClick = true; return; }
     this.consume(event);
     if (event.button !== 0 || this.pointer !== null) return;
     const geometry = this.geometry()!;
@@ -316,7 +347,7 @@ export class ScrollbarController {
       this.dragOffset = point.y - geometry.thumb.top;
       return;
     }
-    const marker = scrollbarMarkerAt(geometry.markers, point.x, point.y);
+    const marker = this.markerAt(geometry, point);
     if (marker) { this.jump(marker.id); return; }
     const viewport = this.options.getState().viewport;
     if (viewport.available) this.navigate((this.desired ?? viewport.top) +
@@ -339,23 +370,33 @@ export class ScrollbarController {
       return;
     }
     if (this.contentPointers.size || event.buttons !== 0) { this.clearHover(); return; }
-    const previous = this.hoveredMarker();
+    const previous = this.hoveredMarker(geometry);
     this.hoverPoint = { clientX: event.clientX, clientY: event.clientY };
-    const marker = this.hoveredMarker();
-    this.options.onMarkerHover?.(marker);
+    const marker = this.refreshHover(geometry);
     if (previous?.marker.id !== marker?.marker.id) {
       this.dormant = false;
       this.schedule();
     }
-    const configuration = this.options.getState().configuration;
-    const near = contains(geometry.track, point.x, point.y, configuration ? configuration.proximity : 0);
-    const hovered = contains(geometry.track, point.x, point.y);
-    if (near !== this.near || hovered !== this.hovered) {
-      this.near = near;
-      this.hovered = hovered;
-      this.activity();
+    if (this.hovered) this.consume(event);
+  }
+
+  private refreshHover(geometry: NonNullable<ReturnType<typeof scrollbarGeometry>>) {
+    if (geometry && this.hoverPoint && this.pointer === null && !this.contentPointers.size) {
+      const point = this.point(this.hoverPoint);
+      const configuration = this.options.getState().configuration;
+      const near = contains(geometry.track, point.x, point.y, configuration ? configuration.proximity : 0);
+      const hovered = contains(geometry.track, point.x, point.y) || !!this.markerAt(geometry, point);
+      if (near !== this.near || hovered !== this.hovered) {
+        this.near = near;
+        this.hovered = hovered;
+        this.activity();
+      }
+      // Proximity can reveal a previously faded extension under this same pointer.
+      this.hovered = contains(geometry.track, point.x, point.y) || !!this.markerAt(geometry, point);
     }
-    if (hovered) this.consume(event);
+    const marker = this.hoveredMarker(geometry);
+    this.options.onMarkerHover?.(marker);
+    return marker;
   }
 
   private clearHover() {
@@ -363,13 +404,11 @@ export class ScrollbarController {
     this.options.onMarkerHover?.(null);
   }
 
-  private hoveredMarker(): TerminalScrollbarMarker | null {
+  private hoveredMarker(geometry = this.geometry()): TerminalScrollbarMarker | null {
     if (!this.hoverPoint || this.pointer !== null || this.contentPointers.size) return null;
-    const geometry = this.geometry();
     if (!geometry) return null;
     const point = this.point(this.hoverPoint);
-    if (!contains(geometry.track, point.x, point.y)) return null;
-    const marker = scrollbarMarkerAt(geometry.markers, point.x, point.y);
+    const marker = this.markerAt(geometry, point);
     return geometry.markers.find(tick => tick.marker.id === marker?.id) ?? null;
   }
 
@@ -482,7 +521,7 @@ export class ScrollbarController {
       } catch (error) { this.desired = null; this.report(error); }
     }
     const geometry = this.geometry(state)!;
-    this.options.onMarkerHover?.(this.hoveredMarker());
+    this.refreshHover(geometry);
     if (this.disposed || state.configuration !== this.options.getState().configuration) return;
     const { canvas, accessibility } = this.options;
     accessibility.setAttribute("aria-valuenow", String(this.desired ?? state.viewport.top));
@@ -506,7 +545,7 @@ export class ScrollbarController {
     if (canvas.height !== height) canvas.height = height;
     this.clear();
     const now = this.now();
-    const active = this.near || this.focused || this.pointer !== null;
+    const active = this.near || this.hovered || this.focused || this.pointer !== null;
     const autoHide = state.configuration.placement === "overlay";
     const reducedMotion = this.motion?.matches ?? false;
     const opacity = scrollbarOpacity(now, this.lastActivityAt, active, state.configuration, reducedMotion);
@@ -526,7 +565,7 @@ export class ScrollbarController {
       markers: Object.freeze(geometry.markers.map(tick => Object.freeze({
         ...tick, color: scrollbarMarkerColor(tick.marker, scrollbarColor)
       }))),
-      hoveredMarker: this.hoveredMarker(),
+      hoveredMarker: this.hoveredMarker(geometry),
       interaction: Object.freeze({
         near: this.near, hovered: this.hovered, dragging: this.dragOffset !== null,
         focused: this.focused, lastActivityAt: this.lastActivityAt, reducedMotion
