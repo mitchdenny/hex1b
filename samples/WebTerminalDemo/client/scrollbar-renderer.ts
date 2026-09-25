@@ -21,7 +21,7 @@ export const softFadeScrollbar: TerminalScrollbarRenderer = frame => {
   return !active && opacity > 0;
 };
 
-/** Draw a narrow rail, square thumb with grips, and diamond marks from the same frame. */
+/** Draw a narrow rail, square thumb with grips, and stretching diamond marks from the same frame. */
 export const customCanvasScrollbar: TerminalScrollbarRenderer = frame => {
   if (frame.opacity <= 0) return;
   const { context, track, thumb, colors } = frame;
@@ -33,28 +33,17 @@ export const customCanvasScrollbar: TerminalScrollbarRenderer = frame => {
     const railWidth = Math.min(2, track.width);
     context.fillRect(track.left + (track.width - railWidth) / 2, track.top, railWidth, track.height);
 
-    const inset = Math.min(1, thumb.width / 4);
-    const width = thumb.width - inset * 2;
     context.globalAlpha = alpha;
-    context.fillStyle = colors.thumb;
-    context.fillRect(thumb.left + inset, thumb.top, width, thumb.height);
-    context.fillStyle = colors.track;
-    for (const offset of [-3, 0, 3]) {
-      const top = thumb.top + thumb.height / 2 + offset;
-      if (top >= thumb.top && top + 1 <= thumb.top + thumb.height)
-        context.fillRect(thumb.left + inset + width / 4, top, width / 2, 1);
-    }
-
     for (const { marker, bounds, color } of frame.markers) {
       const x = bounds.left + bounds.width / 2, y = bounds.top + bounds.height / 2;
-      const radius = Math.min(4, bounds.width / 2);
+      const radiusX = bounds.width / 2, radiusY = bounds.height / 2;
       context.fillStyle = color ?? (marker.exitCode != null && marker.exitCode !== 0 ? colors.error : colors.marker);
       if (marker.color) context.fillStyle = marker.color;
       context.beginPath();
-      context.moveTo(x, y - radius);
-      context.lineTo(x + radius, y);
-      context.lineTo(x, y + radius);
-      context.lineTo(x - radius, y);
+      context.moveTo(x, y - radiusY);
+      context.lineTo(x + radiusX, y);
+      context.lineTo(x, y + radiusY);
+      context.lineTo(x - radiusX, y);
       context.closePath();
       context.fill();
       if (frame.hoveredMarker?.marker.id === marker.id) {
@@ -62,6 +51,16 @@ export const customCanvasScrollbar: TerminalScrollbarRenderer = frame => {
         context.lineWidth = 1;
         context.stroke();
       }
+    }
+    const inset = Math.min(1, thumb.width / 4);
+    const width = thumb.width - inset * 2;
+    context.fillStyle = colors.thumb;
+    context.fillRect(thumb.left + inset, thumb.top, width, thumb.height);
+    context.fillStyle = colors.track;
+    for (const offset of [-3, 0, 3]) {
+      const top = thumb.top + thumb.height / 2 + offset;
+      if (top >= thumb.top && top + 1 <= thumb.top + thumb.height)
+        context.fillRect(thumb.left + inset + width / 4, top, width / 2, 1);
     }
     if (frame.interaction.focused && !frame.interaction.dragging) {
       context.strokeStyle = colors.thumb;
