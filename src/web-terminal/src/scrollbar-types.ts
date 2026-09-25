@@ -53,6 +53,7 @@ export interface TerminalMarkerOptions {
 }
 export interface TerminalScrollbarMarker {
   readonly marker: TerminalMarker;
+  /** Circle/capsule bounds that expand left of the track near the thumb, in CSS pixels. */
   readonly bounds: TerminalRectangle;
   /** Resolved default paint color for this kind/outcome; marker.color overrides it. */
   readonly color?: string;
@@ -76,7 +77,7 @@ export interface TerminalScrollbarFrame {
   readonly track: TerminalRectangle;
   readonly thumb: TerminalRectangle;
   readonly markers: readonly TerminalScrollbarMarker[];
-  /** The marker under an idle pointer; null during a gesture or outside a marker. */
+  /** The marker under an idle pointer, including exposed extensions; null over the thumb or during gestures. */
   readonly hoveredMarker: TerminalScrollbarMarker | null;
   readonly interaction: TerminalScrollbarInteraction;
   readonly now: number;
