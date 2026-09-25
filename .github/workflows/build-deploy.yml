@@ -16,6 +16,9 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 # Serialize publishes per branch so that npm/NuGet pushes and tag/GH-release
 # creation happen in commit order. PR builds get their own per-PR group so
 # concurrent PRs do not block each other.
