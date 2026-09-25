@@ -238,11 +238,13 @@ integer; `rawParameters` is the verbatim `key=value[;key=value...]` text trailin
 marker (for example a `cmdline_url` extension on marker C), or null when none was
 present. This is the single most-recently-reported marker only, exactly mirroring how
 `shellIntegration` exposes only the current phase rather than a stream of past phases;
-it is not a command-mark history. `Hex1bTerminal.CommandMarks` keeps a bounded
-server-side history of marks, but that history itself is never sent over the wire —
-only this atomic "latest mark" projection is. Clients that want their own history
-should accumulate distinct `commandMark` values from
-`WebTerminalOptions.onCommandMarkChange` themselves.
+it is not a command-mark history. `Hex1bTerminal.CommandMarks` retains marks with
+their backing text by default; `CommandMarkHistoryCapacity` defaults to
+`int.MaxValue`, with explicit smaller count limits still supported. The separate
+`history.markers` inventory carries retained, reflow-aware positions and is
+published atomically after all inventory pages arrive, within its 8 MiB budget.
+Browser consumers should use `markers` / `onMarkersChange` for retained history,
+not accumulate the coalesced `commandMark` notifications as an event log.
 
 Both objects are captured atomically with the screen, sent on every full and
 delta frame, and remain current when inspecting historical rows. Metadata-only

@@ -50,11 +50,12 @@ async page => {
       const scrollbar = monoTerminal.element.shadowRoot.querySelector(".scrollbar-accessibility");
       const style = getComputedStyle(scrollbar);
       return { width: parseFloat(style.outlineWidth), style: style.outlineStyle,
-        color: monoCssPixel(style.outlineColor), active: scrollbar.dataset.pointerActive };
+        strokes: monoPaint.strokes,
+        active: scrollbar.dataset.pointerActive };
     });
-    check(focus.width > 0 && focus.style !== "none" && focus.color[3] > 0 &&
-      focus.color[0] === focus.color[1] && focus.color[1] === focus.color[2],
-    `Keyboard focus is not visibly neutral: ${JSON.stringify(focus)}`);
+    check(focus.width === 0 || focus.style === "none",
+      `Keyboard focus added a DOM outline: ${JSON.stringify(focus)}`);
+    check(focus.strokes.length === 0, `Keyboard focus added a canvas outline: ${JSON.stringify(focus)}`);
     check(focus.active !== "true", "Pointer gesture state survived release");
     return focus;
   };
@@ -109,6 +110,18 @@ async page => {
         return [...canvas.getContext("2d").getImageData(
           Math.floor(x * canvas.width / layout.width), Math.floor(y * canvas.height / layout.height), 1, 1).data];
       };
+      window.monoThumbContrast = () => {
+        const { thumb, track } = monoPaint.frame;
+        const background = monoCssPixel(getComputedStyle(monoTerminal.element).backgroundColor);
+        const luminance = rgba => rgba.slice(0, 3)
+          .map((value, index) => (value * rgba[3] / 255 + background[index] * (1 - rgba[3] / 255)) / 255)
+          .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
+          .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+        const y = thumb.top + thumb.height / 2;
+        const a = luminance(monoPixel(thumb.left + thumb.width / 2, y));
+        const b = luminance(monoPixel(track.left + 1.5, y));
+        return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+      };
       window.monoThumbPoint = () => {
         const { thumb, markers } = monoPaint.frame;
         const y = Array.from({ length: 15 }, (_, index) => thumb.top + thumb.height * (index + 1) / 16)
@@ -121,19 +134,31 @@ async page => {
         const tick = monoPaint.frame.markers.find(tick => tick.marker.id === id);
         return monoPixel(tick.bounds.left + tick.bounds.width / 2, tick.bounds.top + tick.bounds.height / 2);
       };
-      window.monoCanvasIsGray = () => {
+      window.monoCanvasUsesPalette = () => {
         const canvas = monoPaint.frame.canvas;
         const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
-        for (let index = 0; index < pixels.length; index += 4)
-          if (pixels[index + 3] && (pixels[index] !== pixels[index + 1] || pixels[index + 1] !== pixels[index + 2])) return false;
+        const foreground = monoCssPixel(monoPaint.frame.colors.thumb);
+        const background = monoCssPixel(getComputedStyle(monoTerminal.element).backgroundColor);
+        const channel = [0, 1, 2].sort((a, b) =>
+          Math.abs(foreground[b] - background[b]) - Math.abs(foreground[a] - background[a]))[0];
+        for (let index = 0; index < pixels.length; index += 4) {
+          const alpha = pixels[index + 3];
+          if (!alpha) continue;
+          const weight = (pixels[index + channel] - background[channel]) / (foreground[channel] - background[channel]);
+          const tolerance = Math.ceil(510 / alpha);
+          for (let component = 0; component < 3; component++)
+            if (Math.abs(pixels[index + component] - (background[component] +
+              (foreground[component] - background[component]) * weight)) > tolerance) return false;
+        }
         return true;
       };
     });
     const picker = test.locator(".terminal-window .view-scrollbar-fade");
     for (const theme of ["light", "dark"]) {
-      await test.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+      await test.locator("#color-mode").selectOption(theme);
+      await test.waitForFunction(theme => monoTerminal.resolvedColorMode === theme, theme);
       for (const painter of ["default", "styled", "custom", "drawn"]) {
-        stage = `${theme}/${painter}: neutral thumb and phase-specific marker pixels`;
+        stage = `${theme}/${painter}: palette thumb and phase-specific marker pixels`;
         await picker.selectOption(painter);
         await instrument();
         await test.evaluate(() => monoTerminal.scrollToLive());
@@ -147,25 +172,39 @@ async page => {
             resolved: Object.fromEntries(Object.entries(monoKinds).map(([kind, id]) =>
               [kind, markers.find(tick => tick.marker.id === id).color])),
             colors: Object.fromEntries(Object.entries(colors).map(([name, color]) => [name, monoCssPixel(color)])),
-            entireCanvasGray: monoCanvasIsGray()
+            expectedThumb: monoCssPixel((monoTerminal.resolvedColorMode === "light"
+              ? monoApi.defaultLightPalette : monoApi.defaultDarkPalette).foreground),
+            entireCanvasUsesPalette: monoCanvasUsesPalette(), contrast: monoThumbContrast()
           };
         });
         for (const [kind, rgba] of Object.entries({ thumb: pixels.thumb, ...pixels.kinds, ...pixels.colors }))
-          check(rgba[3] > 0 && rgba[0] === rgba[1] && rgba[1] === rgba[2],
-            `${theme}/${painter} ${kind} is not neutral RGBA: ${rgba}`);
-        check(pixels.entireCanvasGray, `${theme}/${painter} canvas inherited a colored accent or danger token`);
+          check(rgba[3] > 0, `${theme}/${painter} ${kind} is invisible: ${rgba}`);
+        check(pixels.colors.thumb.join(",") === pixels.expectedThumb.join(","),
+          `${theme}/${painter} thumb does not use the terminal foreground`);
+        check(pixels.entireCanvasUsesPalette, `${theme}/${painter} canvas uses colors outside the terminal palette shades`);
+        if (painter === "default")
+          check(pixels.contrast >= 3, `${theme} thumb/track contrast is only ${pixels.contrast.toFixed(2)}:1`);
         check(Object.values(pixels.resolved).every(Boolean), "Custom painters did not receive resolved tick colors");
         check(new Set(Object.values(pixels.kinds).map(rgba => rgba.slice(0, 3).join(","))).size === 6,
           `${theme}/${painter} marker kinds/outcomes are not visually distinct: ${JSON.stringify(pixels.kinds)}`);
 
         stage = `${theme}/${painter}: real thumb drag suppresses canvas and DOM outlines`;
         await keyboardFocus();
+        await test.waitForFunction(() => {
+          const { thumb, track } = monoPaint.frame, viewport = monoTerminal.viewport;
+          return Math.abs(thumb.top - (track.top +
+            (track.height - thumb.height) * viewport.top / viewport.liveTop)) < .001;
+        });
         const drag = await test.evaluate(() => {
           const point = monoThumbPoint(), bounds = monoTerminal.element.getBoundingClientRect(), layout = monoTerminal.layout;
           return { x: bounds.left + point.x * bounds.width / layout.width,
             y: bounds.top + point.y * bounds.height / layout.height };
         });
+        await test.mouse.move(1, 1);
         await test.mouse.move(drag.x, drag.y);
+        await test.waitForFunction(() => monoPaint.frame.interaction.hovered);
+        if (painter === "default")
+          check(await test.evaluate(() => monoThumbContrast()) >= 3, `${theme} hovered thumb lost contrast`);
         await test.mouse.down();
         await test.mouse.move(drag.x, drag.y - 60, { steps: 5 });
         await test.waitForFunction(() => monoPaint?.frame.interaction.dragging && !monoTerminal.viewport.pending);
@@ -173,12 +212,15 @@ async page => {
           const scrollbar = monoTerminal.element.shadowRoot.querySelector(".scrollbar-accessibility");
           const style = getComputedStyle(scrollbar);
           return { active: scrollbar.dataset.pointerActive, strokes: monoPaint.strokes,
-            outline: style.outlineStyle, outlineWidth: parseFloat(style.outlineWidth), gray: monoCanvasIsGray() };
+            outline: style.outlineStyle, outlineWidth: parseFloat(style.outlineWidth), usesPalette: monoCanvasUsesPalette(),
+            contrast: monoThumbContrast() };
         });
         check(dragging.active === "true", "Real scrollbar drag did not set data-pointer-active");
         check(dragging.strokes.length === 0, `Painter stroked an outline while dragging: ${JSON.stringify(dragging.strokes)}`);
         check(dragging.outline === "none" || dragging.outlineWidth === 0, "DOM focus-visible outline remained during pointer drag");
-        check(dragging.gray, "Dragging introduced a colored scrollbar pixel");
+        check(dragging.usesPalette, "Dragging introduced a color outside the terminal palette shades");
+        if (painter === "default")
+          check(dragging.contrast >= 3, `${theme} dragged thumb lost contrast against the shaded track`);
         let screenshot;
         if (painter === "default" || painter === "drawn") {
           screenshot = `.playwright-cli/scrollbar-monochrome-drag-${theme}-${painter}.png`;
@@ -196,13 +238,30 @@ async page => {
       }
     }
 
-    stage = "explicit CSS, renderer factory, and per-marker colors remain supported";
+    stage = "same-mode palette replacement updates idle scrollbar pixels";
     await picker.selectOption("default");
+    await instrument();
+    await test.evaluate(() => {
+      window.monoOriginalConnection = [...webTerminalViews.values()][0].connectionId;
+      monoTerminal.setPalette("dark", { ...monoApi.defaultDarkPalette, foreground: "#91d7ef", background: "#102030" });
+    });
+    await test.waitForFunction(() => monoPaint.frame.colors.thumb === "#91d7ef" &&
+      monoPaint.frame.colors.track === "#517c90");
+    check(await test.evaluate(() => {
+      const { thumb } = monoPaint.frame;
+      return monoPixel(thumb.left + thumb.width / 2, monoThumbPoint().y).slice(0, 3).join(",") === "145,215,239" &&
+        monoCanvasUsesPalette() && [...webTerminalViews.values()][0].connectionId === monoOriginalConnection;
+    }), "Replacing the active palette did not repaint the existing scrollbar");
+
+    stage = "explicit CSS, renderer factory, and per-marker colors remain supported";
     await test.evaluate(() => {
       monoTerminal.element.style.setProperty("--cp-scrollbar-thumb", "#336699");
       monoTerminal.element.style.setProperty("--cp-scrollbar-executing", "#228844");
+      monoTerminal.setPalette("dark", { ...monoApi.defaultDarkPalette, foreground: "#eeddcc", background: "#223344" });
     });
     await instrument();
+    await test.evaluate(() => monoTerminal.setColorMode("light"));
+    await test.waitForFunction(() => monoPaint.frame.colors.thumb === "#336699" && monoPaint.frame.colors.track === "#83817d");
     const css = await test.evaluate(() => {
       const { thumb } = monoPaint.frame;
       return { thumb: monoPixel(thumb.left + thumb.width / 2, monoThumbPoint().y),
@@ -223,6 +282,8 @@ async page => {
       }) });
     });
     await instrument();
+    await test.evaluate(() => monoTerminal.setColorMode("dark"));
+    await test.waitForFunction(() => monoPaint.frame.colors.thumb === "#eeddcc");
     const explicit = await test.evaluate(() => ({
       marker: monoTickPixel(monoExplicit.id), executing: monoTickPixel(monoKinds.executing),
       error: monoTickPixel(monoKinds.error),

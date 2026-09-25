@@ -484,7 +484,10 @@ marks continue with aligned IDs. Seeding retained records does not raise
 `CommandMarkAdded` events.
 
 Local `Hex1bTerminalOptions.CommandMarkHistoryCapacity` and scrollback capacity
-remain authoritative. Marks with locally discarded backing text are dropped,
+remain authoritative. The command-mark capacity defaults to `int.MaxValue`
+(text-lifetime retention); an explicit smaller count evicts oldest marks first
+and zero disables retention. This does not change the checkpoint's 10,000-mark
+or byte limits. Marks with locally discarded backing text are dropped,
 and later redraw, eviction, or reset still collects expired anchors. Repeated
 checkpoints do not duplicate retained marks or imply replayed execution events.
 Custom/browser-owned markers and historical graphics are **not transferred**.

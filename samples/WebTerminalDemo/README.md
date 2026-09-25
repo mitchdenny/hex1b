@@ -14,11 +14,13 @@ describe state transfer between the first-party server and browser client.
 evolve together without wire-compatibility guarantees; keep their versions
 paired and upgrade them together.
 
-**Terminal controls** is a collapsible panel for creating/attaching terminals,
-choosing renderers, and playing scenario tapes. It starts collapsed when the
-page opens a terminal automatically, leaving more room for terminal content.
-An explicit empty workspace (`?empty=1`) starts with these controls expanded.
-Collapsing or expanding the panel does not reconnect any views.
+**Terminal controls** opens a right-side drawer for creating/attaching terminals,
+choosing renderers, and playing scenario tapes. It floats over the workspace:
+opening or closing it never resizes the terminals or reconnects their views.
+Use **Close**, Escape while focused inside, or click outside to dismiss it.
+The drawer scrolls independently on small screens and respects reduced motion.
+It starts closed when the page opens a terminal automatically; an explicit empty
+workspace (`?empty=1`) starts with the drawer open.
 Narrow windows use a compact title bar; very short windows hide the activity and
 failure-demo strips to preserve terminal space. Enlarge the window to restore them.
 
@@ -71,9 +73,43 @@ shared producer. Narrowing wraps shell output and widening rejoins soft wraps;
 hard newlines remain separate. Retained history participates, subject to the
 sample's 1,000-physical-row scrollback limit. Alternate-screen applications
 still use crop/redraw semantics; their saved main screen reflows on return.
-Selections are invalidated by resize. Generated text/graphics scenes retain
+Selections are invalidated by resize. The other generated text/graphics scenes retain
 crop behavior. The library's adapter defaults have not changed: consumers must
 [opt in on their producer](../../docs/web-terminal.md#shell-reflow-configuration).
+
+## Try a large pre-populated marked history
+
+Choose **Terminal controls → Scene → Long scrollback (48 marks)**,
+leave the transport at **Direct HWT1**, and select **New terminal**. Alternatively,
+open <http://localhost:5290/?scene=marks&renderer=webgl2>.
+
+This scene emits **48 real OSC 133 marks** (A/B/C/D for each of 12 synthetic
+commands) across **20,000+ command/output rows**, plus a header and unmarked tail.
+Output lengths cycle through 0, 120, 960, and 5,580 lines; every fifth command fails.
+This produces dense clusters, longer gaps, and both successful and failed commands.
+No shell commands are executed. Wait for **MARKS_READY**, then drag the thumb,
+hover marks, or use the view's **Marks** menu to jump to old commands.
+
+The scene has a 25,000-row scrollback capacity and enables Ghostty reflow by
+default so initial view sizing does not discard early marks. It seeds once and
+remains idle: input, resize, and subsequent attachments do not regenerate it.
+Rate and pause controls are disabled. Explicitly choosing crop/no-reflow can
+discard rows during resizing; very narrow reflow can also exceed the retained
+physical-row capacity.
+
+Use Direct HWT1 to inspect the complete producer history. The existing HMP1 relay
+uses its own 1,000-row replica and does not replay all producer scrollback to late
+attachments; this scene does not change those transport semantics.
+
+With the demo running, validate the seeded inventory and overlay drawer:
+
+```sh
+npm run test:assets --prefix samples/WebTerminalDemo
+playwright-cli -s=marks open 'http://localhost:5290/?empty=1'
+playwright-cli -s=marks run-code --filename samples/WebTerminalDemo/tests/populated-marks.browser.js
+playwright-cli -s=marks run-code --filename samples/WebTerminalDemo/tests/controls-markers.browser.js
+playwright-cli -s=marks close
+```
 
 ## Try light/dark terminal palettes
 
@@ -211,16 +247,17 @@ adding more rows of controls.
 
 | Painter | Behavior |
 | --- | --- |
-| **Default** | Monochrome inset capsule with a grey thumb and kind/outcome-specific marker shades; track opacity `0.35`, thumb and markers `1`. |
+| **Default** | Monochrome inset capsule thumb with circles up to 5 CSS pixels across that move sideways around it without shifting their row positions; continuous dragging and short row-step transitions keep motion smooth in short histories. Nearby floated marks share one smooth, fading Bezier shadow that gently returns to the track. Kind/outcome-specific marker shades, track opacity `0.35`, thumb and markers `1`. |
 | **Custom soft fade** | Delegates to `renderDefaultScrollbar` with a longer quadratic fade in overlay mode and respects reduced motion. Beside mode stays visible. |
 | **Styled default** | Uses `createDefaultScrollbarRenderer` with track/thumb/marker opacity `0.12`/`0.7`/`0.85`, retaining live theme colors. |
 | **Custom Canvas2D** | Draws a narrow rail, square thumb with grips, and diamond markers directly; the hovered marker gets an outline. |
 
 Painter selection affects canvas modes only; the operating system controls
-native-thumb visibility. Canvas thumb dragging has no focus outline; keyboard
-focus uses a neutral grey indicator. The default, soft-fade, styled, and custom
-Canvas2D painters use grey marker shades for command input, execution, success,
-failure, and bookmarks, unless a host explicitly overrides a color.
+native-thumb visibility. Canvas scrollbars have no thumb focus outline; keyboard
+focus keeps them visible and navigable. The default track has rounded ends,
+including its extended shadow. The default, soft-fade, styled, and custom
+Canvas2D painters use palette-derived marker shades for command input, execution,
+success, failure, and bookmarks, unless a host explicitly overrides a color.
 Every part's configured opacity multiplies the frame
 fade and incoming canvas alpha. The default factory is built on the same
 `render(frame)` callback as the fully custom painter; it does not change hit
@@ -557,8 +594,11 @@ origin:
 | `relay-history.browser.js` | Relayed history, read-only wheel navigation, independent viewports, return-to-live, late history matching direct attachment, and reconnect preserving the retained range without duplication. |
 | `relay-reattach.browser.js` | Two real UI close/reattach cycles after the Shell integration tape: the sole primary closes, the producer stays active with zero peers, and a secondary reattaches. Checks retained geometry, history range/text, B/C/D marks, command details, exit statuses, jumps, real decoded hover labels, and no browser errors; takes primary before repeating. |
 | `marker-retention.browser.js` | Real scrollback-capacity eviction collects command marks and custom bookmarks, removes menu entries, and rejects navigation to collected IDs. |
-| `scrollbar-monochrome.browser.js` | Light/dark themes across all four canvas painters: neutral thumb and distinct marker pixels, no canvas or DOM outline during real dragging, preserved grey keyboard focus/navigation, and explicit color overrides. |
-| `scrollbar-mark-capsules.browser.js` | Deterministic million-row history with 200 marks: real Canvas2D thumb-over-marker pixels, distant circles, exposed clickable capsules and dragging at three widths/positions in both placements and themes. Requires `npm run test:assets`. |
+| `scrollbar-monochrome.browser.js` | Palette-derived thumb/marker shades across light/dark modes and all four canvas painters, live same-mode palette replacement, thumb contrast, drag/focus behavior, and explicit color overrides surviving palette changes. |
+| `scrollbar-mark-circles.browser.js` | Deterministic million-row history with 200 marks: circular pixels, empty displacement gaps, clicks and thumb dragging at three widths/positions in both placements/themes and scale factors 1/2. Requires `npm run test:assets`. |
+| `marker-distribution.browser.js` | Real POSIX output emits 2,560 OSC 133 marks with an uneven gap and unmarked tail; verifies every retained row, paged inventory, painted track positions, and navigation to the oldest mark. Requires `npm run test:assets`. |
+| `populated-marks.browser.js` | Selects the marked-history scene, checks all 48 emitted marks across 20,000+ rows, command details, full-track distribution, navigation, late attachment, and stable resize/input. Requires `npm run test:assets`. |
+| `controls-markers.browser.js` | Overlay drawer preserves workspace, canvas, grid, and connection; keyboard dismissal, narrow-screen scrolling, reduced motion, and accessible marker/bookmark navigation. |
 | `scrollbar-beside.browser.js` | Real WebGPU/WebGL2 pixels across all four demo painters: beside remains visible beyond the fade thresholds, while switching to overlay restores auto-hide. |
 | `reflow.browser.js` | Real shell output and retained history through repeated shrink/grow cycles, hard/soft breaks, wide/combining text, primary-only resize, selection invalidation, and editing a pending shell command. |
 | `reflow-options.browser.js` | Creation-time strategy selection through the playground and HTTP API, preserved defaults, shared-instance policy, and real shell crop versus reflow through direct and relay views. |

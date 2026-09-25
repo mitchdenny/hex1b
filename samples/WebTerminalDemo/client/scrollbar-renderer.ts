@@ -21,7 +21,7 @@ export const softFadeScrollbar: TerminalScrollbarRenderer = frame => {
   return !active && opacity > 0;
 };
 
-/** Draw a narrow rail, square thumb with grips, and stretching diamond marks from the same frame. */
+/** Draw a narrow rail, square thumb with grips, and displaced diamond marks from the same frame. */
 export const customCanvasScrollbar: TerminalScrollbarRenderer = frame => {
   if (frame.opacity <= 0) return;
   const { context, track, thumb, colors } = frame;
@@ -61,12 +61,6 @@ export const customCanvasScrollbar: TerminalScrollbarRenderer = frame => {
       const top = thumb.top + thumb.height / 2 + offset;
       if (top >= thumb.top && top + 1 <= thumb.top + thumb.height)
         context.fillRect(thumb.left + inset + width / 4, top, width / 2, 1);
-    }
-    if (frame.interaction.focused && !frame.interaction.dragging) {
-      context.strokeStyle = colors.thumb;
-      context.lineWidth = 1;
-      context.strokeRect(thumb.left + 0.5, thumb.top + 0.5,
-        Math.max(0, thumb.width - 1), Math.max(0, thumb.height - 1));
     }
   } finally {
     context.restore();

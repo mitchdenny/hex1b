@@ -91,7 +91,7 @@ public sealed partial class Hex1bTerminal
         // Row identities, not the active view, determine retention. In particular,
         // the saved main screen and its history remain alive in the alternate screen.
         // History membership is maintained during transfer/reflow, so collection
-        // visits only the screen rows and bounded marker inventory, not scrollback.
+        // visits only the screen rows and retained marker inventory, not scrollback.
         var retainedRows = new HashSet<long>(_textScreenRowIds);
         if (_savedMainTextRowIds is not null)
             retainedRows.UnionWith(_savedMainTextRowIds);

@@ -10,6 +10,101 @@ namespace Hex1b.Tests;
 public class Hwt1MarkerTests
 {
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task MarkerInventory_LongUnevenOutput_RetainsEveryEmittedPosition(bool observeDuringOutput)
+    {
+        await using var adapter = new Hwt1PresentationAdapter(24, 10);
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(new Hex1bAppWorkloadAdapter()).WithPresentation(adapter)
+            .WithDimensions(24, 10).WithScrollback(20_000).Build();
+        var view = new Hwt1ViewState();
+        var expected = new List<(int Row, int Column, string Phase)>();
+        var batch = new StringBuilder();
+        var row = 0;
+        for (var command = 0; command < 640; command++)
+        {
+            expected.Add((row, 0, "prompt"));
+            expected.Add((row, 2, "commandLine"));
+            expected.Add((row + 1, 0, "executing"));
+            var outputRows = command == 320 ? 5000 : command % 7 + 1;
+            expected.Add((row + 1 + outputRows, 0, "finished"));
+            batch.Append($"\x1b]133;A\a> \x1b]133;B\arun{command}\r\n\x1b]133;C\a");
+            for (var output = 0; output < outputRows; output++)
+                batch.Append($"output{command}:{output}\r\n");
+            batch.Append("\x1b]133;D;0\adone\r\n");
+            row += outputRows + 2;
+            if (observeDuringOutput && command % 64 == 63)
+            {
+                terminal.ApplyTokens(AnsiTokenizer.Tokenize(batch.ToString()));
+                batch.Clear();
+                Capture(terminal, view);
+            }
+        }
+        batch.Append(string.Concat(Enumerable.Repeat("tail\r\n", 1000)));
+        row += 1000;
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(batch.ToString()));
+
+        var history = Capture(terminal, view);
+        Assert.AreEqual(row + 1, history.TotalRows);
+        Assert.AreEqual(expected.Count, terminal.CommandMarks.Count);
+        TestSeq.AreEqual(expected, history.Markers.Select(mark =>
+            (mark.Row!.Value, mark.Column, mark.Phase!)));
+        Assert.AreEqual("command:1", history.Markers[0].Id);
+        Assert.AreEqual("command:2560", history.Markers[^1].Id);
+        AssertMarkerText(terminal, history.Markers[2], "o");
+        AssertMarkerText(terminal, history.Markers[320 * 4 + 2], "o");
+        AssertMarkerText(terminal, history.Markers[^2], "o");
+
+        var received = new List<Hwt1Marker>();
+        string? revision = null;
+        do
+        {
+            var frame = (await FrameAsync(adapter)).GetProperty("history");
+            var page = frame.GetProperty("markerPage");
+            revision ??= page.GetProperty("revision").GetString();
+            Assert.AreEqual(revision, page.GetProperty("revision").GetString());
+            Assert.AreEqual(expected.Count, page.GetProperty("total").GetInt32());
+            Assert.AreEqual(received.Count, page.GetProperty("offset").GetInt32());
+            Assert.AreEqual(history.TotalRows, frame.GetProperty("totalRows").GetInt32());
+            received.AddRange(JsonSerializer.Deserialize<Hwt1Marker[]>(
+                frame.GetProperty("markers"), new JsonSerializerOptions(JsonSerializerDefaults.Web))!);
+        } while (received.Count < expected.Count);
+        TestSeq.AreEqual(history.Markers, received);
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3J"));
+        Assert.AreEqual(0, Capture(terminal, view).Markers.Length);
+        Assert.AreEqual(0, terminal.TextAnchorCount);
+    }
+
+    [TestMethod]
+    public async Task MarkerInventory_RollingScrollback_RebasesSurvivingRowsWithoutBottomClustering()
+    {
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(new Hex1bAppWorkloadAdapter()).WithHeadless()
+            .WithDimensions(20, 5).WithScrollback(1000).Build();
+        var view = new Hwt1ViewState();
+        for (var batch = 0; batch < 2; batch++)
+        {
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize(string.Concat(
+                Enumerable.Range(batch * 2500, 2500).Select(row =>
+                    $"\x1b]133;C\aROW-{row:D4}\r\n"))));
+            var history = Capture(terminal, view);
+            Assert.AreEqual(1005, history.TotalRows);
+            Assert.AreEqual(1004, history.Markers.Length);
+            var discarded = (batch + 1) * 2500 + 1 - 1005;
+            TestSeq.AreEqual(Enumerable.Range(0, 1004), history.Markers.Select(mark => mark.Row!.Value));
+            TestSeq.AreEqual(Enumerable.Range(discarded + 1, 1004).Select(id => $"command:{id}"),
+                history.Markers.Select(mark => mark.Id));
+            AssertMarkerText(terminal, history.Markers[0], "R");
+            AssertMarkerText(terminal, history.Markers[^1], "R");
+            Send(terminal, view, new { type = "marker", action = "jump", requestId = batch + 1,
+                id = history.Markers[0].Id });
+            Assert.AreEqual(0, Capture(terminal, view).Top);
+        }
+    }
+
+    [TestMethod]
     [DataRow(true, 8)]
     [DataRow(true, 20)]
     [DataRow(false, 8)]

@@ -14,6 +14,20 @@ namespace Hex1b.Tests;
 public class WebTerminalDemoLifecycleTests
 {
     [TestMethod]
+    public async Task Create_MarksScene_DisablesGeneratorControlsAndStopsCleanly()
+    {
+        await using var registry = CreateRegistry();
+        var instance = registry.Create(new("marks", 80, 24))!;
+        Assert.IsNull(instance.Paused);
+        Assert.IsNull(instance.Rate);
+        Assert.IsNull(instance.Batch);
+        Assert.AreEqual(409, registry.UpdateControls(instance.Id, new(Paused: true)));
+        Assert.AreEqual(409, registry.UpdateControls(instance.Id, new(Rate: 120, Batch: 1000)));
+        Assert.IsTrue(await registry.DeleteAsync(instance.Id).WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.IsEmpty(registry.List());
+    }
+
+    [TestMethod]
     [DataRow(DemoReflowStrategy.None, null)]
     [DataRow(DemoReflowStrategy.Auto, typeof(AutoReflowStrategy))]
     [DataRow(DemoReflowStrategy.Alacritty, typeof(AlacrittyReflowStrategy))]
@@ -37,6 +51,7 @@ public class WebTerminalDemoLifecycleTests
 
     [TestMethod]
     [DataRow("shell", DemoReflowStrategy.Default, DemoReflowStrategy.Ghostty, true)]
+    [DataRow("marks", DemoReflowStrategy.Default, DemoReflowStrategy.Ghostty, true)]
     [DataRow("activity", DemoReflowStrategy.Default, DemoReflowStrategy.None, false)]
     [DataRow("shell", DemoReflowStrategy.None, DemoReflowStrategy.None, false)]
     [DataRow("activity", DemoReflowStrategy.Ghostty, DemoReflowStrategy.Ghostty, true)]

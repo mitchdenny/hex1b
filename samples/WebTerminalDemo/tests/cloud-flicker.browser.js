@@ -12,7 +12,7 @@ async page => {
       const created = test.waitForResponse(response =>
         response.url() === `${origin}/api/terminals` && response.request().method() === "POST" && response.status() === 201);
       await test.goto(`${origin}/?scene=shell&scale=auto&transport=${encodeURIComponent(transport)}`);
-      await test.locator("#terminal-controls > summary").click();
+      await test.locator("#toggle-terminal-controls").click();
       instances.push((await (await created).json()).id);
       await test.waitForFunction(() => webTerminalViews.get("1")?.terminal?.peer.isPrimary &&
         /[❯$#%>]$/.test(webTerminalViews.get("1").terminal.screenText.trimEnd()));
@@ -64,7 +64,9 @@ async page => {
         for (let connection = 2; connection <= 21; connection++) {
           const id = String(connection);
           const thumbnail = connection > 3;
+          if (!thumbnail) await test.locator("#toggle-terminal-controls").click();
           await test.locator(thumbnail ? '[data-view="1"] .thumbnail' : "#attach").click();
+          if (!thumbnail) await test.locator("#close-terminal-controls").click();
           await test.waitForFunction(id => webTerminalViews.get(id)?.terminal?.connected &&
             webTerminalViews.get(id).stats.imageCount === 12, id, { timeout: 30000 });
           const before = await test.evaluate(id => webTerminalViews.get(id).terminal.stats, id);

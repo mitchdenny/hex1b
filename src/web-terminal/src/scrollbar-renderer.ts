@@ -61,8 +61,9 @@ function snapshotAppearance(appearance: TerminalScrollbarAppearance = {}) {
 /**
  * Creates a synchronous capsule scrollbar painter with snapshotted paint overrides.
  * Omitted colors are read from each frame. Invalid options throw at creation time.
- * Circle/capsule markers paint behind the thumb.
- * The focus outline uses the thumb color, is independent of part opacity, and is hidden during dragging.
+ * Circular markers move aside near the thumb and paint behind it.
+ * One smooth contour surrounds nearby displaced markers and tapers back into the track.
+ * Track ends are rounded; focus does not add an outline.
  */
 export function createDefaultScrollbarRenderer(
   appearance?: TerminalScrollbarAppearance
@@ -76,9 +77,76 @@ export function createDefaultScrollbarRenderer(
     try {
       context.globalAlpha = alpha * options.track.opacity;
       context.fillStyle = options.track.color ?? colors.track;
-      if (track.width > 0 && track.height > 0)
-        context.fillRect(track.left, track.top, track.width, track.height);
-
+      if (track.width > 0 && track.height > 0) {
+        const step = 2, padding = 6, taper = 12;
+        const radius = Math.min(track.width, track.height) / 2;
+        const right = track.left + track.width, bottom = track.top + track.height;
+        let offsets: Float64Array | undefined;
+        let left = track.left;
+        for (const { bounds } of frame.markers) {
+          if (bounds.width <= 0 || bounds.height <= 0 || bounds.left >= track.left ||
+            bounds.top >= track.top + track.height || bounds.top + bounds.height <= track.top) continue;
+          const buffer = padding * Math.min(1, (track.left - bounds.left) / bounds.width);
+          const shadowLeft = Math.max(0, bounds.left - buffer);
+          if (shadowLeft >= track.left) continue;
+          left = Math.min(left, shadowLeft);
+          offsets ??= new Float64Array(Math.ceil(track.height / step) + 1);
+          const first = Math.max(0, Math.floor((bounds.top - padding - taper - track.top) / step));
+          const last = Math.min(offsets.length - 1,
+            Math.ceil((bounds.top + bounds.height + padding + taper - track.top) / step));
+          for (let i = first; i <= last; i++) {
+            const y = track.top + Math.min(i * step, track.height);
+            const distance = Math.max(bounds.top - padding - y, y - bounds.top - bounds.height - padding, 0);
+            const proximity = Math.max(0, 1 - distance / taper);
+            const extent = (track.left - shadowLeft) * proximity * proximity * (3 - 2 * proximity);
+            // A shared envelope bridges nearby marks without density-dependent darkening or scallops.
+            offsets[i] = Math.max(offsets[i]!, extent);
+          }
+        }
+        if (offsets) {
+          const gradient = context.createLinearGradient(left, 0, track.left, 0);
+          gradient.addColorStop(0, "transparent");
+          gradient.addColorStop(1, options.track.color ?? colors.track);
+          context.fillStyle = gradient;
+          const topLeft = track.left - offsets[0]!;
+          const bottomLeft = track.left - offsets[offsets.length - 1]!;
+          // Round an extended shadow within its padding, without cutting into floated marks.
+          const topRadius = topLeft < track.left ? Math.min(radius, padding) : radius;
+          const bottomRadius = bottomLeft < track.left ? Math.min(radius, padding) : radius;
+          context.beginPath();
+          context.moveTo(right - radius, track.top);
+          context.lineTo(topLeft + topRadius, track.top);
+          context.quadraticCurveTo(topLeft, track.top, topLeft, track.top + topRadius);
+          let straight = false;
+          for (let i = 1; i < offsets.length - 1; i++) {
+            const y = track.top + i * step;
+            const nextY = track.top + Math.min((i + 1) * step, track.height);
+            if (y - step / 2 <= track.top + topRadius || (y + nextY) / 2 >= bottom - bottomRadius) continue;
+            if (offsets[i - 1] === offsets[i] && offsets[i] === offsets[i + 1]) {
+              straight = true;
+              continue;
+            }
+            const x = track.left - offsets[i]!, nextX = track.left - offsets[i + 1]!;
+            if (straight) {
+              context.lineTo((track.left - offsets[i - 1]! + x) / 2, y - step / 2);
+              straight = false;
+            }
+            context.quadraticCurveTo(x, y, (x + nextX) / 2, (y + nextY) / 2);
+          }
+          context.lineTo(bottomLeft, bottom - bottomRadius);
+          context.quadraticCurveTo(bottomLeft, bottom, bottomLeft + bottomRadius, bottom);
+          context.lineTo(right - radius, bottom);
+          context.quadraticCurveTo(right, bottom, right, bottom - radius);
+          context.lineTo(right, track.top + radius);
+          context.quadraticCurveTo(right, track.top, right - radius, track.top);
+          context.closePath();
+          context.fill();
+        } else {
+          context.beginPath();
+          context.roundRect(track.left, track.top, track.width, track.height, radius);
+          context.fill();
+        }
+      }
       context.globalAlpha = alpha * options.markers.opacity;
       for (const { marker, bounds, color } of frame.markers) {
         context.fillStyle = marker.exitCode != null && marker.exitCode !== 0
@@ -104,17 +172,6 @@ export function createDefaultScrollbarRenderer(
         context.fill();
       }
 
-      if (frame.interaction.focused && !frame.interaction.dragging && thumb.width > 0 && thumb.height > 0) {
-        context.globalAlpha = alpha;
-        context.strokeStyle = options.thumb.color ?? colors.thumb;
-        const lineWidth = Math.min(1, thumb.width / 2, thumb.height / 2);
-        const width = thumb.width - lineWidth, height = thumb.height - lineWidth;
-        context.lineWidth = lineWidth;
-        context.beginPath();
-        context.roundRect(thumb.left + lineWidth / 2, thumb.top + lineWidth / 2,
-          width, height, Math.min(width, height) / 2);
-        context.stroke();
-      }
     } finally {
       context.restore();
     }

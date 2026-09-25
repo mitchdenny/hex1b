@@ -753,29 +753,44 @@ The readonly `TerminalScrollbarAppearance` has optional `track`, `thumb`, and
 | Thumb | `1` | `frame.colors.thumb` |
 | Markers | `1` | Each tick's resolved `color`, distinguishing its kind/outcome; falls back to `frame.colors.marker`/`error` |
 
-The default canvas palette is monochrome: a grey thumb (`#999999`) over a
-translucent dark track (`#202020`). Command input, execution, successful
-completion, failed completion, and bookmarks use `#888888`, `#bbbbbb`,
-`#999999`, `#eeeeee`, and `#dddddd`, respectively. Unknown outcomes use
-`#aaaaaa`. These defaults do not inherit the embedding app's accent or danger
-colors. Prompt marks remain omitted from the canvas rail.
+The default colors come from the **active terminal palette**, in both light and
+dark modes. The thumb uses its foreground color. The track uses a 50/50 RGB blend
+of foreground and background, painted at `0.35` opacity. Markers use distinct
+foreground/background shades for command input, execution, successful completion,
+unknown outcomes, and bookmarks; failed commands use the foreground itself.
+Prompt marks remain omitted from the canvas rail. Defaults do not use ANSI
+accent colors or the embedding app's accent/danger colors.
+
+`setPalette`, `setColorMode`, and system color-mode changes update the scrollbar
+without reconnecting, resizing, or requiring new terminal output. Updating a
+palette for an inactive mode takes effect when that mode becomes active.
+
+The track background expands into a shared, smooth Bezier contour around
+circles that float outside it. Nearby marks share one spacious bulge instead
+of individual outlines, with gentle shoulders returning to the track beyond
+the group. The contour grows and shrinks with displacement without becoming
+darker where marks overlap. Fully seated marks add no contour control points,
+and flat sections use straight lines.
+The extension fades from transparent at its leftmost edge to the configured
+track color and opacity at the original track edge. Distant areas without
+floated marks remain unshaded. The contour is clipped to the terminal's left
+edge and track height; layout, hit areas, and the thumb position are unchanged.
 
 Embedding CSS can override the live palette through `--cp-scrollbar-track`,
 `--cp-scrollbar-thumb`, `--cp-scrollbar-marker`, `--cp-scrollbar-error`,
 `--cp-scrollbar-command-line`, `--cp-scrollbar-executing`,
 `--cp-scrollbar-success`, and `--cp-scrollbar-custom`. Explicit factory
-`markers.color`/`errorColor` overrides remain available, as do per-marker
+`track.color`, `thumb.color`, and `markers.color`/`errorColor` take precedence
+over these CSS overrides and palette defaults, as do per-marker
 colors. Custom painters receive the resolved default shade on each
 `TerminalScrollbarMarker.color`; `marker.color` is the explicit host override.
 
 Part opacity must be finite and between `0` and `1`, inclusive. It **multiplies**
 the frame's fade opacity and incoming `context.globalAlpha`; it does not replace
 either. Color alpha is applied by Canvas2D as usual. A marker's explicit `color`
-takes precedence over configured marker/error colors, then theme fallbacks.
-Invalid per-marker CSS colors retain the safe fallback. The rounded focus
-outline uses the configured thumb color or neutral thumb default and remains
-independent of track/thumb/marker opacity. Thumb dragging suppresses both the
-canvas outline and the DOM focus outline; keyboard focus remains visible.
+takes precedence over configured marker/error colors, then palette/CSS defaults.
+Invalid per-marker CSS colors retain the safe fallback. Focus keeps the scrollbar
+visible and keyboard navigation available without adding a canvas or DOM outline.
 
 Supplied appearance colors are validated when the factory is called. Use
 nonempty **concrete CSS colors** supported by the browser's Canvas2D parser
@@ -788,20 +803,29 @@ the painter reads that fallback from each frame.
 
 Options are snapshotted; mutating your original object does not change an
 existing painter. Create and install another renderer to change its overrides.
-The visible thumb is a capsule, inset by `min(2, width / 4)` CSS pixels on each
+The track has rounded ends, including when its shadow extends around displaced
+marks. The visible thumb is a capsule, inset by `min(2, width / 4)` CSS pixels on each
 side, with radius half its smaller painted dimension. Marks paint **behind**
 the thumb, so dense history does not interrupt its silhouette. Explicitly
 translucent thumb colors or opacities can still reveal marks underneath.
 
-Distant marks are circles centered in the track, at most 3 CSS pixels in
+Distant marks are circles centered in the track, at most 5 CSS pixels in
 diameter and smaller than the painted thumb's width. As the thumb approaches,
-each circle smoothly stretches left into a horizontal capsule, reaching up to
-12 CSS pixels beyond the track. Expansion uses distance to the nearest thumb
-edge over an 8 CSS pixel range and is maximal alongside the thumb. Narrow/short
-layouts reduce these dimensions, and extensions stop at the terminal's left
-edge. The right endpoint and vertical position stay fixed; the scrollbar's
-vertical mapping remains linear. Expansion follows scrolling directly, including
-pending drag targets, without hover activation or time-based animation.
+each circle smoothly moves left without changing its diameter, clearing the
+track by 2 CSS pixels alongside the thumb. Displacement uses distance to the
+nearest thumb edge over an 8 CSS pixel range and reverses as the thumb recedes.
+Narrow/short layouts reduce the circle diameter, and horizontal travel stops
+at the terminal's left edge. The vertical position stays fixed and maps linearly
+to the marked row within all retained history and the live screen, not the
+mark's index or the current viewport. Dragging positions the thumb continuously
+between terminal rows, so circles move smoothly even with short histories.
+Actual navigation requests and accessibility values remain whole-row positions.
+Wheel, keyboard, and presented viewport changes use a short 120 ms ease-out
+transition; releasing a drag settles smoothly onto its requested row. Hit testing
+and tooltip anchors follow the painted positions. Reduced-motion preferences
+disable these automatic transitions, but dragging still follows the pointer
+continuously. Motion stops once settled and is reset when history is replaced
+or the scrollbar is disabled or disconnected.
 
 Appearance overrides change painting only; they do not change this shared
 geometry or navigation behavior.
@@ -847,7 +871,7 @@ terminal.refreshScrollbar();
 The callback is synchronous: never return a Promise. `frame.context` is prepared
 for CSS-pixel drawing on `frame.canvas`; context state is isolated between
 calls. The frame includes layout, viewport, nullable `pendingTarget` (the locally
-desired row during navigation), track/thumb rectangles, circle/capsule marker bounds,
+desired row during navigation), track/thumb rectangles, displaced circle bounds,
 nullable `hoveredMarker` (the hovered `TerminalScrollbarMarker`, including its bounds),
 interaction state, monotonic `now` and `lastActivityAt`, default
 `opacity`, and resolved theme colors. Return `true` only while another frame is
@@ -862,11 +886,11 @@ including over terminal content in beside mode. Custom painters should use
 these bounds and draw their thumb after their marks.
 
 The thumb takes precedence over overlapping marks for both dragging and hover.
-Exposed capsule extensions support marker clicks and tooltips across their
-rounded shape, and wheel scrolling there scrolls history. Only the extensions
+Displaced circles support marker clicks and tooltips across their
+round shape, and wheel scrolling there scrolls history. Only the circles
 claim input outside the track, not the empty space around them. Content
 selections started elsewhere remain content gestures even when crossing a mark.
-Hovering an extension keeps the scrollbar visible; fully faded extensions do
+Hovering a circle keeps the scrollbar visible; fully faded circles do
 not intercept content input until track proximity or other activity reveals
 the scrollbar again. Hit testing follows the library's fade state, not any
 additional transparency or custom fade chosen by a host painter.
@@ -1072,7 +1096,14 @@ and colors are released when their markers leave the authoritative inventory.
 The default server quota is 1,000 custom markers per view, configured through
 `Hex1bTerminalOptions.CustomMarkerLimit`; zero disables registration and exceeding
 the limit rejects explicitly. Collection reclaims custom-marker quota slots.
-Shell markers also have a producer-configured count limit.
+Shell markers default to text-lifetime retention:
+`Hex1bTerminalOptions.CommandMarkHistoryCapacity` defaults to `int.MaxValue`,
+rather than discarding old marks while their text remains in scrollback.
+Set an explicit smaller count to evict oldest marks first, or zero to disable
+command-mark history. Each OSC 133 phase counts separately, including marks on
+the same row; text retention alone does not bound repeated marks on retained
+content. This default applies to replicas too, but does not remove transport
+budgets or the HMP1 checkpoint's newest-10,000-mark limit described below.
 Late direct HWT1 attachment can see retained producer marks. HMP1 negotiates
 **retained text** and **retained OSC 133 command marks** independently, so a late
 relay or fresh reconnect can recover both when supported. Raw command details,

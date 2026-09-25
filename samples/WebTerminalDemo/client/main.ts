@@ -109,6 +109,17 @@ window.webTerminalStats = {};
 window.webTerminalScreenText = "";
 initializeAppearanceControls();
 
+function setControlsOpen(open: boolean, restoreFocus = true) {
+  const controls = byId("terminal-controls");
+  const focusedInside = controls.contains(document.activeElement);
+  controls.dataset.open = String(open);
+  controls.inert = !open;
+  controls.setAttribute("aria-hidden", String(!open));
+  button("toggle-terminal-controls").setAttribute("aria-expanded", String(open));
+  if (open) button("close-terminal-controls").focus({ preventScroll: true });
+  else if (restoreFocus && focusedInside) button("toggle-terminal-controls").focus({ preventScroll: true });
+}
+
 function report(message: string, level = "info") {
   byId("status").textContent = message;
   byId("status").dataset.level = level;
@@ -237,8 +248,8 @@ function updateInstanceControls() {
   const instance = instances.find(item => item.id === instancesSelect.value);
   button("attach").disabled = !instance;
   button("terminate").disabled = !instance;
-  for (const id of ["pause", "apply-rate"]) button(id).disabled = !instance || instance.scene === "shell";
-  for (const id of ["rate", "batch"]) input(id).disabled = !instance || instance.scene === "shell";
+  for (const id of ["pause", "apply-rate"]) button(id).disabled = instance?.paused == null;
+  for (const id of ["rate", "batch"]) input(id).disabled = instance?.paused == null;
   byId("pause").textContent = instance?.paused ? "Resume" : "Pause";
   byId("pause").setAttribute("aria-pressed", String(instance?.paused ?? false));
   for (const id of ["rate", "batch"] as const) {
@@ -377,6 +388,7 @@ function selectView(view: TerminalView) {
 }
 
 function setMinimalChrome(view?: TerminalView) {
+  if (view) setControlsOpen(false, false);
   const previous = minimalView;
   if (previous) {
     previous.element.classList.remove("minimal-chrome");
@@ -1103,6 +1115,21 @@ async function createInstance() {
 }
 
 button("restore-chrome").addEventListener("click", () => setMinimalChrome());
+button("toggle-terminal-controls").addEventListener("click", () =>
+  setControlsOpen(byId("terminal-controls").dataset.open !== "true"));
+button("close-terminal-controls").addEventListener("click", () => setControlsOpen(false));
+byId("terminal-controls").addEventListener("keydown", event => {
+  if (event.key !== "Escape" || event.defaultPrevented) return;
+  event.preventDefault();
+  event.stopPropagation();
+  setControlsOpen(false);
+});
+document.addEventListener("pointerdown", event => {
+  const controls = byId("terminal-controls");
+  if (controls.dataset.open === "true" && event.target instanceof Node &&
+    !controls.contains(event.target) && !button("toggle-terminal-controls").contains(event.target))
+    setControlsOpen(false, false);
+}, { capture: true });
 action(button("create"), createInstance);
 action(button("attach"), () => {
   const instance = instances.find(item => item.id === instancesSelect.value);
@@ -1124,7 +1151,7 @@ action(button("pause"), async () => {
 action(button("apply-rate"), async () => {
   if (!input("rate").reportValidity() || !input("batch").reportValidity()) return;
   const instance = instances.find(item => item.id === instancesSelect.value);
-  if (!instance || instance.scene === "shell") return;
+  if (instance?.paused == null) return;
   await api(`/api/terminals/${encodeURIComponent(instance.id)}/controls`, "POST", {
     rate: Number(input("rate").value), batch: Number(input("batch").value)
   });
@@ -1153,7 +1180,7 @@ window.addEventListener("pagehide", () => {
 
 try {
   const parameters = new URLSearchParams(location.search);
-  elementAt(document, "#terminal-controls", HTMLDetailsElement).open = parameters.get("empty") === "1";
+  setControlsOpen(parameters.get("empty") === "1");
   const transport = parameters.get("transport");
   if (transport !== null) {
     if (transport !== "direct" && transport !== "hmp1") throw new Error("Invalid transport query parameter");

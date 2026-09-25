@@ -110,10 +110,11 @@ public sealed class Hex1bTerminalOptions
     /// <summary>
     /// Maximum number of OSC 133 command marks to retain in <see cref="Hex1bTerminal.CommandMarks"/>.
     /// Oldest marks are evicted first once the capacity is exceeded. Marks are also collected
-    /// when their backing text is discarded. Default is 200; set to 0 to disable command mark
-    /// history entirely.
+    /// when their backing text is discarded. Defaults to <see cref="int.MaxValue"/>, so marks
+    /// normally live as long as their text. Set a smaller capacity to bound repeated marks on
+    /// retained rows, or 0 to disable command mark history entirely. Transport limits still apply.
     /// </summary>
-    public int CommandMarkHistoryCapacity { get; set; } = 200;
+    public int CommandMarkHistoryCapacity { get; set; } = int.MaxValue;
 
     /// <summary>
     /// Gets or sets the maximum number of custom markers registered by each browser view.

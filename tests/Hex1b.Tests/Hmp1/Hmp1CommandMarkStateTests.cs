@@ -12,6 +12,76 @@ public class Hmp1CommandMarkStateTests
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
     [TestMethod]
+    [DataRow(300)]
+    [DataRow(1000)]
+    public async Task Reattach_LargeInventory_PreservesRetainedRowsAndLiveContinuation(int historyRows)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var server = new Hmp1PresentationAdapter(20, 5);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(20, 5).WithScrollback(2000).Build();
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(Commands(320) + "READY"));
+        Assert.AreEqual(640, producer.CommandMarks.Count);
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var connection = await ConnectAsync(server, historyRows);
+            await using var handle = connection.Handle;
+            await using var client = connection.Client;
+            await using var mirror = Hex1bTerminal.CreateBuilder().WithWorkload(client)
+                .WithHeadless().WithScrollback(historyRows).Build();
+            await WaitAsync(mirror, snapshot => snapshot.ContainsText("READY"));
+            var expected = Capture(producer, historyRows);
+            var actual = Capture(mirror, historyRows);
+            Assert.IsTrue(actual.Marks.Count > 200);
+            TestSeq.AreEqual(expected.Marks, actual.Marks);
+            Assert.AreEqual(0, actual.Marks[0].Row);
+            Assert.AreEqual(expected.LastId, actual.LastId);
+
+            workload.Write($"\r\n\x1b]133;C;cmdline_url=live{attempt}\aLIVE-{attempt}\r\nREADY");
+            await WaitAsync(mirror, snapshot => snapshot.ContainsText($"LIVE-{attempt}"));
+            TestSeq.AreEqual(Capture(producer, historyRows).Marks, Capture(mirror, historyRows).Marks);
+        }
+    }
+
+    [TestMethod]
+    [DataRow(9999)]
+    [DataRow(10000)]
+    [DataRow(10001)]
+    public async Task Checkpoint_CountBoundary_TransfersNewestEligibleMarksWithOriginalIds(int count)
+    {
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(new Hex1bAppWorkloadAdapter()).WithHeadless().WithDimensions(8, 2).Build();
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(string.Concat(
+            Enumerable.Repeat("\x1b]133;C\a", count)) + "retained"));
+        Assert.AreEqual(count, terminal.CommandMarks.Count);
+        var checkpoint = Capture(terminal, 0);
+        Assert.AreEqual(count, checkpoint.AvailableMarks);
+        Assert.AreEqual((long)count, checkpoint.LastId);
+        Assert.AreEqual(Math.Min(count, 10_000), checkpoint.Marks.Count);
+        TestSeq.AreEqual(Enumerable.Range(Math.Max(1, count - 9999), Math.Min(count, 10_000))
+            .Select(id => (long)id), checkpoint.Marks.Select(mark => mark.Id));
+        Assert.IsTrue(checkpoint.Marks.All(mark => mark.Row == 0 && mark.Column == 0));
+        var parsed = Hmp1CommandMarkState.Parse(checkpoint.Serialize(),
+            new("peer", null, 8, 2, true), null);
+        TestSeq.AreEqual(checkpoint.Marks, parsed.Marks);
+    }
+
+    [TestMethod]
+    public void Checkpoint_ByteBudget_RejectsOversizedPayloadWithoutTruncatingDetails()
+    {
+        var parameters = new string('x', 65_536);
+        var marks = Enumerable.Range(1, 128).Select(id =>
+            new Hmp1CommandMark(id, false, 0, 0, TerminalShellIntegrationPhase.Executing, null, parameters))
+            .ToArray();
+        var checkpoint = new Hmp1CommandMarkState(true, 0, 8, 2, false, 128, 128, marks);
+        var withinBudget = checkpoint with { Marks = marks[..127] };
+        Assert.IsTrue(withinBudget.Serialize().Length < Hmp1CommandMarkState.MaxPayloadSize);
+        Assert.ThrowsExactly<InvalidDataException>(() => checkpoint.Serialize());
+        Assert.ThrowsExactly<InvalidDataException>(() => Hmp1CommandMarkState.Parse(
+            new byte[Hmp1CommandMarkState.MaxPayloadSize + 1], new("peer", null, 8, 2, true), null));
+    }
+
+    [TestMethod]
     public async Task HorizontalEdits_CheckpointAndLiveOutput_PreserveAndExpireSameMarks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

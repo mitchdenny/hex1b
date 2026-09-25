@@ -2,12 +2,46 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { terminalThemeCss } from "../.build/terminal-theme.js";
 import { WebTerminal } from "../.build/web-terminal.js";
-import { scrollbarColors, scrollbarMarkerColor } from "../.build/scrollbar-colors.js";
+import { scrollbarColors, scrollbarMarkerColor, paletteScrollbarColors } from "../.build/scrollbar-colors.js";
+import { defaultLightPalette, defaultDarkPalette } from "../.build/terminal-palette.js";
 
-test("scrollbar defaults are neutral with distinct kind/outcome shades and dedicated embedding overrides", () => {
+test("default thumbs contrast with the shaded track over both Hex1b palettes", () => {
+  const rgb = hex => hex.slice(1).match(/../gu).map(value => parseInt(value, 16));
+  const luminance = channels => channels.map(value => value / 255)
+    .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
+    .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+  for (const [theme, palette] of [["light", defaultLightPalette], ["dark", defaultDarkPalette]]) {
+    const colors = paletteScrollbarColors(palette);
+    const background = rgb(palette.background);
+    const track = rgb(colors.track).map((channel, index) => channel * .35 + background[index] * .65);
+    const a = luminance(rgb(colors.thumb)), b = luminance(track);
+    const contrast = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+    assert.ok(contrast >= 3, `${theme} thumb/track contrast is only ${contrast.toFixed(2)}:1`);
+  }
+});
+
+test("scrollbar palette shades use foreground and background, not ANSI accents", () => {
+  const palette = { ...defaultLightPalette, foreground: "#000000", background: "#ffffff" };
+  const colors = paletteScrollbarColors(palette);
+  assert.deepEqual(colors, {
+    track: "#808080", thumb: "#000000", marker: "#383838", error: "#000000",
+    prompt: "#8c8c8c", "command-line": "#666666", executing: "#262626", success: "#4d4d4d", custom: "#0d0d0d"
+  });
+  assert.ok(Object.isFrozen(colors));
+  assert.deepEqual(paletteScrollbarColors({ ...palette, ansi: Array(16).fill("#ff00ff") }), colors);
+  assert.equal(new Set(["marker", "error", "prompt", "command-line", "executing", "success", "custom"]
+    .map(name => colors[name])).size, 7);
+  const tinted = paletteScrollbarColors({ ...palette, foreground: "#123456", background: "#abcdef" });
+  assert.equal(tinted.thumb, "#123456");
+  assert.equal(tinted.track, "#5f81a3");
+  assert.notDeepEqual(tinted, colors);
+});
+
+test("standalone scrollbar fallbacks have distinct shades and dedicated embedding overrides", () => {
   for (const [name, color] of Object.entries(scrollbarColors)) {
     assert.match(color, /^#([0-9a-f]{2})\1\1$/u, name);
-    assert.ok(terminalThemeCss.includes(`--cp-view-scrollbar-${name}: var(--cp-scrollbar-${name}, ${color});`));
+    const fallback = `var(--cp-terminal-scrollbar-${name}, ${color})`;
+    assert.ok(terminalThemeCss.includes(`--cp-view-scrollbar-${name}: var(--cp-scrollbar-${name}, ${fallback});`));
   }
   const resolve = name => scrollbarColors[name];
   const shades = [

@@ -71,18 +71,26 @@
     main { height: calc(100dvh - 32px); display: flex; flex-direction: column; gap: 12px; }
     h1 { margin: 0; font-size: 24px; letter-spacing: -.5px; }
     header p { margin: 0; color: var(--cp-text-muted); }
+    .page-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .page-header > button { flex: none; }
     .panel { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; padding: 12px; }
-    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+    .controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end; }
+    .controls > label { min-width: 0; }
+    .controls select { min-width: 0; max-width: 100%; }
+    .controls > #create, .controls > .instance-controls, .controls > .tape-controls { grid-column: 1 / -1; }
     .appearance-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
     .appearance-controls select { max-width: 100%; }
     .appearance-controls p { margin: 0; font-size: 12px; color: var(--cp-text-muted); }
     #palette-swatches { display: flex; align-items: center; gap: 3px; padding: 6px 8px; border: 1px solid var(--cp-border); border-radius: 6px; font-size: 11px; }
     #palette-swatches > :first-child { margin-right: 5px; }
     .palette-swatch { width: 12px; height: 16px; border: 1px solid var(--cp-border-strong); }
-    #terminal-controls > summary { color: var(--cp-text); font-weight: 600; }
-    #terminal-controls > summary span { margin-left: 8px; color: var(--cp-text-muted); font-size: 12px; font-weight: 400; }
-    #terminal-controls[open] > summary { margin-bottom: 12px; }
-    .instance-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; border-left: 1px solid var(--cp-border); padding-left: 12px; }
+    #terminal-controls { position: fixed; z-index: 2147483646; inset: 0 0 0 auto; width: min(480px, 100vw); height: 100dvh; max-height: none; overflow: auto; overscroll-behavior: contain; padding: 16px; border-radius: 16px 0 0 16px; box-shadow: var(--cp-shadow); transform: translateX(100%); visibility: hidden; pointer-events: none; transition: transform 180ms ease-out, visibility 0s 180ms; }
+    #terminal-controls[data-open=true] { transform: translateX(0); visibility: visible; pointer-events: auto; transition-delay: 0s; }
+    .drawer-heading { position: sticky; top: -16px; z-index: 1; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px; margin: -16px -16px 16px; background: var(--cp-surface); border-bottom: 1px solid var(--cp-border); }
+    .drawer-heading h2 { margin: 0; font-size: 20px; }
+    @media (prefers-reduced-motion: reduce) { #terminal-controls { transition: none; } }
+    .instance-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; border-top: 1px solid var(--cp-border); padding-top: 12px; }
+    .instance-controls > label:first-child { flex-basis: 100%; }
     label { display: grid; gap: 4px; color: var(--cp-text-muted); font-size: 13px; }
     button, select, input { font: inherit; min-height: 34px; border: 1px solid var(--cp-border-strong); border-radius: .625rem; padding: 6px 10px; background: var(--cp-bg-elevated); color: var(--cp-text); }
     input[type=number] { width: 68px; }
@@ -103,7 +111,7 @@
     #status[data-level=ready] { color: var(--cp-success); }
     #warnings { color: var(--cp-warning); white-space: pre-wrap; margin: 8px 0; }
     #workspace { position: relative; overflow: auto; flex: 1; min-height: 320px; background: var(--cp-bg-elevated); border: 1px solid var(--cp-border); border-radius: 16px; }
-    #workspace.empty::before { content: "Create a terminal or attach a view above. Closing a view keeps its terminal running."; display: block; padding: 32px; color: var(--cp-text-muted); }
+    #workspace.empty::before { content: "Open Terminal controls to create a terminal or attach a view. Closing a view keeps its terminal running."; display: block; padding: 32px; color: var(--cp-text-muted); }
     .terminal-window { position: absolute; display: flex; flex-direction: column; min-width: 240px; min-height: 180px; border: 1px solid var(--cp-border-strong); border-radius: .625rem; background: var(--cp-surface); container-type: size; }
     .terminal-window.selected { border-color: var(--cp-accent); }
     .view-titlebar { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 8px; padding: 4px 8px; border-radius: .625rem .625rem 0 0; background: var(--cp-surface-soft); cursor: grab; touch-action: none; user-select: none; }
@@ -211,7 +219,7 @@
     details { color: var(--cp-text-muted); max-height: 40vh; overflow: auto; flex: none; }
     summary { cursor: pointer; }
     #screen-mirror { overflow: auto; max-height: 200px; white-space: pre; font: 12px/1.4 Consolas, "Courier New", Courier, monospace; }
-    @media (max-width: 640px) { body { padding: 8px; } main { height: calc(100dvh - 16px); } .instance-controls { border-left: 0; padding-left: 0; } }
+    @media (max-width: 640px) { body { padding: 8px; } main { height: calc(100dvh - 16px); } .page-header h1 { font-size: 20px; } }
     #restore-chrome { position: fixed; top: 8px; right: 8px; z-index: 2147483647; font-size: 12px; box-shadow: var(--cp-shadow); }
     body.minimal-chrome { padding: 0; overflow: hidden; }
     body.minimal-chrome main { height: 100dvh; gap: 0; }
@@ -230,9 +238,12 @@
 <body>
   <button id="restore-chrome" type="button" hidden title="Restore playground controls and the previous window layout">Restore controls</button>
   <main>
-    <header>
-      <h1>WebTerminalDemo</h1>
-      <p>HMP1 shared terminals · HWT1 GPU-rendered views · primary-owned geometry</p>
+    <header class="page-header">
+      <div>
+        <h1>WebTerminalDemo</h1>
+        <p>HMP1 shared terminals · HWT1 GPU-rendered views · primary-owned geometry</p>
+      </div>
+      <button id="toggle-terminal-controls" type="button" aria-controls="terminal-controls" aria-expanded="false">Terminal controls</button>
     </header>
     <section class="panel appearance-controls" aria-label="Terminal appearance">
       <label>Color mode
@@ -247,8 +258,11 @@
       <div id="palette-swatches" role="group" aria-label="Active palette ANSI swatches"></div>
       <p>All views · live, no reconnect. Fluent-inspired palettes are experimental, not official Fluent or Aspire themes.</p>
     </section>
-    <details id="terminal-controls" class="panel">
-      <summary>Terminal controls <span>New terminal, attach, and scenario tapes</span></summary>
+    <aside id="terminal-controls" class="panel" role="dialog" aria-labelledby="terminal-controls-heading" aria-hidden="true" data-open="false" inert>
+      <header class="drawer-heading">
+        <h2 id="terminal-controls-heading">Terminal controls</h2>
+        <button id="close-terminal-controls" type="button" aria-label="Close terminal controls">Close</button>
+      </header>
       <section class="controls" aria-label="Terminal controls">
       <label>Scene
         <select id="scene">
@@ -258,12 +272,13 @@
           <option value="kgp">Kitty graphics</option>
           <option value="animation">Graphics animation</option>
           <option value="activity">Progress and shell activity</option>
+          <option value="marks">Long scrollback (48 marks)</option>
           <option value="shell">Interactive shell</option>
         </select>
       </label>
       <label>New terminal reflow
         <select id="reflow-strategy" title="Chosen when creating a terminal; shared by every attached view.">
-          <option value="Default">Default (shell: Ghostty; other scenes: none)</option>
+          <option value="Default">Default (scene-specific)</option>
           <option value="None">None (crop)</option>
           <option value="Ghostty">Ghostty</option>
           <option value="Vte">VTE</option>
@@ -330,7 +345,7 @@
         <p id="tape-status" role="status">Choose an existing terminal to play a tape.</p>
       </div>
       </section>
-    </details>
+    </aside>
     <p id="status" role="status" aria-live="polite">Create a terminal or attach to an existing instance.</p>
     <section id="workspace" class="empty" aria-label="Floating terminal views"></section>
     <details class="panel">

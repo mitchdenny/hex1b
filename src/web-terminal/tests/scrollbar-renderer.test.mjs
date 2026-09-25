@@ -4,10 +4,17 @@ import { createDefaultScrollbarRenderer, renderDefaultScrollbar } from "../.buil
 
 const colors = { track: "#111111", thumb: "#999999", marker: "#0088ff", error: "#ff0000" };
 
+class Gradient {
+  constructor(...coordinates) { this.coordinates = coordinates; this.stops = []; }
+  addColorStop(...stop) { this.stops.push(stop); }
+}
+
+const paintColor = paint => paint.color instanceof Gradient ? paint.color.stops.at(-1)[1] : paint.color;
+
 function context() {
   return {
     globalAlpha: 1, fillStyle: "#123456", strokeStyle: "#654321", lineWidth: 3,
-    stack: [], paints: [], path: [],
+    stack: [], paints: [], paths: [], path: [],
     save() {
       this.stack.push({
         globalAlpha: this.globalAlpha, fillStyle: this.fillStyle,
@@ -16,11 +23,18 @@ function context() {
     },
     restore() { Object.assign(this, this.stack.pop()); },
     beginPath() { this.path = []; },
+    createLinearGradient(...coordinates) { return new Gradient(...coordinates); },
+    rect(...args) { this.path.push(args); },
+    moveTo(...args) { this.path.push(["moveTo", ...args]); },
+    lineTo(...args) { this.path.push(["lineTo", ...args]); },
+    quadraticCurveTo(...args) { this.path.push(["quadraticCurveTo", ...args]); },
+    closePath() { this.path.push(["closePath"]); },
     roundRect(...args) { this.path.push(args); },
     fillRect(...args) {
       this.paints.push({ kind: "rect", args, color: this.fillStyle, alpha: this.globalAlpha });
     },
     fill() {
+      this.paths.push([...this.path]);
       this.paints.push({ kind: "fill", args: this.path[0], color: this.fillStyle, alpha: this.globalAlpha });
     },
     stroke() {
@@ -43,7 +57,7 @@ function frame(overrides = {}) {
 }
 
 function marker(exitCode, color) {
-  return { marker: { exitCode, color }, bounds: { left: 198, top: 60, width: 12, height: 3 } };
+  return { marker: { exitCode, color }, bounds: { left: 201.5, top: 60, width: 5, height: 5 } };
 }
 
 function installGlobal(t, name, value) {
@@ -92,16 +106,133 @@ test("default painter uses a translucent track, inset capsule and exact composed
   value.context.globalAlpha = 0.4;
   assert.equal(renderDefaultScrollbar(value), undefined);
   assert.deepEqual(value.context.paints, [
-    { kind: "rect", args: [198, 20, 12, 200], color: colors.track, alpha: 0.4 * 0.5 * 0.35 },
-    { kind: "fill", args: [198, 60, 12, 3, 1.5], color: colors.marker, alpha: 0.2 },
-    { kind: "fill", args: [200, 100, 8, 40, 4], color: colors.thumb, alpha: 0.2 },
-    { kind: "stroke", args: [198.5, 100.5, 11, 39, 5.5], color: colors.thumb, alpha: 0.2, lineWidth: 1 }
+    { kind: "fill", args: [198, 20, 12, 200, 6], color: colors.track, alpha: 0.4 * 0.5 * 0.35 },
+    { kind: "fill", args: [201.5, 60, 5, 5, 2.5], color: colors.marker, alpha: 0.2 },
+    { kind: "fill", args: [200, 100, 8, 40, 4], color: colors.thumb, alpha: 0.2 }
   ]);
   assert.equal(value.context.globalAlpha, 0.4);
   assert.equal(value.context.fillStyle, "#123456");
   assert.equal(value.context.strokeStyle, "#654321");
   assert.equal(value.context.lineWidth, 3);
   assert.equal(value.context.stack.length, 0);
+});
+
+test("track shadow uses a bounded Bezier contour and one fill around floated marks", () => {
+  for (const width of [4, 12, 64]) {
+    for (const left of [0, 1, 200]) {
+      const track = Object.freeze({ left, top: 20, width, height: 200 });
+      const a = frame({ track }), b = frame({ track, markers: [
+        { marker: {}, bounds: { left: Math.max(0, left - 7), top: 110, width: 5, height: 5 } }
+      ] });
+      renderDefaultScrollbar(a);
+      renderDefaultScrollbar(b);
+      assert.deepEqual(a.context.paints[0], {
+        kind: "fill", args: [left, 20, width, 200, width / 2], color: colors.track, alpha: 0.175
+      });
+      const paint = b.context.paints[0];
+      if (left === 0) assert.equal(paint.color, colors.track);
+      else {
+        const start = Math.max(0, left - 13);
+        assert.equal(paint.kind, "fill");
+        assert.deepEqual(paint.color.coordinates, [start, 0, left, 0]);
+        assert.deepEqual(paint.color.stops, [[0, "transparent"], [1, colors.track]]);
+        const path = b.context.paths[0], curves = path.filter(command => command[0] === "quadraticCurveTo");
+        const radius = width / 2, right = left + width;
+        assert.deepEqual(path.slice(0, 3), [
+          ["moveTo", right - radius, 20], ["lineTo", left + radius, 20],
+          ["quadraticCurveTo", left, 20, left, 20 + radius]
+        ]);
+        assert.deepEqual(path.slice(-7), [
+          ["lineTo", left, 220 - radius],
+          ["quadraticCurveTo", left, 220, left + radius, 220],
+          ["lineTo", right - radius, 220],
+          ["quadraticCurveTo", right, 220, right, 220 - radius],
+          ["lineTo", right, 20 + radius],
+          ["quadraticCurveTo", right, 20, right - radius, 20], ["closePath"]
+        ]);
+        assert.ok(curves.length > 0 && curves.length < 24);
+        for (const [, x, y, endX, endY] of curves.slice(1, -3)) {
+          assert.ok(x >= start && x <= left && endX >= start && endX <= left);
+          assert.ok(y >= 20 && y <= 220 && endY >= 20 && endY <= 220);
+        }
+      }
+      assert.deepEqual(track, { left, top: 20, width, height: 200 });
+    }
+  }
+});
+
+test("retracting circles shrink their shadow smoothly and centered marks do not extend it", () => {
+  let previousLeft = -Infinity;
+  for (const left of [191, 194, 197, 197.9, 198]) {
+    const value = frame({ markers: [{ marker: {}, bounds: { left, top: 110, width: 5, height: 5 } }] });
+    renderDefaultScrollbar(value);
+    if (left === 198) assert.deepEqual(value.context.paints[0].args, [198, 20, 12, 200, 6]);
+    else {
+      const shadowLeft = value.context.paints[0].color.coordinates[0];
+      assert.ok(shadowLeft > previousLeft);
+      previousLeft = shadowLeft;
+    }
+  }
+});
+
+test("shadow contour clips to the track and ignores offscreen or empty marks", () => {
+  const marks = [
+    { marker: {}, bounds: { left: 191, top: 20, width: 5, height: 5 } },
+    { marker: {}, bounds: { left: 191, top: 215, width: 5, height: 5 } },
+    { marker: {}, bounds: { left: 191, top: 0, width: 5, height: 5 } },
+    { marker: {}, bounds: { left: 191, top: 220, width: 5, height: 5 } },
+    { marker: {}, bounds: { left: 191, top: 110, width: 0, height: 5 } }
+  ];
+  const value = frame({ markers: marks }), valid = frame({ markers: marks.slice(0, 2) });
+  renderDefaultScrollbar(value);
+  renderDefaultScrollbar(valid);
+  const path = value.context.paths[0];
+  assert.deepEqual(path, valid.context.paths[0]);
+  assert.deepEqual(path[1], ["lineTo", 191, 20]);
+  assert.deepEqual(path[2], ["quadraticCurveTo", 185, 20, 185, 26]);
+  assert.deepEqual(path.at(-7), ["lineTo", 185, 214]);
+  for (const command of path)
+    for (let i = 2; i < command.length; i += 2)
+      assert.ok(command[i] >= 20 && command[i] <= 220);
+});
+
+test("nearby marks share a smooth bulge while distant groups return to the track", () => {
+  const mark = top => ({ marker: {}, bounds: { left: 191, top, width: 5, height: 5 } });
+  const near = frame({ markers: [mark(110), mark(126)] });
+  renderDefaultScrollbar(near);
+  const path = near.context.paths[0];
+  assert.equal(path.filter(command => command[0] === "moveTo").length, 1);
+  assert.equal(path.filter(command => command[0] === "closePath").length, 1);
+  assert.ok(path.some(([kind, x, y]) => kind === "lineTo" && x === 185 && y >= 131));
+  assert.ok(!path.some(([kind, , y]) => kind === "quadraticCurveTo" && y >= 110 && y <= 131),
+    "Nearby marks should not each get their own scallop");
+
+  const far = frame({ markers: [mark(110), mark(170)] });
+  renderDefaultScrollbar(far);
+  assert.ok(far.context.paths[0].some(([kind, x, y]) =>
+    kind === "lineTo" && x === 198 && y > 133 && y < 153));
+});
+
+test("seated marks add no control points and marker order or duplicates do not change the contour", () => {
+  const floated = [
+    { marker: {}, bounds: { left: 191, top: 110, width: 5, height: 5 } },
+    { marker: {}, bounds: { left: 194, top: 126, width: 5, height: 5 } }
+  ];
+  const seated = Array.from({ length: 10000 }, (_, i) => ({
+    marker: {}, bounds: { left: 201.5, top: 20 + i % 195, width: 5, height: 5 }
+  }));
+  const base = frame({ markers: floated });
+  renderDefaultScrollbar(base);
+  for (const marks of [[...seated, ...floated], [...floated].reverse(), [...floated, ...floated]]) {
+    const value = frame({ markers: marks });
+    renderDefaultScrollbar(value);
+    assert.deepEqual(value.context.paths[0], base.context.paths[0]);
+    assert.deepEqual(value.context.paints[0], base.context.paints[0]);
+  }
+  const onlySeated = frame({ markers: seated });
+  onlySeated.context.createLinearGradient = () => { throw new Error("Seated marks must use the plain track"); };
+  renderDefaultScrollbar(onlySeated);
+  assert.deepEqual(onlySeated.context.paints[0].args, [198, 20, 12, 200, 6]);
 });
 
 test("factory defaults match the built-in painter and work without DOM globals", async t => {
@@ -116,22 +247,26 @@ test("factory defaults match the built-in painter and work without DOM globals",
   assert.deepEqual(a.context.paints, c.context.paints);
 });
 
-test("dense circles and capsules are rounded and all paint behind the thumb and focus outline", () => {
+test("dense displaced circles stay circular and paint behind the thumb without a focus outline", () => {
   const marks = Array.from({ length: 100 }, (_, index) => ({
     marker: { exitCode: index % 2 },
-    bounds: { left: 186, top: 110 + index / 10, width: 19.5, height: 3 }
+    bounds: { left: 191, top: 110 + index / 10, width: 5, height: 5 }
   }));
-  marks.unshift({ marker: {}, bounds: { left: 202.5, top: 20, width: 3, height: 3 } });
+  marks.unshift({ marker: {}, bounds: { left: 201.5, top: 20, width: 5, height: 5 } });
   const value = frame({ markers: marks, interaction: { focused: true }, opacity: 1 });
   renderDefaultScrollbar(value);
   const paints = value.context.paints;
-  assert.equal(paints.length, marks.length + 3);
-  assert.deepEqual(paints[1].args, [202.5, 20, 3, 3, 1.5]);
-  assert.ok(paints.slice(1, -2).every(paint => paint.kind === "fill" && paint.args[4] === 1.5));
-  assert.deepEqual(paints.at(-2), {
+  assert.equal(paints.length, marks.length + 2);
+  assert.deepEqual(paints[1].args, [201.5, 20, 5, 5, 2.5]);
+  assert.equal(paints[0].alpha, 0.35);
+  assert.ok(value.context.paths[0].filter(command => command[0] === "quadraticCurveTo").length < 24,
+    "Dense marks share a small number of contour controls");
+  assert.ok(paints.slice(1, -1).every(paint =>
+    paint.kind === "fill" && paint.args[2] === 5 && paint.args[3] === 5 && paint.args[4] === 2.5));
+  assert.deepEqual(paints.at(-1), {
     kind: "fill", args: [200, 100, 8, 40, 4], color: colors.thumb, alpha: 1
   });
-  assert.equal(paints.at(-1).kind, "stroke");
+  assert.ok(paints.every(paint => paint.kind !== "stroke"));
 });
 
 test("options are snapshotted while omitted colors follow each frame's theme", t => {
@@ -151,17 +286,17 @@ test("options are snapshotted while omitted colors follow each frame's theme", t
   const b = frame({ colors: { track: "new-track", thumb: "new-thumb", marker: "new-marker", error: "new-error" },
     markers: [marker(0), marker(1)] });
   renderer(b);
-  assert.deepEqual(a.context.paints.map(p => [p.color, p.alpha]), [
+  assert.deepEqual(a.context.paints.map(p => [paintColor(p), p.alpha]), [
     ["#111111", 0.1], ["#333333", 0.15], ["#444444", 0.15], [colors.thumb, 0.35]
   ]);
-  assert.deepEqual(b.context.paints.map(p => [p.color, p.alpha]), [
+  assert.deepEqual(b.context.paints.map(p => [paintColor(p), p.alpha]), [
     ["#111111", 0.1], ["#333333", 0.15], ["#444444", 0.15], ["new-thumb", 0.35]
   ]);
   assert.equal(requests(), 1, "validation context is reused at creation and never needed for painting");
   const themed = frame({ colors: b.colors, markers: [marker(0), marker(1)], interaction: { focused: true } });
   createDefaultScrollbarRenderer()(themed);
-  assert.deepEqual(themed.context.paints.map(p => p.color),
-    ["new-track", "new-marker", "new-error", "new-thumb", "new-thumb"]);
+  assert.deepEqual(themed.context.paints.map(paintColor),
+    ["new-track", "new-marker", "new-error", "new-thumb"]);
 });
 
 test("per-marker colors override configured success and error colors", t => {
@@ -191,14 +326,14 @@ test("invalid per-marker colors preserve the appropriate safe fallback", t => {
   assert.deepEqual(value.context.paints.slice(1, -1).map(p => p.color), ["#333333", "#444444"]);
 });
 
-test("part opacity composes independently and cannot hide the focus outline", t => {
+test("part opacity composes independently without adding focus paint", t => {
   colorCanvas(t);
   const value = frame({ markers: [marker(1)], interaction: { focused: true } });
   value.context.globalAlpha = 0.4;
   createDefaultScrollbarRenderer({
     track: { opacity: 0.6 }, thumb: { opacity: 0 }, markers: { color: "#333333", opacity: 0 }
   })(value);
-  assert.deepEqual(value.context.paints.map(p => p.alpha), [0.12, 0, 0, 0.2]);
+  assert.deepEqual(value.context.paints.map(p => p.alpha), [0.12, 0, 0]);
   assert.equal(value.context.paints.at(-1).color, colors.thumb);
   assert.equal(value.context.globalAlpha, 0.4);
   value.context.fillRect(1, 2, 3, 4);
@@ -207,15 +342,16 @@ test("part opacity composes independently and cannot hide the focus outline", t 
   });
 });
 
-test("focused dragging draws the capsule without an outline, then restores neutral focus feedback", () => {
-  const dragging = frame({ interaction: { focused: true, dragging: true } });
-  renderDefaultScrollbar(dragging);
-  assert.equal(dragging.context.paints.filter(paint => paint.kind === "stroke").length, 0);
-  assert.equal(dragging.context.paints.filter(paint => paint.kind === "fill").length, 1);
-  const focused = frame({ interaction: { focused: true, dragging: false } });
-  renderDefaultScrollbar(focused);
-  assert.equal(focused.context.paints.at(-1).kind, "stroke");
-  assert.equal(focused.context.paints.at(-1).color, colors.thumb);
+test("focus and dragging never add an outline or change the default paint", () => {
+  const idle = frame();
+  renderDefaultScrollbar(idle);
+  for (const focused of [false, true])
+    for (const dragging of [false, true]) {
+      const value = frame({ interaction: { focused, dragging } });
+      renderDefaultScrollbar(value);
+      assert.deepEqual(value.context.paints, idle.context.paints);
+      assert.ok(value.context.paints.every(paint => paint.kind !== "stroke"));
+    }
 });
 
 test("resolved marker shades are defaults, with factory and per-marker overrides taking precedence", t => {
@@ -249,7 +385,7 @@ test("zero frame opacity performs no drawing or state changes", () => {
   assert.deepEqual(value.context.paints, []);
 });
 
-test("tiny thumbs have bounded insets, capsule radii and focus outlines", () => {
+test("tiny tracks and thumbs have bounded capsule radii without focus outlines", () => {
   for (const [width, height, inset, radius] of [
     [4, 24, 1, 1], [12, 1, 2, 0.5], [1, 1, 0.25, 0.25], [0.2, 0.1, 0.05, 0.05]
   ]) {
@@ -257,11 +393,8 @@ test("tiny thumbs have bounded insets, capsule radii and focus outlines", () => 
     const value = frame({ track: thumb, thumb, interaction: { focused: true } });
     renderDefaultScrollbar(value);
     assert.deepEqual(value.context.paints[1].args, [10 + inset, 20, width - inset * 2, height, radius]);
-    const outline = value.context.paints[2];
-    assert.ok(outline.args.every(Number.isFinite));
-    assert.ok(outline.args[2] > 0 && outline.args[3] > 0 && outline.args[4] > 0);
-    assert.equal(outline.args[4], Math.min(outline.args[2], outline.args[3]) / 2);
-    assert.ok(outline.lineWidth <= Math.min(width, height));
+    assert.deepEqual(value.context.paints[0].args, [10, 20, width, height, Math.min(width, height) / 2]);
+    assert.equal(value.context.paints.length, 2);
     assert.deepEqual(thumb, { left: 10, top: 20, width, height });
   }
   for (const [width, height] of [[0, 1], [1, 0], [-1, 1], [1, -1]]) {
@@ -271,6 +404,39 @@ test("tiny thumbs have bounded insets, capsule radii and focus outlines", () => 
     renderDefaultScrollbar(value);
     assert.deepEqual(value.context.paints, []);
   }
+});
+
+test("rounded shadow end caps stay bounded on short and fractional tracks", () => {
+  for (const width of [0.2, 4, 12, 64])
+    for (const height of [0.1, 1, 8, 20]) {
+      const track = { left: 20, top: 5, width, height };
+      const value = frame({ track, thumb: { ...track, width: 0 }, markers: [
+        { marker: {}, bounds: { left: 13, top: 5, width: 5, height: Math.min(5, height) } },
+        { marker: {}, bounds: { left: 13, top: 5 + height - Math.min(5, height), width: 5, height: Math.min(5, height) } }
+      ] });
+      renderDefaultScrollbar(value);
+      const path = value.context.paths[0];
+      assert.equal(path.filter(command => command[0] === "quadraticCurveTo").length, 4);
+      for (const command of path)
+        for (let i = 1; i < command.length; i++) {
+          assert.ok(Number.isFinite(command[i]));
+          if (i % 2 === 0) assert.ok(command[i] >= 5 && command[i] <= 5 + height);
+          else assert.ok(command[i] >= 0 && command[i] <= 20 + width);
+        }
+    }
+});
+
+test("wide track end shadows round within their padding rather than cutting into floated marks", () => {
+  const value = frame({ track: { left: 198, top: 20, width: 64, height: 200 }, markers: [
+    { marker: {}, bounds: { left: 191, top: 20, width: 5, height: 5 } },
+    { marker: {}, bounds: { left: 191, top: 215, width: 5, height: 5 } }
+  ] });
+  renderDefaultScrollbar(value);
+  const path = value.context.paths[0];
+  assert.deepEqual(path[2], ["quadraticCurveTo", 185, 20, 185, 26]);
+  assert.deepEqual(path.at(-6), ["quadraticCurveTo", 185, 220, 191, 220]);
+  assert.deepEqual(path.at(-4), ["quadraticCurveTo", 262, 220, 262, 188]);
+  assert.deepEqual(path.at(-2), ["quadraticCurveTo", 262, 20, 230, 20]);
 });
 
 test("appearance and nested parts reject malformed runtime shapes", () => {
@@ -329,7 +495,7 @@ test("concrete colors, both sentinels, trimming and the length boundary are acce
     createDefaultScrollbarRenderer({
       track: { color }, thumb: { color }, markers: { color, errorColor: color }
     })(value);
-    assert.deepEqual(value.context.paints.map(p => p.color), Array(3).fill(color.trim()));
+    assert.deepEqual(value.context.paints.map(paintColor), Array(3).fill(color.trim()));
   }
   assert.throws(() => createDefaultScrollbarRenderer({ track: { color: `${boundary} ` } }), TypeError);
 });

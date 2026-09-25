@@ -8,6 +8,7 @@ import { normalizeFont } from "./terminal-font.js";
 import { normalizeRenderer } from "./renderer-options.js";
 import { defaultDarkPalette, defaultLightPalette, normalizeColorMode, normalizePalette } from "./terminal-palette.js";
 import type { TerminalColorMode, TerminalPalette } from "./terminal-palette.js";
+import { paletteScrollbarColors } from "./scrollbar-colors.js";
 import { dimensions, normalizeSizing, requestedGrid } from "./terminal-sizing.js";
 import { HistoryState } from "./history-state.js";
 import { MarkerState } from "./marker-state.js";
@@ -249,7 +250,6 @@ export class WebTerminal implements WebTerminalHandle {
         .scrollbar-canvas { position: absolute; inset: 0; pointer-events: none; }
         .scrollbar-tooltip-slot { position: absolute; inset: 0; display: block; pointer-events: none; }
         .scrollbar-accessibility { position: absolute; pointer-events: none; outline: none; }
-        .scrollbar-accessibility:focus-visible:not([data-pointer-active="true"]) { outline: 2px solid var(--cp-view-scrollbar-thumb); outline-offset: -2px; }
         .highlights { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
         .highlight { position: absolute; }
         .selection-ui-slot { position: absolute; inset: 0; display: block; pointer-events: none; font: 11px/1.4 var(--cp-view-font-family); color: var(--cp-view-text); }
@@ -874,7 +874,10 @@ export class WebTerminal implements WebTerminalHandle {
     this.element.dataset.theme = this.resolvedColorMode;
     this.element.style.colorScheme = this.resolvedColorMode;
     this.element.style.backgroundColor = palette.background;
+    for (const [name, color] of Object.entries(paletteScrollbarColors(palette)))
+      this.element.style.setProperty(`--cp-terminal-scrollbar-${name}`, color);
     this.#post({ type: "palette", palette });
+    this.#scrollbarController?.refresh();
   }
 
   /** Changes per-view input policy without reconnecting; server authorization remains host-owned. */

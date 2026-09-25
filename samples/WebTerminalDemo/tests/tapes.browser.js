@@ -12,6 +12,8 @@ async page => {
   const creation = () => test.waitForResponse(response =>
     response.url() === `${origin}/api/terminals` && response.request().method() === "POST");
   const play = async tapeId => {
+    if (await test.locator("#terminal-controls").getAttribute("data-open") !== "true")
+      await test.locator("#toggle-terminal-controls").click();
     await test.locator("#tapes").selectOption(tapeId);
     const response = test.waitForResponse(response => response.url().endsWith("/tape") &&
       response.request().method() === "POST");
@@ -32,7 +34,7 @@ async page => {
     const before = await list();
     const created = creation();
     await test.goto(`${origin}/?scene=shell&renderer=webgl2`);
-    await test.locator("#terminal-controls > summary").click();
+    await test.locator("#toggle-terminal-controls").click();
     const shell = await (await created).json();
     instances.push(shell.id);
     check(shell.tapes.length >= 2 && shell.tapes.every(tape => tape.scene === "shell"), "Shell catalog is missing or crosses scenes");
@@ -118,6 +120,7 @@ async page => {
     check(await test.locator("#tapes").inputValue() === "line-editing", "Switching instances lost tape selection");
 
     stage = "cancelling without interrupting the shell";
+    await test.locator("#close-terminal-controls").click();
     await test.locator('.terminal-window[data-view="1"] .view-title').click();
     await test.keyboard.type("pending_input");
     await test.waitForFunction(() => webTerminalViews.get("1").terminal.screenText.trimEnd().endsWith("pending_input"));
@@ -142,10 +145,12 @@ async page => {
       "Input crossed independent terminal instances");
 
     stage = "zero-view playback and terminal shutdown";
+    await test.locator("#close-terminal-controls").click();
     await test.locator('.terminal-window[data-view="2"]').focus();
     await test.locator('.terminal-window[data-view="2"] .close-view').click();
     await test.locator('.terminal-window[data-view="1"]').focus();
     await test.locator('.terminal-window[data-view="1"] .close-view').click();
+    await test.locator("#toggle-terminal-controls").click();
     await test.locator("#instances").selectOption(shell.id);
     await play("hello");
     check((await test.request.delete(`${origin}/api/terminals/${shell.id}`, { headers })).status() === 204,

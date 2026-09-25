@@ -96,7 +96,7 @@ async page => {
     // Selecting a different window's chrome must move input focus too.
     const createdSecond = creationResponse();
     stage = "second shell";
-    await test.locator("#terminal-controls > summary").click();
+    await test.locator("#toggle-terminal-controls").click();
     await test.locator("#scene").selectOption("shell");
     await test.locator("#create").click();
     instances.push((await (await createdSecond).json()).id);

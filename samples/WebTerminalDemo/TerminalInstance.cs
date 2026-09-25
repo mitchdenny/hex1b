@@ -52,7 +52,7 @@ internal sealed class TerminalInstance
             Height = request.Rows,
             WorkloadAdapter = (IHex1bTerminalWorkloadAdapter?)_demo ?? child!,
             PresentationAdapter = Presentation,
-            ScrollbackCapacity = 1000,
+            ScrollbackCapacity = _scene == "marks" ? DemoWorkload.MarkScenarioScrollbackCapacity : 1000,
             RunCallback = async ct =>
             {
                 if (_demo is not null)
@@ -79,7 +79,9 @@ internal sealed class TerminalInstance
         lock (_gate)
             return new(Id, _name, _scene, Presentation.Width, Presentation.Height,
                 Presentation.ClientCount, Presentation.PrimaryPeerId, _createdAt,
-                _demo?.Paused, _demo?.Rate, _demo?.Batch,
+                _scene == "marks" ? null : _demo?.Paused,
+                _scene == "marks" ? null : _demo?.Rate,
+                _scene == "marks" ? null : _demo?.Batch,
                 _tapes.Select(tape => tape.Info).ToArray(), _tapePlayback.Status, _reflowStrategy);
     }
 
@@ -118,7 +120,7 @@ internal sealed class TerminalInstance
         {
             if (_stopping || Stopping.IsCancellationRequested)
                 return 404;
-            if (_demo is null)
+            if (_demo is null || _scene == "marks")
                 return 409;
             if (request.Paused is { } paused) _demo.Paused = paused;
             if (request.Rate is { } rate) _demo.Rate = rate;
