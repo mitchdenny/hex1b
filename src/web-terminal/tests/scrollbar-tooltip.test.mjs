@@ -196,6 +196,25 @@ test("positioning bounds oversized elements and nonnegative constraints in tiny 
   assert.equal(element.style.maxHeight, "484px");
 });
 
+test("left-expanding capsule anchors reposition tooltips without refetching command details", async t => {
+  const { tooltip, overlay, requests, Element } = fixture(t);
+  const seen = [];
+  const renderer = context => { seen.push(context); return new Element(); };
+  tooltip.update(tick("a", {}, { left: 302.5, width: 3, height: 3 }), layout(), renderer);
+  await settle();
+  requests[0].resolve(details());
+  await settle();
+  const previous = seen.at(-1);
+  assert.equal(overlay.children[0].style.left, "194.5px");
+  tooltip.update(tick("a", {}, { left: 286, width: 19.5, height: 3 }), layout(), renderer);
+  await settle();
+  assert.equal(previous.signal.aborted, true);
+  assert.equal(seen.at(-1).anchor.left, 286);
+  assert.equal(seen.at(-1).details.rawParameters, "cmdline_url=echo%20hello");
+  assert.equal(overlay.children[0].style.left, "178px");
+  assert.equal(requests.length, 1);
+});
+
 test("callback snapshots and command results are immutable without freezing producer objects", async t => {
   const { tooltip, requests } = fixture(t);
   const seen = [];
