@@ -93,8 +93,8 @@ test("default painter uses a translucent track, inset capsule and exact composed
   assert.equal(renderDefaultScrollbar(value), undefined);
   assert.deepEqual(value.context.paints, [
     { kind: "rect", args: [198, 20, 12, 200], color: colors.track, alpha: 0.4 * 0.5 * 0.35 },
+    { kind: "fill", args: [198, 60, 12, 3, 1.5], color: colors.marker, alpha: 0.2 },
     { kind: "fill", args: [200, 100, 8, 40, 4], color: colors.thumb, alpha: 0.2 },
-    { kind: "rect", args: [198, 60, 12, 3], color: colors.marker, alpha: 0.2 },
     { kind: "stroke", args: [198.5, 100.5, 11, 39, 5.5], color: colors.thumb, alpha: 0.2, lineWidth: 1 }
   ]);
   assert.equal(value.context.globalAlpha, 0.4);
@@ -116,6 +116,24 @@ test("factory defaults match the built-in painter and work without DOM globals",
   assert.deepEqual(a.context.paints, c.context.paints);
 });
 
+test("dense circles and capsules are rounded and all paint behind the thumb and focus outline", () => {
+  const marks = Array.from({ length: 100 }, (_, index) => ({
+    marker: { exitCode: index % 2 },
+    bounds: { left: 186, top: 110 + index / 10, width: 19.5, height: 3 }
+  }));
+  marks.unshift({ marker: {}, bounds: { left: 202.5, top: 20, width: 3, height: 3 } });
+  const value = frame({ markers: marks, interaction: { focused: true }, opacity: 1 });
+  renderDefaultScrollbar(value);
+  const paints = value.context.paints;
+  assert.equal(paints.length, marks.length + 3);
+  assert.deepEqual(paints[1].args, [202.5, 20, 3, 3, 1.5]);
+  assert.ok(paints.slice(1, -2).every(paint => paint.kind === "fill" && paint.args[4] === 1.5));
+  assert.deepEqual(paints.at(-2), {
+    kind: "fill", args: [200, 100, 8, 40, 4], color: colors.thumb, alpha: 1
+  });
+  assert.equal(paints.at(-1).kind, "stroke");
+});
+
 test("options are snapshotted while omitted colors follow each frame's theme", t => {
   const requests = colorCanvas(t);
   const appearance = { track: { color: "#111111", opacity: 0.2 }, thumb: { opacity: 0.7 },
@@ -134,16 +152,16 @@ test("options are snapshotted while omitted colors follow each frame's theme", t
     markers: [marker(0), marker(1)] });
   renderer(b);
   assert.deepEqual(a.context.paints.map(p => [p.color, p.alpha]), [
-    ["#111111", 0.1], [colors.thumb, 0.35], ["#333333", 0.15], ["#444444", 0.15]
+    ["#111111", 0.1], ["#333333", 0.15], ["#444444", 0.15], [colors.thumb, 0.35]
   ]);
   assert.deepEqual(b.context.paints.map(p => [p.color, p.alpha]), [
-    ["#111111", 0.1], ["new-thumb", 0.35], ["#333333", 0.15], ["#444444", 0.15]
+    ["#111111", 0.1], ["#333333", 0.15], ["#444444", 0.15], ["new-thumb", 0.35]
   ]);
   assert.equal(requests(), 1, "validation context is reused at creation and never needed for painting");
   const themed = frame({ colors: b.colors, markers: [marker(0), marker(1)], interaction: { focused: true } });
   createDefaultScrollbarRenderer()(themed);
   assert.deepEqual(themed.context.paints.map(p => p.color),
-    ["new-track", "new-thumb", "new-marker", "new-error", "new-thumb"]);
+    ["new-track", "new-marker", "new-error", "new-thumb", "new-thumb"]);
 });
 
 test("per-marker colors override configured success and error colors", t => {
@@ -154,11 +172,11 @@ test("per-marker colors override configured success and error colors", t => {
     marker(0, "override-success"), marker(1, "override-error")
   ] });
   renderer(value);
-  assert.deepEqual(value.context.paints.slice(2).map(p => p.color),
+  assert.deepEqual(value.context.paints.slice(1, -1).map(p => p.color),
     ["#333333", "#333333", "#333333", "#444444", "#444444", "override-success", "override-error"]);
   const fallback = frame({ markers: [marker(0), marker(1)] });
   createDefaultScrollbarRenderer({ markers: { color: "#333333" } })(fallback);
-  assert.deepEqual(fallback.context.paints.slice(2).map(p => p.color), ["#333333", colors.error]);
+  assert.deepEqual(fallback.context.paints.slice(1, -1).map(p => p.color), ["#333333", colors.error]);
 });
 
 test("invalid per-marker colors preserve the appropriate safe fallback", t => {
@@ -170,7 +188,7 @@ test("invalid per-marker colors preserve the appropriate safe fallback", t => {
     set: color => { if (color !== "not-a-color") style = color; }
   });
   createDefaultScrollbarRenderer({ markers: { color: "#333333", errorColor: "#444444" } })(value);
-  assert.deepEqual(value.context.paints.slice(2).map(p => p.color), ["#333333", "#444444"]);
+  assert.deepEqual(value.context.paints.slice(1, -1).map(p => p.color), ["#333333", "#444444"]);
 });
 
 test("part opacity composes independently and cannot hide the focus outline", t => {
@@ -209,10 +227,10 @@ test("resolved marker shades are defaults, with factory and per-marker overrides
   ];
   const defaults = frame({ markers });
   renderDefaultScrollbar(defaults);
-  assert.deepEqual(defaults.context.paints.slice(2).map(p => p.color), ["#999999", "#eeeeee", "red"]);
+  assert.deepEqual(defaults.context.paints.slice(1, -1).map(p => p.color), ["#999999", "#eeeeee", "red"]);
   const configured = frame({ markers });
   createDefaultScrollbarRenderer({ markers: { color: "#333333", errorColor: "#444444" } })(configured);
-  assert.deepEqual(configured.context.paints.slice(2).map(p => p.color), ["#333333", "#444444", "red"]);
+  assert.deepEqual(configured.context.paints.slice(1, -1).map(p => p.color), ["#333333", "#444444", "red"]);
 });
 
 test("drawing state is restored even when a canvas operation throws", () => {
