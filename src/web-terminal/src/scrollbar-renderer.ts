@@ -61,6 +61,7 @@ function snapshotAppearance(appearance: TerminalScrollbarAppearance = {}) {
 /**
  * Creates a synchronous capsule scrollbar painter with snapshotted paint overrides.
  * Omitted colors are read from each frame. Invalid options throw at creation time.
+ * Circle/capsule markers paint behind the thumb.
  * The focus outline uses the thumb color, is independent of part opacity, and is hidden during dragging.
  */
 export function createDefaultScrollbarRenderer(
@@ -78,6 +79,20 @@ export function createDefaultScrollbarRenderer(
       if (track.width > 0 && track.height > 0)
         context.fillRect(track.left, track.top, track.width, track.height);
 
+      context.globalAlpha = alpha * options.markers.opacity;
+      for (const { marker, bounds, color } of frame.markers) {
+        context.fillStyle = marker.exitCode != null && marker.exitCode !== 0
+          ? options.markers.errorColor ?? color ?? colors.error : options.markers.color ?? color ?? colors.marker;
+        // Keep the historical per-marker override and invalid-color fallback.
+        if (marker.color) context.fillStyle = marker.color;
+        if (bounds.width > 0 && bounds.height > 0) {
+          context.beginPath();
+          context.roundRect(bounds.left, bounds.top, bounds.width, bounds.height,
+            Math.min(bounds.width, bounds.height) / 2);
+          context.fill();
+        }
+      }
+
       if (thumb.width > 0 && thumb.height > 0) {
         const inset = Math.min(2, thumb.width / 4);
         const width = thumb.width - inset * 2;
@@ -87,16 +102,6 @@ export function createDefaultScrollbarRenderer(
         context.roundRect(thumb.left + inset, thumb.top, width, thumb.height,
           Math.min(width, thumb.height) / 2);
         context.fill();
-      }
-
-      context.globalAlpha = alpha * options.markers.opacity;
-      for (const { marker, bounds, color } of frame.markers) {
-        context.fillStyle = marker.exitCode != null && marker.exitCode !== 0
-          ? options.markers.errorColor ?? color ?? colors.error : options.markers.color ?? color ?? colors.marker;
-        // Keep the historical per-marker override and invalid-color fallback.
-        if (marker.color) context.fillStyle = marker.color;
-        if (bounds.width > 0 && bounds.height > 0)
-          context.fillRect(bounds.left, bounds.top, bounds.width, bounds.height);
       }
 
       if (frame.interaction.focused && !frame.interaction.dragging && thumb.width > 0 && thumb.height > 0) {

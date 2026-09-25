@@ -48,10 +48,14 @@ async page => {
         window.markPoint = id => {
           const t = appearanceTerminal, marker = t.markers.find(mark => mark.id === id);
           const l = t.layout, track = l.scrollbar, b = t.element.getBoundingClientRect();
+          const y = track.top + (track.height - 3) * marker.row / Math.max(1, t.viewport.totalRows - 1) + 1.5;
+          const thumbHeight = Math.min(track.height, Math.max(24,
+            track.height * (t.viewport.totalRows - t.viewport.liveTop) / t.viewport.totalRows));
+          const thumbTop = track.top + (track.height - thumbHeight) * t.viewport.top / t.viewport.liveTop;
+          const x = y >= thumbTop && y < thumbTop + thumbHeight ? track.left - 3 : track.left + track.width / 2;
           return {
-            x: b.left + (track.left + track.width / 2) * b.width / l.width,
-            y: b.top + (track.top + (track.height - 3) * marker.row /
-              Math.max(1, t.viewport.totalRows - 1) + 1.5) * b.height / l.height
+            x: b.left + x * b.width / l.width,
+            y: b.top + y * b.height / l.height
           };
         };
       });
