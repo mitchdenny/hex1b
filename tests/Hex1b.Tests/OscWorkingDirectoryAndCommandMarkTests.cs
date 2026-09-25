@@ -179,16 +179,36 @@ public class OscCommandMarkTests
     }
 
     [TestMethod]
-    public async Task CommandMarks_ExceedingCapacity_EvictsOldestFirst()
+    [DataRow(0)]
+    [DataRow(2)]
+    [DataRow(200)]
+    public async Task CommandMarks_ExceedingExplicitCapacity_EvictsOldestFirst(int capacity)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            WorkloadAdapter = workload, PresentationAdapter = new HeadlessPresentationAdapter(20, 5),
+            Width = 20, Height = 5, CommandMarkHistoryCapacity = capacity
+        });
+        for (var i = 0; i < 205; i++)
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize($"\x1b]133;C;cmdline_url={i}\x07"));
+
+        TestSeq.AreEqual(Enumerable.Range(205 - capacity, capacity).Select(i => i.ToString()),
+            terminal.CommandMarks.Select(mark => mark.CmdlineUrl));
+    }
+
+    [TestMethod]
+    public async Task CommandMarks_DefaultCapacity_RetainsMarksUntilBackingTextIsDiscarded()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithWorkload(workload).WithHeadless().WithDimensions(20, 5)
-            .Build();
-        for (var i = 0; i < 205; i++)
-            terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]133;A\x07"));
-
-        Assert.AreEqual(200, terminal.CommandMarks.Count);
+            .WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(string.Concat(
+            Enumerable.Repeat("\x1b]133;A\x07", 1000))));
+        Assert.AreEqual(1000, terminal.CommandMarks.Count);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[2K"));
+        Assert.AreEqual(0, terminal.CommandMarks.Count);
+        Assert.AreEqual(0, terminal.TextAnchorCount);
     }
 
     [TestMethod]

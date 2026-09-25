@@ -5,6 +5,7 @@ import { normalizePalette, normalizeColorMode, compilePalette, defaultDarkPalett
 import { decodeFrame } from "../.build/protocol.js";
 import { TerminalRenderer } from "../.build/renderer.js";
 import { browser, mounting, present, frame, Target } from "./fixtures/browser.mjs";
+import { paletteScrollbarColors } from "../.build/scrollbar-colors.js";
 
 const metadata = { colorEncoding: "indexed-v1", placements: [], cursor: { visible: false, x: 0, y: 0, shape: 2 } };
 const cell = { index: 0, text: "A", width: 1, attributes: 0, underlineStyle: 1,
@@ -148,6 +149,33 @@ test("Public mode and palette changes repaint retained worker cells without inpu
   assert.throws(() => terminal.setColorMode("dark"), /disposed/u);
 });
 
+test("Scrollbar palette defaults follow live changes without replacing embedding overrides or sending input", async t => {
+  const workers = browser(t);
+  const view = await mounting(t, workers, { colorMode: "light" });
+  await view.worker.request("open");
+  await present(view, {});
+  const terminal = await view.promise;
+  const check = palette => {
+    for (const [name, color] of Object.entries(paletteScrollbarColors(palette)))
+      assert.equal(terminal.element.style[`--cp-terminal-scrollbar-${name}`], color, name);
+  };
+  check(defaultLightPalette);
+  const commands = [...view.worker.commands];
+  terminal.element.style.setProperty("--cp-scrollbar-thumb", "#abcdef");
+  const customLight = { ...defaultLightPalette, foreground: "#123456", background: "#abcdef" };
+  const customDark = { ...defaultDarkPalette, foreground: "#abcdef", background: "#123456" };
+  terminal.setPalette("dark", customDark);
+  check(defaultLightPalette);
+  terminal.setPalette("light", customLight);
+  check(customLight);
+  assert.equal(terminal.element.style["--cp-scrollbar-thumb"], "#abcdef");
+  terminal.setColorMode("dark");
+  check(customDark);
+  assert.equal(terminal.element.style["--cp-scrollbar-thumb"], "#abcdef");
+  await view.worker.request("flush");
+  assert.deepEqual(view.worker.commands, commands);
+});
+
 test("System mode follows media changes, explicit mode wins, and disposal removes the listener", async t => {
   const workers = browser(t);
   const media = Object.assign(new Target(), { matches: true,
@@ -161,13 +189,16 @@ test("System mode follows media changes, explicit mode wins, and disposal remove
   await present(view, {});
   const terminal = await view.promise;
   assert.equal(terminal.resolvedColorMode, "dark");
+  assert.equal(terminal.element.style["--cp-terminal-scrollbar-thumb"], defaultDarkPalette.foreground);
   media.matches = false;
   media.dispatchEvent({ type: "change" });
   assert.equal(terminal.resolvedColorMode, "light");
   assert.equal(terminal.element.dataset.theme, "light");
+  assert.equal(terminal.element.style["--cp-terminal-scrollbar-thumb"], defaultLightPalette.foreground);
   terminal.setColorMode("dark");
   media.dispatchEvent({ type: "change" });
   assert.equal(terminal.element.dataset.theme, "dark");
+  assert.equal(terminal.element.style["--cp-terminal-scrollbar-thumb"], defaultDarkPalette.foreground);
   assert.equal(view.worker.commands.some(command => command.type === "colorEncoding"), false,
     "Do not send new commands to legacy servers");
   terminal.dispose();
@@ -197,7 +228,9 @@ test("Two views keep independent palettes and palette replacement does not mutat
   const second = await mounting(t, workers, { colorMode: "light" });
   await second.worker.request("open");
   await present(second, { ...metadata, cells: [cell] });
-  await second.promise;
+  const secondTerminal = await second.promise;
+  assert.equal(firstTerminal.element.style["--cp-terminal-scrollbar-thumb"], defaultDarkPalette.foreground);
+  assert.equal(secondTerminal.element.style["--cp-terminal-scrollbar-thumb"], defaultLightPalette.foreground);
   assert.equal(await first.worker.request("renderedForeground"), dark.indexed[2]);
   assert.equal(await second.worker.request("renderedForeground"), light.indexed[2]);
   const custom = { ...defaultDarkPalette, ansi: [...defaultDarkPalette.ansi] };

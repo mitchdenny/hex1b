@@ -1,5 +1,7 @@
 import type { TerminalMarker } from "./scrollbar-types.js";
+import type { TerminalPalette } from "./terminal-palette.js";
 
+// Fallbacks for standalone controllers without a mounted terminal's palette tokens.
 export const scrollbarColors = Object.freeze({
   track: "#202020",
   thumb: "#999999",
@@ -11,6 +13,24 @@ export const scrollbarColors = Object.freeze({
   success: "#999999",
   custom: "#dddddd"
 });
+
+export function paletteScrollbarColors(palette: TerminalPalette) {
+  const foreground = [1, 3, 5].map(offset => parseInt(palette.foreground.slice(offset, offset + 2), 16));
+  const background = [1, 3, 5].map(offset => parseInt(palette.background.slice(offset, offset + 2), 16));
+  const shade = (weight: number) => "#" + foreground.map((channel, index) =>
+    Math.round(channel * weight + background[index]! * (1 - weight)).toString(16).padStart(2, "0")).join("");
+  return Object.freeze({
+    track: shade(0.5),
+    thumb: palette.foreground,
+    marker: shade(0.78),
+    error: palette.foreground,
+    prompt: shade(0.45),
+    "command-line": shade(0.6),
+    executing: shade(0.85),
+    success: shade(0.7),
+    custom: shade(0.95)
+  });
+}
 
 export function scrollbarMarkerColor(
   marker: TerminalMarker, resolve: (name: keyof typeof scrollbarColors) => string

@@ -17,19 +17,48 @@ async page => {
       window.markerTerminal = markerView.terminal;
       window.markerConnection = markerView.connectionId;
     });
+    // A fast shell prompt can arrive before the initial automatic resize.
+    await test.waitForFunction(() => {
+      const { geometry, layout, stats, peer } = markerTerminal;
+      return peer.isPrimary && stats.gpu === "ready" &&
+        geometry.columns === Math.floor(layout.width / geometry.cellWidth) &&
+        geometry.rows === Math.floor(layout.height / geometry.cellHeight);
+    });
     const view = test.locator(".terminal-window").first();
     const controls = test.locator("#terminal-controls");
-    check(!await controls.evaluate(element => element.open), "Creation controls did not start collapsed");
+    const dimensions = () => test.evaluate(() => ({
+      workspace: document.querySelector("#workspace").getBoundingClientRect().toJSON(),
+      window: markerView.element.getBoundingClientRect().toJSON(),
+      canvas: markerTerminal.element.shadowRoot.querySelector("canvas:not(.scrollbar-canvas)").getBoundingClientRect().toJSON(),
+      columns: markerTerminal.geometry.columns, rows: markerTerminal.geometry.rows
+    }));
+    check(await controls.getAttribute("data-open") === "false", "Creation controls did not start closed");
     const compactHeight = await test.locator("#workspace").evaluate(element => element.clientHeight);
     check(compactHeight > 600, `Compact workspace is still letterboxed: ${compactHeight}px`);
-    await controls.locator("summary").click();
-    check(await test.locator("#create").isVisible(), "Expanded controls cannot create a terminal");
+    const before = await dimensions();
+    await test.locator("#toggle-terminal-controls").click();
+    await test.waitForFunction(() => getComputedStyle(document.querySelector("#terminal-controls")).transform === "matrix(1, 0, 0, 1, 0, 0)");
+    check(await test.locator("#create").isVisible(), "Open controls cannot create a terminal");
     const expandedHeight = await test.locator("#workspace").evaluate(element => element.clientHeight);
-    check(compactHeight - expandedHeight > 100, "Collapsing creation controls did not reclaim vertical space");
-    await controls.locator("summary").click();
+    const opened = await dimensions();
+    check(JSON.stringify(opened) === JSON.stringify(before),
+      `Opening the drawer resized or moved terminal content: ${JSON.stringify({ before, opened })}`);
+    check(await controls.evaluate(element => {
+      const box = element.getBoundingClientRect();
+      return box.right === innerWidth && box.top === 0 && box.height === innerHeight;
+    }), "Controls did not slide in from the viewport edge");
+    await test.locator("#close-terminal-controls").press("Escape");
+    check(await controls.getAttribute("data-open") === "false" && await controls.evaluate(element => element.inert),
+      "Escape did not close and deactivate the drawer");
+    check(await test.locator("#toggle-terminal-controls").evaluate(element => document.activeElement === element),
+      "Closing the drawer did not restore focus");
+    check(JSON.stringify(await dimensions()) === JSON.stringify(before), "Closing the drawer resized terminal content");
     check(await test.evaluate(() => markerView.terminal === markerTerminal &&
       markerView.connectionId === markerConnection && markerTerminal.connected),
-    "Collapsing controls replaced the terminal connection");
+    "Closing controls replaced the terminal connection");
+    await test.locator("#toggle-terminal-controls").click();
+    await test.locator("#workspace").click({ position: { x: 5, y: 5 } });
+    check(await controls.getAttribute("data-open") === "false", "Clicking outside did not dismiss the drawer");
 
     stage = "discoverable marks without scrollback";
     const marks = view.locator(".view-marker-details");
@@ -96,9 +125,21 @@ async page => {
     check(await test.evaluate(() => markerTerminal === markerView.terminal &&
       markerConnection === markerView.connectionId), "Marker UI remounted the terminal");
     await test.goto(`${origin}/?empty=1`);
-    check(await controls.evaluate(element => element.open), "Empty workspace hides creation controls");
+    await test.waitForFunction(() => document.querySelector("#terminal-controls").dataset.open === "true");
+    await test.setViewportSize({ width: 360, height: 640 });
+    await test.emulateMedia({ reducedMotion: "reduce" });
+    await test.locator("#close-terminal-controls").click();
+    const narrowWorkspace = await test.locator("#workspace").boundingBox();
+    await test.locator("#toggle-terminal-controls").click();
+    check(JSON.stringify(await test.locator("#workspace").boundingBox()) === JSON.stringify(narrowWorkspace),
+      "Narrow-screen drawer resized the workspace");
+    check(await controls.evaluate(element => element.scrollWidth === element.clientWidth &&
+      element.getBoundingClientRect().width <= innerWidth && getComputedStyle(element).transitionDuration === "0s"),
+    "Narrow drawer overflows horizontally or ignores reduced motion");
+    await test.locator("#play-tape").scrollIntoViewIfNeeded();
+    check(await controls.evaluate(element => element.scrollTop > 0), "Small-screen controls cannot scroll independently");
     check(errors.length === 0, `Browser errors: ${errors.join("; ")}`);
-    return { passed: true, compactHeight, expandedHeight, errors };
+    return { passed: true, compactHeight, expandedHeight, narrowWidth: 360, errors };
   } catch (error) {
     throw new Error(`${stage}: ${error.message}`);
   } finally {

@@ -133,8 +133,9 @@ async page => {
       "Appearance changes sent terminal input or reconnected a session");
 
     stage = "subsequent mounts and system preference";
-    await test.locator("#terminal-controls > summary").click();
+    await test.locator("#toggle-terminal-controls").click();
     await test.locator("#attach").click();
+    await test.locator("#close-terminal-controls").click();
     await test.waitForFunction(() => webTerminalViews.size === 2 &&
       [...webTerminalViews.values()].every(view => view.phase === "connected"));
     await verifyMode("dark");

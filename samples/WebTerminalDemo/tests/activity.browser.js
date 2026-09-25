@@ -14,7 +14,7 @@ async page => {
   { progress, phase }, { timeout: 30000 });
   try {
     await test.goto(`${origin}/?scene=activity&renderer=webgl2`);
-    await test.locator("#terminal-controls > summary").click();
+    await test.locator("#toggle-terminal-controls").click();
     await test.waitForFunction(() => [...webTerminalViews.values()].some(view => view.terminal?.connected),
       null, { timeout: 30000 });
     instanceId = await test.evaluate(() => [...webTerminalViews.values()][0].instance.id);
@@ -53,9 +53,12 @@ async page => {
         JSON.stringify(view.terminal.shellIntegration) === JSON.stringify(retained.shell)),
     retained, { timeout: 30000 });
 
+    await test.locator("#close-terminal-controls").click();
     await test.locator('[data-transport="hmp1"] .close-view').click();
     await test.waitForFunction(() => webTerminalViews.size === 1);
+    await test.locator("#toggle-terminal-controls").click();
     await test.click("#attach");
+    await test.locator("#close-terminal-controls").click();
     await test.waitForFunction(retained => webTerminalViews.size === 2 &&
       [...webTerminalViews.values()].filter(view => view.transport === "hmp1").every(view =>
         view.terminal?.connected &&

@@ -42,13 +42,17 @@ async page => {
           return {
             track: sample(track.left + 0.5, thumb.top + thumb.height / 2),
             center: sample(thumb.left + thumb.width / 2, thumb.top + thumb.height / 2),
-            corner: sample(thumb.left + 2.25, thumb.top + 0.25)
+            corner: sample(thumb.left + 2.25, thumb.top + 0.25),
+            trackCorners: [track.top + 0.25, track.top + track.height - 0.25].flatMap(y =>
+              [track.left + 0.25, track.left + track.width - 0.25].map(x => sample(x, y))),
+            trackCaps: [track.top + 0.75, track.top + track.height - 0.75]
+              .map(y => sample(track.left + track.width / 2, y))
           };
         };
         window.markPoint = id => {
           const t = appearanceTerminal, marker = t.markers.find(mark => mark.id === id);
           const l = t.layout, track = l.scrollbar, b = t.element.getBoundingClientRect();
-          const y = track.top + (track.height - 3) * marker.row / Math.max(1, t.viewport.totalRows - 1) + 1.5;
+          const y = track.top + (track.height - 5) * marker.row / Math.max(1, t.viewport.totalRows - 1) + 2.5;
           const thumbHeight = Math.min(track.height, Math.max(24,
             track.height * (t.viewport.totalRows - t.viewport.liveTop) / t.viewport.totalRows));
           const thumbTop = track.top + (track.height - thumbHeight) * t.viewport.top / t.viewport.liveTop;
@@ -64,6 +68,27 @@ async page => {
       check(defaults.track[3] >= 88 && defaults.track[3] <= 90, `Track alpha is not 35%: ${defaults.track}`);
       check(defaults.center[3] === 255, `Thumb center is not opaque: ${defaults.center}`);
       check(defaults.corner[3] < 140, `Thumb corner is rectangular: ${defaults.corner}`);
+      check(defaults.trackCorners.every(pixel => pixel[3] === 0),
+        `Track ends have square corners: ${JSON.stringify(defaults.trackCorners)}`);
+      check(defaults.trackCaps.every(pixel => pixel[3] >= 80), "Rounded track end caps are missing");
+
+      stage = `${renderer}: rounded ends with displaced-marker shadow`;
+      await test.evaluate(() => {
+        window.appearanceFrame = null;
+        appearanceTerminal.setScrollbar({ markers: false, hideDelay: 60000, render(frame) {
+          window.appearanceFrame = frame;
+          scrollbarApi.renderDefaultScrollbar({ ...frame, markers: [{
+            marker: { id: "rounded-track-probe", source: "custom" },
+            bounds: { left: frame.track.left - 7, top: frame.track.top + frame.track.height / 2,
+              width: 5, height: 5 }
+          }] });
+        } });
+      });
+      await test.waitForFunction(() => window.appearanceFrame?.opacity === 1);
+      const extended = await test.evaluate(() => chromePixels());
+      check(extended.trackCorners.every(pixel => pixel[3] === 0),
+        `Displaced-marker shadow squared off track ends: ${JSON.stringify(extended.trackCorners)}`);
+      check(extended.trackCaps.every(pixel => pixel[3] >= 80), "Extended track end caps are missing");
 
       stage = `${renderer}: configured colors and opacity`;
       await test.evaluate(() => {
@@ -176,7 +201,7 @@ async page => {
       check(await tooltip.locator("*").count() === 0, "Disabling canvas chrome retained the tooltip");
       check(await test.evaluate(() => appearanceTerminal === appearanceView.terminal &&
         originalAppearanceConnection === appearanceView.connectionId), "Appearance controls remounted the terminal");
-      reports.push({ renderer, defaults, configured });
+      reports.push({ renderer, defaults, extended, configured });
       await test.request.delete(`${origin}/api/terminals/${instanceId}`, { headers: { Origin: origin } });
       instanceId = null;
     }

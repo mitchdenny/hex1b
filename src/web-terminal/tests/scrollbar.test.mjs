@@ -61,38 +61,46 @@ test("marker geometry excludes unavailable and prompt marks and resolves overlap
   ];
   const geometry = scrollbarGeometry(layout, viewport, markers);
   assert.deepEqual(geometry.markers.map(tick => tick.marker.id), ["z", "a", "near", "start", "fallback"]);
-  const center = geometry.markers[0].bounds.top + 1.5;
-  assert.equal(scrollbarMarkerAt(geometry.markers, 204, center).id, "a");
-  assert.equal(scrollbarMarkerAt([...geometry.markers].reverse(), 204, center).id, "a");
+  const center = geometry.markers[0].bounds.top + 2.5;
+  assert.equal(scrollbarMarkerAt(geometry.markers, 204, center, geometry.track).id, "a");
+  assert.equal(scrollbarMarkerAt([...geometry.markers].reverse(), 204, center, geometry.track).id, "a");
   assert.equal(scrollbarMarkerAt(geometry.markers, 150, center), undefined);
   assert.ok(Object.isFrozen(geometry.markers));
   assert.ok(Object.isFrozen(geometry.markers[0].marker));
 });
 
-test("marks grow from centered circles into leftward capsules without moving vertically", () => {
+test("marks move sideways around either end of the thumb without stretching or moving vertically", () => {
   const marks = [marker("approach", 10)];
   const circle = scrollbarGeometry(layout, viewport, marks).markers[0].bounds;
-  assert.deepEqual(circle, { left: 202.5, top: 20 + 197 * 10 / 99, width: 3, height: 3 });
-  const targetForDistance = distance => (circle.top + circle.height + distance - 20) / 2;
-  let previousWidth = 0;
-  for (const distance of [48, 24, 12, 8, 6, 4, 2, 0]) {
-    const tick = scrollbarGeometry(layout, viewport, marks, targetForDistance(distance)).markers[0].bounds;
-    assert.equal(tick.top, circle.top);
-    assert.equal(tick.height, 3);
-    assert.equal(tick.left + tick.width, 205.5);
-    assert.ok(tick.width >= previousWidth);
-    assert.ok(tick.left >= 186);
-    if (distance >= 8) assert.ok(Math.abs(tick.width - 3) < 1e-10);
-    if (distance === 4) assert.equal(tick.left, (202.5 + 186) / 2);
-    if (distance === 0) assert.equal(tick.left, 186);
-    previousWidth = tick.width;
-    assert.ok(Object.isFrozen(tick));
+  assert.deepEqual(circle, { left: 201.5, top: 20 + 195 * 10 / 99, width: 5, height: 5 });
+  for (const below of [false, true]) {
+    const row = 50;
+    const top = 20 + 195 * row / 99;
+    const targetForDistance = distance => (below ? top + 5 + distance - 20 : top - distance - 40 - 20) / 2;
+    let previousLeft = Infinity;
+    for (const distance of [24, 12, 8, 6, 4, 2, 0]) {
+      const tick = scrollbarGeometry(layout, viewport, [marker("approach", row)],
+        targetForDistance(distance)).markers[0].bounds;
+      assert.equal(tick.top, top);
+      assert.equal(tick.height, 5);
+      assert.equal(tick.width, 5);
+      assert.ok(tick.left <= previousLeft);
+      assert.ok(tick.left >= 191);
+      if (distance >= 8) assert.ok(Math.abs(tick.left - 201.5) < 1e-10);
+      if (distance === 4) assert.ok(Math.abs(tick.left - (201.5 + 191) / 2) < 1e-10);
+      if (distance === 0) assert.equal(tick.left, 191);
+      previousLeft = tick.left;
+      assert.ok(Object.isFrozen(tick));
+    }
+    const departed = scrollbarGeometry(layout, viewport, [marker("approach", row)],
+      targetForDistance(24)).markers[0].bounds;
+    assert.equal(departed.left, 201.5);
   }
   const overlap = scrollbarGeometry(layout, viewport, marks, 0).markers[0].bounds;
-  assert.equal(overlap.left, 186);
+  assert.equal(overlap.left, 191);
 });
 
-test("capsule geometry is bounded for narrow tracks, short surfaces and history endpoints", () => {
+test("circle geometry is bounded for narrow tracks, short surfaces and history endpoints", () => {
   for (const width of [0.2, 1, 4, 12, 64])
     for (const height of [0.1, 1, 8, 200])
       for (const left of [0, 2, 20]) {
@@ -107,7 +115,7 @@ test("capsule geometry is bounded for narrow tracks, short surfaces and history 
           for (const { bounds } of geometry.markers) {
             assert.ok(Object.values(bounds).every(Number.isFinite));
             assert.ok(bounds.height > 0 && bounds.height < paintedThumbWidth);
-            assert.ok(bounds.height <= 3 && bounds.width >= bounds.height - 1e-12);
+            assert.ok(bounds.height <= 5 && bounds.width === bounds.height);
             assert.ok(bounds.left >= 0 && bounds.left + bounds.width <= small.width + 1e-12);
             assert.ok(bounds.top >= 0 && bounds.top + bounds.height <= height + 1e-12);
           }
@@ -118,13 +126,39 @@ test("capsule geometry is bounded for narrow tracks, short surfaces and history 
       }
 });
 
-test("capsule hit testing excludes rounded corners outside the forgiving track", () => {
+test("circle hit testing excludes corners and the former capsule corridor outside the forgiving track", () => {
   const geometry = scrollbarGeometry(layout, viewport, [marker("near", 50)]);
   const { bounds } = geometry.markers[0];
-  assert.equal(scrollbarMarkerAt(geometry.markers, 188, bounds.top + 1.5, geometry.track).id, "near");
+  assert.equal(scrollbarMarkerAt(geometry.markers, 193.5, bounds.top + 2.5, geometry.track).id, "near");
   assert.equal(scrollbarMarkerAt(geometry.markers, bounds.left + 0.1, bounds.top + 0.1, geometry.track), undefined);
-  assert.equal(scrollbarMarkerAt(geometry.markers, 188, bounds.top - 1, geometry.track), undefined);
+  for (const x of [188, 196.5, 197.5])
+    assert.equal(scrollbarMarkerAt(geometry.markers, x, bounds.top + 2.5, geometry.track), undefined);
+  assert.equal(scrollbarMarkerAt(geometry.markers, 193.5, bounds.top - 1, geometry.track), undefined);
   assert.equal(scrollbarMarkerAt(geometry.markers, 209, bounds.top - 1, geometry.track).id, "near");
+});
+
+test("extreme scrollback maps exact row fractions across the whole track independent of the thumb", () => {
+  for (const totalRows of [1000, 1_000_000, 2_147_483_647]) {
+    const liveTop = totalRows - 24;
+    const rows = [0, 1, Math.floor((totalRows - 1) / 4), Math.floor((totalRows - 1) / 2),
+      totalRows - 25, totalRows - 1];
+    const marks = rows.map((row, i) => marker(`mark-${i}`, row));
+    for (const target of [0, Math.floor(liveTop / 2), liveTop]) {
+      const geometry = scrollbarGeometry(layout, { ...viewport, totalRows, liveTop }, marks, target);
+      for (let i = 0; i < rows.length; i++) {
+        const { bounds } = geometry.markers[i];
+        assert.equal(bounds.top, 20 + 195 * rows[i] / (totalRows - 1));
+        assert.equal(bounds.width, 5);
+        assert.equal(bounds.height, 5);
+        assert.ok(Object.values(bounds).every(Number.isFinite));
+        if (i) assert.ok(bounds.top > geometry.markers[i - 1].bounds.top);
+      }
+      assert.equal(geometry.markers[0].bounds.top, 20);
+      assert.equal(geometry.markers.at(-1).bounds.top + 5, 220);
+      assert.ok(Math.abs(geometry.markers[2].bounds.top - 68.75) < 0.2);
+      assert.ok(Math.abs(geometry.markers[3].bounds.top - 117.5) < 0.2);
+    }
+  }
 });
 
 test("fade timing is deterministic and reduced motion removes animation but preserves delay", () => {
@@ -175,8 +209,16 @@ function context() {
     restore() { Object.assign(this, this.stack.pop()); },
     setTransform(...args) { this.transforms.push(args); },
     clearRect(...args) { this.clears.push(args); },
+    createLinearGradient(...coordinates) {
+      return { coordinates, stops: [], addColorStop(...stop) { this.stops.push(stop); } };
+    },
     fillRect(...args) { this.rectangles.push({ args, color: this.fillStyle, alpha: this.globalAlpha }); },
     beginPath() { this.path = []; },
+    rect(...args) { this.path.push(args); },
+    moveTo(...args) { this.path.push(["moveTo", ...args]); },
+    lineTo(...args) { this.path.push(["lineTo", ...args]); },
+    quadraticCurveTo(...args) { this.path.push(["quadraticCurveTo", ...args]); },
+    closePath() { this.path.push(["closePath"]); },
     roundRect(...args) { this.path.push(args); },
     fill() { this.fills.push({ path: this.path, color: this.fillStyle, alpha: this.globalAlpha }); },
     stroke() { this.outlines.push(this.path); },
@@ -340,7 +382,7 @@ test("beside remains painted without idle timers or animation loops and still up
   }
   h.state.viewport = { ...viewport, top: 0 };
   h.controller.refresh();
-  h.flush();
+  h.advance(10120);
   assert.notDeepEqual(h.ctx.fills.at(-1).path, before);
   assert.equal(h.ctx.fills.at(-1).alpha, 1);
   assert.equal(h.frames.size, 0);
@@ -496,14 +538,14 @@ test("the thumb remains draggable when a marker overlaps it", t => {
   assert.deepEqual(h.rows, [60]);
 });
 
-test("exposed capsule wings support hover, clicks and compatibility events without paging", t => {
+test("displaced circles support hover, clicks and compatibility events without paging", t => {
   const h = harness(t, { markers: [marker("z", 50), marker("a", 50)] });
   h.flush();
-  const clientY = 50 + (20 + 197 * 50 / 99 + 1.5) / 2;
-  const wing = { clientX: 194, clientY }; // local x=188, outside the track.
+  const clientY = 50 + (20 + 195 * 50 / 99 + 2.5) / 2;
+  const wing = { clientX: 196.75, clientY }; // local x=193.5, the displaced circle's center.
   assert.equal(h.emit("pointermove", wing).defaultPrevented, true);
   assert.equal(h.hovers.at(-1).marker.id, "a");
-  assert.equal(h.hovers.at(-1).bounds.left, 186);
+  assert.equal(h.hovers.at(-1).bounds.left, 191);
   for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click", "dblclick", "contextmenu"])
     assert.equal(h.emit(type, wing).defaultPrevented, true, type);
   h.flush();
@@ -513,11 +555,11 @@ test("exposed capsule wings support hover, clicks and compatibility events witho
   assert.equal(h.element.captures.size, 0);
 });
 
-test("the thumb owns hover as well as clicks while exposed wings remain discoverable", t => {
+test("the thumb owns hover as well as clicks while displaced circles remain discoverable", t => {
   const h = harness(t, { markers: [marker("overlap", 50)] });
   h.flush();
-  const clientY = 50 + (20 + 197 * 50 / 99 + 1.5) / 2;
-  h.emit("pointermove", { clientX: 194, clientY });
+  const clientY = 50 + (20 + 195 * 50 / 99 + 2.5) / 2;
+  h.emit("pointermove", { clientX: 196.75, clientY });
   assert.equal(h.hovers.at(-1).marker.id, "overlap");
   h.emit("pointermove", { clientY });
   assert.equal(h.hovers.at(-1), null);
@@ -528,36 +570,39 @@ test("the thumb owns hover as well as clicks while exposed wings remain discover
   assert.deepEqual(h.rows, [50]);
 });
 
-test("capsule wings never claim rounded corners, empty content or an existing selection", t => {
+test("displaced circles never claim rounded corners, empty content or an existing selection", t => {
   const h = harness(t, { markers: [marker("overlap", 50)] });
   h.flush();
-  const top = 20 + 197 * 50 / 99;
-  const corner = { clientX: 100 + 186.1 / 2, clientY: 50 + (top + 0.1) / 2 };
+  const top = 20 + 195 * 50 / 99;
+  const corner = { clientX: 100 + 191.1 / 2, clientY: 50 + (top + 0.1) / 2 };
   for (const type of ["pointermove", "contextmenu", "wheel", "pointerdown", "pointerup"])
     assert.equal(h.emit(type, corner).defaultPrevented, false, type);
   assert.equal(h.hovers.at(-1), null);
-  const wing = { clientX: 194, clientY: 50 + (top + 1.5) / 2 };
+  const gap = { clientX: 198.5, clientY: 50 + (top + 2.5) / 2 };
+  for (const type of ["pointermove", "contextmenu", "wheel", "pointerdown", "pointerup"])
+    assert.equal(h.emit(type, gap).defaultPrevented, false, type);
+  const wing = { clientX: 196.75, clientY: 50 + (top + 2.5) / 2 };
   assert.equal(h.emit("pointerdown", { clientX: 130, buttons: 1 }).defaultPrevented, false);
   for (const type of ["pointermove", "mousedown", "wheel", "pointerup", "mouseup", "click"])
     assert.equal(h.emit(type, { ...wing, buttons: 1 }).defaultPrevented, false, type);
   assert.deepEqual(h.jumps, []);
 });
 
-test("wheel events over a visible capsule scroll rows without navigating to the marker", t => {
+test("wheel events over a displaced circle scroll rows without navigating to the marker", t => {
   const h = harness(t, { markers: [marker("overlap", 50)] });
   h.flush();
-  const wing = { clientX: 194, clientY: 50 + (20 + 197 * 50 / 99 + 1.5) / 2 };
+  const wing = { clientX: 196.75, clientY: 50 + (20 + 195 * 50 / 99 + 2.5) / 2 };
   assert.equal(h.emit("wheel", { ...wing, deltaY: 2 }).defaultPrevented, true);
   h.flush();
   assert.deepEqual(h.rows, [42]);
   assert.deepEqual(h.jumps, []);
 });
 
-test("faded capsule wings leave content alone until track proximity reveals them", t => {
+test("faded circles leave content alone until track proximity reveals them", t => {
   const h = harness(t, { markers: [marker("overlap", 50)] });
   h.flush();
   h.advance(1200);
-  const wing = { clientX: 194, clientY: 50 + (20 + 197 * 50 / 99 + 1.5) / 2 };
+  const wing = { clientX: 196.75, clientY: 50 + (20 + 195 * 50 / 99 + 2.5) / 2 };
   for (const type of ["wheel", "contextmenu", "pointerdown", "pointerup", "click"])
     assert.equal(h.emit(type, wing).defaultPrevented, false, type);
   assert.deepEqual(h.jumps, []);
@@ -568,7 +613,7 @@ test("faded capsule wings leave content alone until track proximity reveals them
   assert.deepEqual(h.jumps, ["overlap"]);
 });
 
-test("wing hover keeps the scrollbar visible without proximity and clears as geometry retracts", t => {
+test("circle hover keeps the scrollbar visible without proximity and clears as geometry retracts", t => {
   const snapshots = [];
   const h = harness(t, {
     markers: [marker("near", 50)],
@@ -578,7 +623,7 @@ test("wing hover keeps the scrollbar visible without proximity and clears as geo
     } })
   });
   h.flush();
-  const wing = { clientX: 194, clientY: 50 + (20 + 197 * 50 / 99 + 1.5) / 2 };
+  const wing = { clientX: 196.75, clientY: 50 + (20 + 195 * 50 / 99 + 2.5) / 2 };
   h.emit("pointermove", wing);
   h.advance(2000);
   assert.equal(snapshots.at(-1).opacity, 1);
@@ -586,10 +631,10 @@ test("wing hover keeps the scrollbar visible without proximity and clears as geo
   assert.equal(h.timers.size, 0);
   h.state.viewport = { ...viewport, top: 0 };
   h.controller.refresh();
-  h.flush();
+  h.advance(2120);
   assert.equal(h.hovers.at(-1), null);
   assert.equal(snapshots.at(-1).interaction.hovered, false);
-  h.advance(3200);
+  h.advance(3320);
   assert.equal(snapshots.at(-1).opacity, 0);
   h.state.viewport = viewport;
   h.controller.refresh();
@@ -597,19 +642,20 @@ test("wing hover keeps the scrollbar visible without proximity and clears as geo
   assert.equal(h.emit("pointerdown", wing).defaultPrevented, false);
 });
 
-test("pending drag targets update capsule geometry before the producer responds", t => {
+test("pending drag targets displace circles before the producer responds", t => {
   const snapshots = [];
   const h = harness(t, {
     markers: [marker("near-start", 10)],
     configuration: normalizeScrollbar({ render: frame => { snapshots.push(frame); } })
   });
   h.flush();
-  assert.equal(snapshots.at(-1).markers[0].bounds.width, 3);
+  assert.equal(snapshots.at(-1).markers[0].bounds.width, 5);
   h.emit("pointerdown", { buttons: 1 });
   h.emit("pointermove", { buttons: 1, clientY: 70 });
   h.flush();
   assert.equal(snapshots.at(-1).pendingTarget, 0);
-  assert.equal(snapshots.at(-1).markers[0].bounds.left, 186);
+  assert.equal(snapshots.at(-1).markers[0].bounds.left, 191);
+  assert.equal(snapshots.at(-1).markers[0].bounds.width, 5);
   assert.equal(h.state.viewport.top, 40);
 });
 
@@ -639,6 +685,163 @@ test("scaled thumb dragging coalesces targets and ignores stale server frames th
   h.flush();
   assert.equal(snapshots.at(-1).pendingTarget, null);
   assert.equal(h.element.captures.size, 0);
+});
+
+test("short-history dragging paints fractional positions while navigation and accessibility stay on rows", t => {
+  const frames = [];
+  const h = harness(t, {
+    viewport: { ...viewport, totalRows: 25, liveTop: 5, top: 0 },
+    markers: [marker("near", 20)],
+    configuration: normalizeScrollbar({ placement: "beside", render: frame => { frames.push(frame); } })
+  });
+  h.flush();
+  const initial = frames.at(-1);
+  h.emit("pointerdown", { buttons: 1 });
+  for (const offset of [0.25, 0.5, 0.75]) {
+    h.emit("pointermove", { buttons: 1, clientY: 110 + offset });
+    h.flush();
+    const frame = frames.at(-1);
+    assert.equal(frame.thumb.top, 20 + offset * 2);
+    assert.equal(frame.pendingTarget, 0);
+    assert.equal(frame.markers[0].bounds.top, initial.markers[0].bounds.top);
+    assert.ok(frame.markers[0].bounds.left < initial.markers[0].bounds.left);
+    assert.equal(h.accessibility.getAttribute("aria-valuenow"), "0");
+    assert.deepEqual(h.rows, []);
+  }
+  h.emit("pointermove", { buttons: 1, clientY: 112.5 });
+  h.flush();
+  h.emit("pointermove", { buttons: 1, clientY: 113 });
+  h.flush();
+  assert.equal(frames.at(-1).thumb.top, 26);
+  assert.deepEqual(h.rows, [1]);
+  assert.equal(h.accessibility.getAttribute("aria-valuenow"), "1");
+  h.state.viewport = { ...h.state.viewport, top: 1, requestId: 2 };
+  h.controller.refresh();
+  h.flush();
+  assert.equal(frames.at(-1).thumb.top, 26, "Acknowledgement must not snap an active drag");
+  h.emit("pointerup", { clientY: 113 });
+  h.advance(60);
+  assert.ok(frames.at(-1).thumb.top > 26 && frames.at(-1).thumb.top < 28);
+  h.advance(120);
+  assert.equal(frames.at(-1).thumb.top, 28);
+  assert.equal(h.frames.size, 0);
+  assert.deepEqual(h.rows, [1], "Settling must not send intermediate navigation requests");
+});
+
+for (const input of ["wheel", "keyboard", "viewport"]) {
+  test(`${input} row steps animate thumb and circle displacement over multiple frames`, t => {
+    const frames = [];
+    const h = harness(t, {
+      viewport: { ...viewport, totalRows: 25, liveTop: 5, top: 0 },
+      markers: [marker("near", 21)],
+      configuration: normalizeScrollbar({ placement: "beside", render: frame => { frames.push(frame); } })
+    });
+    h.flush();
+    if (input === "wheel") h.emit("wheel", { deltaY: 1 });
+    else if (input === "keyboard") h.emit("keydown", { key: "ArrowDown" }, h.accessibility);
+    else {
+      h.state.viewport = { ...h.state.viewport, top: 1 };
+      h.controller.refresh();
+    }
+    h.flush();
+    assert.equal(frames.at(-1).thumb.top, 20);
+    const tops = [], lefts = [];
+    for (const time of [20, 40, 60, 80, 100, 120]) {
+      h.advance(time);
+      const frame = frames.at(-1);
+      tops.push(frame.thumb.top);
+      lefts.push(frame.markers[0].bounds.left);
+      assert.equal(frame.markers[0].bounds.top, frames[0].markers[0].bounds.top);
+      assert.equal(frame.markers[0].bounds.width, 5);
+    }
+    assert.ok(tops.every((top, i) => top > (i ? tops[i - 1] : 20) && top <= 28));
+    assert.ok(lefts[0] < frames[0].markers[0].bounds.left);
+    assert.ok(lefts[0] > lefts.at(-1), "Marks must visibly move at intermediate positions");
+    assert.equal(tops.at(-1), 28);
+    assert.equal(h.frames.size, 0);
+    assert.equal(h.timers.size, 0);
+    assert.deepEqual(h.rows, input === "viewport" ? [] : [1]);
+  });
+}
+
+test("reversing motion starts at the displayed position and hit testing follows animated circles", t => {
+  const frames = [];
+  const h = harness(t, {
+    viewport: { ...viewport, totalRows: 25, liveTop: 5, top: 0 },
+    markers: [marker("near", 21)],
+    configuration: normalizeScrollbar({ placement: "beside", render: frame => { frames.push(frame); } })
+  });
+  h.flush();
+  h.emit("wheel", { deltaY: 1 });
+  h.advance(60);
+  const frame = frames.at(-1), bounds = frame.markers[0].bounds;
+  assert.ok(bounds.left < frame.track.left);
+  h.emit("pointermove", {
+    clientX: 100 + (bounds.left + bounds.width / 4) / 2,
+    clientY: 50 + (bounds.top + bounds.height / 2) / 2
+  });
+  assert.equal(h.hovers.at(-1).marker.id, "near");
+  h.emit("wheel", { deltaY: -1 });
+  h.flush();
+  assert.equal(frames.at(-1).thumb.top, frame.thumb.top);
+  h.advance(80);
+  assert.ok(frames.at(-1).thumb.top < frame.thumb.top && frames.at(-1).thumb.top > 20);
+  h.advance(180);
+  assert.equal(frames.at(-1).thumb.top, 20);
+  assert.equal(h.hovers.at(-1), null, "Stationary pointer must not retain hover on a receded circle");
+  assert.deepEqual(h.rows, [1, 0]);
+  assert.equal(h.frames.size, 0);
+});
+
+test("reduced motion snaps automatic transitions but preserves direct fractional dragging", t => {
+  const frames = [];
+  const h = harness(t, {
+    viewport: { ...viewport, totalRows: 25, liveTop: 5, top: 0 },
+    configuration: normalizeScrollbar({ placement: "beside", render: frame => { frames.push(frame); } })
+  });
+  h.flush();
+  h.emit("wheel", { deltaY: 1 });
+  h.advance(20);
+  assert.ok(frames.at(-1).thumb.top > 20 && frames.at(-1).thumb.top < 28);
+  h.reducedMotion.matches = true;
+  h.reducedMotion.dispatchEvent(new Event("change"));
+  h.flush();
+  assert.equal(frames.at(-1).thumb.top, 28);
+  assert.equal(h.frames.size, 0);
+  h.emit("pointerdown", { buttons: 1 });
+  h.emit("pointermove", { buttons: 1, clientY: 110.25 });
+  h.flush();
+  assert.equal(frames.at(-1).thumb.top, 28.5);
+  h.emit("pointerup");
+  h.flush();
+  assert.equal(frames.at(-1).thumb.top, 28);
+  assert.equal(h.frames.size, 0);
+});
+
+test("new history and disconnect discard in-flight visual motion", t => {
+  const frames = [];
+  const h = harness(t, {
+    configuration: normalizeScrollbar({ placement: "beside", render: frame => { frames.push(frame); } })
+  });
+  h.flush();
+  h.emit("wheel", { deltaY: 1 });
+  h.advance(40);
+  assert.equal(h.frames.size, 1);
+  h.state.viewport = { ...viewport, generation: "2", top: 0 };
+  h.controller.refresh();
+  h.flush();
+  assert.equal(frames.at(-1).thumb.top, 20);
+  assert.equal(h.frames.size, 0);
+  h.emit("wheel", { deltaY: 1 });
+  h.advance(60);
+  h.state.connected = false;
+  h.controller.refresh();
+  assert.equal(h.frames.size, 0);
+  h.state.connected = true;
+  h.controller.refresh();
+  h.flush();
+  assert.equal(frames.at(-1).thumb.top, 20);
+  assert.equal(h.frames.size, 0);
 });
 
 test("track paging and wheel fractions use locally desired targets rather than accumulating stale deltas", t => {
@@ -782,7 +985,7 @@ test("accessible keyboard scrolling, focus reveal and adjacent marker navigation
   assert.deepEqual(leaked, ["x"]);
 });
 
-test("pointer drag suppresses both canvas outline and DOM focus outline eligibility", t => {
+test("pointer dragging and retained keyboard focus never draw a thumb outline", t => {
   const h = harness(t);
   h.flush();
   h.emit("pointerdown", { buttons: 1 });
@@ -795,7 +998,7 @@ test("pointer drag suppresses both canvas outline and DOM focus outline eligibil
   h.emit("pointerup");
   h.flush();
   assert.equal(h.accessibility.getAttribute("data-pointer-active"), "false");
-  assert.ok(h.ctx.outlines.length > 0, "focus feedback remains available after the gesture");
+  assert.equal(h.ctx.outlines.length, 0);
   h.emit("pointerdown", { buttons: 1 });
   h.emit("pointercancel");
   assert.equal(h.accessibility.getAttribute("data-pointer-active"), "false");
@@ -827,7 +1030,7 @@ test("marker hover exposes safe labels and stable IDs; default ticks preserve cu
   h.flush();
   assert.ok(h.ctx.fills.some(fill => fill.color === "#123456"));
   assert.ok(h.ctx.fills.some(fill => fill.color === "#eeeeee"));
-  const y = 50 + (20 + 197 * 10 / 99 + 1.5) / 2;
+  const y = 50 + (20 + 195 * 10 / 99 + 2.5) / 2;
   h.emit("pointermove", { clientY: y });
   assert.equal(h.hovers.at(-1).marker.label, label);
   assert.ok(Object.isFrozen(h.hovers.at(-1).marker));
@@ -843,7 +1046,7 @@ test("hover tooltips and painter snapshots clear during gestures, leave, marker 
     markers: [marker("hover", 10)],
     configuration: normalizeScrollbar({ render: frame => { frames.push(frame); } })
   });
-  const clientY = 50 + (20 + 197 * 10 / 99 + 1.5) / 2;
+  const clientY = 50 + (20 + 195 * 10 / 99 + 2.5) / 2;
   const hover = () => { h.emit("pointermove", { clientY }); h.flush(); };
   hover();
   assert.equal(h.hovers.at(-1).marker.id, "hover");
@@ -876,7 +1079,7 @@ test("hover tooltips and painter snapshots clear during gestures, leave, marker 
 
 test("content drags and externally started drags never expose marker hover", t => {
   const h = harness(t, { markers: [marker("hover", 10)] });
-  const clientY = 50 + (20 + 197 * 10 / 99 + 1.5) / 2;
+  const clientY = 50 + (20 + 195 * 10 / 99 + 2.5) / 2;
   h.emit("pointermove", { clientY, buttons: 1 });
   assert.equal(h.hovers.at(-1), null);
   h.emit("pointerdown", { clientX: 150, buttons: 1 });

@@ -14,13 +14,14 @@ async page => {
       const created = test.waitForResponse(response =>
         response.url() === `${origin}/api/terminals` && response.request().method() === "POST" && response.status() === 201);
       await test.goto(`${origin}/?scene=${scene}&scale=auto&transport=${encodeURIComponent(transport)}`);
-      await test.locator("#terminal-controls > summary").click();
+      await test.locator("#toggle-terminal-controls").click();
       const instance = await (await created).json();
       instances.push(instance.id);
       stage = `${scene}/primary`;
       await test.waitForFunction(() => webTerminalViews.get("1")?.terminal?.peer.isPrimary &&
         webTerminalViews.get("1").stats.frames >= 12 && webTerminalViews.get("1").stats.imageCount > 0, null, { timeout: 30000 });
       await test.selectOption("#renderer", "webgl2");
+      await test.locator("#close-terminal-controls").click();
       await test.locator('.terminal-window[data-view="1"] .thumbnail').click();
       stage = `${scene}/thumbnail`;
       await test.waitForFunction(() => webTerminalViews.get("2")?.terminal?.connected &&

@@ -7,7 +7,7 @@ internal sealed record CreateTerminalRequest(
     DemoReflowStrategy ReflowStrategy = DemoReflowStrategy.Default)
 {
     public DemoReflowStrategy ResolvedReflowStrategy => ReflowStrategy == DemoReflowStrategy.Default
-        ? Scene == "shell" ? DemoReflowStrategy.Ghostty : DemoReflowStrategy.None
+        ? Scene is "shell" or "marks" ? DemoReflowStrategy.Ghostty : DemoReflowStrategy.None
         : ReflowStrategy;
 
     public ITerminalReflowProvider? GetReflowProvider() => ResolvedReflowStrategy switch

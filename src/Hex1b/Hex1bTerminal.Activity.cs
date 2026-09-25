@@ -60,14 +60,15 @@ public sealed partial class Hex1bTerminal
     public event Action<TerminalWorkingDirectory>? WorkingDirectoryChanged;
 
     private readonly List<TerminalCommandMark> _commandMarks = [];
-    private int _commandMarkHistoryCapacity = 200;
+    private int _commandMarkHistoryCapacity = int.MaxValue;
 
     /// <summary>
-    /// Gets the bounded history of OSC 133 command marks, oldest first.
+    /// Gets retained OSC 133 command marks, oldest first.
     /// </summary>
     /// <remarks>
     /// Capacity is configured via <see cref="Hex1bTerminalOptions.CommandMarkHistoryCapacity"/>;
-    /// once exceeded, the oldest marks are evicted. Marks are also removed when their
+    /// by default marks live as long as their text. If a configured count limit is
+    /// exceeded, the oldest marks are evicted. Marks are also removed when their
     /// backing text is cleared, reset, or evicted from the screen and scrollback.
     /// Retained main-buffer marks survive alternate-screen use. Browser marker positions
     /// survive supported reflow while their text is retained; the capture-time coordinates

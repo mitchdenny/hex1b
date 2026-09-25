@@ -25,7 +25,7 @@ async page => {
     });
 
     stage = "playing the actual shell integration tape";
-    await test.locator("#terminal-controls > summary").click();
+    await test.locator("#toggle-terminal-controls").click();
     await test.locator("#tapes").selectOption("shell-integration");
     const started = test.waitForResponse(response => response.url().endsWith("/tape") &&
       response.request().method() === "POST");
@@ -68,7 +68,7 @@ async page => {
       "OSC 133 D must remain status-only, not fabricate grouped command details");
 
     stage = "hovering decoded command text including spaces, quotes, ampersands and slashes";
-    await test.locator("#terminal-controls > summary").click();
+    await test.locator("#close-terminal-controls").click();
     await test.evaluate(() => shellTapeTerminal.setScrollbar({ hideDelay: 60000 }));
     await test.waitForFunction(() => shellTapeTerminal.viewport.liveTop > 0);
     const executing = details.filter(mark => mark.phase === "executing").sort((a, b) => a.row - b.row);

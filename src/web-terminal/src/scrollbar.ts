@@ -44,10 +44,10 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 const contains = (rect: TerminalRectangle, x: number, y: number, margin = 0) =>
   x >= rect.left - margin && x < rect.left + rect.width + margin &&
   y >= rect.top - margin && y < rect.top + rect.height + margin;
-const containsCapsule = (rect: TerminalRectangle, x: number, y: number) => {
+const containsCircle = (rect: TerminalRectangle, x: number, y: number) => {
   if (!contains(rect, x, y)) return false;
   const radius = Math.min(rect.width, rect.height) / 2;
-  const centerX = clamp(x, rect.left + radius, rect.left + rect.width - radius);
+  const centerX = rect.left + rect.width / 2;
   return (x - centerX) ** 2 + (y - rect.top - rect.height / 2) ** 2 <= radius ** 2;
 };
 
@@ -72,9 +72,9 @@ export function scrollbarGeometry(layout: TerminalLayout, viewport: TerminalView
       clamp(target ?? viewport.top, 0, viewport.liveTop) / viewport.liveTop,
     width: track.width, height
   });
-  const diameter = Math.min(3, track.height, (thumb.width - Math.min(2, thumb.width / 4) * 2) / 2);
+  const diameter = Math.min(5, track.height, (thumb.width - Math.min(2, thumb.width / 4) * 2) * 0.75);
   const circleLeft = track.left + (track.width - diameter) / 2;
-  const expandedLeft = Math.max(0, track.left - Math.min(12, track.width));
+  const displacedLeft = Math.max(0, track.left - diameter - 2);
   const approachRange = Math.min(8, track.height);
   const ticks: TerminalScrollbarMarker[] = markers
     .filter(marker => marker.buffer === viewport.buffer && marker.row !== null &&
@@ -84,12 +84,12 @@ export function scrollbarGeometry(layout: TerminalLayout, viewport: TerminalView
       const top = track.top + (track.height - diameter) * marker.row! / Math.max(1, viewport.totalRows - 1);
       const distance = Math.max(thumb.top - top - diameter, top - thumb.top - thumb.height, 0);
       const proximity = 1 - clamp(distance / approachRange, 0, 1);
-      const expansion = proximity * proximity * (3 - 2 * proximity);
-      const left = circleLeft + (expandedLeft - circleLeft) * expansion;
+      const displacement = proximity * proximity * (3 - 2 * proximity);
+      const left = circleLeft + (displacedLeft - circleLeft) * displacement;
       return Object.freeze({
         marker: Object.freeze({ ...marker }),
         bounds: Object.freeze({
-          left, top, width: circleLeft + diameter - left, height: diameter
+          left, top, width: diameter, height: diameter
         })
       });
     });
@@ -101,7 +101,7 @@ export function scrollbarMarkerAt(markers: readonly TerminalScrollbarMarker[], x
   const inTrack = !!track && contains(track, x, y);
   return markers.filter(({ bounds }) => inTrack
     ? y >= bounds.top - 3 && y < bounds.top + bounds.height + 3
-    : containsCapsule(bounds, x, y))
+    : containsCircle(bounds, x, y))
     .sort((a, b) => Math.abs(a.bounds.top + a.bounds.height / 2 - y) -
       Math.abs(b.bounds.top + b.bounds.height / 2 - y) ||
       (a.marker.id < b.marker.id ? -1 : a.marker.id > b.marker.id ? 1 : 0))[0]?.marker;
@@ -147,6 +147,11 @@ export class ScrollbarController {
   private contentClick = false;
   private suppressClick = false;
   private desired: number | null = null;
+  private dragTop: number | null = null;
+  private visualTop: number | null = null;
+  private visualTarget: number | null = null;
+  private visualFrom = 0;
+  private visualStartedAt = 0;
   private queued: number | null = null;
   private requestBaseline = 0;
   private generation: string | undefined;
@@ -208,11 +213,13 @@ export class ScrollbarController {
     if (state.viewport.generation !== this.generation) {
       this.endGesture();
       this.desired = this.queued = null;
+      this.visualTop = this.visualTarget = null;
       this.generation = state.viewport.generation;
     }
     if (this.pointer === null && this.queued === null && state.viewport.available &&
       !state.viewport.pending && (state.viewport.top === this.desired ||
         state.viewport.requestId > this.requestBaseline)) this.desired = null;
+    this.updateVisualPosition(state);
     const geometry = this.geometry(state);
     if (!geometry) {
       this.cancel();
@@ -260,6 +267,7 @@ export class ScrollbarController {
     this.contentPointers.clear();
     this.contentClick = false;
     this.desired = this.queued = null;
+    this.visualTop = this.visualTarget = null;
     this.near = this.hovered = this.focused = this.suppressClick = false;
     this.dormant = false;
     this.wheelRemainder = 0;
@@ -283,9 +291,32 @@ export class ScrollbarController {
 
   private now() { return performance.now(); }
 
+  private updateVisualPosition(state: ScrollbarState, advance = false) {
+    if (!state.viewport.available) return;
+    // Only presentation is fractional; desired/queued remain authoritative row requests.
+    const target = clamp(this.dragTop ?? this.desired ?? state.viewport.top, 0, state.viewport.liveTop);
+    const now = this.now();
+    if (this.visualTop === null || this.dragTop !== null || this.motion?.matches || this.dormant) {
+      this.visualFrom = this.visualTop = this.visualTarget = target;
+      this.visualStartedAt = now;
+      return;
+    }
+    if (target !== this.visualTarget) {
+      this.visualFrom = this.visualTop;
+      this.visualTarget = target;
+      this.visualStartedAt = now;
+    }
+    if (advance) {
+      const progress = clamp((now - this.visualStartedAt) / 120, 0, 1);
+      this.visualTop = progress === 1 ? target :
+        this.visualFrom + (target - this.visualFrom) * (1 - (1 - progress) ** 3);
+    }
+  }
+
   private geometry(state = this.options.getState()) {
     return state.connected && state.configuration ?
-      scrollbarGeometry(state.layout, state.viewport, state.configuration.markers ? state.markers : [], this.desired) : null;
+      scrollbarGeometry(state.layout, state.viewport, state.configuration.markers ? state.markers : [],
+        this.visualTop ?? this.desired) : null;
   }
 
   private point(event: Pick<MouseEvent, "clientX" | "clientY">) {
@@ -345,6 +376,8 @@ export class ScrollbarController {
     this.activity();
     if (contains(geometry.thumb, point.x, point.y)) {
       this.dragOffset = point.y - geometry.thumb.top;
+      const viewport = this.options.getState().viewport;
+      if (viewport.available) this.dragTop = this.visualTop ?? this.desired ?? viewport.top;
       return;
     }
     const marker = this.markerAt(geometry, point);
@@ -363,8 +396,11 @@ export class ScrollbarController {
       if (this.dragOffset !== null) {
         const viewport = this.options.getState().viewport;
         const travel = geometry.track.height - geometry.thumb.height;
-        if (viewport.available && travel > 0)
-          this.navigate((point.y - this.dragOffset - geometry.track.top) / travel * viewport.liveTop);
+        if (viewport.available && travel > 0) {
+          this.dragTop = clamp((point.y - this.dragOffset - geometry.track.top) / travel * viewport.liveTop,
+            0, viewport.liveTop);
+          this.navigate(this.dragTop);
+        }
       }
       this.activity();
       return;
@@ -391,7 +427,7 @@ export class ScrollbarController {
         this.hovered = hovered;
         this.activity();
       }
-      // Proximity can reveal a previously faded extension under this same pointer.
+      // Proximity can reveal a previously faded circle under this same pointer.
       this.hovered = contains(geometry.track, point.x, point.y) || !!this.markerAt(geometry, point);
     }
     const marker = this.hoveredMarker(geometry);
@@ -418,13 +454,18 @@ export class ScrollbarController {
     this.consume(event);
     this.suppressClick = !cancelled;
     this.endGesture();
-    if (cancelled) this.desired = this.queued = null;
+    if (cancelled) {
+      this.desired = this.queued = null;
+      this.visualTop = this.visualTarget = null;
+    }
+    this.updateVisualPosition(this.options.getState());
     this.activity();
   }
 
   private endGesture() {
     const pointer = this.pointer;
     this.pointer = this.dragOffset = null;
+    this.dragTop = null;
     this.options.accessibility.setAttribute("data-pointer-active", "false");
     if (pointer !== null) {
       try {
@@ -483,10 +524,16 @@ export class ScrollbarController {
   }
 
   private navigate(top: number) {
-    const viewport = this.options.getState().viewport;
+    const state = this.options.getState();
+    const viewport = state.viewport;
     if (!viewport.available || !Number.isFinite(top)) return;
-    this.requestBaseline = viewport.requestId;
-    this.desired = this.queued = Math.round(clamp(top, 0, viewport.liveTop));
+    const target = Math.round(clamp(top, 0, viewport.liveTop));
+    if (this.dragTop === null || target !== (this.desired ?? viewport.top)) {
+      this.requestBaseline = viewport.requestId;
+      this.queued = target;
+    }
+    this.desired = target;
+    this.updateVisualPosition(state);
     this.schedule();
   }
 
@@ -510,7 +557,7 @@ export class ScrollbarController {
 
   private paint() {
     if (this.disposed) return;
-    const state = this.options.getState();
+    let state = this.options.getState();
     if (!this.geometry(state) || !state.configuration) return;
     if (this.queued !== null) {
       const target = this.queued;
@@ -520,7 +567,10 @@ export class ScrollbarController {
         else this.options.scrollToRow(target);
       } catch (error) { this.desired = null; this.report(error); }
     }
-    const geometry = this.geometry(state)!;
+    state = this.options.getState();
+    this.updateVisualPosition(state, true);
+    const geometry = this.geometry(state);
+    if (!geometry || !state.configuration) return;
     this.refreshHover(geometry);
     if (this.disposed || state.configuration !== this.options.getState().configuration) return;
     const { canvas, accessibility } = this.options;
@@ -602,7 +652,8 @@ export class ScrollbarController {
     if (this.failed) { this.clear(); return; }
     if (this.disposed || state.configuration !== this.options.getState().configuration) return;
     this.dormant = !active && opacity === 0 && again !== true;
-    if (again === true || (autoHide && !active && opacity > 0 && now >= this.lastActivityAt + state.configuration.hideDelay))
+    if (again === true || (opacity > 0 && this.visualTop !== this.visualTarget) ||
+      (autoHide && !active && opacity > 0 && now >= this.lastActivityAt + state.configuration.hideDelay))
       this.schedule();
     else if (autoHide && !active && opacity > 0 && this.fadeTimer === undefined) {
       this.fadeTimer = setTimeout(() => {

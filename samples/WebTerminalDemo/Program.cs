@@ -38,8 +38,8 @@ app.MapGet("/health", () => Results.Ok(new { status = "ready", renderer = "WebGP
 app.MapGet("/api/terminals", () => Results.Ok(terminals.List()));
 app.MapPost("/api/terminals", (CreateTerminalRequest request) =>
 {
-    if (request.Scene is not ("mixed" or "text" or "sixel" or "kgp" or "animation" or "activity" or "shell"))
-        return Results.BadRequest(new { error = "scene must be mixed, text, sixel, kgp, animation, activity, or shell." });
+    if (request.Scene is not ("mixed" or "text" or "sixel" or "kgp" or "animation" or "activity" or "marks" or "shell"))
+        return Results.BadRequest(new { error = "scene must be mixed, text, sixel, kgp, animation, activity, marks, or shell." });
     if (request.Columns is < 1 or > 300 || request.Rows is < 1 or > 100)
         return Results.BadRequest(new { error = "columns must be 1..300 and rows must be 1..100." });
     if (!IsValidName(request.Name))
@@ -86,7 +86,7 @@ app.MapPost("/api/terminals/{id}/controls", (string id, TerminalControlsRequest 
     return terminals.UpdateControls(id, request) switch
     {
         404 => Results.NotFound(new { error = "Terminal instance not found." }),
-        409 => Results.Conflict(new { error = "Controls are only available for generated workloads, not shells." }),
+        409 => Results.Conflict(new { error = "Rate and pause controls are only available for continuously generated workloads." }),
         _ => Results.NoContent()
     };
 });

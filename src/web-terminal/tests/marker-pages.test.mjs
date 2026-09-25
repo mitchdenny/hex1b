@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MarkerPages } from "../.build/marker-pages.js";
 import { validateHistory } from "../.build/protocol.js";
+import { scrollbarGeometry } from "../.build/scrollbar.js";
 import { browser, mounting, present } from "./fixtures/browser.mjs";
 
 const marker = id => ({ id: `command:${id}`, source: "command", buffer: "main", row: 0, column: 0,
@@ -20,6 +21,52 @@ test("Inventory pages publish a single complete, ordered history snapshot", () =
   const result = pages.accept(history(1));
   assert.deepEqual(result.markers, [marker(1), marker(2)]);
   assert.equal(result.markerPage, null);
+  assert.equal(pages.pending, false);
+});
+
+test("large paged inventories preserve full-track positions and restart atomically", () => {
+  const pages = new MarkerPages();
+  const count = 6000, totalRows = 1_000_000;
+  const marks = Array.from({ length: count }, (_, i) => ({
+    ...marker(i + 1), row: Math.floor(i * (totalRows - 1) / (count - 1))
+  }));
+  const page = (offset, revision) => history(offset, {
+    totalRows, liveTop: totalRows - 1, top: totalRows - 1,
+    markers: marks.slice(offset, offset + 2048),
+    markerPage: { revision, offset, total: count }
+  });
+  assert.equal(pages.accept(page(0, "1")), undefined);
+  assert.equal(pages.accept(page(2048, "1")), undefined);
+  assert.equal(pages.accept(page(0, "2")), undefined);
+  assert.equal(pages.accept(page(2048, "2")), undefined);
+  const result = pages.accept(page(4096, "2"));
+  assert.deepEqual(result.markers, marks);
+  const geometry = scrollbarGeometry({ scrollbar: { left: 100, top: 10, width: 12, height: 403 } },
+    { ...result, available: true }, result.markers);
+  assert.equal(geometry.markers.length, count);
+  assert.equal(geometry.markers[0].bounds.top, 10);
+  assert.equal(geometry.markers.at(-1).bounds.top, 408);
+  assert.ok(Math.abs(geometry.markers[3000].bounds.top - 209) < 0.1);
+});
+
+test("cumulative inventory byte budget rejects rather than publishing a truncated history", () => {
+  const pages = new MarkerPages();
+  const count = 80_000;
+  let bytes = 0, rejected = false;
+  for (let offset = 0; offset < count; offset += 2048) {
+    const markers = Array.from({ length: Math.min(2048, count - offset) }, (_, i) => marker(offset + i + 1));
+    const next = history(offset, { markers, markerPage: { revision: "1", offset, total: count } });
+    validateHistory(next, 10, 1);
+    bytes += new TextEncoder().encode(JSON.stringify(markers)).length;
+    if (bytes <= 8 * 1024 * 1024) assert.equal(pages.accept(next), undefined);
+    else {
+      assert.throws(() => pages.accept(next), /8 MiB/);
+      rejected = true;
+      break;
+    }
+  }
+  assert.equal(rejected, true, "The fixture must actually exceed the cumulative wire budget");
+  pages.reset();
   assert.equal(pages.pending, false);
 });
 
