@@ -69,6 +69,64 @@ test("marker geometry excludes unavailable and prompt marks and resolves overlap
   assert.ok(Object.isFrozen(geometry.markers[0].marker));
 });
 
+test("marks grow from centered circles into leftward capsules without moving vertically", () => {
+  const marks = [marker("approach", 10)];
+  const circle = scrollbarGeometry(layout, viewport, marks).markers[0].bounds;
+  assert.deepEqual(circle, { left: 202.5, top: 20 + 197 * 10 / 99, width: 3, height: 3 });
+  const targetForDistance = distance => (circle.top + circle.height + distance - 20) / 2;
+  let previousWidth = 0;
+  for (const distance of [48, 24, 12, 8, 6, 4, 2, 0]) {
+    const tick = scrollbarGeometry(layout, viewport, marks, targetForDistance(distance)).markers[0].bounds;
+    assert.equal(tick.top, circle.top);
+    assert.equal(tick.height, 3);
+    assert.equal(tick.left + tick.width, 205.5);
+    assert.ok(tick.width >= previousWidth);
+    assert.ok(tick.left >= 186);
+    if (distance >= 8) assert.ok(Math.abs(tick.width - 3) < 1e-10);
+    if (distance === 4) assert.equal(tick.left, (202.5 + 186) / 2);
+    if (distance === 0) assert.equal(tick.left, 186);
+    previousWidth = tick.width;
+    assert.ok(Object.isFrozen(tick));
+  }
+  const overlap = scrollbarGeometry(layout, viewport, marks, 0).markers[0].bounds;
+  assert.equal(overlap.left, 186);
+});
+
+test("capsule geometry is bounded for narrow tracks, short surfaces and history endpoints", () => {
+  for (const width of [0.2, 1, 4, 12, 64])
+    for (const height of [0.1, 1, 8, 200])
+      for (const left of [0, 2, 20]) {
+        const small = {
+          ...layout, width: left + width, height,
+          scrollbar: { left, top: 0, width, height }
+        };
+        const marks = [marker("first", 0), marker("middle", 50), marker("last", 99)];
+        for (const target of [0, 40, 80]) {
+          const geometry = scrollbarGeometry(small, viewport, marks, target);
+          const paintedThumbWidth = width - Math.min(2, width / 4) * 2;
+          for (const { bounds } of geometry.markers) {
+            assert.ok(Object.values(bounds).every(Number.isFinite));
+            assert.ok(bounds.height > 0 && bounds.height < paintedThumbWidth);
+            assert.ok(bounds.height <= 3 && bounds.width >= bounds.height - 1e-12);
+            assert.ok(bounds.left >= 0 && bounds.left + bounds.width <= small.width + 1e-12);
+            assert.ok(bounds.top >= 0 && bounds.top + bounds.height <= height + 1e-12);
+          }
+          assert.equal(geometry.markers[0].bounds.top, 0);
+          const last = geometry.markers[2].bounds;
+          assert.ok(Math.abs(last.top + last.height - height) < 1e-12);
+        }
+      }
+});
+
+test("capsule hit testing excludes rounded corners outside the forgiving track", () => {
+  const geometry = scrollbarGeometry(layout, viewport, [marker("near", 50)]);
+  const { bounds } = geometry.markers[0];
+  assert.equal(scrollbarMarkerAt(geometry.markers, 188, bounds.top + 1.5, geometry.track).id, "near");
+  assert.equal(scrollbarMarkerAt(geometry.markers, bounds.left + 0.1, bounds.top + 0.1, geometry.track), undefined);
+  assert.equal(scrollbarMarkerAt(geometry.markers, 188, bounds.top - 1, geometry.track), undefined);
+  assert.equal(scrollbarMarkerAt(geometry.markers, 209, bounds.top - 1, geometry.track).id, "near");
+});
+
 test("fade timing is deterministic and reduced motion removes animation but preserves delay", () => {
   const configuration = normalizeScrollbar();
   assert.equal(scrollbarOpacity(899, 0, false, configuration, false), 1);
@@ -438,6 +496,123 @@ test("the thumb remains draggable when a marker overlaps it", t => {
   assert.deepEqual(h.rows, [60]);
 });
 
+test("exposed capsule wings support hover, clicks and compatibility events without paging", t => {
+  const h = harness(t, { markers: [marker("z", 50), marker("a", 50)] });
+  h.flush();
+  const clientY = 50 + (20 + 197 * 50 / 99 + 1.5) / 2;
+  const wing = { clientX: 194, clientY }; // local x=188, outside the track.
+  assert.equal(h.emit("pointermove", wing).defaultPrevented, true);
+  assert.equal(h.hovers.at(-1).marker.id, "a");
+  assert.equal(h.hovers.at(-1).bounds.left, 186);
+  for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click", "dblclick", "contextmenu"])
+    assert.equal(h.emit(type, wing).defaultPrevented, true, type);
+  h.flush();
+  assert.deepEqual(h.jumps, ["a"]);
+  assert.deepEqual(h.rows, []);
+  assert.equal(h.lives, 0);
+  assert.equal(h.element.captures.size, 0);
+});
+
+test("the thumb owns hover as well as clicks while exposed wings remain discoverable", t => {
+  const h = harness(t, { markers: [marker("overlap", 50)] });
+  h.flush();
+  const clientY = 50 + (20 + 197 * 50 / 99 + 1.5) / 2;
+  h.emit("pointermove", { clientX: 194, clientY });
+  assert.equal(h.hovers.at(-1).marker.id, "overlap");
+  h.emit("pointermove", { clientY });
+  assert.equal(h.hovers.at(-1), null);
+  h.emit("pointerdown", { clientY, buttons: 1 });
+  h.emit("pointermove", { clientY: clientY + 10, buttons: 1 });
+  h.flush();
+  assert.deepEqual(h.jumps, []);
+  assert.deepEqual(h.rows, [50]);
+});
+
+test("capsule wings never claim rounded corners, empty content or an existing selection", t => {
+  const h = harness(t, { markers: [marker("overlap", 50)] });
+  h.flush();
+  const top = 20 + 197 * 50 / 99;
+  const corner = { clientX: 100 + 186.1 / 2, clientY: 50 + (top + 0.1) / 2 };
+  for (const type of ["pointermove", "contextmenu", "wheel", "pointerdown", "pointerup"])
+    assert.equal(h.emit(type, corner).defaultPrevented, false, type);
+  assert.equal(h.hovers.at(-1), null);
+  const wing = { clientX: 194, clientY: 50 + (top + 1.5) / 2 };
+  assert.equal(h.emit("pointerdown", { clientX: 130, buttons: 1 }).defaultPrevented, false);
+  for (const type of ["pointermove", "mousedown", "wheel", "pointerup", "mouseup", "click"])
+    assert.equal(h.emit(type, { ...wing, buttons: 1 }).defaultPrevented, false, type);
+  assert.deepEqual(h.jumps, []);
+});
+
+test("wheel events over a visible capsule scroll rows without navigating to the marker", t => {
+  const h = harness(t, { markers: [marker("overlap", 50)] });
+  h.flush();
+  const wing = { clientX: 194, clientY: 50 + (20 + 197 * 50 / 99 + 1.5) / 2 };
+  assert.equal(h.emit("wheel", { ...wing, deltaY: 2 }).defaultPrevented, true);
+  h.flush();
+  assert.deepEqual(h.rows, [42]);
+  assert.deepEqual(h.jumps, []);
+});
+
+test("faded capsule wings leave content alone until track proximity reveals them", t => {
+  const h = harness(t, { markers: [marker("overlap", 50)] });
+  h.flush();
+  h.advance(1200);
+  const wing = { clientX: 194, clientY: 50 + (20 + 197 * 50 / 99 + 1.5) / 2 };
+  for (const type of ["wheel", "contextmenu", "pointerdown", "pointerup", "click"])
+    assert.equal(h.emit(type, wing).defaultPrevented, false, type);
+  assert.deepEqual(h.jumps, []);
+  assert.equal(h.emit("pointermove", wing).defaultPrevented, true);
+  h.flush();
+  assert.equal(h.hovers.at(-1).marker.id, "overlap");
+  assert.equal(h.emit("pointerdown", wing).defaultPrevented, true);
+  assert.deepEqual(h.jumps, ["overlap"]);
+});
+
+test("wing hover keeps the scrollbar visible without proximity and clears as geometry retracts", t => {
+  const snapshots = [];
+  const h = harness(t, {
+    markers: [marker("near", 50)],
+    configuration: normalizeScrollbar({ proximity: 0, render: frame => {
+      snapshots.push(frame);
+      renderDefaultScrollbar(frame);
+    } })
+  });
+  h.flush();
+  const wing = { clientX: 194, clientY: 50 + (20 + 197 * 50 / 99 + 1.5) / 2 };
+  h.emit("pointermove", wing);
+  h.advance(2000);
+  assert.equal(snapshots.at(-1).opacity, 1);
+  assert.equal(snapshots.at(-1).interaction.hovered, true);
+  assert.equal(h.timers.size, 0);
+  h.state.viewport = { ...viewport, top: 0 };
+  h.controller.refresh();
+  h.flush();
+  assert.equal(h.hovers.at(-1), null);
+  assert.equal(snapshots.at(-1).interaction.hovered, false);
+  h.advance(3200);
+  assert.equal(snapshots.at(-1).opacity, 0);
+  h.state.viewport = viewport;
+  h.controller.refresh();
+  assert.equal(h.emit("pointermove", wing).defaultPrevented, false);
+  assert.equal(h.emit("pointerdown", wing).defaultPrevented, false);
+});
+
+test("pending drag targets update capsule geometry before the producer responds", t => {
+  const snapshots = [];
+  const h = harness(t, {
+    markers: [marker("near-start", 10)],
+    configuration: normalizeScrollbar({ render: frame => { snapshots.push(frame); } })
+  });
+  h.flush();
+  assert.equal(snapshots.at(-1).markers[0].bounds.width, 3);
+  h.emit("pointerdown", { buttons: 1 });
+  h.emit("pointermove", { buttons: 1, clientY: 70 });
+  h.flush();
+  assert.equal(snapshots.at(-1).pendingTarget, 0);
+  assert.equal(snapshots.at(-1).markers[0].bounds.left, 186);
+  assert.equal(h.state.viewport.top, 40);
+});
+
 test("scaled thumb dragging coalesces targets and ignores stale server frames through release", t => {
   const snapshots = [];
   const h = harness(t, { configuration: normalizeScrollbar({ render: frame => { snapshots.push(frame); } }) });
@@ -650,8 +825,8 @@ test("marker hover exposes safe labels and stable IDs; default ticks preserve cu
     marker("error", 60, { source: "command", phase: "finished", exitCode: 7 })
   ] });
   h.flush();
-  assert.ok(h.ctx.rectangles.some(rect => rect.color === "#123456"));
-  assert.ok(h.ctx.rectangles.some(rect => rect.color === "#eeeeee"));
+  assert.ok(h.ctx.fills.some(fill => fill.color === "#123456"));
+  assert.ok(h.ctx.fills.some(fill => fill.color === "#eeeeee"));
   const y = 50 + (20 + 197 * 10 / 99 + 1.5) / 2;
   h.emit("pointermove", { clientY: y });
   assert.equal(h.hovers.at(-1).marker.label, label);
