@@ -726,6 +726,7 @@ not imply an available producer.
 
 ### Configure the default capsule painter
 
+
 `createDefaultScrollbarRenderer(appearance?)` returns an ordinary synchronous
 `TerminalScrollbarRenderer`. The built-in `renderDefaultScrollbar(frame)` uses
 the same factory with no overrides; there is no separate rendering API or
