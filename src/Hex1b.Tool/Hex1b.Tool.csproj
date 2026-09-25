@@ -79,6 +79,13 @@
     <ProjectReference Include="../Hex1b/Hex1b.csproj" />
   </ItemGroup>
 
+  <Target Name="ExcludeNativeGraphicsSymbolsFromToolPackage" AfterTargets="PackTool">
+    <ItemGroup>
+      <TfmSpecificPackageFile Remove="@(TfmSpecificPackageFile)"
+                              Condition="'%(TfmSpecificPackageFile.Extension)' == '.pdb' and ('%(TfmSpecificPackageFile.Filename)' == 'libSkiaSharp' or '%(TfmSpecificPackageFile.Filename)' == 'libHarfBuzzSharp')" />
+    </ItemGroup>
+  </Target>
+
   <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <WindowsPtyShimRid Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">win-arm64</WindowsPtyShimRid>
     <WindowsPtyShimRid Condition="'$(WindowsPtyShimRid)' == ''">win-x64</WindowsPtyShimRid>
