@@ -5,7 +5,7 @@ namespace Hex1b;
 // A bounded, immutable wire checkpoint. Rows are detached from producer storage.
 internal sealed record Hmp1ScrollbackState(int AvailableRows, IReadOnlyList<byte[]> Rows)
 {
-    internal const int Version = 1;
+    internal const int Version = 2;
     internal const int MaxRows = 100_000;
     internal const int MaxChunkBytes = 1024 * 1024;
     internal const int MaxTotalBytes = 32 * 1024 * 1024;

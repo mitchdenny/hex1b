@@ -45,7 +45,8 @@ internal static class KgpUnicodePlaceholder
         IReadOnlyDictionary<uint, KgpImageData> images,
         int cellPixelWidth,
         int cellPixelHeight,
-        List<KgpPlacement> destination)
+        List<KgpPlacement> destination,
+        int columnScale = 1)
     {
         PlacementRun? current = null;
         for (var column = 0; column < cells.Length; column++)
@@ -66,7 +67,15 @@ internal static class KgpUnicodePlaceholder
 
             if (current is { } run && CanAppend(run, decoded))
             {
-                run.Width++;
+                if (columnScale == 1)
+                    run.Width++;
+                else
+                {
+                    FinalizeRun(run, snapshotRow, prototypes, images, cellPixelWidth, cellPixelHeight, destination);
+                    run.Column += run.Width;
+                    run.ScreenColumn = column * columnScale;
+                    run.Width = 1;
+                }
                 current = run;
                 continue;
             }
@@ -86,7 +95,7 @@ internal static class KgpUnicodePlaceholder
                 Row = decoded.Row ?? 0,
                 Column = decoded.Column ?? 0,
                 ImageIdHigh = decoded.ImageIdHigh ?? 0,
-                ScreenColumn = column,
+                ScreenColumn = column * columnScale,
                 Width = 1,
             };
         }
@@ -108,7 +117,8 @@ internal static class KgpUnicodePlaceholder
         IReadOnlyDictionary<uint, KgpImageData> images,
         int cellPixelWidth,
         int cellPixelHeight,
-        Dictionary<long, (int Row, int Column)> origins)
+        Dictionary<long, (int Row, int Column)> origins,
+        int columnScale = 1)
     {
         PlacementRun? current = null;
         for (var column = 0; column < cells.Length; column++)
@@ -129,7 +139,15 @@ internal static class KgpUnicodePlaceholder
 
             if (current is { } run && CanAppend(run, decoded))
             {
-                run.Width++;
+                if (columnScale == 1)
+                    run.Width++;
+                else
+                {
+                    FinalizeOrigin(run, absoluteRow, prototypes, images, cellPixelWidth, cellPixelHeight, origins);
+                    run.Column += run.Width;
+                    run.ScreenColumn = column * columnScale;
+                    run.Width = 1;
+                }
                 current = run;
                 continue;
             }
@@ -149,7 +167,7 @@ internal static class KgpUnicodePlaceholder
                 Row = decoded.Row ?? 0,
                 Column = decoded.Column ?? 0,
                 ImageIdHigh = decoded.ImageIdHigh ?? 0,
-                ScreenColumn = column,
+                ScreenColumn = column * columnScale,
                 Width = 1,
             };
         }

@@ -9,6 +9,9 @@ namespace Hex1b.Automation;
 public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
 {
     private readonly TerminalCell[,] _cells;
+    private readonly LineRendition[] _lineRenditions;
+    private readonly int[] _logicalWidths;
+    private readonly bool[] _softWrappedRows;
     private bool _disposed;
 
     /// <summary>
@@ -90,6 +93,10 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         Height = totalHeight;
 
         _cells = new TerminalCell[totalHeight, snapshotWidth];
+        _lineRenditions = new LineRendition[totalHeight];
+        _logicalWidths = new int[totalHeight];
+        _softWrappedRows = new bool[totalHeight];
+        Array.Copy(state.LineRenditions, 0, _lineRenditions, scrollbackRows.Length, state.LineRenditions.Length);
 
         // Pre-fill with void cell if snapshot is wider than any source row
         if (snapshotWidth > terminalWidth)
@@ -107,9 +114,12 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         for (int rowIdx = 0; rowIdx < scrollbackRows.Length; rowIdx++)
         {
             var row = scrollbackRows[rowIdx];
+            _lineRenditions[rowIdx] = row.Rendition;
             int copyWidth = Math.Min(row.Cells.Length, snapshotWidth);
             for (int x = 0; x < copyWidth; x++)
                 _cells[rowIdx, x] = row.Cells[x];
+            _softWrappedRows[rowIdx] = row.Cells[^1].IsSoftWrap;
+            InitializeRowGeometry(rowIdx, copyWidth);
         }
 
         // Fill visible area (below scrollback)
@@ -121,6 +131,8 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
             {
                 _cells[scrollbackRows.Length + y, x] = screenBuffer[y, x];
             }
+            _softWrappedRows[scrollbackRows.Length + y] = screenBuffer[y, terminalWidth - 1].IsSoftWrap;
+            InitializeRowGeometry(scrollbackRows.Length + y, copyWidth);
         }
 
         // Adjust cursor position to account for prepended scrollback rows
@@ -141,6 +153,35 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// Terminal height at snapshot time.
     /// </summary>
     public int Height { get; }
+
+    /// <summary>Gets the DEC line rendition of a physical snapshot row.</summary>
+    /// <param name="row">The zero-based row, including any prepended scrollback.</param>
+    /// <returns>The row's character width and height mode.</returns>
+    public LineRendition GetLineRendition(int row) => row >= 0 && row < Height
+        ? _lineRenditions[row] : LineRendition.SingleWidth;
+
+    /// <inheritdoc />
+    public int GetLogicalWidth(int row) => row >= 0 && row < Height ? _logicalWidths[row] : 0;
+
+    internal bool IsLineSoftWrapped(int row) => row >= 0 && row < Height && _softWrappedRows[row];
+
+    private void InitializeRowGeometry(int row, int copiedWidth)
+    {
+        var logicalWidth = _lineRenditions[row] == LineRendition.SingleWidth
+            ? copiedWidth : Math.Max(1, copiedWidth / 2);
+        _logicalWidths[row] = logicalWidth;
+        var eraseFrom = logicalWidth;
+        if (logicalWidth < copiedWidth && _cells[row, logicalWidth].Character == "")
+            while (eraseFrom > 0 && _cells[row, eraseFrom].Character == "")
+                eraseFrom--;
+        else if (logicalWidth > 0 && DisplayWidth.GetGraphemeWidth(_cells[row, logicalWidth - 1].Character) > 1)
+            eraseFrom--;
+        for (var column = eraseFrom; column < copiedWidth; column++)
+        {
+            _cells[row, column].TrackedHyperlink?.Release();
+            _cells[row, column] = TerminalCell.Empty;
+        }
+    }
 
     /// <summary>
     /// Cursor X position at snapshot time.

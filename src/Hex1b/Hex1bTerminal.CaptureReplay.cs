@@ -30,15 +30,7 @@ public sealed partial class Hex1bTerminal
         }
 
         var output = new StringBuilder("\u001bc\x1b[?1049l\x1b[?6l\x1b[?69l\x1b[4l\x1b[20l\x1b[?7h");
-        if (_inAlternateScreen && _savedMainScreenBuffer is { } main)
-        {
-            AppendCaptureScreen(output, main);
-            AppendCaptureCursor(output, _alternateScreenSavedCursorX, _alternateScreenSavedCursorY);
-            output.Append("\x1b[?1049h");
-        }
-        AppendCaptureScreen(output, _screenBuffer);
-
-        // Rebuild tab stops while coordinates are still absolute.
+        // Set tabs before row modes constrain absolute column addressing.
         output.Append("\x1b[3g");
         for (var column = 0; column < _tabStops.Length; column++)
         {
@@ -48,6 +40,13 @@ public sealed partial class Hex1bTerminal
                 output.Append("\x1bH");
             }
         }
+        if (_inAlternateScreen && _savedMainScreenBuffer is { } main)
+        {
+            AppendCaptureScreen(output, main);
+            AppendCaptureCursor(output, _alternateScreenSavedCursorX, _alternateScreenSavedCursorY);
+            output.Append("\x1b[?1049h");
+        }
+        AppendCaptureScreen(output, _screenBuffer);
 
         if (_cursorSaved)
         {
@@ -135,18 +134,27 @@ public sealed partial class Hex1bTerminal
         return output.ToString();
     }
 
-    private void AppendCaptureScreen(StringBuilder output, TerminalCell[,] cells)
+    private void AppendCaptureScreen(StringBuilder output, TerminalScreenBuffer cells)
     {
         output.Append("\x1b[0m\x1b[2J\x1b[H");
-        var width = Math.Min(_width, cells.GetLength(1));
-        var height = Math.Min(_height, cells.GetLength(0));
+        var width = Math.Min(_width, cells.Width);
+        var height = Math.Min(_height, cells.Height);
+        // Configure destination widths before replaying any soft-wrap continuation.
         for (var row = 0; row < height; row++)
         {
-            var continuation = row > 0 && cells.GetLength(1) == _width &&
+            if (cells.GetRendition(row) == LineRendition.SingleWidth)
+                continue;
+            AppendCaptureCursor(output, 0, row);
+            output.Append(AnsiTokenSerializer.Serialize(new LineRenditionToken(cells.GetRendition(row))));
+        }
+        for (var row = 0; row < height; row++)
+        {
+            var continuation = row > 0 && cells.Width == _width &&
                 cells[row - 1, width - 1].IsSoftWrap;
             if (!continuation)
                 AppendCaptureCursor(output, 0, row);
-            for (var column = 0; column < width; column++)
+            var rowWidth = cells.GetRendition(row) == LineRendition.SingleWidth ? width : Math.Max(1, width / 2);
+            for (var column = 0; column < rowWidth; column++)
             {
                 var cell = cells[row, column];
                 if (string.IsNullOrEmpty(cell.Character))

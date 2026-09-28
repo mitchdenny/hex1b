@@ -18,6 +18,8 @@ internal sealed class DemoTapeCatalog
             entries.Add(new("ansi-colors", "shell", "ANSI colors", "Use the shell's printf command to display colored text."));
             entries.Add(new("named-colors", "shell", "Named color swatches",
                 "Display all 16 ANSI colors as background swatches and colored text, then compare light/dark palettes."));
+            entries.Add(new("double-height", "shell", "DEC double-height text",
+                "Compare normal, double-width, and paired double-height rows, Unicode, clipping, and autowrap."));
             entries.Add(new("shell-integration", "shell", "Shell integration",
                 "Use printf to emit OSC 7 working-directory and OSC 133 command-mark sequences across a few commands."));
         }

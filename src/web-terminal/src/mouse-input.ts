@@ -15,6 +15,7 @@ export interface PointerHyperlink {
 }
 interface HyperlinkClick { link: PointerHyperlink; input: TerminalInput; x: number; y: number; dragged: boolean }
 interface MouseInspection {
+  lineRenditions?: () => readonly number[];
   state?: () => Omit<GestureState, "tracking">;
   begin?: (point: TerminalPoint, selection: { mode: SelectionMode; extend: boolean }) => void;
   extend?: (point: TerminalPoint) => void;
@@ -65,7 +66,10 @@ export function captureMouse(canvas: HTMLCanvasElement, send: (command: MouseCom
   const state = () => ({ tracking, ...inspection.state?.() });
 
   function point(event: MouseEvent, clamp = false): CellPosition | null {
-    return cellPoint(event, canvas.getBoundingClientRect(), columns, rows, clamp);
+    const position = cellPoint(event, canvas.getBoundingClientRect(), columns, rows, clamp);
+    if (position && inspection.lineRenditions?.()[position.y])
+      position.x = Math.min(Math.max(0, Math.floor(columns / 2) - 1), Math.floor(position.x / 2));
+    return position;
   }
 
   function refreshHover(modifiers = hoverModifiers) {

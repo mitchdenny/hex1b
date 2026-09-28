@@ -64,6 +64,7 @@ internal static class InternalTerminalReflow
         IReadOnlyList<TerminalReflowAnchor> anchors)
     {
         var reflow = provider.Reflow(context);
+        reflow = reflow with { LineRenditions = context.ResizeLineRenditions() };
         var oldHistoryCount = context.ScrollbackRows.Length;
         var newHistoryCount = reflow.ScrollbackRows.Length;
         var mapped = new List<TerminalReflowAnchor>(anchors.Count);
@@ -80,12 +81,10 @@ internal static class InternalTerminalReflow
 
             var screenRow = anchor.Row - oldHistoryCount;
             if (screenRow >= 0 && screenRow < context.NewHeight &&
-                (!anchor.IsTextPosition || (anchor.Column <= context.NewWidth &&
-                    (anchor.Column == context.OldWidth || anchor.Column < context.NewWidth) &&
-                    (anchor.Column >= context.OldWidth ||
-                        string.IsNullOrEmpty(context.ScreenRows[screenRow][anchor.Column].Character) ||
-                        DisplayWidth.GetGraphemeWidth(context.ScreenRows[screenRow][anchor.Column].Character) <=
-                        context.NewWidth - anchor.Column))))
+                (!anchor.IsTextPosition || RetainsTextColumn(context.ScreenRows[screenRow].Length, context.NewWidth,
+                    screenRow < context.LineRenditions.Length ? context.LineRenditions[screenRow] : LineRendition.SingleWidth,
+                    anchor.Column, anchor.Column < context.ScreenRows[screenRow].Length
+                        ? context.ScreenRows[screenRow][anchor.Column].Character : null)))
             {
                 mapped.Add(anchor with
                 {
@@ -95,5 +94,15 @@ internal static class InternalTerminalReflow
         }
 
         return new InternalReflowResult(reflow, mapped);
+    }
+
+    internal static bool RetainsTextColumn(int oldWidth, int newWidth, LineRendition rendition, int column, string? character)
+    {
+        var oldCapacity = rendition == LineRendition.SingleWidth ? oldWidth : Math.Max(1, oldWidth / 2);
+        var newCapacity = rendition == LineRendition.SingleWidth ? newWidth : Math.Max(1, newWidth / 2);
+        if (column == oldCapacity)
+            return column <= newCapacity;
+        return column >= 0 && column < Math.Min(oldCapacity, newCapacity) &&
+            DisplayWidth.GetGraphemeWidth(character ?? "") <= newCapacity - column;
     }
 }

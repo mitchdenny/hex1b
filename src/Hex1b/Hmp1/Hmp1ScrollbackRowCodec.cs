@@ -17,9 +17,12 @@ internal static class Hmp1ScrollbackRowCodec
         if (row.OriginalWidth <= 0 || row.OriginalWidth > MaxWidth ||
             row.Cells.Length <= 0 || row.Cells.Length > MaxWidth)
             throw new InvalidDataException("Scrollback row exceeds the supported width.");
+        if (!Enum.IsDefined(row.Rendition))
+            throw new InvalidDataException("Invalid scrollback row rendition.");
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream, Utf8);
         writer.Write(row.OriginalWidth);
+        writer.Write((byte)row.Rendition);
         writer.Write(row.Timestamp.UtcTicks);
         writer.Write(row.Cells.Length);
         foreach (var cell in row.Cells)
@@ -50,11 +53,12 @@ internal static class Hmp1ScrollbackRowCodec
             using var stream = new MemoryStream(bytes, writable: false);
             using var reader = new BinaryReader(stream, Utf8);
             var width = reader.ReadInt32();
+            var rendition = (LineRendition)reader.ReadByte();
             var ticks = reader.ReadInt64();
             var count = reader.ReadInt32();
-            if (width <= 0 || width > MaxWidth || count <= 0 || count > MaxWidth ||
+            if (width <= 0 || width > MaxWidth || count <= 0 || count > MaxWidth || !Enum.IsDefined(rendition) ||
                 ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks)
-                throw new InvalidDataException("Invalid scrollback row geometry or timestamp.");
+                throw new InvalidDataException("Invalid scrollback row geometry, rendition, or timestamp.");
             var timestamp = new DateTimeOffset(ticks, TimeSpan.Zero);
             var cells = new TerminalCell[count];
             var links = new Dictionary<int, (string, string)>();
@@ -81,7 +85,7 @@ internal static class Hmp1ScrollbackRowCodec
             }
             if (stream.Position != stream.Length)
                 throw new InvalidDataException("Trailing scrollback row data.");
-            return (new(cells, width, timestamp), links);
+            return (new(cells, width, timestamp) { Rendition = rendition }, links);
         }
         catch (Exception error) when (error is EndOfStreamException or DecoderFallbackException)
         {

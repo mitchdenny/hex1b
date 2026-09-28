@@ -27,6 +27,17 @@ public sealed class Hex1bTerminalSnapshotRegion : IHex1bTerminalRegion
     /// <inheritdoc />
     public int Height => _bounds.Height;
 
+    internal bool IsFullWidth => _bounds.X == 0 && Width == _parent.Width;
+
+    /// <inheritdoc />
+    public LineRendition GetLineRendition(int row) => row >= 0 && row < Height
+        ? _parent.GetLineRendition(_bounds.Y + row) : LineRendition.SingleWidth;
+
+    /// <inheritdoc />
+    public int GetLogicalWidth(int row) => row >= 0 && row < Height &&
+        _bounds.Y + row >= 0 && _bounds.Y + row < _parent.Height
+        ? Math.Clamp(_parent.GetLogicalWidth(_bounds.Y + row) - _bounds.X, 0, Width) : 0;
+
     /// <summary>
     /// The absolute bounds of this region within the parent.
     /// </summary>

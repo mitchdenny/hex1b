@@ -8,4 +8,7 @@ namespace Hex1b;
 public readonly record struct ScrollbackRow(
     TerminalCell[] Cells,
     int OriginalWidth,
-    DateTimeOffset Timestamp);
+    DateTimeOffset Timestamp)
+{
+    internal LineRendition Rendition { get; init; }
+}

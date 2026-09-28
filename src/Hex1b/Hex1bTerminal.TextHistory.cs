@@ -77,7 +77,13 @@ public sealed partial class Hex1bTerminal
                 var cells = _scrollbackBuffer!.GetEntryAt(row).Row.Cells;
                 return column < cells.Length ? cells[column] : TerminalCell.Empty;
             },
-            row => row >= historyCount ? _width : _scrollbackBuffer!.GetEntryAt(row).Row.Cells.Length);
+            row => row >= historyCount ? LineWidth(row - historyCount) :
+                Math.Max(1, _scrollbackBuffer!.GetEntryAt(row).Row.Cells.Length /
+                    (_scrollbackBuffer.GetEntryAt(row).Row.Rendition == LineRendition.SingleWidth ? 1 : 2)),
+            row => row >= historyCount ? _screenBuffer.GetRendition(row - historyCount) :
+                _scrollbackBuffer!.GetEntryAt(row).Row.Rendition,
+            row => row >= historyCount ? _screenBuffer[row - historyCount, _width - 1].IsSoftWrap :
+                _scrollbackBuffer!.GetEntryAt(row).Row.Cells[^1].IsSoftWrap);
     }
 
     internal void HandleBrowserHistoryMessage(Hwt1ViewState view, JsonElement command)

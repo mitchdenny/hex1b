@@ -51,6 +51,9 @@ public sealed class NoReflowStrategy : ITerminalReflowProvider
             screenRows,
             context.ScrollbackRows,
             Math.Min(context.CursorX, newWidth - 1),
-            Math.Min(context.CursorY, newHeight - 1));
+            Math.Min(context.CursorY, newHeight - 1))
+        {
+            LineRenditions = context.ResizeLineRenditions()
+        };
     }
 }

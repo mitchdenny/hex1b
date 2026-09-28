@@ -352,47 +352,58 @@ export class TerminalRenderer {
   }
 
   decorations(cell: TerminalCell, x: number, y: number, width: number, foreground: Vector4,
-    underline = cell.underlineColor, clip?: Vector4): void {
-    if (cell.attributes & 128) this.solid(x, y + 10, width, 1, foreground, clip);
-    if (cell.attributes & 256) this.solid(x, y + 1, width, 1, foreground, clip);
+    underline = cell.underlineColor, clip?: Vector4, scaleY = 1): void {
+    if (cell.attributes & 128) this.solid(x, y + 10 * scaleY, width, scaleY, foreground, clip);
+    if (cell.attributes & 256) this.solid(x, y + scaleY, width, scaleY, foreground, clip);
     const style = cell.underlineStyle || (cell.attributes & 8 ? 1 : 0);
-    this.underline(style, x, y, width, rgba(underline), clip);
+    this.underline(style, x, y, width, rgba(underline), clip, scaleY);
   }
 
-  private underline(style: number, x: number, y: number, width: number, color: Vector4, clip?: Vector4): void {
-    if (style === 1) this.solid(x, y + 18, width, 1, color, clip);
+  private underline(style: number, x: number, y: number, width: number, color: Vector4, clip?: Vector4, scaleY = 1): void {
+    if (style === 1) this.solid(x, y + 18 * scaleY, width, scaleY, color, clip);
     else if (style === 2) {
-      this.solid(x, y + 16, width, 1, color, clip);
-      this.solid(x, y + 18, width, 1, color, clip);
+      this.solid(x, y + 16 * scaleY, width, scaleY, color, clip);
+      this.solid(x, y + 18 * scaleY, width, scaleY, color, clip);
     } else if (style === 3) {
       for (let dx = 0; dx < width; dx++) {
-        this.solid(x + dx, y + 17 + Math.round(Math.sin((x + dx) * Math.PI / 4)), 1, 1, color, clip);
+        this.solid(x + dx, y + (17 + Math.round(Math.sin((x + dx) * Math.PI / 4))) * scaleY, 1, scaleY, color, clip);
       }
     } else if (style === 4 || style === 5) {
       const step = style === 4 ? 2 : 5;
       const segment = style === 4 ? 1 : 3;
-      for (let dx = 0; dx < width; dx += step) this.solid(x + dx, y + 18, Math.min(segment, width - dx), 1, color, clip);
+      for (let dx = 0; dx < width; dx += step) this.solid(x + dx, y + 18 * scaleY, Math.min(segment, width - dx), scaleY, color, clip);
     }
   }
 
   private renderCell(cell: TerminalCell, index: number, metadata: FrameMetadata, blinkOn: boolean,
     palette: RenderPalette, linkDecoration: number, selectionClip?: Vector4): void {
     if (!cell.width || (cell.attributes & 64) || ((cell.attributes & 16) && !blinkOn)) return;
-    const x = (index % this.columns) * CELL_WIDTH;
-    const y = Math.floor(index / this.columns) * CELL_HEIGHT;
-    const width = Math.min(cell.width * CELL_WIDTH, this.width - x);
+    const row = Math.floor(index / this.columns);
+    const rendition = metadata.lineRenditions?.[row] ?? 0;
+    const scaleX = rendition ? 2 : 1;
+    const scaleY = rendition >= 2 ? 2 : 1;
+    const column = index % this.columns;
+    if (column >= Math.max(1, Math.floor(this.columns / scaleX))) return;
+    const x = column * CELL_WIDTH * scaleX;
+    const rowY = row * CELL_HEIGHT;
+    const y = rowY - (rendition === 3 ? CELL_HEIGHT : 0);
+    const width = Math.min(cell.width * CELL_WIDTH * scaleX, this.width - x);
+    const clip: Vector4 | undefined = !rendition ? selectionClip : selectionClip
+      ? [selectionClip[0], Math.max(rowY, selectionClip[1]), selectionClip[2],
+          Math.min(rowY + CELL_HEIGHT, selectionClip[1] + selectionClip[3]) - Math.max(rowY, selectionClip[1])]
+      : [0, rowY, this.width, CELL_HEIGHT];
     const foreground = rgba(selectionClip ? palette.selectionForeground : foregroundColor(cell, metadata, palette));
     const glyph = isKgpPlaceholder(cell) ? undefined : this.glyphs.get(glyphKey(cell));
     if (glyph) {
       const tint: Vector4 = glyph.colored
         ? (!selectionClip && (cell.attributes & 2) ? [0.5, 0.5, 0.5, 1] : WHITE) : foreground;
-      this.quad(this.atlas, x, y, cell.width * CELL_WIDTH, CELL_HEIGHT,
-        tint, glyph.colored ? 2 : 1, [glyph.u0, glyph.v0, glyph.u1, glyph.v1], selectionClip);
+      this.quad(this.atlas, x, y, cell.width * CELL_WIDTH * scaleX, CELL_HEIGHT * scaleY,
+        tint, glyph.colored ? 2 : 1, [glyph.u0, glyph.v0, glyph.u1, glyph.v1], clip);
     }
     this.decorations(cell, x, y, width, foreground,
-      selectionClip ? palette.selectionForeground : underlineColor(cell, metadata, palette), selectionClip);
+      selectionClip ? palette.selectionForeground : underlineColor(cell, metadata, palette), clip, scaleY);
     if (linkDecoration && !cell.underlineStyle && !(cell.attributes & 8) && !isKgpPlaceholder(cell)) {
-      this.underline(linkDecoration, x, y, width, foreground, selectionClip);
+      this.underline(linkDecoration, x, y, width, foreground, clip, scaleY);
     }
   }
 
@@ -410,8 +421,11 @@ export class TerminalRenderer {
     for (let i = 0; i < cells.length; i++) {
       const cell = cells[i];
       if (!cell) continue;
-      this.solid((i % this.columns) * CELL_WIDTH, Math.floor(i / this.columns) * CELL_HEIGHT,
-        CELL_WIDTH, CELL_HEIGHT, rgba(backgroundColor(cell, metadata, palette)));
+      const row = Math.floor(i / this.columns);
+      const scaleX = metadata.lineRenditions?.[row] ? 2 : 1;
+      if (i % this.columns >= Math.max(1, Math.floor(this.columns / scaleX))) continue;
+      this.solid((i % this.columns) * CELL_WIDTH * scaleX, row * CELL_HEIGHT,
+        CELL_WIDTH * scaleX, CELL_HEIGHT, rgba(backgroundColor(cell, metadata, palette)));
     }
     for (const item of placements) if (item.z >= -1073741824 && item.z < 0) this.placement(item.placement);
     for (let i = 0; i < cells.length; i++) {
@@ -422,8 +436,9 @@ export class TerminalRenderer {
     const selection = metadata.history?.selection;
     if (selection?.status === "valid") {
       for (const range of selection.ranges) {
-        const clip: Vector4 = [range.startColumn * CELL_WIDTH, range.row * CELL_HEIGHT,
-          (range.endColumn - range.startColumn) * CELL_WIDTH, CELL_HEIGHT];
+        const scaleX = metadata.lineRenditions?.[range.row] ? 2 : 1;
+        const clip: Vector4 = [range.startColumn * CELL_WIDTH * scaleX, range.row * CELL_HEIGHT,
+          (range.endColumn - range.startColumn) * CELL_WIDTH * scaleX, CELL_HEIGHT];
         this.solid(...clip, rgba(palette.selectionBackground));
         const rowStart = range.row * this.columns;
         let start = rowStart + range.startColumn;
@@ -440,13 +455,14 @@ export class TerminalRenderer {
     if (cursor.visible && (!cursorBlink || blinkOn) && cursor.x >= 0 && cursor.x < this.columns && cursor.y >= 0 && cursor.y < this.rows) {
       const cell = cells[cursor.y * this.columns + cursor.x];
       const color = rgba(palette.cursor ?? (cell ? foregroundColor(cell, metadata, palette) : palette.foreground));
-      const x = cursor.x * CELL_WIDTH;
+      const scaleX = metadata.lineRenditions?.[cursor.y] ? 2 : 1;
+      const x = cursor.x * CELL_WIDTH * scaleX;
       const y = cursor.y * CELL_HEIGHT;
-      if (cursor.shape === 3 || cursor.shape === 4) this.solid(x, y + 18, CELL_WIDTH, 2, color);
+      if (cursor.shape === 3 || cursor.shape === 4) this.solid(x, y + 18, CELL_WIDTH * scaleX, 2, color);
       else if (cursor.shape === 5 || cursor.shape === 6) this.solid(x, y, 2, CELL_HEIGHT, color);
       else {
         color[3] *= 0.55;
-        this.solid(x, y, CELL_WIDTH, CELL_HEIGHT, color);
+        this.solid(x, y, CELL_WIDTH * scaleX, CELL_HEIGHT, color);
       }
     }
     const base = rgba(metadata.colorEncoding === "indexed-v1" ? palette.background :

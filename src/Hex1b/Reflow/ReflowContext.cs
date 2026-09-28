@@ -36,4 +36,14 @@ public readonly record struct ReflowContext(
 {
     internal bool PendingWrap { get; init; }
     internal bool SavedPendingWrap { get; init; }
+    /// <summary>Gets the rendition of each physical screen row, in the same order as <see cref="ScreenRows"/>.</summary>
+    /// <remarks>An empty array denotes all single-width rows when constructing a context directly.</remarks>
+    public LineRendition[] LineRenditions { get; init; } = [];
+
+    internal LineRendition[] ResizeLineRenditions()
+    {
+        var rows = new LineRendition[NewHeight];
+        Array.Copy(LineRenditions, rows, Math.Min(LineRenditions.Length, rows.Length));
+        return rows;
+    }
 }

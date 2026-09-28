@@ -41,7 +41,8 @@ internal sealed class KgpTerminalGraphicsState
         int Width,
         int Height,
         int CellPixelWidth,
-        int CellPixelHeight);
+        int CellPixelHeight,
+        IReadOnlyList<LineRendition>? LineRenditions = null);
 
     private enum DeletionNodeKind
     {
@@ -189,7 +190,8 @@ internal sealed class KgpTerminalGraphicsState
                 context.Width,
                 context.Height,
                 context.CellPixelWidth,
-                context.CellPixelHeight).Placements;
+                context.CellPixelHeight,
+                lineRenditions: context.LineRenditions).Placements;
             return materialized;
         }
 
@@ -1138,7 +1140,8 @@ internal sealed class KgpTerminalGraphicsState
             int height,
             int cellPixelWidth,
             int cellPixelHeight,
-            bool includeAllImages = false)
+            bool includeAllImages = false,
+            IReadOnlyList<LineRendition>? lineRenditions = null)
     {
         var active = Active;
         ReconcileImageReferences(active);
@@ -1189,7 +1192,8 @@ internal sealed class KgpTerminalGraphicsState
                     virtualImages,
                     cellPixelWidth,
                     cellPixelHeight,
-                    virtualOrigins);
+                    virtualOrigins,
+                    historyRows[historyIndex].Row.Rendition == LineRendition.SingleWidth ? 1 : 2);
             }
 
             for (var row = 0; row < screenHeight; row++)
@@ -1203,7 +1207,8 @@ internal sealed class KgpTerminalGraphicsState
                     virtualImages,
                     cellPixelWidth,
                     cellPixelHeight,
-                    virtualOrigins);
+                    virtualOrigins,
+                    lineRenditions is null || lineRenditions[row] == LineRendition.SingleWidth ? 1 : 2);
             }
         }
 
@@ -1323,7 +1328,8 @@ internal sealed class KgpTerminalGraphicsState
                     virtualImages,
                     cellPixelWidth,
                     cellPixelHeight,
-                    snapshotPlacements);
+                    snapshotPlacements,
+                    historyRows[historyIndex].Row.Rendition == LineRendition.SingleWidth ? 1 : 2);
             }
 
             for (var row = 0; row < screenHeight; row++)
@@ -1338,7 +1344,8 @@ internal sealed class KgpTerminalGraphicsState
                     virtualImages,
                     cellPixelWidth,
                     cellPixelHeight,
-                    snapshotPlacements);
+                    snapshotPlacements,
+                    lineRenditions is null || lineRenditions[row] == LineRendition.SingleWidth ? 1 : 2);
             }
         }
 

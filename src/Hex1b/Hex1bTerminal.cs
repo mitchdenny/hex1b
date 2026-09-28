@@ -93,7 +93,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly object _bufferLock = new();
     private readonly SemaphoreSlim _workloadInputWriteLock = new(1, 1);
     
-    private TerminalCell[,] _screenBuffer;
+    private TerminalScreenBuffer _screenBuffer;
     private int _cursorX;
     private int _cursorY;
     private Hex1bColor? _currentForeground;
@@ -104,7 +104,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private TrackedObject<HyperlinkData>? _currentHyperlink; // Active hyperlink from OSC 8
     private volatile bool _disposed;
     private bool _inAlternateScreen;
-    private TerminalCell[,]? _savedMainScreenBuffer; // Saved main screen when entering alternate screen
+    private TerminalScreenBuffer? _savedMainScreenBuffer; // Saved main screen when entering alternate screen
     private bool _alternateScreenSavedPendingWrap;
     private int _alternateScreenSavedCursorX; // Saved cursor X for alternate screen (mode 1049)
     private int _alternateScreenSavedCursorY; // Saved cursor Y for alternate screen (mode 1049)
@@ -377,7 +377,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_workload is not Hmp1WorkloadAdapter)
             _ = _workload.ResizeAsync(_width, _height);
         
-        _screenBuffer = new TerminalCell[_height, _width];
+        _screenBuffer = new TerminalScreenBuffer(_width, _height);
         _scrollBottom = _height - 1; // Default scroll region is full screen
         _marginRight = _width - 1; // Default left/right margins are full screen
         InitializeTabStops();
@@ -2075,8 +2075,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         lock (_bufferLock)
         {
-            var copy = new TerminalCell[_height, _width];
-            Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
+            var copy = _screenBuffer.CopyCells();
             return (copy, _width, _height, _cursorX, _cursorY);
         }
     }
@@ -2091,15 +2090,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         lock (_bufferLock)
         {
             var screenBuffer = new TerminalCell[_height, _width];
+            var lineRenditions = _screenBuffer.CopyRenditions();
             if (textViewportTop is int top)
             {
                 var text = GetTextBuffer();
                 for (var row = 0; row < _height; row++)
+                {
+                    lineRenditions[row] = text.LineRendition(top + row);
                     for (var column = 0; column < _width; column++)
                         screenBuffer[row, column] = text.Cell(top + row, column);
+                }
             }
             else
-                Array.Copy(_screenBuffer, screenBuffer, _screenBuffer.Length);
+                _screenBuffer.CopyCellsTo(screenBuffer);
             for (int y = 0; y < _height; y++)
             {
                 for (int x = 0; x < _width; x++)
@@ -2143,7 +2146,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _height,
                 Capabilities.CellPixelWidth,
                 Capabilities.CellPixelHeight,
-                includeAllKgpImages);
+                includeAllKgpImages, lineRenditions);
             (IReadOnlyList<SixelPlacement> Placements, IReadOnlyDictionary<byte[], SixelData> Images) sixel =
                 textViewportTop is not null ? ([], new Dictionary<byte[], SixelData>()) :
                 _sixelGraphicsState.CaptureActiveSnapshot(
@@ -2188,7 +2191,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _activityState.Progress,
                 _activityState.ShellIntegration,
                 _activityState.WorkingDirectory,
-                [.. _commandMarks]);
+                [.. _commandMarks])
+            {
+                LineRenditions = lineRenditions
+            };
         }
     }
 
@@ -2222,8 +2228,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         lock (_bufferLock)
         {
-            var copy = new TerminalCell[_height, _width];
-            Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
+            var copy = _screenBuffer.CopyCells();
 
             return copy;
         }
@@ -2512,11 +2517,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var historyCount = GetTextBuffer().HistoryCount;
                 var croppedAnchors = anchors.Select(a => a.Position)
                     .Where(a => a.Row < historyCount ||
-                        (a.Row - historyCount < newHeight && a.Column <= newWidth &&
-                         (a.Column == _width || (a.Column < newWidth &&
-                          (string.IsNullOrEmpty(_screenBuffer[a.Row - historyCount, a.Column].Character) ||
-                           DisplayWidth.GetGraphemeWidth(_screenBuffer[a.Row - historyCount, a.Column].Character) <=
-                           newWidth - a.Column))))).ToArray();
+                        (a.Row - historyCount < newHeight &&
+                         InternalTerminalReflow.RetainsTextColumn(_width, newWidth,
+                             _screenBuffer.GetRendition(a.Row - historyCount), a.Column,
+                             a.Column < _width ? _screenBuffer[a.Row - historyCount, a.Column].Character : null)))
+                    .ToArray();
+                _textAnchorReflowPending = true;
                 if (_width != newWidth || _height != newHeight)
                     InvalidateTextCoordinates();
                 ResizeWithCrop(newWidth, newHeight);
@@ -2546,8 +2552,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private void ResizeWithReflow(int newWidth, int newHeight, ITerminalReflowProvider reflowProvider)
     {
         var textAnchors = PrepareTextAnchorReflow();
-        if (_width != newWidth || _height != newHeight)
-            InvalidateTextCoordinates();
         // Build the ReflowContext from current state
         var screenRows = new TerminalCell[_height][];
         for (int y = 0; y < _height; y++)
@@ -2566,7 +2570,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         for (int i = 0; i < scrollbackEntries.Length; i++)
         {
             var row = scrollbackEntries[i].Row;
-            scrollbackRows[i] = new ReflowScrollbackRow(row.Cells, row.OriginalWidth);
+            scrollbackRows[i] = new ReflowScrollbackRow(row.Cells, row.OriginalWidth) { Rendition = row.Rendition };
         }
 
         var context = new ReflowContext(
@@ -2577,7 +2581,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _cursorSaved ? _savedCursorY : null)
         {
             PendingWrap = _pendingWrap,
-            SavedPendingWrap = _savedPendingWrap
+            SavedPendingWrap = _savedPendingWrap,
+            LineRenditions = _screenBuffer.CopyRenditions()
         };
 
         var kgpReflow = _kgpGraphicsState.PrepareActiveReflow(scrollbackEntries);
@@ -2597,14 +2602,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 out internalResult);
         }
 
-        var result = hasKgpLineage
-            ? internalResult.Reflow
-            : reflowProvider.Reflow(context);
+        var result = hasKgpLineage ? internalResult.Reflow : reflowProvider.Reflow(context);
+        result.ValidateLineRenditions(context);
+        _textAnchorReflowPending = true;
+        if (_width != newWidth || _height != newHeight)
+            InvalidateTextCoordinates();
 
         // Apply the reflowed screen buffer
-        var newBuffer = new TerminalCell[newHeight, newWidth];
+        var newBuffer = new TerminalScreenBuffer(newWidth, newHeight);
         for (int y = 0; y < newHeight; y++)
         {
+            if (y < result.LineRenditions.Length)
+                newBuffer.SetRendition(y, result.LineRenditions[y]);
             if (y < result.ScreenRows.Length)
             {
                 for (int x = 0; x < newWidth && x < result.ScreenRows[y].Length; x++)
@@ -2641,7 +2650,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _scrollbackBuffer.Clear();
             foreach (var sbRow in result.ScrollbackRows)
             {
-                _scrollbackBuffer.Push(sbRow.Cells, sbRow.OriginalWidth, _timeProvider.GetUtcNow());
+                _scrollbackBuffer.PushWithIdentity(sbRow.Cells, sbRow.OriginalWidth, _timeProvider.GetUtcNow(), sbRow.Rendition);
             }
 
             replacement = new ScrollbackReplacementResult(
@@ -2657,13 +2666,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         // Keep the old owners alive until both screen and history have acquired
         // their replacements, including cells moving between the two.
-        foreach (var cell in _screenBuffer)
-            cell.TrackedHyperlink?.Release();
+        _screenBuffer.ReleaseHyperlinks();
         _screenBuffer = newBuffer;
         _width = newWidth;
         _height = newHeight;
         _cursorX = Math.Clamp(result.CursorX, 0, newWidth - 1);
         _cursorY = Math.Clamp(result.CursorY, 0, newHeight - 1);
+        for (var row = 0; row < newHeight; row++)
+            CropLineRendition(row);
+        _cursorX = Math.Min(_cursorX, LineWidth(_cursorY) - 1);
         _pendingWrap = result.PendingWrap;
         ApplyTextAnchorReflow(textAnchors, hasKgpLineage ? internalResult.Anchors : [],
             replacement.DiscardedRowCount);
@@ -2722,22 +2733,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void ResizeWithCrop(int newWidth, int newHeight)
     {
-        var newBuffer = new TerminalCell[newHeight, newWidth];
-        
-        // Initialize with empty cells
-        for (int y = 0; y < newHeight; y++)
-        {
-            for (int x = 0; x < newWidth; x++)
-            {
-                newBuffer[y, x] = TerminalCell.Empty;
-            }
-        }
+        var newBuffer = new TerminalScreenBuffer(newWidth, newHeight);
 
         // Copy existing content that fits in the new size
         var copyHeight = Math.Min(_height, newHeight);
         var copyWidth = Math.Min(_width, newWidth);
         for (int y = 0; y < copyHeight; y++)
         {
+            newBuffer.SetRendition(y, _screenBuffer.GetRendition(y));
             for (int x = 0; x < copyWidth; x++)
             {
                 newBuffer[y, x] = _screenBuffer[y, x];
@@ -2769,6 +2772,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _height = newHeight;
         _cursorX = Math.Min(_cursorX, newWidth - 1);
         _cursorY = Math.Min(_cursorY, newHeight - 1);
+        for (var row = 0; row < newHeight; row++)
+            CropLineRendition(row);
+        _cursorX = Math.Min(_cursorX, LineWidth(_cursorY) - 1);
         if (_inAlternateScreen)
         {
             _kgpGraphicsState.ClipActivePlacementsToViewport(
@@ -2818,14 +2824,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         oldCell = newCell;
 
-        if (damageSixel && _sixelGraphicsState.DamageActiveCell(y, x))
+        if (damageSixel && _sixelGraphicsState.ActivePlacements.Count != 0 && x < LineWidth(y))
         {
-            _currentGraphicsImpacts?.Add(new TerminalGraphicsImpact(
-                TerminalGraphicsImpactKind.SixelDamaged,
-                x,
-                y,
-                1,
-                1));
+            var columnScale = _screenBuffer.GetRendition(y) == LineRendition.SingleWidth ? 1 : 2;
+            for (var physicalColumn = x * columnScale; physicalColumn < Math.Min(_width, (x + 1) * columnScale); physicalColumn++)
+                if (_sixelGraphicsState.DamageActiveCell(y, physicalColumn))
+                    _currentGraphicsImpacts?.Add(new TerminalGraphicsImpact(
+                        TerminalGraphicsImpactKind.SixelDamaged, physicalColumn, y, 1, 1));
         }
         
         // Record the impact if tracking is enabled
@@ -2967,12 +2972,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var eraseCell = CreateEraseCell();
         for (int y = 0; y < _height; y++)
         {
-            for (int x = 0; x < _width; x++)
-            {
-                if (respectProtection && IsProtectedCell(y, x))
-                    continue;
-                SetCell(y, x, eraseCell, impacts);
-            }
+            ClearScreenRow(y, 0, _width - 1, eraseCell, impacts, respectProtection);
         }
         if (!respectProtection)
         {
@@ -2992,12 +2992,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         InvalidateTextAnchorsInRange(0, _height - 1, 0, _width);
         for (int y = 0; y < _height; y++)
         {
-            for (int x = 0; x < _width; x++)
-            {
-                // Release any tracked objects
-                _screenBuffer[y, x].TrackedHyperlink?.Release();
-                _screenBuffer[y, x] = TerminalCell.Empty;
-            }
+            ClearScreenRow(y, 0, _width - 1, TerminalCell.Empty, null, damageSixel: false);
         }
         _currentForeground = null;
         _currentBackground = null;
@@ -3141,6 +3136,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         switch (token)
         {
+            case LineRenditionToken line:
+                SetLineRendition(line.Rendition, impacts);
+                break;
             case TextToken textToken:
                 return ApplyTextToken(textToken, impacts);
                 
@@ -3173,7 +3171,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     if (_declrmm)
                         _cursorX = Math.Clamp(_marginLeft + cursorToken.Column - 1, _marginLeft, _marginRight);
                     else
-                        _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
+                        _cursorX = Math.Clamp(cursorToken.Column - 1, 0, LineWidth(_cursorY) - 1);
                 }
                 else
                 {
@@ -3181,7 +3179,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     var requestedRow = cursorToken.Row - 1;
                     var clampedRow = Math.Clamp(requestedRow, 0, _height - 1);
                     _cursorY = clampedRow;
-                    _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
+                    _cursorX = Math.Clamp(cursorToken.Column - 1, 0, LineWidth(_cursorY) - 1);
                 }
                 break;
                 
@@ -3214,6 +3212,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     // DECLRMM - Left Right Margin Mode
                     _declrmm = privateModeToken.Enable;
+                    if (_declrmm)
+                        _screenBuffer.ResetRenditions();
                     if (!_declrmm)
                     {
                         // When disabled, reset margins to full screen
@@ -3412,9 +3412,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Only restore if cursor was previously saved (matches GNOME Terminal behavior)
                 if (_cursorSaved)
                 {
-                    _pendingWrap = _savedPendingWrap;
-                    _cursorX = _savedCursorX;
-                    _cursorY = _savedCursorY;
+                    _cursorY = Math.Clamp(_savedCursorY, 0, _height - 1);
+                    _cursorX = Math.Clamp(_savedCursorX, 0, LineWidth(_cursorY) - 1);
+                    _pendingWrap = _savedPendingWrap && _cursorX == LineWidth(_cursorY) - 1;
                     _cursorProtected = _savedCursorProtected;
                 }
                 break;
@@ -3432,7 +3432,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case CursorColumnToken columnToken:
                 _pendingWrap = false; // Explicit column movement clears pending wrap
-                _cursorX = Math.Clamp(columnToken.Column - 1, 0, _width - 1);
+                _cursorX = Math.Clamp(columnToken.Column - 1, 0, LineWidth(_cursorY) - 1);
                 break;
             
             case CursorRowToken rowToken:
@@ -3446,6 +3446,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     _cursorY = Math.Clamp(rowToken.Row - 1, 0, _height - 1);
                 }
+                ClampCursorToLine();
                 break;
                 
             case ScrollUpToken scrollUpToken:
@@ -3577,10 +3578,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Clear screen
                 for (int row = 0; row < _height; row++)
                 {
-                    for (int col = 0; col < _width; col++)
-                    {
-                        SetCell(row, col, TerminalCell.Empty, impacts);
-                    }
+                    ClearScreenRow(row, 0, _width - 1, TerminalCell.Empty, impacts);
                 }
                 _scrollbackBuffer?.Clear();
                 _kgpGraphicsState.Reset();
@@ -3599,11 +3597,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _pendingWrap = false;
                 for (int row = 0; row < _height; row++)
                 {
-                    for (int col = 0; col < _width; col++)
-                    {
-                        var cell = TerminalCell.Empty with { Character = "E" };
-                        SetCell(row, col, cell, impacts);
-                    }
+                    ClearScreenRow(row, 0, _width - 1,
+                        TerminalCell.Empty with { Character = "E" }, impacts);
                 }
                 break;
                 
@@ -3658,6 +3653,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     _cursorY++;
                 }
+                ClampCursorToLine();
                 break;
                 
             case ReverseIndexToken:
@@ -3676,6 +3672,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     _cursorY--;
                 }
+                ClampCursorToLine();
                 break;
             
             case CharacterSetToken csToken:
@@ -3706,6 +3703,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 ProcessKgpCommand(kgpToken);
                 break;
                 
+            case TabSetToken:
+                _tabStops[_cursorX] = true;
+                break;
+
             case TabClearToken tabClear:
                 // TBC (CSI Ps g): Tab Clear
                 if (tabClear.Mode == 0)
@@ -3918,8 +3919,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var cp = grapheme.EnumerateRunes().First().Value;
                 if (cp == 0xFE0E || cp == 0xFE0F)
                 {
-                    ApplyRetroactiveVariationSelector(cp, impacts);
-                    if (_disposed)
+                    if (!ApplyRetroactiveVariationSelector(cp, impacts))
                         return false;
                     i += grapheme.Length;
                     continue;
@@ -3938,37 +3938,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     int cellX = _lastPrintedCellX;
                     int cellY = _lastPrintedCellY;
-                    if (cellY >= 0 && cellY < _height && cellX >= 0 && cellX < _width)
+                    if (cellY >= 0 && cellY < _height && cellX >= 0 && cellX < LineWidth(cellY))
                     {
                         ref var cell = ref _screenBuffer[cellY, cellX];
                         if (!string.IsNullOrEmpty(cell.Character))
                         {
                             var newContent = cell.Character + grapheme;
-                            int newWidth = DisplayWidth.GetGraphemeWidth(newContent);
-                            
-                            if (newWidth > _lastPrintedCellWidth)
-                            {
-                                cell = cell with { Character = newContent };
-                                for (int w = _lastPrintedCellWidth; w < newWidth && cellX + w < _width; w++)
-                                {
-                                    ref var contCell = ref _screenBuffer[cellY, cellX + w];
-                                    contCell = contCell with { Character = "" };
-                                }
-                                _cursorX = Math.Min(cellX + newWidth, _width - 1);
-                                if (cellX + newWidth > _width)
-                                    _pendingWrap = true;
-                                _lastPrintedCellWidth = newWidth;
-                                _lastPrintedCell = cell;
-                            }
-                            else
-                            {
-                                cell = cell with { Character = newContent };
-                                _lastPrintedCell = cell;
-                            }
+                            int newWidth = AdjustGraphemeWidth(newContent, DisplayWidth.GetGraphemeWidth(newContent));
+                            if (!UpdateLastGrapheme(newContent, newWidth, impacts))
+                                return false;
                             
                             // If a ZWJ was appended, the next printable character should
                             // also combine with this cell (building a ZWJ sequence).
-                            _pendingGraphemeCombine = (cp == 0x200D);
+                            _pendingGraphemeCombine = _hasLastPrintedCell && cp == 0x200D;
                         }
                     }
                     i += grapheme.Length;
@@ -3984,7 +3966,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _pendingGraphemeCombine = false;
                 int cellX = _lastPrintedCellX;
                 int cellY = _lastPrintedCellY;
-                if (cellY >= 0 && cellY < _height && cellX >= 0 && cellX < _width)
+                if (cellY >= 0 && cellY < _height && cellX >= 0 && cellX < LineWidth(cellY))
                 {
                     ref var cell = ref _screenBuffer[cellY, cellX];
                     if (!string.IsNullOrEmpty(cell.Character))
@@ -3995,79 +3977,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         // Apply mode 2027 multi-codepoint width adjustment
                         newWidth = AdjustGraphemeWidth(newContent, newWidth);
                         
-                        int oldWidth = _lastPrintedCellWidth;
-                        
-                        // Handle width changes
-                        if (newWidth > oldWidth && cellX + newWidth > _width)
-                        {
-                            // Wide char doesn't fit at current position → wrap to next line
-                            // Clear the original cell first
-                            cell = cell with { Character = " " };
-                            
-                            if (_wraparoundMode)
-                            {
-                                _pendingWrap = false; // Clear pending wrap from original print
-                                // Mark soft wrap
-                                int wrapCol = _declrmm ? _marginRight : _width - 1;
-                                ref var wrapCell2 = ref _screenBuffer[cellY, wrapCol];
-                                wrapCell2 = wrapCell2 with { Attributes = wrapCell2.Attributes | CellAttributes.SoftWrap };
-                                
-                                int newX = _declrmm ? _marginLeft : 0;
-                                int newY = cellY + 1;
-                                
-                                if (newY > _scrollBottom)
-                                {
-                                    if (!ScrollUp(null))
-                                        return false;
-                                    newY = _scrollBottom;
-                                }
-                                
-                                // Print the combined wide char on the new line
-                                ref var newCell = ref _screenBuffer[newY, newX];
-                                newCell = newCell with { Character = newContent };
-                                
-                                // Add continuation cell
-                                if (newX + 1 < _width)
-                                {
-                                    ref var contCell2 = ref _screenBuffer[newY, newX + 1];
-                                    contCell2 = contCell2 with { Character = "" };
-                                }
-                                
-                                _cursorX = Math.Min(newX + newWidth, _width - 1);
-                                _cursorY = newY;
-                                if (newX + newWidth >= _width)
-                                    _pendingWrap = true;
-                                _lastPrintedCellX = newX;
-                                _lastPrintedCellY = newY;
-                                _lastPrintedCellWidth = newWidth;
-                                _lastPrintedCell = newCell;
-                            }
-                            // else: no wraparound → discard (don't print)
-                        }
-                        else
-                        {
-                            // Update the cell with the combined grapheme
-                            cell = cell with { Character = newContent };
-                            
-                            if (newWidth > oldWidth)
-                            {
-                                for (int w = oldWidth; w < newWidth && cellX + w < _width; w++)
-                                {
-                                    ref var contCell = ref _screenBuffer[cellY, cellX + w];
-                                    contCell = contCell with { Character = "" };
-                                }
-                            }
-                            
-                            _cursorX = Math.Min(cellX + newWidth, _width - 1);
-                            if (cellX + newWidth > _width)
-                                _pendingWrap = true;
-                            _lastPrintedCellWidth = newWidth;
-                            _lastPrintedCell = cell;
-                        }
+                        if (!UpdateLastGrapheme(newContent, newWidth, impacts))
+                            return false;
                         
                         // Check if the combined content still ends with ZWJ
                         var lastCombinedRune = newContent.EnumerateRunes().Last();
-                        _pendingGraphemeCombine = (lastCombinedRune.Value == 0x200D);
+                        _pendingGraphemeCombine = _hasLastPrintedCell && lastCombinedRune.Value == 0x200D;
                         
                         i += grapheme.Length;
                         continue;
@@ -4075,214 +3990,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
             }
             _pendingGraphemeCombine = false;
-
-            int cursorXBeforeDeferredWrap = _cursorX;
-            int cursorYBeforeDeferredWrap = _cursorY;
-            var textWrapRowId = _pendingWrap && _wraparoundMode ? CaptureTextWrapRow(_cursorY) : null;
-            var textWrapColumn = _width;
-            
-            // Deferred wrap: If a wrap was pending from a previous character, perform it now
-            // This is standard VT100/xterm behavior - wrap only happens when the NEXT
-            // printable character is written, not when cursor reaches the margin.
-            // Only wrap if wraparound mode is enabled (DECAWM, mode 7)
-            if (_pendingWrap)
-            {
-                if (_wraparoundMode)
-                {
-                    _pendingWrap = false;
-                
-                    // Mark the last cell of the row being left as a soft-wrap point.
-                    int wrapCol = _declrmm ? _marginRight : _width - 1;
-                    ref var wrapCell = ref _screenBuffer[_cursorY, wrapCol];
-                    wrapCell = wrapCell with { Attributes = wrapCell.Attributes | CellAttributes.SoftWrap };
-                
-                    // When DECLRMM is enabled, wrap to left margin, not column 0
-                    _cursorX = _declrmm ? _marginLeft : 0;
-                    _cursorY++;
-                }
-                else
-                {
-                    // Wraparound disabled: stay at the last column, overwrite it
-                    _pendingWrap = false;
-                }
-            }
-            
-            // Scroll if cursor is past the bottom of the screen BEFORE writing
-            if (_cursorY >= _height)
-            {
-                if (!ScrollUp(impacts))
-                {
-                    RestoreValidCursorAfterAbortedScroll(
-                        cursorXBeforeDeferredWrap,
-                        cursorYBeforeDeferredWrap);
-                    return false;
-                }
-                _cursorY = _height - 1;
-            }
-            
-            // Determine effective right margin for wrapping
-            // Only use margin boundary if cursor is within the L/R margin region
-            bool insideLRMargin = !_declrmm || (_cursorX >= _marginLeft && _cursorX <= _marginRight);
-            int effectiveRightMargin = (_declrmm && insideLRMargin) ? _marginRight : _width - 1;
-            int availableWidth = effectiveRightMargin - (_declrmm ? _marginLeft : 0) + 1;
-            
-            // Wide char that can never fit (terminal too narrow): per Ghostty behavior,
-            // the character is silently dropped and pending wrap is set so that the next
-            // printable character triggers a line wrap.
-            if (graphemeWidth > 1 && availableWidth < graphemeWidth)
-            {
-                MoveTextAnchorsForWrap(textWrapRowId, textWrapColumn, _cursorY);
-                _pendingWrap = true;
-                i += grapheme.Length;
-                continue;
-            }
-            
-            // Wide char at edge: if the character won't fit (needs 2+ cells but only 1 remains)
-            if (graphemeWidth > 1 && _cursorX + graphemeWidth - 1 > effectiveRightMargin && !_pendingWrap)
-            {
-                int cursorXBeforeWideWrap = _cursorX;
-                int cursorYBeforeWideWrap = _cursorY;
-                var wideWrapRowId = CaptureTextWrapRow(_cursorY);
-                if (_wraparoundMode)
-                {
-                    if (_declrmm)
-                    {
-                        // DECLRMM margin wrap: no spacer head, no soft wrap flag.
-                        // Just move cursor to left margin on the next row.
-                        _cursorX = _marginLeft;
-                        _cursorY++;
-                        if (_cursorY >= _height)
-                        {
-                            if (!ScrollUp(impacts))
-                            {
-                                RestoreValidCursorAfterAbortedScroll(
-                                    cursorXBeforeWideWrap,
-                                    cursorYBeforeWideWrap);
-                                return false;
-                            }
-                            _cursorY = _height - 1;
-                        }
-                    }
-                    else
-                    {
-                        // Screen-edge wrap: mark right edge as spacer head with soft wrap.
-                        ref var spacerCell = ref _screenBuffer[_cursorY, effectiveRightMargin];
-                        spacerCell = spacerCell with
-                        {
-                            Character = " ",
-                            IsWideWrapPadding = true,
-                            TrackedHyperlink = _currentHyperlink,
-                            Attributes = spacerCell.Attributes | CellAttributes.SoftWrap
-                        };
-                        _currentHyperlink?.AddRef();
-                        
-                        _cursorX = 0;
-                        _cursorY++;
-                        if (_cursorY >= _height)
-                        {
-                            if (!ScrollUp(impacts))
-                            {
-                                RestoreValidCursorAfterAbortedScroll(
-                                    cursorXBeforeWideWrap,
-                                    cursorYBeforeWideWrap);
-                                return false;
-                            }
-                            _cursorY = _height - 1;
-                        }
-                    }
-                    textWrapRowId = wideWrapRowId;
-                    textWrapColumn = effectiveRightMargin;
-                }
-                else
-                {
-                    // Wraparound disabled and wide char doesn't fit — skip it
-                    i += grapheme.Length;
-                    continue;
-                }
-            }
-            
-            if (_cursorX < _width && _cursorY < _height)
-            {
-                // IRM (Insert Mode): shift existing characters right before placing new one
-                if (_insertMode)
-                {
-                    InsertCharacters(graphemeWidth, impacts, printing: true);
-                }
-                // Wrapped boundaries belong to this glyph, not the cells IRM just shifted.
-                MoveTextAnchorsForWrap(textWrapRowId, textWrapColumn, _cursorY);
-                
-                var sequence = ++_writeSequence;
-                var writtenAt = _timeProvider.GetUtcNow();
-                
-                // If overwriting a continuation cell (tail of a wide char), clear the leading cell
-                if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
-                {
-                    ref var leadingCell = ref _screenBuffer[_cursorY, _cursorX - 1];
-                    if (leadingCell.Character.Length > 0 && leadingCell.Character != " ")
-                    {
-                        leadingCell.TrackedHyperlink?.Release();
-                        leadingCell = TerminalCell.Empty;
-                    }
-                }
-                
-                // If overwriting the leading cell of a wide char, clear the continuation cell
-                if (_cursorX + 1 < _width && graphemeWidth == 1)
-                {
-                    ref var nextCell = ref _screenBuffer[_cursorY, _cursorX + 1];
-                    if (nextCell.Character == "" && _screenBuffer[_cursorY, _cursorX].Character.Length > 0
-                        && DisplayWidth.GetGraphemeWidth(_screenBuffer[_cursorY, _cursorX].Character) > 1)
-                    {
-                        nextCell.TrackedHyperlink?.Release();
-                        nextCell = TerminalCell.Empty;
-                    }
-                }
-                
-                _currentHyperlink?.AddRef();
-                
-                var effectiveAttributes = _cursorProtected
-                    ? _currentAttributes | CellAttributes.Protected
-                    : _currentAttributes;
-                var cell = new TerminalCell(
-                    grapheme, _currentForeground, _currentBackground, effectiveAttributes,
-                    sequence, writtenAt, _currentHyperlink,
-                    _currentUnderlineColor, _currentUnderlineStyle);
-                SetCell(_cursorY, _cursorX, cell, impacts);
-                
-                // Save last printed cell for CSI b (REP) command and VS15/VS16 handling
-                _lastPrintedCell = cell;
-                _hasLastPrintedCell = true;
-                _lastPrintedCellX = _cursorX;
-                _lastPrintedCellY = _cursorY;
-                _lastPrintedCellWidth = graphemeWidth;
-                
-                for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
-                {
-                    _currentHyperlink?.AddRef();
-                    SetCell(_cursorY, _cursorX + w, new TerminalCell(
-                        "", _currentForeground, _currentBackground, _currentAttributes,
-                        sequence, writtenAt, _currentHyperlink,
-                        _currentUnderlineColor, _currentUnderlineStyle), impacts);
-                }
-                
-                _cursorX += graphemeWidth;
-                
-                // When cursor reaches or exceeds the right margin, set pending wrap
-                // instead of immediately wrapping. The wrap will happen when the next
-                // printable character is written (or never, if CR/LF comes first).
-                if (_cursorX > effectiveRightMargin)
-                {
-                    _cursorX = effectiveRightMargin; // Cursor stays at last column within margin
-                    _pendingWrap = true;
-                }
-                
-                // If grapheme ends with ZWJ and mode 2027 is on, the next character
-                // should combine with this cell (building ZWJ/Devanagari sequences).
-                if (_graphemeClusterMode && grapheme.Length > 0)
-                {
-                    var lastRune = grapheme.EnumerateRunes().Last();
-                    _pendingGraphemeCombine = (lastRune.Value == 0x200D);
-                }
-            }
+            if (!WriteGrapheme(grapheme, graphemeWidth, impacts))
+                return false;
             i += grapheme.Length;
         }
 
@@ -4291,14 +4000,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void RestoreValidCursorAfterAbortedScroll(int fallbackX, int fallbackY)
     {
-        if (_cursorX >= 0 && _cursorX < _width &&
-            _cursorY >= 0 && _cursorY < _height)
+        if (_cursorY >= 0 && _cursorY < _height &&
+            _cursorX >= 0 && _cursorX < LineWidth(_cursorY))
         {
             return;
         }
 
-        _cursorX = Math.Clamp(fallbackX, 0, _width - 1);
         _cursorY = Math.Clamp(fallbackY, 0, _height - 1);
+        _cursorX = Math.Clamp(fallbackX, 0, LineWidth(_cursorY) - 1);
     }
 
     /// <summary>
@@ -4334,19 +4043,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// VS15 forces text presentation (1 cell wide), VS16 forces emoji presentation (2 cells wide).
     /// When the width changes, the cursor position and screen buffer are adjusted.
     /// </summary>
-    private void ApplyRetroactiveVariationSelector(int selectorCodepoint, List<CellImpact>? impacts)
+    private bool ApplyRetroactiveVariationSelector(int selectorCodepoint, List<CellImpact>? impacts)
     {
         int cellX = _lastPrintedCellX;
         int cellY = _lastPrintedCellY;
         int oldWidth = _lastPrintedCellWidth;
         
         // Validate the cell is still on screen
-        if (cellY < 0 || cellY >= _height || cellX < 0 || cellX >= _width)
-            return;
+        if (cellY < 0 || cellY >= _height || cellX < 0 || cellX >= LineWidth(cellY))
+            return true;
         
         ref var cell = ref _screenBuffer[cellY, cellX];
         if (string.IsNullOrEmpty(cell.Character))
-            return;
+            return true;
         
         // Check if the base character is a valid target for this variation selector.
         // VS16 (emoji presentation) should only be applied to characters with the
@@ -4358,7 +4067,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (selectorCodepoint == 0xFE0F) // VS16
         {
             if (!DisplayWidth.HasEmojiProperty(baseRune.Value) && !DisplayWidth.IsSmpEmoji(baseRune.Value))
-                return; // Not an emoji base — ignore VS16
+                return true; // Not an emoji base — ignore VS16
         }
         
         // Compute the new grapheme by appending the variation selector
@@ -4372,113 +4081,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Don't modify the cell content. For example, VS15 on always-wide
             // SMP emoji (like 🧠) or VS16 on already-wide emoji should be
             // silently discarded. This matches Ghostty behavior.
-            return;
+            return true;
         }
         
-        if (newWidth < oldWidth)
-        {
-            // Shrinking (VS15: wide → narrow). Clear the continuation cell(s) and
-            // move the cursor back.
-            cell = cell with { Character = newGrapheme };
-            
-            // Clear continuation cells
-            for (int w = newWidth; w < oldWidth && cellX + w < _width; w++)
-            {
-                _screenBuffer[cellY, cellX + w] = TerminalCell.Empty;
-            }
-            
-            // Adjust cursor: move back by the difference in width
-            _cursorX = cellX + newWidth;
-            
-            // If pending wrap was set because the wide char hit the margin,
-            // it should be cleared since the narrow char no longer fills it
-            if (_pendingWrap)
-                _pendingWrap = false;
-        }
-        else
-        {
-            // Widening (VS16: narrow → wide). Need to check if there's room.
-            // If the cell is at the right edge, wrap to the next line — the wide
-            // char can't fit in the remaining space. Replace the current position
-            // with a spacer and print the wide char at the start of the next line.
-            // This matches Ghostty behavior for VS16 widening at margins.
-            if (cellX + newWidth > _width)
-            {
-                if (!_wraparoundMode)
-                {
-                    // Wraparound disabled — can't widen beyond the right margin.
-                    // Discard the VS and keep the cell unchanged.
-                    return;
-                }
-                
-                // Widening (VS16: narrow → wide) with wrap. The wide char can't fit
-                // in the remaining space. Replace the current position with a spacer
-                // and print the wide char at the start of the next line.
-                // This matches Ghostty behavior for VS16 widening at margins.
-                
-                // Clear the cell at the current position (spacer/blank)
-                cell = TerminalCell.Empty;
-                
-                // Move to start of next line (scroll if needed)
-                int newRow = cellY + 1;
-                int scrollBottom = _scrollBottom;
-                if (newRow > scrollBottom)
-                {
-                    if (!ScrollUp(null))
-                        return;
-                    newRow = scrollBottom;
-                }
-                _cursorY = newRow;
-                _cursorX = 0;
-                
-                // Write the wide character at the new position
-                ref var newCell = ref _screenBuffer[_cursorY, 0];
-                newCell = newCell with { Character = newGrapheme };
-                
-                // Add continuation cell (empty string marks it as wide char tail)
-                if (_width > 1)
-                {
-                    ref var contCell = ref _screenBuffer[_cursorY, 1];
-                    contCell = contCell with { Character = "" };
-                }
-                
-                // Position cursor after the wide char
-                _cursorX = newWidth;
-                if (_cursorX > _width - 1)
-                {
-                    _cursorX = _width - 1;
-                    _pendingWrap = true;
-                }
-                
-                // Update tracking
-                _lastPrintedCellX = 0;
-                _lastPrintedCellY = _cursorY;
-                _lastPrintedCell = newCell;
-                _lastPrintedCellWidth = newWidth;
-                return;
-            }
-            
-            cell = cell with { Character = newGrapheme };
-            
-            // Add continuation cell(s) (empty string marks as wide char tail)
-            for (int w = oldWidth; w < newWidth && cellX + w < _width; w++)
-            {
-                ref var contCell = ref _screenBuffer[cellY, cellX + w];
-                contCell = contCell with { Character = "" };
-            }
-            
-            // Adjust cursor forward
-            _cursorX = cellX + newWidth;
-            if (_cursorX > _width - 1)
-            {
-                _cursorX = _width - 1;
-                _pendingWrap = true;
-            }
-        }
-        
-        // Update tracking
-        _lastPrintedCell = cell;
-        _lastPrintedCellWidth = newWidth;
+        return UpdateLastGrapheme(newGrapheme, newWidth, impacts, preserveOnNoWrap: true);
     }
 
     /// <summary>
@@ -4604,7 +4210,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 
                 // LF moves cursor down. If at bottom of scroll region, scroll up.
-                if (_cursorY >= _scrollBottom)
+                if (_cursorY == _scrollBottom)
                 {
                     if (!ScrollUp(impacts))
                         return false;
@@ -4614,6 +4220,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     _cursorY++;
                 }
+                ClampCursorToLine();
                 break;
                 
             case '\r':
@@ -4630,7 +4237,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             case '\t':
                 // HT: Move to next tab stop
                 // When DECLRMM is enabled and cursor is within margins, clamp to right margin
-                int tabRight = (_declrmm && _cursorX <= _marginRight) ? _marginRight : _width - 1;
+                int tabRight = (_declrmm && _cursorX <= _marginRight) ? _marginRight : LineWidth(_cursorY) - 1;
                 _cursorX = NextTabStop(_cursorX, tabRight);
                 break;
                 
@@ -4673,6 +4280,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _cursorY = Math.Max(_scrollTop, _cursorY - token.Count);
                 else
                     _cursorY = Math.Max(0, _cursorY - token.Count);
+                ClampCursorToLine();
                 break;
                 
             case CursorMoveDirection.Down:
@@ -4682,6 +4290,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _cursorY = Math.Min(_scrollBottom, _cursorY + token.Count);
                 else
                     _cursorY = Math.Min(_height - 1, _cursorY + token.Count);
+                ClampCursorToLine();
                 break;
                 
             case CursorMoveDirection.Forward:
@@ -4689,7 +4298,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (_declrmm && _cursorX <= _marginRight)
                     _cursorX = Math.Min(_marginRight, _cursorX + token.Count);
                 else
-                    _cursorX = Math.Min(_width - 1, _cursorX + token.Count);
+                    _cursorX = Math.Min(LineWidth(_cursorY) - 1, _cursorX + token.Count);
                 break;
                 
             case CursorMoveDirection.NextLine:
@@ -4774,8 +4383,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 
                 // Extended: wrap from top to bottom
-                _cursorX = rightMargin;
                 _cursorY = bottom;
+                _cursorX = _declrmm ? rightMargin : LineWidth(_cursorY) - 1;
                 count--;
                 continue;
             }
@@ -4792,8 +4401,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     break;
             }
             
-            _cursorX = rightMargin;
             _cursorY--;
+            _cursorX = _declrmm ? rightMargin : LineWidth(_cursorY) - 1;
             count--;
         }
     }
@@ -4871,7 +4480,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         // When DECLRMM is enabled, clear operations respect left/right margins
         int effectiveLeft = _declrmm ? _marginLeft : 0;
-        int effectiveRight = _declrmm ? _marginRight : _width - 1;
+        int effectiveRight = _declrmm ? _marginRight : LineWidth(_cursorY) - 1;
         InvalidateTextAnchorsInRange(_cursorY, _cursorY,
             mode == ClearMode.ToEnd ? Math.Max(effectiveLeft, _cursorX -
                 (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "" ? 1 : 0)) : effectiveLeft,
@@ -5133,16 +4742,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         // Always save the main screen buffer for internal state (needed for snapshots)
         // and for presentation adapters that don't handle alternate screen natively
-        _savedMainScreenBuffer = new TerminalCell[_height, _width];
-        for (int y = 0; y < _height; y++)
-        {
-            for (int x = 0; x < _width; x++)
-            {
-                var cell = _screenBuffer[y, x];
-                cell.TrackedHyperlink?.AddRef();
-                _savedMainScreenBuffer[y, x] = cell;
-            }
-        }
+        _savedMainScreenBuffer = _screenBuffer.Clone();
         
         _kgpGraphicsState.EnterAlternateScreen();
         _sixelGraphicsState.EnterAlternateScreen();
@@ -5174,17 +4774,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         RestoreMainTextCoordinates();
         if (_inAlternateScreen && _savedMainScreenBuffer is { } main &&
-            (main.GetLength(1) != _width || main.GetLength(0) != _height) &&
+            (main.Width != _width || main.Height != _height) &&
             _presentation is ITerminalReflowProvider { ReflowEnabled: true } provider)
         {
             var width = _width;
             var height = _height;
-            foreach (var cell in _screenBuffer)
-                cell.TrackedHyperlink?.Release();
+            _screenBuffer.ReleaseHyperlinks();
             _screenBuffer = main;
             _savedMainScreenBuffer = null;
-            _width = main.GetLength(1);
-            _height = main.GetLength(0);
+            _width = main.Width;
+            _height = main.Height;
             _cursorX = _alternateScreenSavedCursorX;
             _cursorY = _alternateScreenSavedCursorY;
             _pendingWrap = _alternateScreenSavedPendingWrap;
@@ -5232,8 +4831,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return false;
 
         var restoreImpacts = Capabilities.HandlesAlternateScreenNatively ? null : impacts;
-        int savedHeight = savedBuffer.GetLength(0);
-        int savedWidth = savedBuffer.GetLength(1);
+        int savedHeight = savedBuffer.Height;
+        int savedWidth = savedBuffer.Width;
         int restoreHeight = Math.Min(_height, savedHeight);
         int restoreWidth = Math.Min(_width, savedWidth);
         foreach (var anchor in _textAnchors)
@@ -5250,6 +4849,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         InvalidateTextAnchorRetention();
         for (int y = 0; y < restoreHeight; y++)
         {
+            _screenBuffer.SetRendition(y, savedBuffer.GetRendition(y));
             for (int x = 0; x < restoreWidth; x++)
                 SetCell(y, x, savedBuffer[y, x], restoreImpacts);
             var edge = _screenBuffer[y, _width - 1];
@@ -5260,6 +4860,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         for (int y = 0; y < _height; y++)
         {
+            if (y >= restoreHeight)
+                _screenBuffer.SetRendition(y, LineRendition.SingleWidth);
             for (int x = (y < restoreHeight ? restoreWidth : 0); x < _width; x++)
                 SetCell(y, x, TerminalCell.Empty, restoreImpacts);
         }
@@ -5278,7 +4880,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _savedMainScreenBuffer = null;
         _cursorX = Math.Clamp(_alternateScreenSavedCursorX, 0, _width - 1);
         _cursorY = Math.Clamp(_alternateScreenSavedCursorY, 0, _height - 1);
-        _pendingWrap = _alternateScreenSavedPendingWrap && _cursorX == _width - 1;
+        if (savedWidth != _width)
+        {
+            for (var row = 0; row < _height; row++)
+                CropLineRendition(row, restoreImpacts);
+        }
+        _cursorX = Math.Min(_cursorX, LineWidth(_cursorY) - 1);
+        _pendingWrap = _alternateScreenSavedPendingWrap && _cursorX == LineWidth(_cursorY) - 1;
         return true;
     }
 
@@ -5287,13 +4895,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_savedMainScreenBuffer is not { } savedBuffer)
             return;
 
-        for (int y = 0; y < savedBuffer.GetLength(0); y++)
-        {
-            for (int x = 0; x < savedBuffer.GetLength(1); x++)
-            {
-                savedBuffer[y, x].TrackedHyperlink?.Release();
-            }
-        }
+        savedBuffer.ReleaseHyperlinks();
 
         _savedMainScreenBuffer = null;
     }
@@ -5605,7 +5207,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (int.TryParse(parts[0], out var row) && int.TryParse(parts[1], out var col))
             {
                 _cursorY = Math.Clamp(row - 1, 0, _height - 1);
-                _cursorX = Math.Clamp(col - 1, 0, _width - 1);
+                _cursorX = Math.Clamp(col - 1, 0, LineWidth(_cursorY) - 1);
             }
         }
         else if (parts.Length == 1)
@@ -5613,6 +5215,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (int.TryParse(parts[0], out var row))
             {
                 _cursorY = Math.Clamp(row - 1, 0, _height - 1);
+                ClampCursorToLine();
             }
         }
     }
@@ -5649,20 +5252,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (!respectProtection || !IsProtectedCell(_cursorY, _cursorX - 1))
                 SetCell(_cursorY, _cursorX - 1, eraseCell, impacts);
         }
-        for (int x = _cursorX; x < _width; x++)
-        {
-            if (respectProtection && IsProtectedCell(_cursorY, x))
-                continue;
-            SetCell(_cursorY, x, eraseCell, impacts);
-        }
+        ClearScreenRow(_cursorY, _cursorX, _width - 1, eraseCell, impacts, respectProtection);
         for (int y = _cursorY + 1; y < _height; y++)
         {
-            for (int x = 0; x < _width; x++)
-            {
-                if (respectProtection && IsProtectedCell(y, x))
-                    continue;
-                SetCell(y, x, eraseCell, impacts);
-            }
+            ClearScreenRow(y, 0, _width - 1, eraseCell, impacts, respectProtection);
         }
     }
 
@@ -5673,19 +5266,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var eraseCell = CreateEraseCell();
         for (int y = 0; y < _cursorY; y++)
         {
-            for (int x = 0; x < _width; x++)
-            {
-                if (respectProtection && IsProtectedCell(y, x))
-                    continue;
-                SetCell(y, x, eraseCell, impacts);
-            }
+            ClearScreenRow(y, 0, _width - 1, eraseCell, impacts, respectProtection);
         }
-        for (int x = 0; x <= _cursorX && x < _width; x++)
-        {
-            if (respectProtection && IsProtectedCell(_cursorY, x))
-                continue;
-            SetCell(_cursorY, x, eraseCell, impacts);
-        }
+        ClearScreenRow(_cursorY, 0, Math.Min(_cursorX, _width - 1), eraseCell, impacts, respectProtection);
         // If the cell just past cursor is a continuation cell, its leading cell was erased —
         // clear the orphaned continuation too.
         if (_cursorX + 1 < _width && _screenBuffer[_cursorY, _cursorX + 1].Character == "")
@@ -5757,21 +5340,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // run here as well would see a still-in-place placement's rows
         // overwritten one by one and destroy it before the real geometry
         // update ever runs.
-        for (int y = _scrollTop; y < _scrollBottom; y++)
-        {
-            for (int x = leftCol; x <= rightCol; x++)
-            {
-                var cellFromBelow = _screenBuffer[y + 1, x];
-                SetCell(y, x, cellFromBelow, impacts, damageSixel: false);
-            }
-        }
-        
-        // Clear the bottom row of the scroll region (within margins)
-        var eraseCell = CreateEraseCell();
-        for (int x = leftCol; x <= rightCol; x++)
-        {
-            SetCell(_scrollBottom, x, eraseCell, impacts, damageSixel: false);
-        }
+        ShiftScreenRows(_scrollTop, _scrollBottom, leftCol, rightCol, down: false,
+            impacts, damageSixel: false);
 
         if (createsKgpHistory)
         {
@@ -5802,6 +5372,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _sixelGraphicsState.AdjustActivePlacementsForScroll(rowDelta: -1, sixelScrollingRegion);
         }
 
+        ClampCursorToLine();
         return true;
     }
     
@@ -5826,21 +5397,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // All affected cells need to be recorded as impacts. Sixel damage is
         // suppressed here for the same reason as ScrollUp: AdjustActivePlacementsForScroll
         // (below) recomputes each placement's post-scroll geometry directly.
-        for (int y = _scrollBottom; y > _scrollTop; y--)
-        {
-            for (int x = leftCol; x <= rightCol; x++)
-            {
-                var cellFromAbove = _screenBuffer[y - 1, x];
-                SetCell(y, x, cellFromAbove, impacts, damageSixel: false);
-            }
-        }
-        
-        // Clear the top row of the scroll region (within margins)
-        var eraseCell = CreateEraseCell();
-        for (int x = leftCol; x <= rightCol; x++)
-        {
-            SetCell(_scrollTop, x, eraseCell, impacts, damageSixel: false);
-        }
+        ShiftScreenRows(_scrollTop, _scrollBottom, leftCol, rightCol, down: true,
+            impacts, damageSixel: false);
 
         // Reverse scrolling does not pull rows from history. Placements whose
         // anchors are already in scrollback stay pinned to those unchanged rows.
@@ -5851,6 +5409,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             Capabilities.CellPixelHeight);
         _sixelGraphicsState.AdjustActivePlacementsForScroll(rowDelta: 1, sixelScrollingRegion);
 
+        ClampCursorToLine();
         return true;
     }
     
@@ -5865,7 +5424,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var timestamp = _timeProvider.GetUtcNow();
         EnsureTextRows();
         var textRowId = _textScreenRowIds[row];
-        var push = _scrollbackBuffer!.PushWithIdentity(cells, _width, timestamp);
+        var push = _scrollbackBuffer!.PushWithIdentity(cells, _width, timestamp, _screenBuffer.GetRendition(row));
         _textHistoryRowIds[push.RowId] = textRowId;
         RetainTextAnchorsInHistory(textRowId);
         _scrollbackCallback?.Invoke(new ScrollbackRowEventArgs(this, cells, _width, timestamp));
@@ -5927,21 +5486,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _sixelGraphicsState.ReleasePlacementsAnchoredAtRow(bottom);
             
             // Shift lines down from cursor position to bottom of scroll region
-            for (int y = bottom; y > _cursorY; y--)
-            {
-                for (int x = leftCol; x <= rightCol; x++)
-                {
-                    var cellFromAbove = _screenBuffer[y - 1, x];
-                    SetCell(y, x, cellFromAbove, impacts);
-                }
-            }
-            
-            // Clear the line at cursor position (within margins)
-            var eraseCell = CreateEraseCell();
-            for (int x = leftCol; x <= rightCol; x++)
-            {
-                SetCell(_cursorY, x, eraseCell, impacts);
-            }
+            ShiftScreenRows(_cursorY, bottom, leftCol, rightCol, down: true, impacts);
         }
     }
     
@@ -5973,21 +5518,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _sixelGraphicsState.ReleasePlacementsAnchoredAtRow(_cursorY);
             
             // Shift lines up from cursor position to bottom of scroll region
-            for (int y = _cursorY; y < bottom; y++)
-            {
-                for (int x = leftCol; x <= rightCol; x++)
-                {
-                    var cellFromBelow = _screenBuffer[y + 1, x];
-                    SetCell(y, x, cellFromBelow, impacts);
-                }
-            }
-            
-            // Clear the bottom line of the scroll region (within margins)
-            var eraseCell = CreateEraseCell();
-            for (int x = leftCol; x <= rightCol; x++)
-            {
-                SetCell(bottom, x, eraseCell, impacts);
-            }
+            ShiftScreenRows(_cursorY, bottom, leftCol, rightCol, down: false, impacts);
         }
         
         // Clean up wide char orphans at margin boundaries after line operations.
@@ -6053,20 +5584,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
 
         int leftCol = _declrmm ? Math.Max(_cursorX, _marginLeft) : _cursorX;
-        int rightCol = _declrmm ? _marginRight : _width - 1;
-        if (leftCol > rightCol)
-            return;
-
-        count = Math.Min(count, rightCol - leftCol + 1);
-        var eraseCell = CreateEraseCell();
         for (var y = _scrollTop; y <= _scrollBottom; y++)
-        {
-            for (var x = rightCol; x >= leftCol + count; x--)
-                SetCell(y, x, _screenBuffer[y, x - count], impacts);
-
-            for (var x = leftCol; x < leftCol + count; x++)
-                SetCell(y, x, eraseCell, impacts);
-        }
+            InsertCharactersInRow(y, leftCol, count, impacts);
     }
 
     private void DeleteColumns(int count, List<CellImpact>? impacts = null)
@@ -6077,20 +5596,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
 
         int leftCol = _declrmm ? Math.Max(_cursorX, _marginLeft) : _cursorX;
-        int rightCol = _declrmm ? _marginRight : _width - 1;
-        if (leftCol > rightCol)
-            return;
-
-        count = Math.Min(count, rightCol - leftCol + 1);
-        var eraseCell = CreateEraseCell();
         for (var y = _scrollTop; y <= _scrollBottom; y++)
-        {
-            for (var x = leftCol; x <= rightCol - count; x++)
-                SetCell(y, x, _screenBuffer[y, x + count], impacts);
-
-            for (var x = rightCol - count + 1; x <= rightCol; x++)
-                SetCell(y, x, eraseCell, impacts);
-        }
+            DeleteCharactersInRow(y, leftCol, count, impacts);
     }
 
     private void EraseRectangularArea(RectangularEraseToken token, List<CellImpact>? impacts = null)
@@ -6117,6 +5624,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
     
     private void DeleteCharacters(int count, List<CellImpact>? impacts = null)
+        => DeleteCharactersInRow(_cursorY, _cursorX, count, impacts);
+
+    private void DeleteCharactersInRow(int row, int column, int count, List<CellImpact>? impacts)
     {
         // DCH resets pending wrap per ECMA-48
         _pendingWrap = false;
@@ -6128,58 +5638,59 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Delete n characters at cursor, shifting remaining characters left
         // Blank characters are inserted at the right margin
         // When DECLRMM is enabled, operations are bounded by left/right margins
-        int rightEdge = _declrmm ? _marginRight + 1 : _width;
-        count = Math.Min(count, rightEdge - _cursorX);
+        int rightEdge = _declrmm ? _marginRight + 1 : LineWidth(row);
+        count = Math.Min(count, rightEdge - column);
         if (count <= 0)
             return;
         
         // Handle wide char splitting at cursor position:
         // If cursor is on a continuation cell, clear the leading cell
-        if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
+        if (column > 0 && _screenBuffer[row, column].Character == "")
         {
-            InvalidateTextAnchorsInRange(_cursorY, _cursorY, _cursorX - 1, _cursorX);
+            InvalidateTextAnchorsInRange(row, row, column - 1, column);
             var erase = CreateEraseCell();
-            SetCell(_cursorY, _cursorX - 1, erase, impacts);
-            SetCell(_cursorY, _cursorX, erase, impacts);
+            SetCell(row, column - 1, erase, impacts);
+            SetCell(row, column, erase, impacts);
         }
         
         // Handle wide char splitting at the boundary after deletion:
-        // If the cell at _cursorX + count is a continuation cell, clear its leading cell
-        int shiftStart = _cursorX + count;
-        if (shiftStart < rightEdge && _screenBuffer[_cursorY, shiftStart].Character == ""
+        // If the first shifted cell is a continuation cell, clear its leading cell.
+        int shiftStart = column + count;
+        if (shiftStart < rightEdge && _screenBuffer[row, shiftStart].Character == ""
             && shiftStart > 0)
         {
-            InvalidateTextAnchorsInRange(_cursorY, _cursorY, shiftStart - 1, shiftStart);
+            InvalidateTextAnchorsInRange(row, row, shiftStart - 1, shiftStart);
             var erase = CreateEraseCell();
-            SetCell(_cursorY, shiftStart - 1, erase, impacts);
-            SetCell(_cursorY, shiftStart, erase, impacts);
+            SetCell(row, shiftStart - 1, erase, impacts);
+            SetCell(row, shiftStart, erase, impacts);
         }
         
-        ShiftTextAnchorsInRow(_cursorY, _cursorX, rightEdge, count, insert: false);
-        for (int x = _cursorX; x < rightEdge - count; x++)
+        ShiftTextAnchorsInRow(row, column, rightEdge, count, insert: false);
+        for (int x = column; x < rightEdge - count; x++)
         {
-            var cellFromRight = _screenBuffer[_cursorY, x + count];
-            SetCell(_cursorY, x, cellFromRight, impacts);
+            var cellFromRight = _screenBuffer[row, x + count];
+            cellFromRight.TrackedHyperlink?.AddRef();
+            SetCell(row, x, cellFromRight, impacts);
         }
         
         // Fill the right edge with blanks
         var eraseCell = CreateEraseCell();
         for (int x = rightEdge - count; x < rightEdge; x++)
         {
-            SetCell(_cursorY, x, eraseCell, impacts);
+            SetCell(row, x, eraseCell, impacts);
         }
         
         // Clean up wide char orphans after shift and erasure:
         // 1. If a wide char's leading cell was shifted into the last position before
         //    the erased zone, its continuation was erased → blank the leading cell too.
         int lastShifted = rightEdge - count - 1;
-        if (lastShifted >= _cursorX && lastShifted < _width)
+        if (lastShifted >= column && lastShifted < _width)
         {
-            var ch = _screenBuffer[_cursorY, lastShifted].Character;
+            var ch = _screenBuffer[row, lastShifted].Character;
             if (ch.Length > 0 && ch != " " && ch != "" && DisplayWidth.GetGraphemeWidth(ch) > 1)
             {
-                InvalidateTextAnchorsInRange(_cursorY, _cursorY, lastShifted, lastShifted);
-                SetCell(_cursorY, lastShifted, eraseCell, impacts);
+                InvalidateTextAnchorsInRange(row, row, lastShifted, lastShifted);
+                SetCell(row, lastShifted, eraseCell, impacts);
             }
         }
         
@@ -6187,15 +5698,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         //    (outside margin), it was orphaned by the leading cell being erased → clear it.
         if (_declrmm && rightEdge < _width)
         {
-            if (_screenBuffer[_cursorY, rightEdge].Character == "")
+            if (_screenBuffer[row, rightEdge].Character == "")
             {
-                InvalidateTextAnchorsInRange(_cursorY, _cursorY, rightEdge, rightEdge);
-                SetCell(_cursorY, rightEdge, eraseCell, impacts);
+                InvalidateTextAnchorsInRange(row, row, rightEdge, rightEdge);
+                SetCell(row, rightEdge, eraseCell, impacts);
             }
         }
     }
     
     private void InsertCharacters(int count, List<CellImpact>? impacts = null, bool printing = false)
+        => InsertCharactersInRow(_cursorY, _cursorX, count, impacts, printing);
+
+    private void InsertCharactersInRow(int row, int column, int count, List<CellImpact>? impacts, bool printing = false)
     {
         // ICH resets pending wrap per ECMA-48
         _pendingWrap = false;
@@ -6206,20 +5720,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Insert n blank characters at cursor, shifting existing characters right
         // Characters pushed off the right margin are lost
         // When DECLRMM is enabled, operations are bounded by left/right margins
-        int rightEdge = _declrmm ? _marginRight + 1 : _width;
-        count = Math.Min(count, rightEdge - _cursorX);
+        int rightEdge = _declrmm ? _marginRight + 1 : LineWidth(row);
+        count = Math.Min(count, rightEdge - column);
         
         if (count <= 0)
             return;
         
         // Handle wide char splitting at cursor position:
         // If cursor is on a continuation cell, clear both the leading cell and the continuation
-        if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
+        if (column > 0 && _screenBuffer[row, column].Character == "")
         {
-            InvalidateTextAnchorsInRange(_cursorY, _cursorY, _cursorX - 1, _cursorX);
+            InvalidateTextAnchorsInRange(row, row, column - 1, column);
             var eraseCell = CreateEraseCell();
-            SetCell(_cursorY, _cursorX - 1, eraseCell, impacts);
-            SetCell(_cursorY, _cursorX, eraseCell, impacts);
+            SetCell(row, column - 1, eraseCell, impacts);
+            SetCell(row, column, eraseCell, impacts);
         }
         
         // Handle wide char splitting at the right edge:
@@ -6228,42 +5742,43 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         int shiftBoundary = rightEdge - count;
         if (shiftBoundary >= 0 && shiftBoundary < rightEdge)
         {
-            var cellAtBoundary = _screenBuffer[_cursorY, shiftBoundary];
+            var cellAtBoundary = _screenBuffer[row, shiftBoundary];
             if (cellAtBoundary.Character.Length > 0 && cellAtBoundary.Character != " " 
                 && DisplayWidth.GetGraphemeWidth(cellAtBoundary.Character) > 1
                 && shiftBoundary + 1 < rightEdge)
             {
                 // Wide char at boundary — continuation will be orphaned, clear the wide char
-                InvalidateTextAnchorsInRange(_cursorY, _cursorY, shiftBoundary, shiftBoundary + 1);
+                InvalidateTextAnchorsInRange(row, row, shiftBoundary, shiftBoundary + 1);
                 var eraseCell = CreateEraseCell();
-                SetCell(_cursorY, shiftBoundary, eraseCell, impacts);
-                SetCell(_cursorY, shiftBoundary + 1, eraseCell, impacts);
+                SetCell(row, shiftBoundary, eraseCell, impacts);
+                SetCell(row, shiftBoundary + 1, eraseCell, impacts);
             }
             // Check if boundary is on a continuation cell — its leading half stays, clear continuation
-            if (shiftBoundary > 0 && _screenBuffer[_cursorY, shiftBoundary].Character == ""
-                && _screenBuffer[_cursorY, shiftBoundary - 1].Character.Length > 0
-                && _screenBuffer[_cursorY, shiftBoundary - 1].Character != " ")
+            if (shiftBoundary > 0 && _screenBuffer[row, shiftBoundary].Character == ""
+                && _screenBuffer[row, shiftBoundary - 1].Character.Length > 0
+                && _screenBuffer[row, shiftBoundary - 1].Character != " ")
             {
-                InvalidateTextAnchorsInRange(_cursorY, _cursorY, shiftBoundary - 1, shiftBoundary);
+                InvalidateTextAnchorsInRange(row, row, shiftBoundary - 1, shiftBoundary);
                 var eraseCell = CreateEraseCell();
-                SetCell(_cursorY, shiftBoundary - 1, eraseCell, impacts);
-                SetCell(_cursorY, shiftBoundary, eraseCell, impacts);
+                SetCell(row, shiftBoundary - 1, eraseCell, impacts);
+                SetCell(row, shiftBoundary, eraseCell, impacts);
             }
         }
         
         // Shift characters right
-        ShiftTextAnchorsInRow(_cursorY, _cursorX, rightEdge, count, insert: true, printing: printing);
-        for (int x = rightEdge - 1; x >= _cursorX + count; x--)
+        ShiftTextAnchorsInRow(row, column, rightEdge, count, insert: true, printing: printing);
+        for (int x = rightEdge - 1; x >= column + count; x--)
         {
-            var cellFromLeft = _screenBuffer[_cursorY, x - count];
-            SetCell(_cursorY, x, cellFromLeft, impacts);
+            var cellFromLeft = _screenBuffer[row, x - count];
+            cellFromLeft.TrackedHyperlink?.AddRef();
+            SetCell(row, x, cellFromLeft, impacts);
         }
         
         // Insert blanks at cursor position
         var eraseCell2 = CreateEraseCell();
-        for (int x = _cursorX; x < _cursorX + count && x < rightEdge; x++)
+        for (int x = column; x < column + count && x < rightEdge; x++)
         {
-            SetCell(_cursorY, x, eraseCell2, impacts);
+            SetCell(row, x, eraseCell2, impacts);
         }
     }
     
@@ -6277,7 +5792,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         // Erase n characters from cursor without moving cursor or shifting
         // When DECLRMM is enabled, operations are bounded by right margin
-        int rightEdge = _declrmm ? _marginRight + 1 : _width;
+        int rightEdge = _declrmm ? _marginRight + 1 : LineWidth(_cursorY);
         count = Math.Min(count, rightEdge - _cursorX);
         InvalidateTextAnchorsInRange(_cursorY, _cursorY,
             _cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "" ? _cursorX - 1 : _cursorX,
@@ -6324,83 +5839,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             
         var graphemeWidth = DisplayWidth.GetGraphemeWidth(_lastPrintedCell.Character);
         
-        // Determine effective right margin for wrapping
-        int effectiveRightMargin = _declrmm ? _marginRight : _width - 1;
-        
         for (int i = 0; i < count; i++)
         {
             if (_disposed)
                 return false;
-
-            int cursorXBeforeDeferredWrap = _cursorX;
-            int cursorYBeforeDeferredWrap = _cursorY;
-            var textWrapRowId = _pendingWrap ? CaptureTextWrapRow(_cursorY) : null;
-
-            // Handle deferred wrap
-            if (_pendingWrap)
-            {
-                _pendingWrap = false;
-                
-                // Mark the last cell of the row being left as a soft-wrap point.
-                int wrapCol = _declrmm ? _marginRight : _width - 1;
-                ref var wrapCell = ref _screenBuffer[_cursorY, wrapCol];
-                wrapCell = wrapCell with { Attributes = wrapCell.Attributes | CellAttributes.SoftWrap };
-                
-                // When DECLRMM is enabled, wrap to left margin, not column 0
-                _cursorX = _declrmm ? _marginLeft : 0;
-                _cursorY++;
-            }
-            
-            // Scroll if needed
-            if (_cursorY >= _height)
-            {
-                if (!ScrollUp(impacts))
-                {
-                    RestoreValidCursorAfterAbortedScroll(
-                        cursorXBeforeDeferredWrap,
-                        cursorYBeforeDeferredWrap);
-                    return false;
-                }
-                _cursorY = _height - 1;
-            }
-            MoveTextAnchorsForWrap(textWrapRowId, _width, _cursorY);
-            
-            if (_cursorX < _width && _cursorY < _height)
-            {
-                var sequence = ++_writeSequence;
-                var writtenAt = _timeProvider.GetUtcNow();
-                
-                // Create a new cell with the same visual properties but new timing
-                var cell = new TerminalCell(
-                    _lastPrintedCell.Character, 
-                    _lastPrintedCell.Foreground, 
-                    _lastPrintedCell.Background, 
-                    _lastPrintedCell.Attributes,
-                    sequence, 
-                    writtenAt, 
-                    TrackedHyperlink: null,
-                    _lastPrintedCell.UnderlineColor,
-                    _lastPrintedCell.UnderlineStyle);
-                SetCell(_cursorY, _cursorX, cell, impacts);
-                
-                // Handle wide characters
-                for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
-                {
-                    SetCell(_cursorY, _cursorX + w, new TerminalCell(
-                        "", _lastPrintedCell.Foreground, _lastPrintedCell.Background, _lastPrintedCell.Attributes,
-                        sequence, writtenAt, TrackedHyperlink: null,
-                        _lastPrintedCell.UnderlineColor, _lastPrintedCell.UnderlineStyle), impacts);
-                }
-                
-                _cursorX += graphemeWidth;
-                
-                // Handle pending wrap at right margin
-                if (_cursorX > effectiveRightMargin)
-                {
-                    _cursorX = effectiveRightMargin;
-                    _pendingWrap = true;
-                }
-            }
+            if (!WriteGrapheme(_lastPrintedCell.Character, graphemeWidth, impacts,
+                source: _lastPrintedCell with { TrackedHyperlink = null }))
+                return false;
         }
 
         return true;
@@ -6728,14 +6173,26 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         for (var y = firstRow; y <= lastRow; y++)
         {
-            for (var x = firstColumn; x <= lastColumn; x++)
+            var columnScale = _screenBuffer.GetRendition(y) == LineRendition.SingleWidth ? 1 : 2;
+            var logicalFirst = firstColumn / columnScale;
+            var logicalLast = (int)Math.Min(lastColumn / columnScale, LineWidth(y) - 1);
+            if (logicalLast < logicalFirst)
+                continue;
+            if (logicalFirst > 0 && _screenBuffer[y, logicalFirst].Character == "" &&
+                DisplayWidth.GetGraphemeWidth(_screenBuffer[y, logicalFirst - 1].Character) > 1)
+                SetCell(y, logicalFirst - 1, TerminalCell.Empty, impacts, damageSixel: false);
+            if (logicalLast >= logicalFirst && logicalLast + 1 < LineWidth(y) &&
+                DisplayWidth.GetGraphemeWidth(_screenBuffer[y, logicalLast].Character) > 1 &&
+                _screenBuffer[y, logicalLast + 1].Character == "")
+                SetCell(y, logicalLast + 1, TerminalCell.Empty, impacts, damageSixel: false);
+            for (var x = logicalFirst; x <= logicalLast; x++)
             {
-                var isOrigin = x == placement.OriginColumn && y == placement.OriginRow;
+                var isOrigin = x == placement.OriginColumn / columnScale && y == placement.OriginRow;
                 var effectiveAttributes = _cursorProtected
                     ? _currentAttributes | CellAttributes.Protected
                     : _currentAttributes;
                 SetCell(y, x, new TerminalCell(
-                    isOrigin ? " " : "",
+                    columnScale > 1 || isOrigin ? " " : "",
                     _currentForeground, _currentBackground,
                     effectiveAttributes,
                     sequence, writtenAt), impacts, damageSixel: false);
@@ -6798,7 +6255,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var clipTop = insideRegion ? _scrollTop : 0;
         var clipBottom = insideRegion ? _scrollBottom : _height - 1;
 
-        var originColumn = _cursorX;
+        var originColumn = _cursorX * (_screenBuffer.GetRendition(_cursorY) == LineRendition.SingleWidth ? 1 : 2);
         var originRow = _cursorY;
 
         // The cursor lands one row below the graphic, so the rows the graphic needs
@@ -6864,6 +6321,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             placement.OriginRow + (long)heightInCells,
             placement.ClipTop,
             placement.ClipBottom);
+        _cursorX /= _screenBuffer.GetRendition(_cursorY) == LineRendition.SingleWidth ? 1 : 2;
+        ClampCursorToLine();
     }
 
     /// <summary>
@@ -7865,11 +7324,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 return _kgpGraphicsState.CaptureActiveSnapshot(
                     historyRows,
                     selectedHistoryCount: 0,
-                    _screenBuffer,
+                    _screenBuffer.Cells,
                     _width,
                     _height,
                     Capabilities.CellPixelWidth,
-                    Capabilities.CellPixelHeight).Placements;
+                    Capabilities.CellPixelHeight, lineRenditions: _screenBuffer.Renditions).Placements;
             }
         }
     }
@@ -8771,13 +8230,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             command,
             new KgpTerminalGraphicsState.DeletionContext(
                 _cursorY,
-                _cursorX,
+                _cursorX * (_screenBuffer.GetRendition(_cursorY) == LineRendition.SingleWidth ? 1 : 2),
                 GetKgpDeletionHistoryRows,
-                _screenBuffer,
+                _screenBuffer.Cells,
                 _width,
                 _height,
                 Capabilities.CellPixelWidth,
-                Capabilities.CellPixelHeight));
+                Capabilities.CellPixelHeight,
+                _screenBuffer.Renditions));
     }
 
     private void ProcessKgpAnimationControl(
@@ -8901,11 +8361,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var snapshot = _kgpGraphicsState.CaptureActiveSnapshot(
             historyRows,
             selectedHistoryCount,
-            _screenBuffer,
+            _screenBuffer.Cells,
             _width,
             _height,
             Capabilities.CellPixelWidth,
-            Capabilities.CellPixelHeight);
+            Capabilities.CellPixelHeight, lineRenditions: _screenBuffer.Renditions);
         var imageIds = new HashSet<uint>();
         foreach (var placement in snapshot.Placements)
         {
@@ -8934,11 +8394,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         return _kgpGraphicsState.CaptureActiveSnapshot(
             historyRows,
             selectedHistoryCount: 0,
-            _screenBuffer,
+            _screenBuffer.Cells,
             _width,
             _height,
             Capabilities.CellPixelWidth,
-            Capabilities.CellPixelHeight).Placements;
+            Capabilities.CellPixelHeight, lineRenditions: _screenBuffer.Renditions).Placements;
     }
 
     private KgpTerminalGraphicsState.PlacementError CreateKgpPlacement(
@@ -8953,7 +8413,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var placement = new KgpPlacement(
             imageId, placementId,
             isRelative ? 0 : _cursorY,
-            isRelative ? 0 : _cursorX,
+            isRelative ? 0 : _cursorX * (_screenBuffer.GetRendition(_cursorY) == LineRendition.SingleWidth ? 1 : 2),
             command.Columns > 0 ? command.Columns : 1,
             command.Rows > 0 ? command.Rows : 1,
             command.SourceX,
@@ -8997,12 +8457,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void MoveCursorAfterKgpPlacement(int columns, int rows)
     {
-        _cursorX = Math.Min(_cursorX + columns, _width - 1);
+        var physicalColumn = _cursorX * (_screenBuffer.GetRendition(_cursorY) == LineRendition.SingleWidth ? 1 : 2);
         for (var row = 1; row < rows; row++)
         {
             if (_cursorY < _height - 1)
                 _cursorY++;
         }
+        _cursorX = Math.Min(physicalColumn + columns, _width - 1) /
+            (_screenBuffer.GetRendition(_cursorY) == LineRendition.SingleWidth ? 1 : 2);
+        ClampCursorToLine();
     }
 
     private static string FormatKgpPlacementError(

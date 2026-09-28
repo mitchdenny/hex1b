@@ -89,6 +89,9 @@ public static class AnsiTokenUtf8Serializer
     {
         switch (token)
         {
+            case LineRenditionToken line:
+                WriteUtf8(writer, AnsiTokenSerializer.Serialize(line));
+                return;
             case TextToken t:
                 WriteUtf8(writer, t.Text);
                 return;
@@ -235,6 +238,17 @@ public static class AnsiTokenUtf8Serializer
             case IndexToken:
                 WriteByte(writer, 0x1b);
                 WriteByte(writer, (byte)'D');
+                return;
+
+            case TabSetToken:
+                WriteByte(writer, 0x1b);
+                WriteByte(writer, (byte)'H');
+                return;
+
+            case TabClearToken tab:
+                WriteEscLeftBracket(writer);
+                WriteInt(writer, tab.Mode);
+                WriteByte(writer, (byte)'g');
                 return;
 
             case ReverseIndexToken:

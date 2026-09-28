@@ -98,6 +98,19 @@ public static class AnsiTokenizer
                 tokens.Add(RisToken.Instance);
                 i += 2;
             }
+            else if (text[i] == '\x1b' && i + 2 < text.Length && text[i + 1] == '#' &&
+                     text[i + 2] is >= '3' and <= '6')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new LineRenditionToken(text[i + 2] switch
+                {
+                    '3' => LineRendition.DoubleHeightTop,
+                    '4' => LineRendition.DoubleHeightBottom,
+                    '5' => LineRendition.SingleWidth,
+                    _ => LineRendition.DoubleWidth
+                }));
+                i += 3;
+            }
             // Check for DECALN (ESC # 8) — screen alignment test
             else if (text[i] == '\x1b' && i + 2 < text.Length && text[i + 1] == '#' && text[i + 2] == '8')
             {
@@ -124,6 +137,12 @@ public static class AnsiTokenizer
             {
                 FlushTextToken(text, ref textStart, i, tokens);
                 tokens.Add(IndexToken.Instance);
+                i += 2;
+            }
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == 'H')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(TabSetToken.Instance);
                 i += 2;
             }
             // Check for Reverse Index (ESC M) - move cursor up, scroll if at top

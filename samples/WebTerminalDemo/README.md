@@ -77,6 +77,37 @@ Selections are invalidated by resize. The other generated text/graphics scenes r
 crop behavior. The library's adapter defaults have not changed: consumers must
 [opt in on their producer](../../docs/web-terminal.md#shell-reflow-configuration).
 
+## Try DEC double-height text
+
+Open `/?scene=shell&renderer=webgl2`, then choose **Terminal controls → Tape →
+DEC double-height text → Play**. The POSIX-only
+[`double-height.tape`](Tapes/shell/double-height.tape) clears the visible screen
+and compares normal text, double-width text (`ESC #6`), and independently
+written top/bottom halves (`ESC #3` / `ESC #4`). It includes color, underline,
+Unicode, an unpaired top half, and right-edge clipping with autowrap disabled.
+The prompt returns to normal width (`ESC #5`). A viewport of at least 80×24 is
+recommended. The same shared renderer supports WebGPU.
+
+Enlarged rows have half as many
+logical columns (rounded down, with a one-column minimum), scroll with their
+contents, and truncate instead of reflowing when resized. Direct HWT1 views
+preserve these attributes in history and on attachment. Selection maps visual
+positions back to logical cells; selecting both halves copies both physical
+rows, without deduplicating their text.
+
+ANSI snapshot/capture replay, SVG/HTML exports and HMP1 history extension v2
+preserve row modes. Older HMP1 history peers fall back to screen-only transfer.
+Custom reflow providers must return rendition metadata for enlarged input;
+omitting it is rejected rather than silently normalizing the text.
+
+Sixel/KGP images keep physical dimensions: enlarged text changes a
+cursor-anchored image's position, not its raster size. Unicode-placeholder
+fragments follow text positions but retain physical tile sizes. See the
+[hardening record](../../docs/dec-line-rendition-plan.md) for graphics policy,
+browser coverage, chunk-boundary capability requirements and measured costs.
+The browser demo remains experimental; this is not a claim of complete VT
+conformance.
+
 ## Try a large pre-populated marked history
 
 Choose **Terminal controls → Scene → Long scrollback (48 marks)**,

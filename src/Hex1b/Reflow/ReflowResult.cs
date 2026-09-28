@@ -26,4 +26,23 @@ public readonly record struct ReflowResult(
 {
     internal bool PendingWrap { get; init; }
     internal bool SavedPendingWrap { get; init; }
+    /// <summary>Gets the rendition of each output screen row, in the same order as <see cref="ScreenRows"/>.</summary>
+    /// <remarks>
+    /// Supply one value per output row when the input contains enlarged screen or history rows.
+    /// An empty array is accepted for legacy providers only when the input contains no enlarged rows.
+    /// To intentionally normalize enlarged text, return explicit single-width values.
+    /// </remarks>
+    public LineRendition[] LineRenditions { get; init; } = [];
+
+    internal void ValidateLineRenditions(ReflowContext context)
+    {
+        if (LineRenditions.Length != context.NewHeight &&
+            (LineRenditions.Length != 0 ||
+             context.LineRenditions.Any(mode => mode != LineRendition.SingleWidth) ||
+             context.ScrollbackRows.Any(row => row.Rendition != LineRendition.SingleWidth)))
+            throw new InvalidOperationException("Reflow must supply one line rendition per output row for enlarged text.");
+        if (LineRenditions.Any(mode => !Enum.IsDefined(mode)) ||
+            ScrollbackRows.Any(row => !Enum.IsDefined(row.Rendition)))
+            throw new InvalidOperationException("Reflow returned an invalid line rendition.");
+    }
 }

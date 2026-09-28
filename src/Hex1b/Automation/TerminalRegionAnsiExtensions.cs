@@ -44,6 +44,11 @@ public static class TerminalRegionAnsiExtensions
         bool includeHyperlinks = false, bool preserveSoftWrap = false)
     {
         var sb = new StringBuilder();
+        var snapshot = region as Hex1bTerminalSnapshot;
+        bool IsSoftWrapped(int row) => snapshot?.IsLineSoftWrapped(row) ??
+            region.GetCell(region.Width - 1, row).IsSoftWrap;
+        var hasLineRenditions =
+            Enumerable.Range(0, region.Height).Any(row => region.GetLineRendition(row) != LineRendition.SingleWidth);
 
         // Optional: clear screen and reset cursor to home (absolute positioning mode)
         if (options.IncludeClearScreen)
@@ -66,6 +71,20 @@ public static class TerminalRegionAnsiExtensions
         if (includeHyperlinks)
             sb.Append("\x1b]8;;\x1b\\");
 
+        // Configure destination rows before printing so autowrap can cross rendition boundaries.
+        if (preserveSoftWrap && hasLineRenditions)
+        {
+            sb.Append('\r');
+            for (var row = 0; row < region.Height; row++)
+            {
+                sb.Append(AnsiTokenSerializer.Serialize(new LineRenditionToken(region.GetLineRendition(row))));
+                if (row + 1 < region.Height)
+                    sb.Append("\x1b[B");
+            }
+            if (region.Height > 1)
+                sb.Append($"\x1b[{region.Height - 1}A");
+        }
+
         // Group cells by row for efficient row-based rendering
         // Cells are kept in X position order (not sequence order) so that text extraction
         // produces correct results when ANSI escape codes are stripped.
@@ -73,9 +92,14 @@ public static class TerminalRegionAnsiExtensions
         for (int y = 0; y < region.Height; y++)
         {
             cellsByRow[y] = new List<(int, TerminalCell)>();
-            for (int x = 0; x < region.Width; x++)
+            var rowWidth = region.GetLogicalWidth(y);
+            for (int x = 0; x < rowWidth; x++)
             {
-                cellsByRow[y].Add((x, region.GetCell(x, y)));
+                var cell = region.GetCell(x, y);
+                if ((x == 0 && cell.Character == "") ||
+                    DisplayWidth.GetGraphemeWidth(cell.Character) > rowWidth - x)
+                    cell = cell with { Character = " ", TrackedHyperlink = null };
+                cellsByRow[y].Add((x, cell));
             }
         }
 
@@ -88,11 +112,11 @@ public static class TerminalRegionAnsiExtensions
         // Render row by row
         for (int row = 0; row < region.Height; row++)
         {
+            var rendition = region.GetLineRendition(row);
             if (row > 0)
             {
                 // Soft breaks must be produced by autowrap, not cursor movement.
-                if (!preserveSoftWrap ||
-                    (region.GetCell(region.Width - 1, row - 1).Attributes & CellAttributes.SoftWrap) == 0)
+                if (!preserveSoftWrap || !IsSoftWrapped(row - 1))
                     sb.Append("\r\n");
             }
             else
@@ -100,6 +124,8 @@ public static class TerminalRegionAnsiExtensions
                 // First row: just go to start of line
                 sb.Append("\r");
             }
+            if (hasLineRenditions && !preserveSoftWrap)
+                sb.Append(AnsiTokenSerializer.Serialize(new LineRenditionToken(rendition)));
 
             // Render all cells in this row (in X position order)
             foreach (var (x, cell) in cellsByRow[row])

@@ -6,6 +6,11 @@ namespace Hex1b.Automation;
 /// Common interface for terminal snapshot and snapshot regions.
 /// Provides core cell access and region extraction.
 /// </summary>
+/// <remarks>
+/// Columns index stored text cells, not scaled display positions. A horizontal subregion
+/// retains its source row's rendition: three logical columns on an enlarged row occupy
+/// six display columns when exported to a sufficiently wide terminal.
+/// </remarks>
 public interface IHex1bTerminalRegion
 {
     /// <summary>
@@ -17,6 +22,16 @@ public interface IHex1bTerminalRegion
     /// The height of this region.
     /// </summary>
     int Height { get; }
+
+    /// <summary>Gets the DEC character width and height mode of a row.</summary>
+    /// <param name="row">The zero-based row within this region.</param>
+    /// <returns>The row rendition, or single width for an out-of-bounds row.</returns>
+    LineRendition GetLineRendition(int row) => LineRendition.SingleWidth;
+
+    /// <summary>Gets the number of addressable logical columns in a row.</summary>
+    /// <param name="row">The zero-based row within this region.</param>
+    /// <returns>The logical column count, excluding inaccessible storage, or zero for an out-of-bounds row.</returns>
+    int GetLogicalWidth(int row) => row >= 0 && row < Height ? Width : 0;
 
     /// <summary>
     /// Gets the cell at the specified position within this region.

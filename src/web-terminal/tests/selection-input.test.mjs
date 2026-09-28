@@ -161,6 +161,17 @@ test("A routed clipboard gesture suppresses context menu and never leaks mouse r
   }, 1003, () => ({ action: "copyOrPaste" }));
 });
 
+test("DEC enlarged rows map physical pointer columns to logical selection and mouse coordinates", () => {
+  for (const tracking of [0, 1003]) {
+    mouseHarness(({ commands, emit }) => {
+      emit("pointerdown", { clientX: 95, clientY: 25 });
+      const command = commands[0];
+      assert.equal(tracking ? command.x : command.point.x, 4);
+      assert.equal(tracking ? command.y : command.point.y, 2);
+    }, tracking, undefined, { lineRenditions: () => [0, 0, 2] });
+  }
+});
+
 test("Ctrl/Cmd hyperlink clicks open on release without application or selection commands", () => {
   for (const tracking of [0, 9, 1000, 1002, 1003]) {
     for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {

@@ -188,7 +188,6 @@ public sealed partial class Hex1bTerminal
         foreach (var anchor in _textAnchors)
             if (ResolveTextAnchor(anchor, buffer) is int row)
                 result.Add((anchor, new(id++, row, anchor.Column, IsTextPosition: true)));
-        _textAnchorReflowPending = true;
         return result;
     }
 
@@ -313,7 +312,8 @@ public sealed partial class Hex1bTerminal
                 generation.GetString() != buffer.Generation.ToString(CultureInfo.InvariantCulture) ||
                 !command.TryGetProperty("rowId", out var rowValue) ||
                 !long.TryParse(rowValue.GetString(), CultureInfo.InvariantCulture, out var rowId) ||
-                buffer.FindRow(rowId) is not (>= 0 and var row))
+                buffer.FindRow(rowId) is not (>= 0 and var row) ||
+                column > buffer.RowWidth(row))
             {
                 view.MarkerResult = new(requestId, false, "stale-position", id);
                 return;

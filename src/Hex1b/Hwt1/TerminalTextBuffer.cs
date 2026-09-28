@@ -3,7 +3,8 @@ namespace Hex1b;
 // A bounded, lock-scoped view of producer text. Never retain this beyond the buffer lock.
 internal sealed class TerminalTextBuffer(
     long generation, bool alternate, int width, int height, int historyCount,
-    Func<int, long> rowId, Func<int, int, TerminalCell> getCell, Func<int, int> rowWidth)
+    Func<int, long> rowId, Func<int, int, TerminalCell> getCell, Func<int, int> rowWidth,
+    Func<int, LineRendition>? lineRendition = null, Func<int, bool>? softWrap = null)
 {
     private Dictionary<long, int>? _rowIndex;
     internal long Generation => generation;
@@ -15,7 +16,9 @@ internal sealed class TerminalTextBuffer(
     internal long RowId(int row) => rowId(row);
     internal TerminalCell Cell(int row, int column) => getCell(row, column);
     internal int RowWidth(int row) => rowWidth(row);
-    internal bool SoftWrap(int row) => row >= 0 && row < TotalRows && Cell(row, rowWidth(row) - 1).IsSoftWrap;
+    internal LineRendition LineRendition(int row) => lineRendition?.Invoke(row) ?? Hex1b.LineRendition.SingleWidth;
+    internal bool SoftWrap(int row) => row >= 0 && row < TotalRows &&
+        (softWrap?.Invoke(row) ?? Cell(row, rowWidth(row) - 1).IsSoftWrap);
 
     internal int FindRow(long id)
     {

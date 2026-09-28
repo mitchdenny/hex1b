@@ -200,6 +200,11 @@ function validateMetadata(metadata: unknown): asserts metadata is FrameMetadata 
   if (commandMark !== null) validateCommandMark(commandMark);
   const columns = integer(metadata.columns, "columns", 1, 1024);
   const rows = integer(metadata.rows, "rows", 1, 512);
+  if (metadata.lineRenditions !== undefined) {
+    array(metadata.lineRenditions, "line renditions", rows);
+    if (metadata.lineRenditions.length !== rows) throw new Error("Invalid line rendition count");
+    for (const rendition of metadata.lineRenditions) integer(rendition, "line rendition", 0, 3);
+  }
   if (typeof metadata.mouseTracking !== "number" || ![0, 9, 1000, 1002, 1003].includes(metadata.mouseTracking)) {
     throw new Error("Unsupported mouse tracking mode");
   }
