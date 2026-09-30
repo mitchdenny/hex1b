@@ -249,7 +249,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Verify automatic native build and sample run
-        run: python3 .github/scripts/test-native-build.py
+        run: dotnet run .github/scripts/test-native-build.cs
 
       - name: Build native library
         working-directory: src/Hex1b/native
@@ -273,7 +273,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Verify automatic native build and sample run
-        run: python3 .github/scripts/test-native-build.py
+        run: dotnet run .github/scripts/test-native-build.cs
 
       - name: Build native library
         working-directory: src/Hex1b/native
@@ -319,7 +319,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Verify automatic native build and sample run
-        run: python3 .github/scripts/test-native-build.py
+        run: dotnet run .github/scripts/test-native-build.cs
 
       - name: Build native library
         working-directory: src/Hex1b/native

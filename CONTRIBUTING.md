@@ -54,11 +54,13 @@ An explicit `--runtime` selects the matching native library. Cross-publishing
 requires that runtime's library in `src/Hex1b/runtimes/<rid>/native/` when the host
 cannot compile it; macOS supports building both macOS architectures locally.
 
-The native CI jobs exercise a real console-backed `dotnet run`, incremental
-builds, replacement of stale output, compiler failures, publish, and packaging with:
+The native CI jobs use a file-based C# app pinned to a released Hex1b package to
+launch the repository's KgpCloudDemo in a PTY with `dotnet run`. The smoke test
+waits for a snapshot containing kitty graphics placements, then quits the demo
+and checks its exit code:
 
 ```bash
-python3 .github/scripts/test-native-build.py
+dotnet run .github/scripts/test-native-build.cs
 ```
 
 ### Aspire and Web Samples on Ubuntu
