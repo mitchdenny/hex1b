@@ -10,6 +10,8 @@ Thank you for your interest in contributing to Hex1b! This document provides gui
 - Git
 - A code editor (VS Code recommended)
 - A terminal emulator with good ANSI escape sequence support
+- Native build tools on Unix: `sudo apt install build-essential` on Ubuntu/Debian,
+  or `xcode-select --install` on macOS.
 
 ### Setting Up Your Development Environment
 
@@ -21,18 +23,61 @@ Thank you for your interest in contributing to Hex1b! This document provides gui
 
 2. **Restore dependencies**
    ```bash
-   dotnet restore
+   dotnet restore tests/Hex1b.Tests/Hex1b.Tests.csproj
    ```
 
-3. **Build the solution**
+3. **Build the library**
    ```bash
-   dotnet build
+   dotnet build src/Hex1b/Hex1b.csproj
    ```
 
 4. **Run the tests**
    ```bash
-   dotnet test
+   dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj
    ```
+
+### Running Samples
+
+Run a sample directly; no separate `make` or native-library copy is needed:
+
+```bash
+cd samples/KgpCloudDemo
+dotnet run
+```
+
+On supported Linux and macOS x64/ARM64 hosts, the build compiles the native
+interop library as needed and copies it into the sample's output. Native compiler
+errors fail the build instead of leaving a sample that crashes at startup.
+KgpCloudDemo also needs a terminal that supports kitty graphics.
+
+An explicit `--runtime` selects the matching native library. Cross-publishing
+requires that runtime's library in `src/Hex1b/runtimes/<rid>/native/` when the host
+cannot compile it; macOS supports building both macOS architectures locally.
+
+The native CI jobs exercise a real console-backed `dotnet run`, incremental
+builds, replacement of stale output, compiler failures, publish, and packaging with:
+
+```bash
+python3 .github/scripts/test-native-build.py
+```
+
+### Aspire and Web Samples on Ubuntu
+
+Aspire-hosted web samples also need Node.js/npm and tools for trusting the HTTPS
+development certificate:
+
+```bash
+sudo apt update
+sudo apt install nodejs npm libnss3-tools openssl ca-certificates
+export SSL_CERT_DIR="$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs"
+dotnet dev-certs https --trust
+dotnet dev-certs https --check --trust
+```
+
+`libnss3-tools` provides `certutil` for Firefox and Chromium certificate stores.
+Run `dotnet dev-certs` as your normal user, not with `sudo`. Persist the
+`SSL_CERT_DIR` export in your shell profile and restart browsers and Aspire after
+changing trust. The web build CI uses Node.js 24.
 
 ## 📁 Project Structure
 

@@ -243,6 +243,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Verify automatic native build and sample run
+        run: python3 .github/scripts/test-native-build.py
+
       - name: Build native library
         working-directory: src/Hex1b/native
         run: make all test-startup check-exports
@@ -258,6 +266,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Verify automatic native build and sample run
+        run: python3 .github/scripts/test-native-build.py
 
       - name: Build native library
         working-directory: src/Hex1b/native
@@ -296,6 +312,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Verify automatic native build and sample run
+        run: python3 .github/scripts/test-native-build.py
 
       - name: Build native library
         working-directory: src/Hex1b/native

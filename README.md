@@ -148,17 +148,28 @@ dotnet run --project apphost.cs
 
 - [.NET 10.0 SDK](https://dotnet.microsoft.com/download) (preview)
 - A terminal emulator with good ANSI support
+- For source builds on Unix: `build-essential` on Ubuntu/Debian, or Xcode Command
+  Line Tools on macOS (`xcode-select --install`).
 
 ### Building
 
 ```bash
-dotnet build
+dotnet build src/Hex1b/Hex1b.csproj
 ```
+
+Samples build their native interop dependency automatically. For example:
+
+```bash
+dotnet run --project samples/KgpCloudDemo
+```
+
+See [Contributing](CONTRIBUTING.md#running-samples) for native build prerequisites
+and cross-publishing.
 
 ### Running Tests
 
 ```bash
-dotnet test
+dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj
 ```
 
 ### Project Structure
