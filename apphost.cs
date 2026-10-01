@@ -1,15 +1,14 @@
-#:sdk Aspire.AppHost.Sdk@13.5.0-preview.1.26312.14
-#:package Aspire.Hosting.JavaScript@13.5.0-preview.1.26312.14
-#:package Aspire.Hosting.Azure.AppContainers@13.5.0-preview.1.26312.14
+#:sdk Aspire.AppHost.Sdk@13.6.0
+#:package Aspire.Hosting.JavaScript@13.6.0
+#:package Aspire.Hosting.Azure.AppContainers@13.6.0
+#:package Aspire.Hosting.Dotnet@13.6.0-preview.1.26479.8
 
 using Aspire.Hosting.Pipelines;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
-#pragma warning disable ASPIRECSHARPAPPS001
 #pragma warning disable ASPIREACADOMAINS001
 #pragma warning disable ASPIREPIPELINES001
-#pragma warning disable ASPIRETERMINAL001
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -27,7 +26,8 @@ var minReplicas = int.TryParse(minReplicasValue, out var parsedMinReplicas) ? pa
 builder.AddAzureContainerAppEnvironment("env");
 
 // Generate API reference documentation - excluded from manifest but used during build
-var docGenerator = builder.AddCSharpApp("docfx", "./src/DocGenerator")
+#pragma warning disable ASPIREDOTNETPROJECT001
+var docGenerator = builder.AddDotnetProject("docfx", "./src/DocGenerator")
     .ExcludeFromManifest()
     .WithPipelineStepFactory(context => new PipelineStep
     {
@@ -66,7 +66,7 @@ var docGenerator = builder.AddCSharpApp("docfx", "./src/DocGenerator")
         DependsOnSteps = [WellKnownPipelineSteps.BuildPrereq]
     });
 
-var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
+var website = builder.AddDotnetProject("website", "./src/Hex1b.Website")
     .WithHttpHealthCheck("/health")
     .WithExternalHttpEndpoints()
     .PublishAsAzureContainerApp((infra, app) =>
@@ -79,28 +79,13 @@ var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
             app.ConfigureCustomDomain(customDomain, certificateName);
         }
     });
+#pragma warning restore ASPIREDOTNETPROJECT001
 
 var content=builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
     .WaitFor(docGenerator)
     .WithEndpoint("http", ep => ep.Port = 1189);
-
-var sceneDemo = builder.AddCSharpApp("scene-demo", "./samples/SceneDemo")
-    .ExcludeFromManifest()
-    .WithTerminal();
-
-var dirtRaceDemo = builder.AddCSharpApp("dirt-race-demo", "./samples/DirtRaceDemo")
-    .ExcludeFromManifest()
-    .WithTerminal();
-
-var asciiEarthDemo = builder.AddCSharpApp("ascii-earth-demo", "./samples/AsciiEarth")
-    .ExcludeFromManifest()
-    .WithTerminal();
-
-var kittySearch = builder.AddCSharpApp("kitty-search", "./samples/KittySearch")
-    .ExcludeFromManifest()
-    .WithTerminal();
 
 // Wire up pipeline dependencies: content build depends on doc generation
 content.WithPipelineConfiguration(context =>
