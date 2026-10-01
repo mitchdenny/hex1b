@@ -9,7 +9,7 @@ using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHeadless(new TerminalCapabilities { SupportsKgp = true })
     .WithDimensions(80, 24)
-    .WithPtyProcess("dotnet", "run", "--project", "samples/KgpCloudDemo", "--", "--motes", "4")
+    .WithPtyProcess("dotnet", "run", "--project", "samples/KgpCloudDemo", "--", "--motes", "4", "--frames", "120")
     .Build();
 var run = terminal.RunAsync(timeout.Token);
 await new Hex1bTerminalInputSequenceBuilder()
@@ -19,7 +19,6 @@ await new Hex1bTerminalInputSequenceBuilder()
             ? throw new InvalidOperationException($"Demo exited before rendering graphics (exit code {run.GetAwaiter().GetResult()}).")
             : false,
         TimeSpan.FromMinutes(2), "KgpCloudDemo renders kitty graphics after dotnet run")
-    .Type("q")
     .Build()
     .ApplyAsync(terminal, timeout.Token);
 if (await run != 0)

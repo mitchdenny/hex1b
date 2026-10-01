@@ -56,8 +56,8 @@ cannot compile it; macOS supports building both macOS architectures locally.
 
 The native CI jobs use a file-based C# app pinned to a released Hex1b package to
 launch the repository's KgpCloudDemo in a PTY with `dotnet run`. The smoke test
-waits for a snapshot containing kitty graphics placements, then quits the demo
-and checks its exit code:
+waits for a snapshot containing kitty graphics placements, then checks the exit
+code after the demo reaches its frame limit:
 
 ```bash
 dotnet run .github/scripts/test-native-build.cs
