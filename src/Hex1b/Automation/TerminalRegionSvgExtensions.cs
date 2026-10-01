@@ -52,7 +52,7 @@ public static class TerminalRegionSvgExtensions
 
         var cellWidth = options.CellWidth;
         var cellHeight = options.CellHeight;
-        var width = region.Width * cellWidth;
+        var width = GetDisplayColumns(region) * cellWidth;
         var height = region.Height * cellHeight;
 
         var sb = new StringBuilder();
@@ -95,6 +95,9 @@ public static class TerminalRegionSvgExtensions
         sb.AppendLine("      .cell.highlight > rect.cell-bg { stroke: #ff6b6b; stroke-width: 2; }");
         sb.AppendLine("      .cell.highlight > text { fill: #ff6b6b !important; }");
         sb.AppendLine("    </style>");
+        for (var row = 0; row < region.Height; row++)
+            if (region.GetLineRendition(row) != LineRendition.SingleWidth)
+                sb.AppendLine($"""    <clipPath id="rendition-row-{row}"><rect x="0" y="{row * cellHeight}" width="{width}" height="{cellHeight}"/></clipPath>""");
 
         // Pre-generate clip paths for wide character truncation
         // Only create clips for wide characters that have FEWER owned cells than expected
@@ -104,7 +107,7 @@ public static class TerminalRegionSvgExtensions
         
         for (int y = 0; y < region.Height; y++)
         {
-            for (int x = 0; x < region.Width; x++)
+            for (int x = 0; x < region.GetLogicalWidth(y); x++)
             {
                 var cell = region.GetCell(x, y);
                 var ch = cell.Character;
@@ -122,7 +125,7 @@ public static class TerminalRegionSvgExtensions
                 
                 // Count how many continuation cells have matching sequence
                 var ownedCells = 1;
-                for (int i = 1; i < expectedWidth && (x + i) < region.Width; i++)
+                for (int i = 1; i < expectedWidth && (x + i) < region.GetLogicalWidth(y); i++)
                 {
                     var contCell = region.GetCell(x + i, y);
                     // Continuation cell should be empty string with same sequence
@@ -158,7 +161,7 @@ public static class TerminalRegionSvgExtensions
         var cells = new List<(int X, int Y, TerminalCell Cell)>();
         for (int y = 0; y < region.Height; y++)
         {
-            for (int x = 0; x < region.Width; x++)
+            for (int x = 0; x < region.GetLogicalWidth(y); x++)
             {
                 cells.Add((x, y, region.GetCell(x, y)));
             }
@@ -184,7 +187,8 @@ public static class TerminalRegionSvgExtensions
             if (!isContinuationCell)
             {
                 // Render background for this cell - always opaque for proper clipping behavior
-                var rectX = x * cellWidth;
+                var rowCellWidth = cellWidth * (region.GetLineRendition(y) == LineRendition.SingleWidth ? 1 : 2);
+                var rectX = x * rowCellWidth;
                 var rectY = y * cellHeight;
 
                 string bgColor;
@@ -208,13 +212,13 @@ public static class TerminalRegionSvgExtensions
 
                 // For wide characters, render a background that spans all owned cells
                 var bgCharWidth = string.IsNullOrEmpty(ch) || ch == "\0" || ch == "\uE000" ? 1 : DisplayWidth.GetGraphemeWidth(ch);
-                var bgWidth = cellWidth;
+                var bgWidth = rowCellWidth;
 
                 if (bgCharWidth > 1)
                 {
                     // Count how many continuation cells this character owns
                     var ownedCells = 1;
-                    for (int i = 1; i < bgCharWidth && (x + i) < region.Width; i++)
+                    for (int i = 1; i < bgCharWidth && (x + i) < region.GetLogicalWidth(y); i++)
                     {
                         var contCell = region.GetCell(x + i, y);
                         if (contCell.Character == "" && contCell.Sequence == cell.Sequence)
@@ -222,7 +226,7 @@ public static class TerminalRegionSvgExtensions
                         else
                             break;
                     }
-                    bgWidth = ownedCells * cellWidth;
+                    bgWidth = ownedCells * rowCellWidth;
                 }
 
                 sb.AppendLine($"""    <rect class="cell-bg" x="{rectX}" y="{rectY}" width="{bgWidth}" height="{cellHeight}" fill="{bgColor}"/>""");
@@ -477,6 +481,13 @@ public static class TerminalRegionSvgExtensions
                     }
 
                     // Wrap in cell group for interaction (hover highlight, hyperlinks)
+                    var rendition = region.GetLineRendition(y);
+                    if (rendition != LineRendition.SingleWidth)
+                    {
+                        var scaleY = rendition is LineRendition.DoubleHeightTop or LineRendition.DoubleHeightBottom ? 2 : 1;
+                        var offsetY = rendition == LineRendition.DoubleHeightBottom ? -cellHeight : 0;
+                        sb.AppendLine($"""    <g clip-path="url(#rendition-row-{y})"><g transform="translate(0 {y * cellHeight + offsetY}) scale(2 {scaleY}) translate(0 {-y * cellHeight})">""");
+                    }
                     sb.AppendLine($"""    <g class="cell{groupClass}" data-x="{x}" data-y="{y}">""");
 
                     var textX = x * cellWidth;
@@ -545,7 +556,7 @@ public static class TerminalRegionSvgExtensions
                     {
                         // Count owned continuation cells (matching sequence)
                         var ownedCells = 1;
-                        for (int i = 1; i < charWidth && (x + i) < region.Width; i++)
+                        for (int i = 1; i < charWidth && (x + i) < region.GetLogicalWidth(y); i++)
                         {
                             var contCell = region.GetCell(x + i, y);
                             if (contCell.Character == "" && contCell.Sequence == cell.Sequence)
@@ -578,7 +589,7 @@ public static class TerminalRegionSvgExtensions
                             ulColor = fgColor;
                         var ulY = y * cellHeight + cellHeight * 0.9;
                         var ulX1 = x * cellWidth;
-                        var ulX2 = (x + 1) * cellWidth;
+                        var ulX2 = Math.Min(x + charWidth, region.GetLogicalWidth(y)) * cellWidth;
                         
                         var ulStyle = cell.UnderlineStyle == UnderlineStyle.None 
                             ? UnderlineStyle.Single 
@@ -616,6 +627,8 @@ public static class TerminalRegionSvgExtensions
                     }
 
                     sb.AppendLine("    </g>");
+                    if (rendition != LineRendition.SingleWidth)
+                        sb.AppendLine("    </g></g>");
                 }
             }
         }
@@ -627,9 +640,10 @@ public static class TerminalRegionSvgExtensions
             cursorX.Value >= 0 && cursorX.Value < region.Width &&
             cursorY.Value >= 0 && cursorY.Value < region.Height)
         {
-            var cursorRectX = cursorX.Value * cellWidth;
+            var cursorWidth = cellWidth * (region.GetLineRendition(cursorY.Value) == LineRendition.SingleWidth ? 1 : 2);
+            var cursorRectX = cursorX.Value * cursorWidth;
             var cursorRectY = cursorY.Value * cellHeight;
-            sb.AppendLine($"""  <rect class="cursor" x="{cursorRectX}" y="{cursorRectY}" width="{cellWidth}" height="{cellHeight}"/>""");
+            sb.AppendLine($"""  <rect class="cursor" x="{cursorRectX}" y="{cursorRectY}" width="{Math.Min(cursorWidth, width - cursorRectX)}" height="{cellHeight}"/>""");
         }
 
         // Render scrollback separator line (bright dotted line between scrollback and visible area)
@@ -663,10 +677,14 @@ public static class TerminalRegionSvgExtensions
         {
             sb.AppendLine("  <g class=\"cell-grid\">");
             // Vertical cell lines
-            for (int col = 1; col < region.Width; col++)
+            for (int row = 0; row < region.Height; row++)
             {
-                var lineX = col * cellWidth;
-                sb.AppendLine($"""    <line x1="{lineX}" y1="0" x2="{lineX}" y2="{height}"/>""");
+                var rowCellWidth = cellWidth * (region.GetLineRendition(row) == LineRendition.SingleWidth ? 1 : 2);
+                for (int col = 1; col < region.GetLogicalWidth(row); col++)
+                {
+                    var lineX = col * rowCellWidth;
+                    sb.AppendLine($"""    <line x1="{lineX}" y1="{row * cellHeight}" x2="{lineX}" y2="{(row + 1) * cellHeight}"/>""");
+                }
             }
             // Horizontal cell lines
             for (int row = 1; row < region.Height; row++)
@@ -680,6 +698,17 @@ public static class TerminalRegionSvgExtensions
         sb.AppendLine("</svg>");
 
         return sb.ToString();
+    }
+
+    internal static int GetDisplayColumns(IHex1bTerminalRegion region)
+    {
+        if (region is Hex1bTerminalSnapshot or Hex1bTerminalSnapshotRegion { IsFullWidth: true })
+            return region.Width;
+        var columns = region.Width;
+        for (var row = 0; row < region.Height; row++)
+            if (region.GetLineRendition(row) != LineRendition.SingleWidth)
+                columns = Math.Max(columns, region.GetLogicalWidth(row) * 2);
+        return columns;
     }
 
     /// <summary>

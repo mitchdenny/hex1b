@@ -111,7 +111,7 @@ internal sealed class Hwt1ViewState
                         if (row < 0 || row >= buffer.Height)
                             throw new InvalidDataException("Selection extension row is outside the viewport.");
                         _cursorId = buffer.RowId(ResolveTop(buffer) + row);
-                        _cursorColumn = column;
+                        _cursorColumn = Math.Min(column, buffer.RowWidth(ResolveTop(buffer) + row) - 1);
                         RememberResolvedExtent(buffer);
                     }
                 }
@@ -137,7 +137,7 @@ internal sealed class Hwt1ViewState
                 var columnValue = ReadColumn(command, buffer);
                 if (command.GetProperty("generation").GetString() != Format(buffer.Generation) ||
                     !long.TryParse(command.GetProperty("rowId").GetString(), CultureInfo.InvariantCulture, out var id) ||
-                    buffer.FindRow(id) < 0)
+                    buffer.FindRow(id) is not (>= 0 and var selectedRow))
                 {
                     InvalidateSelection();
                     break;
@@ -145,14 +145,14 @@ internal sealed class Hwt1ViewState
                 if (action == "start")
                 {
                     _anchorId = id;
-                    _anchorColumn = columnValue;
+                    _anchorColumn = Math.Min(columnValue, buffer.RowWidth(selectedRow) - 1);
                     _mode = mode;
                     _status = "valid";
                 }
                 if (_status != "valid")
                     break;
                 _cursorId = id;
-                _cursorColumn = columnValue;
+                _cursorColumn = Math.Min(columnValue, buffer.RowWidth(selectedRow) - 1);
                 RememberResolvedExtent(buffer);
                 break;
             case "copy":
@@ -262,6 +262,9 @@ internal sealed class Hwt1ViewState
     {
         var anchor = new BufferPosition(buffer.FindRow(_anchorId!.Value), _anchorColumn);
         var cursor = new BufferPosition(buffer.FindRow(_cursorId!.Value), _cursorColumn);
+        if (anchor.Row < 0 || cursor.Row < 0 ||
+            anchor.Column >= buffer.RowWidth(anchor.Row) || cursor.Column >= buffer.RowWidth(cursor.Row))
+            return null;
         if (_mode == "rectangle")
             return (new(Math.Min(anchor.Row, cursor.Row), Math.Min(anchor.Column, cursor.Column)),
                 new(Math.Max(anchor.Row, cursor.Row), Math.Max(anchor.Column, cursor.Column)));
@@ -375,8 +378,9 @@ internal sealed class Hwt1ViewState
                 InvalidateSelection();
                 return new(_selectionRequestId, _status, _mode, [], null);
             }
-            if (row >= top && row < top + buffer.Height && left < buffer.Width)
-                ranges.Add(new(row - top, left, Math.Min(buffer.Width, right + 1)));
+            var visibleWidth = Math.Min(buffer.Width, buffer.RowWidth(row));
+            if (row >= top && row < top + buffer.Height && left < visibleWidth)
+                ranges.Add(new(row - top, left, Math.Min(visibleWidth, right + 1)));
             if (_mode == "rectangle")
             {
                 var rowSelection = new TerminalSelection(new(row, left));
@@ -409,6 +413,10 @@ internal sealed class Hwt1ViewState
             if (column >= buffer.RowWidth(row))
                 return null;
             var cell = buffer.Cell(row, column);
+            if (column == buffer.RowWidth(row) - 1)
+                cell = cell with { Attributes = buffer.SoftWrap(row)
+                    ? cell.Attributes | CellAttributes.SoftWrap
+                    : cell.Attributes & ~CellAttributes.SoftWrap };
             if (_mode != "rectangle" && cell.IsWideWrapPadding)
                 return cell with { Character = "" };
             return cell.Character is "\0" or "\uE000" ? cell with { Character = " " } : cell;
@@ -417,6 +425,8 @@ internal sealed class Hwt1ViewState
 
     private static int Owner(TerminalTextBuffer buffer, int row, int column)
     {
+        if (column >= buffer.RowWidth(row))
+            return column;
         while (column > 0 && buffer.Cell(row, column).Character == "" &&
                buffer.Cell(row, column - 1).Sequence == buffer.Cell(row, column).Sequence)
             column--;

@@ -56,7 +56,9 @@ public class Hmp1ScrollbackStateTests
     }
 
     [TestMethod]
-    public async Task Server_LegacyClient_OmitsNewFieldsAndFrames()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Server_LegacyClient_OmitsNewFieldsAndFrames(bool historyVersionOne)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         await using var server = new Hmp1PresentationAdapter(20, 5);
@@ -68,7 +70,9 @@ public class Hmp1ScrollbackStateTests
         using var timeout = new CancellationTokenSource(Timeout);
         var accepting = server.AddClient(streams.Server, TestContext.Current.CancellationToken);
         await Hmp1Protocol.WriteFrameAsync(wire, Hmp1FrameType.ClientHello,
-            """{"displayName":"old","defaultRole":"secondary"}"""u8.ToArray(), timeout.Token);
+            Encoding.UTF8.GetBytes(historyVersionOne
+                ? """{"displayName":"old","defaultRole":"secondary","scrollbackHistoryVersion":1,"scrollbackHistoryRows":100}"""
+                : """{"displayName":"old","defaultRole":"secondary"}"""), timeout.Token);
         var hello = await Hmp1Protocol.ReadFrameAsync(wire, timeout.Token);
         Assert.AreEqual(Hmp1FrameType.Hello, hello!.Value.Type);
         using var json = JsonDocument.Parse(hello.Value.Payload);
@@ -92,7 +96,7 @@ public class Hmp1ScrollbackStateTests
         using var timeout = new CancellationTokenSource(Timeout);
         var connecting = client.ConnectAsync(timeout.Token);
         var request = await Hmp1Protocol.ReadFrameAsync(wire, timeout.Token);
-        Assert.AreEqual(1, Hmp1Protocol.ParseClientHello(request!.Value.Payload).ScrollbackHistoryVersion);
+        Assert.AreEqual(Hmp1ScrollbackState.Version, Hmp1Protocol.ParseClientHello(request!.Value.Payload).ScrollbackHistoryVersion);
         await Hmp1Protocol.WriteFrameAsync(wire, Hmp1FrameType.Hello,
             """{"version":1,"width":20,"height":5,"peerId":"old","peers":[]}"""u8.ToArray(), timeout.Token);
         await WriteScreenAsync(wire, "READY", timeout.Token);
@@ -113,7 +117,8 @@ public class Hmp1ScrollbackStateTests
         await using var server = new Hmp1PresentationAdapter(20, 5);
         await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
             .WithPresentation(server).WithDimensions(20, 5).WithScrollback(100).Build();
-        producer.ApplyTokens(AnsiTokenizer.Tokenize(Lines("OLD", 30) + "READY"));
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b#3TOP\r\n\x1b#4BOTTOM\r\n\x1b#6WIDE\r\n" + Lines("OLD", 30) + "READY"));
         var upstream = await ConnectAsync(server);
         await using var upstreamHandle = upstream.Handle;
         await using var upstreamClient = upstream.Client;
@@ -199,7 +204,8 @@ public class Hmp1ScrollbackStateTests
             .WithPresentation(server).WithDimensions(12, 4).WithScrollback(100).Build();
         producer.ApplyTokens(AnsiTokenizer.Tokenize(
             "\x1b[1;3;4:3;38;5;123;48;2;1;2;3;58;2;4;5;6m\x1b]8;id=history;https://example.test/a?b=1&c=2\a" +
-            "abcdefghijk界e\u0301abcdefghijk界e\u0301\r\n" + Lines("WRAP", 15) +
+            "abcdefghijk界e\u0301abcdefghijk界e\u0301\r\n" +
+            "\x1b#3TOP\r\n\x1b#4BOTTOM\r\n\x1b#6WIDE\r\n" + Lines("WRAP", 15) +
             "\x1b]8;;\a\x1b[0m\x1b[2J\x1b[HREADY"));
         var connection = await ConnectAsync(server);
         await using var handle = connection.Handle;
@@ -445,12 +451,30 @@ public class Hmp1ScrollbackStateTests
     private static string Lines(string prefix, int count)
         => string.Concat(Enumerable.Range(0, count).Select(i => $"{prefix}-{i:D3}\r\n"));
 
+    [TestMethod]
+    [DataRow(LineRendition.SingleWidth)]
+    [DataRow(LineRendition.DoubleWidth)]
+    [DataRow(LineRendition.DoubleHeightTop)]
+    [DataRow(LineRendition.DoubleHeightBottom)]
+    public void RowCodec_Rendition_RoundTripsAndRejectsUnknownValue(LineRendition rendition)
+    {
+        var row = new ScrollbackRow([new TerminalCell("A", null, null), TerminalCell.Empty],
+            2, DateTimeOffset.UtcNow) { Rendition = rendition };
+        var encoded = Hmp1ScrollbackRowCodec.Encode(row);
+        Assert.AreEqual((byte)rendition, encoded[4]);
+        Assert.AreEqual(rendition, Hmp1ScrollbackRowCodec.Decode(encoded).Row.Rendition);
+        encoded[4] = 255;
+        Assert.Throws<InvalidDataException>(() => Hmp1ScrollbackRowCodec.Decode(encoded));
+        Assert.Throws<InvalidDataException>(() => Hmp1ScrollbackRowCodec.Encode(row with { Rendition = (LineRendition)255 }));
+    }
+
     private static void AssertHistoryEqual(ScrollbackRow[] expected, ScrollbackRow[] actual)
     {
         Assert.AreEqual(expected.Length, actual.Length);
         for (var row = 0; row < expected.Length; row++)
         {
             Assert.AreEqual(expected[row].OriginalWidth, actual[row].OriginalWidth);
+            Assert.AreEqual(expected[row].Rendition, actual[row].Rendition);
             Assert.AreEqual(expected[row].Cells.Length, actual[row].Cells.Length);
             for (var col = 0; col < expected[row].Cells.Length; col++)
             {

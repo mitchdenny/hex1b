@@ -41,6 +41,13 @@ test("Typed protocol decoding preserves cursor normalization and binary cells", 
   assert.equal(decoded.cells[0].width, 1);
 });
 
+test("Line rendition metadata validates every row and defaults to normal when omitted", () => {
+  for (const value of [0, 1, 2, 3])
+    assert.deepEqual(decodeFrame(frame({ ...metadata(), lineRenditions: [value] })).metadata.lineRenditions, [value]);
+  for (const value of [null, {}, [], [0, 0], [-1], [4], [1.5], ["2"]])
+    assert.throws(() => decodeFrame(frame({ ...metadata(), lineRenditions: value })), /line rendition/iu);
+});
+
 test("Title metadata preserves empty, literal, and scalar Unicode text at the UTF-16 limit", () => {
   for (const title of ["", "shell; 日本語 😀", "<script>alert(1)</script>", "left\u202eright",
     "\ufffd", "a".repeat(4096), "a".repeat(4094) + "😀", "😀".repeat(2048)]) {

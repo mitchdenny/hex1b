@@ -60,13 +60,31 @@ internal static class ReflowHelper
                     hasSavedCursor ? context.SavedCursorY : null)
                 {
                     PendingWrap = context.PendingWrap,
-                    SavedPendingWrap = context.SavedPendingWrap
+                    SavedPendingWrap = context.SavedPendingWrap,
+                    LineRenditions = context.LineRenditions
                 },
                 anchors.ToArray());
         }
 
         // Step 1: Collect all rows into a unified sequence (scrollback + screen)
         var allRows = CollectAllRows(context);
+        var renditions = context.ScrollbackRows.Select(row => row.Rendition)
+            .Concat(Enumerable.Range(0, context.ScreenRows.Length)
+                .Select(row => row < context.LineRenditions.Length ? context.LineRenditions[row] : LineRendition.SingleWidth))
+            .ToArray();
+        // Enlarged rows are physical rows, not fragments of a reflowable paragraph.
+        for (var row = 0; row < allRows.Count; row++)
+        {
+            if (renditions[row] == LineRendition.SingleWidth &&
+                (row + 1 == allRows.Count || renditions[row + 1] == LineRendition.SingleWidth))
+                continue;
+            allRows[row] = (TerminalCell[])allRows[row].Clone();
+            if (allRows[row].Length > 0)
+                allRows[row][^1] = allRows[row][^1] with
+                {
+                    Attributes = allRows[row][^1].Attributes & ~CellAttributes.SoftWrap
+                };
+        }
 
         // Step 2: Group rows into logical lines using SoftWrap, and track which
         // logical line the cursor row belongs to (and optionally the saved cursor).
@@ -81,6 +99,10 @@ internal static class ReflowHelper
             GroupLogicalLinesWithCursors(allRows, cursorAbsoluteRow,
                 hasSavedCursor ? savedCursorAbsoluteRow : null);
         var rowLocations = BuildLogicalRowLocations(allRows);
+        var logicalRenditions = new Dictionary<int, LineRendition>();
+        for (var row = 0; row < allRows.Count; row++)
+            if (renditions[row] != LineRendition.SingleWidth)
+                logicalRenditions[rowLocations[row].LogicalLine] = renditions[row];
         var anchorsByLogicalLine =
             new Dictionary<int, List<(TerminalReflowAnchor Anchor, int CellOffset)>>();
         foreach (var anchor in anchors)
@@ -105,6 +127,7 @@ internal static class ReflowHelper
 
         // Step 3: Re-wrap all logical lines to the new width
         var rewrappedRows = new List<TerminalCell[]>();
+        var rewrappedRenditions = new List<LineRendition>();
         int newCursorRow = 0;
         int newCursorCol = 0;
         int newSavedCursorRow = 0;
@@ -117,6 +140,46 @@ internal static class ReflowHelper
         for (int lineIdx = 0; lineIdx < logicalLines.Count; lineIdx++)
         {
             var logicalLine = logicalLines[lineIdx];
+            var rendition = logicalRenditions.GetValueOrDefault(lineIdx);
+            if (rendition != LineRendition.SingleWidth)
+            {
+                var width = Math.Max(1, context.NewWidth / 2);
+                var row = new TerminalCell[context.NewWidth];
+                Array.Fill(row, TerminalCell.Empty);
+                var count = Math.Min(width, logicalLine.Count);
+                if (count > 0 && count < logicalLine.Count && logicalLine[count].Character == "")
+                    while (count > 0 && logicalLine[count].Character == "")
+                        count--;
+                for (var column = 0; column < count; column++)
+                    row[column] = logicalLine[column] with
+                    {
+                        Attributes = logicalLine[column].Attributes & ~CellAttributes.SoftWrap
+                    };
+                if (lineIdx == cursorLogicalLine)
+                {
+                    newCursorRow = rowsSoFar;
+                    newCursorCol = Math.Min(context.CursorX, width - 1);
+                    cursorFound = true;
+                }
+                if (hasSavedCursor && lineIdx == savedCursorLogicalLine)
+                {
+                    newSavedCursorRow = rowsSoFar;
+                    newSavedCursorCol = Math.Min(context.SavedCursorX!.Value, width - 1);
+                    savedCursorFound = true;
+                }
+                if (anchorsByLogicalLine.TryGetValue(lineIdx, out var fixedAnchors))
+                    foreach (var (anchor, _) in fixedAnchors)
+                        if (anchor.IsTextPosition
+                            ? InternalTerminalReflow.RetainsTextColumn(allRows[anchor.Row].Length, context.NewWidth,
+                                rendition, anchor.Column, anchor.Column < allRows[anchor.Row].Length
+                                    ? allRows[anchor.Row][anchor.Column].Character : null)
+                            : anchor.Column < context.NewWidth)
+                            mappedAnchors.Add(anchor with { Row = rowsSoFar });
+                rewrappedRows.Add(row);
+                rewrappedRenditions.Add(rendition);
+                rowsSoFar++;
+                continue;
+            }
             var emptyLogicalLine = logicalLine.Count == 0;
             var cursorOffset = lineIdx == cursorLogicalLine
                 ? rowLocations[cursorAbsoluteRow].CellOffset + context.CursorX + (context.PendingWrap ? 1 : 0)
@@ -180,6 +243,7 @@ internal static class ReflowHelper
             }
 
             rewrappedRows.AddRange(wrappedRows);
+            rewrappedRenditions.AddRange(Enumerable.Repeat(LineRendition.SingleWidth, wrappedRows.Count));
             rowsSoFar += wrappedRows.Count;
         }
 
@@ -198,7 +262,7 @@ internal static class ReflowHelper
         // Step 4: Distribute rows into scrollback and screen
         var reflow = DistributeRows(rewrappedRows, context, newCursorRow, newCursorCol, preserveCursorRow,
             hasSavedCursor ? newSavedCursorRow : null,
-            hasSavedCursor ? newSavedCursorCol : null);
+            hasSavedCursor ? newSavedCursorCol : null, rewrappedRenditions);
         var retainedRowCount = reflow.ScrollbackRows.Length + reflow.ScreenRows.Length;
         mappedAnchors.RemoveAll(anchor => anchor.Row < 0 || anchor.Row >= retainedRowCount);
         return new InternalReflowResult(reflow, mappedAnchors);
@@ -510,14 +574,16 @@ internal static class ReflowHelper
         int cursorCol,
         bool preserveCursorRow,
         int? savedCursorRow = null,
-        int? savedCursorCol = null)
+        int? savedCursorCol = null,
+        List<LineRendition>? renditions = null)
     {
         int screenHeight = context.NewHeight;
 
         // Trim trailing all-empty rows — they don't carry meaningful content
         // and shouldn't push real content into scrollback.
         int contentRowCount = rewrappedRows.Count;
-        while (contentRowCount > 0 && IsEmptyRow(rewrappedRows[contentRowCount - 1]))
+        while (contentRowCount > 0 && IsEmptyRow(rewrappedRows[contentRowCount - 1]) &&
+               (renditions is null || renditions[contentRowCount - 1] == LineRendition.SingleWidth))
             contentRowCount--;
 
         // Ensure at least enough rows to place the cursor
@@ -546,7 +612,10 @@ internal static class ReflowHelper
         var scrollbackRows = new ReflowScrollbackRow[scrollbackCount];
         for (int i = 0; i < scrollbackCount; i++)
         {
-            scrollbackRows[i] = new ReflowScrollbackRow(rewrappedRows[i], context.NewWidth);
+            scrollbackRows[i] = new ReflowScrollbackRow(rewrappedRows[i], context.NewWidth)
+            {
+                Rendition = renditions?[i] ?? LineRendition.SingleWidth
+            };
         }
 
         // Build screen rows
@@ -586,7 +655,10 @@ internal static class ReflowHelper
             newSavedCursorX, newSavedCursorY)
         {
             PendingWrap = cursorCol >= context.NewWidth,
-            SavedPendingWrap = savedCursorCol >= context.NewWidth
+            SavedPendingWrap = savedCursorCol >= context.NewWidth,
+            LineRenditions = Enumerable.Range(0, screenHeight)
+                .Select(row => renditions is not null && screenStartIndex + row < renditions.Count
+                    ? renditions[screenStartIndex + row] : LineRendition.SingleWidth).ToArray()
         };
     }
 

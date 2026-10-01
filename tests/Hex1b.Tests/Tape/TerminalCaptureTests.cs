@@ -159,6 +159,9 @@ public class TerminalCaptureTests
     [DataRow("\x1b[8mhidden\x1b[0m\x1b[4:3;58;2;5;6;7munder", "!")]
     [DataRow("\x1b]8;id=a;https://example.test\x1b\\link", "ed")]
     [DataRow("\x1b[3g\x1b[1;5H\x1bH\x1b[H", "\tX")]
+    [DataRow("Header\r\n", "\tX\tY")]
+    [DataRow("\x1b#6Header\r\n", "\tX\tY")]
+    [DataRow("\x1b[3g\x1b[5G\x1bH\x1b[9G\x1bH\x1b[H\x1b#6", "\tX\tY")]
     [DataRow("\x1b(0lqk", "x")]
     [DataRow("", "\x1b[31m\x1b[3b")]
     [DataRow("Z\r\x1b[K", "\x1b[3b")]
@@ -172,6 +175,18 @@ public class TerminalCaptureTests
     [DataRow("before", "\u001bDafter")]
     [DataRow("", "\x1b*0\x1bnlqk")]
     [DataRow("", "\x1b+0\x1bolqk")]
+    [DataRow("\x1b#3Hello\r\n\x1b#4Hello", "\r\nnormal")]
+    [DataRow("\x1b#6abcdefghij", "Z")]
+    [DataRow("\x1b#6abcdefghijk", "Z")]
+    [DataRow("\x1b#6abcdefghi\u754c", "Z")]
+    [DataRow("\x1b[2;1H\x1b#4\x1b[H\x1b#3abcdefghi\u754c", "Z")]
+    [DataRow("abcdefghijklmnopqrs\u754c", "Z")]
+    [DataRow("\x1b#6\x1b[41m0123456789\r\x1b[0mabcdefghi\x1b]8;;https://example.test/wide\a\u754c\x1b]8;;\a", "Z")]
+    [DataRow("\x1b[2;1H\x1b#4\x1b[H\x1b#3abcdefghijk", "Z")]
+    [DataRow("\x1b[2;1H\x1b#6\x1b[H12345678901234567890Z", "!")]
+    [DataRow("\x1b#6abcdefghijk\x1b[?1049h\x1b#3Alt", "\x1b[?1049l!")]
+    [DataRow("\x1b#6Main\x1b[?1049h\x1b#3Alt", "\x1b[?1049l!")]
+    [DataRow("\x1b#", "3Hello\r\n\x1b#4Hello")]
     public async Task BeginCaptureAsync_TextContinuationState_ReplaysFaithfully(string before, string after)
     {
         var workload = new ControlledWorkload();
@@ -515,6 +530,8 @@ public class TerminalCaptureTests
         Assert.AreEqual(expected.MouseEncodingSgrEnabled, actual.MouseEncodingSgrEnabled);
         for (var row = 0; row < expected.Height; row++)
         {
+            Assert.AreEqual(expected.GetLineRendition(row), actual.GetLineRendition(row), $"rendition ({row})");
+            Assert.AreEqual(expected.IsLineSoftWrapped(row), actual.IsLineSoftWrapped(row), $"soft wrap ({row})");
             for (var column = 0; column < expected.Width; column++)
             {
                 var target = expected.GetCell(column, row);
@@ -523,6 +540,7 @@ public class TerminalCaptureTests
                 Assert.AreEqual(target.Foreground, result.Foreground, $"foreground ({column},{row})");
                 Assert.AreEqual(target.Background, result.Background, $"background ({column},{row})");
                 Assert.AreEqual(target.Attributes, result.Attributes, $"attributes ({column},{row})");
+                Assert.AreEqual(target.IsWideWrapPadding, result.IsWideWrapPadding, $"wide wrap padding ({column},{row})");
                 Assert.AreEqual(target.UnderlineStyle, result.UnderlineStyle);
                 Assert.AreEqual(target.UnderlineColor, result.UnderlineColor);
                 Assert.AreEqual(target.HyperlinkData?.Uri, result.HyperlinkData?.Uri);

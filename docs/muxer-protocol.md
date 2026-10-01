@@ -13,10 +13,12 @@ The Hex1b Muxer Protocol is a binary framing protocol for multiplexing terminal 
 > `StateSync`; producers and consumers must upgrade together.
 >
 > **Optional scrollback extension.** Retained-history transfer is negotiated
-> independently with `scrollbackHistoryVersion: 1`; the HMP1 version remains
+> independently with `scrollbackHistoryVersion: 2`; the HMP1 version remains
 > `1`. It is backward compatible with peers that already implement the current
 > `ClientHello` / `StateSync` / mandatory `ActivityState` baseline. Missing
-> scrollback negotiation fields keep screen-only text replay. This does not restore compatibility
+> scrollback negotiation fields or a version-1 history request keep screen-only text replay.
+> Version 2 adds DEC row rendition; version-1 and version-2 peers do not exchange
+> history checkpoints with one another. This does not restore compatibility
 > with the older, pre-`ActivityState` protocol described above.
 > Retained OSC 133 command marks use a separate optional
 > `commandMarkHistoryVersion: 1` negotiation with the same compatibility rules.
@@ -121,7 +123,7 @@ role hint, and an optional retained-history request.
 {
   "displayName": "aspire-cli",
   "defaultRole": "secondary",
-  "scrollbackHistoryVersion": 1,
+  "scrollbackHistoryVersion": 2,
   "scrollbackHistoryRows": 10000,
   "commandMarkHistoryVersion": 1
 }
@@ -138,10 +140,10 @@ role hint, and an optional retained-history request.
   the producer's PTY dims, `"secondary"` peers follow them. Both are fully
   interactive.
 - `scrollbackHistoryVersion` — Optional retained-history extension version.
-  Version `1` requests the binary checkpoint described below.
+  Version `2` requests the binary checkpoint described below.
 - `scrollbackHistoryRows` — Requested maximum number of physical history rows,
-  from 1 through 100,000 when requesting version `1`. Omit **both** history
-  fields to disable the extension; do not send a zero-row version-1 request.
+  from 1 through 100,000 when requesting version `2`. Omit **both** history
+  fields to disable the extension; do not send a zero-row version-2 request.
 - `commandMarkHistoryVersion` — Optional retained OSC 133 command-mark
   extension version, currently `1`. Omit it to disable the request. This is
   independent of scrollback negotiation; screen-backed marks can transfer even
@@ -168,7 +170,7 @@ Sent once by the server after it has received the client's `ClientHello`.
   "height": 24,
   "peerId": "p3a1b2c4",
   "primaryPeerId": null,
-  "scrollbackHistoryVersion": 1,
+  "scrollbackHistoryVersion": 2,
   "scrollbackHistoryRows": 10000,
   "commandMarkHistoryVersion": 1,
   "peers": [
@@ -189,8 +191,8 @@ Sent once by the server after it has received the client's `ClientHello`.
 - `peers` — Roster of *other* peers currently attached (excluding self), each
   with `peerId` and `displayName`.
 - `scrollbackHistoryVersion` / `scrollbackHistoryRows` — Present only when
-  history was negotiated: version `1` and an accepted positive row limit no
-  greater than the client's request. The server acknowledges only a version-1
+  history was negotiated: version `2` and an accepted positive row limit no
+  greater than the client's request. The server acknowledges only a version-2
   request when the producer has scrollback storage and history transfer is
   enabled. An absent acknowledgement means no scrollback transfer, even if the
   client requested history. No scrollback frames may be sent without negotiation.
@@ -325,13 +327,14 @@ After the history rows, read `CommandMarkState` if independently negotiated,
 then apply the complete checkpoint. Resume graphics replay, parser continuation,
 and normal live output in their existing order.
 
-#### Binary row format (extension version 1)
+#### Binary row format (extension version 2)
 
 All multibyte values are little-endian. Each row begins with:
 
 | Field | Encoding | Constraints |
 |-------|----------|-------------|
 | Original width | signed int32 | 1..16,384 columns |
+| DEC line rendition | byte | `0` single width, `1` double width, `2` double-height top, `3` double-height bottom |
 | Capture timestamp | signed int64 | Valid .NET UTC ticks (100 ns since 0001-01-01 UTC) |
 | Cell count | signed int32 | 1..16,384 cells |
 

@@ -69,7 +69,8 @@ internal sealed class ScrollbackBuffer
     internal ScrollbackPushResult PushWithIdentity(
         TerminalCell[] cells,
         int originalWidth,
-        DateTimeOffset timestamp)
+        DateTimeOffset timestamp,
+        LineRendition rendition = LineRendition.SingleWidth)
     {
         ScrollbackRow? evicted = null;
         long? evictedRowId = null;
@@ -94,7 +95,7 @@ internal sealed class ScrollbackBuffer
 
         var rowId = _nextRowId;
         _nextRowId = checked(_nextRowId + 1);
-        _rows[_head] = new ScrollbackRow(cells, originalWidth, timestamp);
+        _rows[_head] = new ScrollbackRow(cells, originalWidth, timestamp) { Rendition = rendition };
         _rowIds[_head] = rowId;
         _head = (_head + 1) % Capacity;
 
@@ -216,7 +217,7 @@ internal sealed class ScrollbackBuffer
             _rows[_head] = new ScrollbackRow(
                 row.Cells,
                 row.OriginalWidth,
-                timestamp);
+                timestamp) { Rendition = row.Rendition };
             _rowIds[_head] = id;
             _head = (_head + 1) % Capacity;
             _count++;

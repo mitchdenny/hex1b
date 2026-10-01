@@ -32,6 +32,14 @@ public static class AnsiTokenSerializer
         return token switch
         {
             TextToken t => t.Text,
+            LineRenditionToken line => line.Rendition switch
+            {
+                LineRendition.SingleWidth => "\x1b#5",
+                LineRendition.DoubleWidth => "\x1b#6",
+                LineRendition.DoubleHeightTop => "\x1b#3",
+                LineRendition.DoubleHeightBottom => "\x1b#4",
+                _ => throw new ArgumentOutOfRangeException(nameof(token))
+            },
             ControlCharacterToken c => SerializeControlCharacter(c),
             SgrToken sgr => SerializeSgr(sgr),
             CursorPositionToken pos => SerializeCursorPosition(pos),
@@ -54,6 +62,8 @@ public static class AnsiTokenSerializer
             RectangularEraseToken rect => SerializeRectangularErase(rect),
             RepeatCharacterToken rep => rep.Count == 1 ? "\x1b[b" : $"\x1b[{rep.Count}b",
             IndexToken => "\u001bD",
+            TabSetToken => "\x1bH",
+            TabClearToken tab => $"\x1b[{tab.Mode}g",
             SoftResetToken => "\x1b[!p",
             ReverseIndexToken => "\x1bM",
             CharacterSetToken cs => $"\x1b{(cs.Target switch { 0 => '(', 1 => ')', 2 => '*', _ => '+' })}{cs.Charset}",

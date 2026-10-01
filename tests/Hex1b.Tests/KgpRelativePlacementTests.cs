@@ -870,6 +870,24 @@ public class KgpRelativePlacementTests
     }
 
     [TestMethod]
+    public void DeleteAtCursor_ChildOfEnlargedVirtualParent_UsesRenderedPhysicalOrigin()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, width: 12, height: 4);
+        AddVirtualImage(terminal, imageId: 42, placementId: 7);
+        Transmit(terminal, 2);
+        Put(terminal, "i=2,p=2,c=1,r=1,z=5,P=42,Q=7,C=1");
+        Apply(terminal, "\x1b#6\x1b[4G" + Foreground(42) + UnderlineColor(7) +
+            Placeholder(row: 0, column: 0) + "\x1b[0m\x1b[4G");
+        using (var before = terminal.CreateSnapshot())
+            Assert.AreEqual(6, before.KgpPlacements.Single(p => p.ImageId == 2).Column);
+        Apply(terminal, KgpTestHelper.BuildCommand("a=d,d=c"));
+        using var after = terminal.CreateSnapshot();
+        Assert.IsFalse(after.KgpPlacements.Any(p => p.ImageId == 2));
+        Assert.AreEqual(1, terminal.KgpVirtualPlacementCount);
+    }
+
+    [TestMethod]
     public void DeleteByZ_UnresolvedRelativePlacement_DoesNotReappear()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

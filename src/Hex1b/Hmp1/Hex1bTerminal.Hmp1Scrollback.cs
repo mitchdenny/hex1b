@@ -57,7 +57,7 @@ public sealed partial class Hex1bTerminal
                     {
                         TrackedHyperlink = _trackedObjects.GetOrCreateHyperlink(link.Uri, link.Parameters)
                     };
-                _scrollbackBuffer.Push(row.Cells, row.OriginalWidth, row.Timestamp);
+                _scrollbackBuffer.PushWithIdentity(row.Cells, row.OriginalWidth, row.Timestamp, row.Rendition);
             }
             finally
             {

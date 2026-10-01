@@ -17,10 +17,13 @@ switch (benchmarkType)
     case "sixel":
         BenchmarkSwitcher.FromTypes([typeof(SixelHardeningBenchmarks)]).Run(bdnArgs);
         break;
+    case "text":
+        BenchmarkSwitcher.FromTypes([typeof(TerminalTextBenchmarks)]).Run(bdnArgs);
+        break;
     case "all":
     default:
         BenchmarkSwitcher.FromTypes(
-            [typeof(SurfaceBenchmarks), typeof(RenderingModeBenchmarks), typeof(SixelHardeningBenchmarks)])
+            [typeof(SurfaceBenchmarks), typeof(RenderingModeBenchmarks), typeof(SixelHardeningBenchmarks), typeof(TerminalTextBenchmarks)])
             .Run(bdnArgs);
         break;
 }

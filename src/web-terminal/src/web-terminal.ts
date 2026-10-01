@@ -114,6 +114,7 @@ export class WebTerminal implements WebTerminalHandle {
   #selectionUIError = "";
   #canvasSize = { width: 0, height: 0 };
   #hyperlinks = new Hyperlinks();
+  #lineRenditions: readonly number[] = [];
   #links: false | TerminalLinkOptions;
   #linkDetector: LinkDetection;
   #linkGeneration = 1;
@@ -344,6 +345,7 @@ export class WebTerminal implements WebTerminalHandle {
       catch (error) { this.#inspectionError = errorMessage(error); this.#inspectionChanged(); }
     };
     this.#mouse = captureMouse(this.#canvas, command => this.#inputCommand(command), () => this.focus(), {
+      lineRenditions: () => this.#lineRenditions,
       state: () => ({ historical: !this.viewport.following || this.viewport.pending, readOnly: this.#readOnly,
         selection: this.selection }),
       begin: (point, selection) => inspect(() => this.#history.begin(point, selection)),
@@ -461,6 +463,7 @@ export class WebTerminal implements WebTerminalHandle {
       }
       this.#options.onStatus?.(message.message, message.level);
     } else if (message.type === "geometry") {
+      this.#lineRenditions = message.lineRenditions ?? [];
       this.#linkRevision = message.revision;
       this.#osc8Rows.clear();
       for (const range of message.hyperlinks) {
@@ -637,7 +640,8 @@ export class WebTerminal implements WebTerminalHandle {
         const element = document.createElement("span");
         element.className = "highlight";
         element.setAttribute("part", "selection-highlight");
-        element.style.cssText = `left:${range.startColumn / this.#geometry.columns * 100}%;top:${range.row / this.#geometry.rows * 100}%;width:${(range.endColumn - range.startColumn) / this.#geometry.columns * 100}%;height:${100 / this.#geometry.rows}%`;
+        const scaleX = this.#lineRenditions[range.row] ? 2 : 1;
+        element.style.cssText = `left:${range.startColumn * scaleX / this.#geometry.columns * 100}%;top:${range.row / this.#geometry.rows * 100}%;width:${(range.endColumn - range.startColumn) * scaleX / this.#geometry.columns * 100}%;height:${100 / this.#geometry.rows}%`;
         return element;
       }));
       const live = requiredElement(this.#inspection, ".return-live", HTMLButtonElement);

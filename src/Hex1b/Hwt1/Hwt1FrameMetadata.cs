@@ -14,4 +14,5 @@ internal sealed record Hwt1FrameMetadata(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ColorEncoding = null)
 {
     public string[] ColorEncodings { get; } = ["indexed-v1"];
+    public int[] LineRenditions { get; init; } = [];
 }

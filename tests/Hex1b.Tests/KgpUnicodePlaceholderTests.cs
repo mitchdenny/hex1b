@@ -22,6 +22,42 @@ public partial class KgpUnicodePlaceholderTests
     };
 
     [TestMethod]
+    [DataRow('3')]
+    [DataRow('4')]
+    [DataRow('6')]
+    public void Placeholder_EnlargedRow_ProjectsTextAnchorsWithoutScalingImageTiles(char mode)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, width: 12, height: 4, scrollbackCapacity: 4);
+        AddVirtualImage(terminal, 42, 20, 20, columns: 2, rows: 1);
+        Apply(terminal, $"\x1b#{mode}\x1b[3G" + Foreground(42) +
+            Placeholder(row: 0, column: 0) + Placeholder());
+        using var snapshot = terminal.CreateSnapshot();
+        Assert.AreEqual(2, snapshot.KgpPlacements.Count);
+        Assert.AreEqual(4, snapshot.KgpPlacements[0].Column);
+        Assert.AreEqual(6, snapshot.KgpPlacements[1].Column);
+        foreach (var placement in snapshot.KgpPlacements)
+        {
+            Assert.AreEqual(1u, placement.DisplayColumns);
+            Assert.AreEqual(10u, placement.SourceWidth);
+        }
+        Assert.AreEqual(0u, snapshot.KgpPlacements[0].SourceX);
+        Assert.AreEqual(10u, snapshot.KgpPlacements[1].SourceX);
+
+        Apply(terminal, "\x1b[H\x1b#5");
+        using var normal = terminal.CreateSnapshot();
+        var joined = TestSeq.Single(normal.KgpPlacements);
+        Assert.AreEqual(2, joined.Column);
+        Assert.AreEqual(2u, joined.DisplayColumns);
+        Apply(terminal, $"\x1b#{mode}\x1b[S");
+        using var history = terminal.CreateSnapshot(scrollbackLines: 1);
+        Assert.AreEqual(2, history.KgpPlacements.Count);
+        Assert.AreEqual(4, history.KgpPlacements[0].Column);
+        Assert.AreEqual(6, history.KgpPlacements[1].Column);
+        Assert.IsTrue(history.KgpPlacements.All(placement => placement.Row == 0));
+    }
+
+    [TestMethod]
     public void TransmitAndDisplay_UnicodePlaceholder_CreatesOnlyVirtualPrototype()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

@@ -188,7 +188,10 @@ internal sealed class Hwt1RenderProjection
             Hwt1Progress.From(snapshot.Progress), Hwt1ShellIntegration.From(snapshot.ShellIntegration),
             Hwt1WorkingDirectory.From(snapshot.WorkingDirectory),
             Hwt1CommandMark.From(snapshot.CommandMarks.Count > 0 ? snapshot.CommandMarks[^1] : null),
-            indexedColors ? "indexed-v1" : null),
+            indexedColors ? "indexed-v1" : null)
+            {
+                LineRenditions = Enumerable.Range(0, _rows).Select(y => (int)snapshot.GetLineRendition(y)).ToArray()
+            },
             Hwt1JsonSerializerContext.Default.Hwt1FrameMetadata);
         if (metadata.Length > 8 * 1024 * 1024)
             throw new InvalidDataException("Frame metadata exceeds the HWT1 8 MiB limit.");

@@ -37,4 +37,7 @@ internal sealed record Hex1bTerminalSnapshotState(
     TerminalProgress Progress,
     TerminalShellIntegration ShellIntegration,
     TerminalWorkingDirectory WorkingDirectory,
-    IReadOnlyList<TerminalCommandMark> CommandMarks);
+    IReadOnlyList<TerminalCommandMark> CommandMarks)
+{
+    internal LineRendition[] LineRenditions { get; init; } = [];
+}

@@ -8,4 +8,8 @@ namespace Hex1b.Reflow;
 /// <param name="OriginalWidth">The terminal width when this row was scrolled off screen.</param>
 public readonly record struct ReflowScrollbackRow(
     TerminalCell[] Cells,
-    int OriginalWidth);
+    int OriginalWidth)
+{
+    /// <summary>Gets the DEC character width and height mode of this physical history row.</summary>
+    public LineRendition Rendition { get; init; }
+}

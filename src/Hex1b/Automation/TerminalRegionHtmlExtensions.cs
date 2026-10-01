@@ -37,7 +37,7 @@ public static class TerminalRegionHtmlExtensions
     {
         var cellWidth = options.CellWidth;
         var cellHeight = options.CellHeight;
-        var svgWidth = region.Width * cellWidth;
+        var svgWidth = TerminalRegionSvgExtensions.GetDisplayColumns(region) * cellWidth;
         var svgHeight = region.Height * cellHeight;
 
         // Pre-scan cells to identify unique cell groups (e.g., hyperlinks with same ID/URI)
@@ -448,6 +448,8 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine($"    const ROWS = {region.Height};");
         sb.AppendLine($"    const SCROLLBACK_LINES = {scrollbackLineCount};");
         sb.AppendLine($"    const cellData = {cellData};");
+        sb.AppendLine($"    const rowScales = [{string.Join(",", Enumerable.Range(0, region.Height).Select(row => region.GetLineRendition(row) == LineRendition.SingleWidth ? 1 : 2))}];");
+        sb.AppendLine($"    const rowWidths = [{string.Join(",", Enumerable.Range(0, region.Height).Select(region.GetLogicalWidth))}];");
         sb.AppendLine();
         sb.AppendLine("    const container = document.getElementById('svg-container');");
         sb.AppendLine("    const highlight = document.getElementById('cell-highlight');");
@@ -656,12 +658,12 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      const svgRect = svg.getBoundingClientRect();");
         sb.AppendLine("      const scaleX = svgRect.width / SVG_WIDTH;");
         sb.AppendLine("      const scaleY = svgRect.height / SVG_HEIGHT;");
-        sb.AppendLine("      const cellWidth = BASE_CELL_WIDTH * scaleX;");
         sb.AppendLine("      const cellHeight = BASE_CELL_HEIGHT * scaleY;");
-        sb.AppendLine("      const x = Math.floor((e.clientX - svgRect.left) / cellWidth);");
         sb.AppendLine("      const y = Math.floor((e.clientY - svgRect.top) / cellHeight);");
+        sb.AppendLine("      const cellWidth = BASE_CELL_WIDTH * scaleX * (rowScales[y] || 1);");
+        sb.AppendLine("      const x = Math.floor((e.clientX - svgRect.left) / cellWidth);");
         sb.AppendLine();
-        sb.AppendLine("      if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {");
+        sb.AppendLine("      if (y >= 0 && y < ROWS && x >= 0 && x < rowWidths[y]) {");
         sb.AppendLine("        const cell = cellData[y][x];");
         sb.AppendLine();
         sb.AppendLine("        // Check if we moved to a new cell");
@@ -713,12 +715,12 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("      const svgRect = svg.getBoundingClientRect();");
         sb.AppendLine("      const scaleX = svgRect.width / SVG_WIDTH;");
         sb.AppendLine("      const scaleY = svgRect.height / SVG_HEIGHT;");
-        sb.AppendLine("      const cellWidth = BASE_CELL_WIDTH * scaleX;");
         sb.AppendLine("      const cellHeight = BASE_CELL_HEIGHT * scaleY;");
-        sb.AppendLine("      const x = Math.floor((e.clientX - svgRect.left) / cellWidth);");
         sb.AppendLine("      const y = Math.floor((e.clientY - svgRect.top) / cellHeight);");
+        sb.AppendLine("      const cellWidth = BASE_CELL_WIDTH * scaleX * (rowScales[y] || 1);");
+        sb.AppendLine("      const x = Math.floor((e.clientX - svgRect.left) / cellWidth);");
         sb.AppendLine();
-        sb.AppendLine("      if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {");
+        sb.AppendLine("      if (y >= 0 && y < ROWS && x >= 0 && x < rowWidths[y]) {");
         sb.AppendLine("        if (isPinned && pinnedCellX === x && pinnedCellY === y) {");
         sb.AppendLine("          // Clicking pinned cell again unpins");
         sb.AppendLine("          unpinTooltip();");
@@ -887,7 +889,10 @@ public static class TerminalRegionHtmlExtensions
                         // Sixel metadata even while still inside the painted
                         // rectangle. CoversCell takes (row, column) — py, px.
                         if (placement.CoversCell(py, px))
-                            sixelByCell[(px, py)] = placement; // later sequence overwrites earlier: topmost wins.
+                        {
+                            var columnScale = region.GetLineRendition(py) == LineRendition.SingleWidth ? 1 : 2;
+                            sixelByCell[(px / columnScale, py)] = placement; // later sequence overwrites earlier: topmost wins.
+                        }
                     }
                 }
             }
@@ -929,7 +934,8 @@ public static class TerminalRegionHtmlExtensions
                 string sixel;
                 if (sixelByCell.TryGetValue((x, y), out var sixelPlacement))
                 {
-                    var isOrigin = x == sixelPlacement.PaintedLeft && y == sixelPlacement.PaintedTop;
+                    var columnScale = region.GetLineRendition(y) == LineRendition.SingleWidth ? 1 : 2;
+                    var isOrigin = x == sixelPlacement.PaintedLeft / columnScale && y == sixelPlacement.PaintedTop;
                     var geometryOnly = sixelPlacement.IsGeometryOnly ? "true" : "false";
                     var outcome = EscapeJsonString(sixelPlacement.Image.RasterStatus.ToString());
                     sixel = $"{{\"origin\":{(isOrigin ? "true" : "false")},\"w\":{sixelPlacement.WidthInCells},\"h\":{sixelPlacement.HeightInCells},\"geometryOnly\":{geometryOnly},\"outcome\":\"{outcome}\"}}";
