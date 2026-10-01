@@ -26,6 +26,7 @@ public sealed partial class Hex1bTerminal
 
     private void CropLineRendition(int row, List<CellImpact>? impacts = null)
     {
+        var softWrapped = _screenBuffer[row, _width - 1].IsSoftWrap;
         var width = LineWidth(row);
         var start = width;
         if (width < _width && _screenBuffer[row, width].Character == "")
@@ -35,5 +36,10 @@ public sealed partial class Hex1bTerminal
             InvalidateTextAnchorsInRange(row, row, start, _width);
         for (var x = start; x < _width; x++)
             SetCell(row, x, CreateEraseCell(), impacts);
+        if (softWrapped)
+        {
+            ref var edge = ref _screenBuffer[row, _width - 1];
+            edge = edge with { Attributes = edge.Attributes | CellAttributes.SoftWrap };
+        }
     }
 }

@@ -105,6 +105,29 @@ public class LineRenditionRowTests
     }
 
     [TestMethod]
+    [DataRow(false, 3)]
+    [DataRow(false, 5)]
+    [DataRow(true, 3)]
+    [DataRow(true, 5)]
+    public void Resize_HeightOnlyWithoutReflow_PreservesEnlargedSoftWrap(bool provider, int height)
+    {
+        var builder = Hex1bTerminal.CreateBuilder().WithWorkload(new Hex1bAppWorkloadAdapter())
+            .WithHeadless().WithDimensions(10, 4);
+        if (provider)
+            builder.WithReflow(NoReflowStrategy.Instance);
+        using var terminal = builder.Build();
+        Feed(terminal, "\x1b#6ABCDEZ");
+        using (var before = terminal.CreateSnapshot())
+            Assert.IsTrue(before.IsLineSoftWrapped(0));
+        terminal.Resize(10, height);
+        using var after = terminal.CreateSnapshot();
+        Assert.IsTrue(after.IsLineSoftWrapped(0));
+        Assert.AreEqual(LineRendition.DoubleWidth, after.GetLineRendition(0));
+        Assert.AreEqual("ABCDE", after.GetLineTrimmed(0));
+        Assert.AreEqual("Z", after.GetLineTrimmed(1));
+    }
+
+    [TestMethod]
     public void Scroll_HistoryEviction_RetainsOnlyReachableRowsAndLinks()
     {
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(new Hex1bAppWorkloadAdapter())

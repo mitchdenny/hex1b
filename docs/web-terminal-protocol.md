@@ -87,7 +87,7 @@ navigation is independent of producer geometry and never requests primary.
 
 ## 2. Message model and conventions
 
-### Experimental DEC line rendition
+### DEC line rendition
 
 Every frame carries a full `lineRenditions` array with one entry per visible
 physical row: `0` is normal, `1` double-width, `2` double-height top, and `3`
@@ -101,8 +101,10 @@ by two, and double-height glyphs vertically by two, clipping each half to its
 own physical row. Backgrounds, cursor, selection overlays, and pointer hit
 testing use the corresponding horizontal transform. Unicode glyphs keep
 their usual logical widths. Top and bottom rows are independent; the protocol
-does not pair them or deduplicate copied text. This text-only spike does not
-define new graphics-placement behavior.
+does not pair them or deduplicate copied text. Image placements and raster sizes
+remain in physical cell/pixel coordinates; they are not stretched with text.
+KGP Unicode placeholder tiles retain their physical size at the scaled text
+positions.
 
 There are two directions:
 
@@ -175,6 +177,7 @@ delta.
 | `baseRevision` | integer | `0` for a full frame; otherwise the previous projected revision. |
 | `full` | boolean | Whether cells and image resources establish a self-contained baseline. |
 | `columns`, `rows` | integers | Dimensions of the visible grid, in cells. |
+| `lineRenditions` | array of integers | Complete physical-row width/height modes, one per visible row; values `0` through `3` as defined in §2. |
 | `cellWidth`, `cellHeight` | integers | Logical pixels per cell; currently exactly `10`, `20`. |
 | `mouseTracking` | integer | Effective mouse tracking mode: `0`, `9`, `1000`, `1002`, or `1003`; see §7. |
 | `peer` | object | Required complete HMP1 peer/primary state, or standalone defaults, defined below. |

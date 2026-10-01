@@ -169,6 +169,9 @@ public sealed partial class Hex1bTerminal
                     continue;
                 }
                 AppendCaptureCell(output, cell, _protectedMode);
+                // Let the following wide glyph recreate its padding via early wrap.
+                if (cell.IsWideWrapPadding)
+                    AppendCaptureCursor(output, column, row);
             }
         }
     }

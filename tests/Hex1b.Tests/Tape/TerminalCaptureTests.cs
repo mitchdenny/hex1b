@@ -178,6 +178,10 @@ public class TerminalCaptureTests
     [DataRow("\x1b#3Hello\r\n\x1b#4Hello", "\r\nnormal")]
     [DataRow("\x1b#6abcdefghij", "Z")]
     [DataRow("\x1b#6abcdefghijk", "Z")]
+    [DataRow("\x1b#6abcdefghi\u754c", "Z")]
+    [DataRow("\x1b[2;1H\x1b#4\x1b[H\x1b#3abcdefghi\u754c", "Z")]
+    [DataRow("abcdefghijklmnopqrs\u754c", "Z")]
+    [DataRow("\x1b#6\x1b[41m0123456789\r\x1b[0mabcdefghi\x1b]8;;https://example.test/wide\a\u754c\x1b]8;;\a", "Z")]
     [DataRow("\x1b[2;1H\x1b#4\x1b[H\x1b#3abcdefghijk", "Z")]
     [DataRow("\x1b[2;1H\x1b#6\x1b[H12345678901234567890Z", "!")]
     [DataRow("\x1b#6abcdefghijk\x1b[?1049h\x1b#3Alt", "\x1b[?1049l!")]
@@ -536,6 +540,7 @@ public class TerminalCaptureTests
                 Assert.AreEqual(target.Foreground, result.Foreground, $"foreground ({column},{row})");
                 Assert.AreEqual(target.Background, result.Background, $"background ({column},{row})");
                 Assert.AreEqual(target.Attributes, result.Attributes, $"attributes ({column},{row})");
+                Assert.AreEqual(target.IsWideWrapPadding, result.IsWideWrapPadding, $"wide wrap padding ({column},{row})");
                 Assert.AreEqual(target.UnderlineStyle, result.UnderlineStyle);
                 Assert.AreEqual(target.UnderlineColor, result.UnderlineColor);
                 Assert.AreEqual(target.HyperlinkData?.Uri, result.HyperlinkData?.Uri);
