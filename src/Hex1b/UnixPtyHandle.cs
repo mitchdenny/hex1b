@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Globalization;
 
 namespace Hex1b;
 
@@ -12,12 +13,33 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
     private int _masterFd = -1;
     private int _childPid = -1;
     private bool _disposed;
+    private readonly object _lifecycleLock = new();
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private readonly TimeSpan _startupTimeout;
+    private readonly TimeProvider _timeProvider;
+    private readonly IUnixPtyStartupInterop _startupInterop;
+    private Task? _startupTask;
+    private Task? _disposeTask;
+    private int? _exitStatus;
+    private bool _childReaped;
     private readonly byte[] _readBuffer = new byte[4096];
     private readonly byte[] _readFds = new byte[128];
     
     public int ProcessId => _childPid;
+
+    public UnixPtyHandle(TimeSpan? startupTimeout = null)
+        : this(startupTimeout ?? UnixPtyStartupOptions.DefaultTimeout, TimeProvider.System, new NativeUnixPtyStartupInterop())
+    {
+    }
+
+    internal UnixPtyHandle(TimeSpan startupTimeout, TimeProvider timeProvider, IUnixPtyStartupInterop startupInterop)
+    {
+        _startupTimeout = UnixPtyStartupOptions.ValidateTimeout(startupTimeout);
+        _timeProvider = timeProvider;
+        _startupInterop = startupInterop;
+    }
     
-    public async Task StartAsync(
+    public Task StartAsync(
         string fileName,
         string[] arguments,
         string? workingDirectory,
@@ -26,17 +48,26 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
         int height,
         CancellationToken ct)
     {
-        // Check if native library is available - it's REQUIRED for proper PTY operation
-        if (!IsNativeLibraryAvailable())
+        lock (_lifecycleLock)
         {
-            throw new InvalidOperationException(
-                "Native hex1binterop library not found. This library is required for proper PTY operation. " +
-                "Programs like tmux and screen require a proper controlling terminal which can only be " +
-                "established via the native library. Please ensure libhex1binterop.so (Linux) or " +
-                "libhex1binterop.dylib (macOS) is in the application directory or a standard library path.");
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_startupTask is not null)
+                throw new InvalidOperationException("The Unix PTY has already been started.");
+            return _startupTask = StartCoreAsync(fileName, arguments, workingDirectory, environment, width, height, ct);
         }
-        
+    }
+
+    private async Task StartCoreAsync(string fileName, string[] arguments, string? workingDirectory,
+        Dictionary<string, string> environment, int width, int height, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetimeCancellation.Token);
+        cancellation.Token.ThrowIfCancellationRequested();
+        _startupInterop.ValidateLibrary();
         string resolvedPath = ResolveExecutablePath(fileName);
+        var cwd = workingDirectory ?? Environment.CurrentDirectory;
+        if (cwd.Contains('\0'))
+            throw new ArgumentException("The working directory must not contain a NUL character.", nameof(workingDirectory));
         
         // Pass a complete, null-terminated environment without mutating the hosting process.
         var envp = new string[environment.Count + 1];
@@ -48,51 +79,92 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
             envp[environmentIndex++] = $"{key}={value}";
         }
 
-        // Preserve the existing no-arguments login-shell behavior.
-        if (arguments.Length > 0)
+        try
         {
-            var argv = new string[arguments.Length + 2];
-            argv[0] = resolvedPath;
-            for (int i = 0; i < arguments.Length; i++)
-            {
-                argv[i + 1] = arguments[i];
-            }
+            await Task.Run(() => StartAndConfirm(resolvedPath, arguments, cwd, envp, width, height, cancellation.Token),
+                CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(ct);
+        }
+    }
 
-            var result = pty_forkpty_exec(
-                resolvedPath,
-                argv,
-                arguments.Length + 1,
-                workingDirectory ?? System.Environment.CurrentDirectory,
-                envp,
-                width,
-                height,
-                out _masterFd,
-                out _childPid);
-
-            if (result < 0)
+    private void StartAndConfirm(string executable, string[] arguments, string cwd, string[] environment,
+        int width, int height, CancellationToken ct)
+    {
+        UnixPtyStartupHandles? pending = null;
+        var state = new UnixPtyStartupState();
+        var startedAt = _timeProvider.GetTimestamp();
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            pending = _startupInterop.Begin(executable, arguments, cwd, environment, width, height);
+            while (true)
             {
-                throw new InvalidOperationException($"pty_forkpty_exec failed with error: {Marshal.GetLastWin32Error()}");
+                ct.ThrowIfCancellationRequested();
+                var elapsed = _timeProvider.GetElapsedTime(startedAt);
+                ThrowIfStartupExpired(executable, cwd, elapsed, state);
+                var pollMilliseconds = _startupTimeout == Timeout.InfiniteTimeSpan
+                    ? 50
+                    : (int)Math.Min(50, Math.Ceiling((_startupTimeout - elapsed).TotalMilliseconds));
+                var result = _startupInterop.Poll(pending.Value.StartupFd, pollMilliseconds, ref state, out var stage, out var error);
+                if (result < 0)
+                    throw NativeUnixPtyStartupInterop.CreateStartupException(executable, cwd, stage, error);
+
+                if (result != 0)
+                    continue;
+
+                ct.ThrowIfCancellationRequested();
+                ThrowIfStartupExpired(executable, cwd, _timeProvider.GetElapsedTime(startedAt), state);
+                var startupFd = pending.Value.StartupFd;
+                pending = pending.Value with { StartupFd = -1 };
+                _startupInterop.CloseStartup(startupFd);
+                lock (_lifecycleLock)
+                {
+                    ObjectDisposedException.ThrowIf(_disposed, this);
+                    ct.ThrowIfCancellationRequested();
+                    _masterFd = pending.Value.MasterFd;
+                    _childPid = pending.Value.ChildPid;
+                    pending = null;
+                }
+                return;
             }
         }
-        else
+        catch (Exception failure)
         {
-            var result = pty_forkpty_shell(
-                resolvedPath,
-                workingDirectory ?? System.Environment.CurrentDirectory,
-                envp,
-                width,
-                height,
-                out _masterFd,
-                out _childPid);
-
-            if (result < 0)
+            if (pending is { } handles)
             {
-                throw new InvalidOperationException($"pty_forkpty_shell failed with error: {Marshal.GetLastWin32Error()}");
+                try
+                {
+                    _startupInterop.Abort(handles);
+                }
+                catch (Exception cleanupFailure)
+                {
+                    throw new AggregateException("Unix PTY startup failed and child cleanup also failed.", failure, cleanupFailure);
+                }
+                if (failure is TimeoutException)
+                {
+                    throw new TimeoutException(
+                        failure.Message + " The child was terminated if still running and reaped.", failure);
+                }
             }
+            throw;
         }
-        
-        // Small delay to let child process initialize
-        await Task.Delay(50, ct);
+    }
+
+    private void ThrowIfStartupExpired(string executable, string cwd, TimeSpan elapsed, UnixPtyStartupState state)
+    {
+        if (_startupTimeout == Timeout.InfiniteTimeSpan || elapsed < _startupTimeout)
+            return;
+        var checkpoint = state.Ready == 0
+            ? "No pre-exec confirmation was received."
+            : "Pre-exec confirmation was received, but exec completion was not confirmed.";
+        throw new TimeoutException(
+            $"Unix PTY startup handshake for '{executable}' in working directory '{cwd}' exceeded the configured timeout " +
+            $"of {_startupTimeout.TotalSeconds.ToString("G", CultureInfo.InvariantCulture)} seconds " +
+            $"(elapsed {elapsed.TotalSeconds.ToString("G", CultureInfo.InvariantCulture)} seconds). {checkpoint} " +
+            "Configure UnixPtyStartupTimeout to change this limit.");
     }
     
     private static string ResolveExecutablePath(string fileName)
@@ -113,18 +185,6 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
         }
         
         return fileName;
-    }
-    
-    private static bool IsNativeLibraryAvailable()
-    {
-        try
-        {
-            return NativeLibrary.TryLoad("hex1binterop", typeof(UnixPtyHandle).Assembly, null, out _);
-        }
-        catch
-        {
-            return false;
-        }
     }
     
     public async ValueTask<ReadOnlyMemory<byte>> ReadAsync(CancellationToken ct)
@@ -236,33 +296,44 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
     
     public void Kill(int signal = 15)
     {
-        if (_childPid > 0 && IsChildRunning(_childPid))
+        lock (_lifecycleLock)
         {
-            _ = KillProcess(_childPid, signal);
+            if (_childPid > 0 && !_childReaped)
+                _ = KillProcess(_childPid, signal);
         }
     }
     
     private static bool IsChildRunning(int pid)
     {
-        return KillProcess(pid, 0) == 0;
+        return pid > 0 && KillProcess(pid, 0) == 0;
     }
     
     public async Task<int> WaitForExitAsync(CancellationToken ct)
     {
-        if (_childPid <= 0)
-            return -1;
-        
         while (!ct.IsCancellationRequested)
         {
-            int status;
-            int result = pty_wait(_childPid, 100, out status);
-            if (result == 0)
+            lock (_lifecycleLock)
             {
-                return status;
-            }
-            else if (result < 0)
-            {
-                return -1;
+                if (_exitStatus is { } exitStatus)
+                    return exitStatus;
+                if (_childPid <= 0)
+                    return -1;
+                var result = pty_wait(_childPid, 100, out var status);
+                if (result == 0)
+                {
+                    _childReaped = true;
+                    _exitStatus = status;
+                    return status;
+                }
+                if (result < 0)
+                {
+                    var error = Marshal.GetLastPInvokeError();
+                    if (error == 4)
+                        continue;
+                    if (error == 10) // ECHILD: another owner has already reaped it.
+                        _childReaped = true;
+                    return -1;
+                }
             }
             await Task.Delay(10, ct);
         }
@@ -272,57 +343,42 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
     
     public ValueTask DisposeAsync()
     {
-        if (_disposed)
-            return ValueTask.CompletedTask;
-        
-        _disposed = true;
-        
-        if (_masterFd >= 0)
+        lock (_lifecycleLock)
         {
-            close(_masterFd);
-            _masterFd = -1;
-        }
-        
-        if (_childPid > 0 && IsChildRunning(_childPid))
-        {
-            _ = KillProcess(_childPid, SIGKILL);
-            
-            for (int i = 0; i < 10 && IsChildRunning(_childPid); i++)
+            if (_disposeTask is null)
             {
-                Thread.Sleep(10);
+                _disposed = true;
+                _disposeTask = Task.Run(DisposeCoreAsync);
             }
-            
-            _ = pty_wait(_childPid, 100, out _);
+            return new ValueTask(_disposeTask);
         }
-        
-        return ValueTask.CompletedTask;
     }
-    
+
+    private async Task DisposeCoreAsync()
+    {
+        try
+        {
+            _lifetimeCancellation.Cancel();
+            if (_startupTask is not null)
+                await _startupTask.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+            UnixPtyStartupHandles handles;
+            lock (_lifecycleLock)
+            {
+                handles = new(_masterFd, _childReaped ? -1 : _childPid, -1);
+                _masterFd = -1;
+                _childPid = -1;
+            }
+            if (handles.MasterFd >= 0 || handles.ChildPid > 0)
+                _startupInterop.Abort(handles);
+        }
+        finally
+        {
+            _lifetimeCancellation.Dispose();
+        }
+    }
+
     // === P/Invoke declarations ===
-    
-    private const int SIGKILL = 9;
-    
-    [LibraryImport("hex1binterop", EntryPoint = "hex1b_forkpty_shell_env", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-    private static partial int pty_forkpty_shell(
-        string shellPath,
-        string workingDir,
-        [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[] environment,
-        int width,
-        int height,
-        out int masterFd,
-        out int childPid);
-    
-    [LibraryImport("hex1binterop", EntryPoint = "hex1b_forkpty_exec_env", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-    private static partial int pty_forkpty_exec(
-        string execPath,
-        [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[] argv,
-        int argc,
-        string workingDir,
-        [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPUTF8Str)] string[] environment,
-        int width,
-        int height,
-        out int masterFd,
-        out int childPid);
     
     [LibraryImport("hex1binterop", EntryPoint = "hex1b_wait", SetLastError = true)]
     private static partial int pty_wait(int pid, int timeoutMs, out int status);
@@ -366,9 +422,6 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
     
     [LibraryImport("libc", EntryPoint = "write", SetLastError = true)]
     private static unsafe partial nint writePtr(int fd, byte* buf, nuint count);
-    
-    [LibraryImport("libc", EntryPoint = "close", SetLastError = true)]
-    private static partial int close(int fd);
     
     [LibraryImport("libc", EntryPoint = "kill", SetLastError = true)]
     private static partial int KillProcess(int pid, int sig);

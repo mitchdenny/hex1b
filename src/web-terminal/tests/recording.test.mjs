@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseRecording, RecordingPlayer, fetchRecording } from "../dist/recording.js";
+import { parseRecording, RecordingPlayer, fetchRecording } from "../.build/recording.js";
 import { frame } from "./fixtures/browser.mjs";
 
 function recording(overrides = {}) {
@@ -38,6 +38,18 @@ test("Recording cannot refer to image payloads outside the file", () => {
     timeMs: 0, data: Buffer.from(frame({ retainedImages: ["absent"] })).toString("base64"),
   }] });
   assert.throws(() => parseRecording(JSON.stringify(missing)), /Missing recording image/);
+});
+
+test("Recording color encoding changes require a full baseline", () => {
+  const source = recording();
+  source.frames[1].data = Buffer.from(frame({ revision: 2, colorEncoding: "indexed-v1" })).toString("base64");
+  assert.throws(() => parseRecording(JSON.stringify(source)), /delta chain/);
+  source.frames[1].data = Buffer.from(frame({ revision: 2, full: true, colorEncoding: "indexed-v1",
+    cells: [{ index: 0, text: "A", foreground: 0x02000000, background: 0x03000000, underlineColor: 0x04000000 }],
+  })).toString("base64");
+  assert.throws(() => parseRecording(JSON.stringify(source)), /delta chain/);
+  source.frames[2].data = Buffer.from(frame({ revision: 3, colorEncoding: "indexed-v1" })).toString("base64");
+  assert.equal(parseRecording(JSON.stringify(source)).frames.length, 3);
 });
 
 test("Recording fetch rejects failed responses and oversized declared bodies", async t => {

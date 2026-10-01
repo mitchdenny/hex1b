@@ -108,6 +108,23 @@ public sealed class Hex1bTerminalOptions
     public int? ScrollbackCapacity { get; set; }
 
     /// <summary>
+    /// Maximum number of OSC 133 command marks to retain in <see cref="Hex1bTerminal.CommandMarks"/>.
+    /// Oldest marks are evicted first once the capacity is exceeded. Marks are also collected
+    /// when their backing text is discarded. Defaults to <see cref="int.MaxValue"/>, so marks
+    /// normally live as long as their text. Set a smaller capacity to bound repeated marks on
+    /// retained rows, or 0 to disable command mark history entirely. Transport limits still apply.
+    /// </summary>
+    public int CommandMarkHistoryCapacity { get; set; } = int.MaxValue;
+
+    /// <summary>
+    /// Gets or sets the maximum number of custom markers registered by each browser view.
+    /// Defaults to 1,000. Zero disables registration; exceeding the limit is explicitly
+    /// rejected without evicting existing markers. Discarding a marker's backing content
+    /// reclaims its quota slot. Disposal releases the view's remaining markers.
+    /// </summary>
+    public int CustomMarkerLimit { get; set; } = 1000;
+
+    /// <summary>
     /// Optional callback invoked each time a row is scrolled off the top of the terminal
     /// into the scrollback buffer. Can be used for persistence or logging.
     /// </summary>
@@ -145,6 +162,7 @@ public sealed class Hex1bTerminalOptions
     /// </summary>
     internal void Validate()
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(CustomMarkerLimit);
         if (WorkloadAdapter is null)
         {
             throw new InvalidOperationException("WorkloadAdapter is required.");

@@ -65,8 +65,16 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     private readonly TaskCompletionSource<Exception?> _initialReplay =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _connectionStarted;
+    private int _scrollbackHistoryRows;
+    private bool _commandMarkHistory;
 
     internal bool ConnectionStarted => Volatile.Read(ref _connectionStarted) != 0;
+    /// <summary>
+    /// Gets whether the remote producer owns protocol query responses.
+    /// Always <see langword="true"/>, regardless of connection or primary role.
+    /// </summary>
+    public bool HandlesProtocolQueries => true;
+
     internal Task<Exception?> InitialHandshake => _initialHandshake.Task;
     internal Task<Exception?> InitialReplay => _initialReplay.Task;
     internal void CompleteInitialReplay(Exception? error) => _initialReplay.TrySetResult(error);
@@ -104,7 +112,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             new BoundedChannelOptions(1000)
             {
                 FullMode = BoundedChannelFullMode.Wait,
-                SingleReader = true,
+                SingleReader = false,
                 SingleWriter = true
             });
 
@@ -277,6 +285,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         {
             _initialHandshake.TrySetResult(error);
             _outputChannel.Writer.TryComplete();
+            while (_outputChannel.Reader.TryRead(out _)) { }
             _disconnectedTcs.TrySetResult();
             throw;
         }
@@ -296,11 +305,13 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
 
         // Send ClientHello first. The producer reads this before sending its
         // Hello, so a slow server cannot deadlock here.
+        var requestedHistoryRows = _options.ScrollbackHistoryRows;
+        var requestedCommandMarks = _options.EnableCommandMarkHistory;
         await Hmp1Protocol.WriteClientHelloAsync(
             _stream,
             _localDisplayName,
             _options.DefaultRole?.ToWireString(),
-            ct).ConfigureAwait(false);
+            ct, requestedHistoryRows, requestedCommandMarks).ConfigureAwait(false);
 
         // Read Hello frame
         var helloFrame = await Hmp1Protocol.ReadFrameAsync(_stream, ct).ConfigureAwait(false)
@@ -310,6 +321,19 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             throw new InvalidOperationException($"Expected Hello frame, got {helloFrame.Type}.");
 
         var hello = Hmp1Protocol.ParseHello(helloFrame.Payload);
+        if (hello.CommandMarkHistoryVersion != 0)
+        {
+            if (!requestedCommandMarks || hello.CommandMarkHistoryVersion != Hmp1CommandMarkState.Version)
+                throw new InvalidDataException("Server selected an unrequested command mark capability.");
+            _commandMarkHistory = true;
+        }
+        if (hello.ScrollbackHistoryVersion != 0)
+        {
+            if (hello.ScrollbackHistoryVersion != Hmp1ScrollbackState.Version ||
+                hello.ScrollbackHistoryRows <= 0 || hello.ScrollbackHistoryRows > requestedHistoryRows)
+                throw new InvalidDataException("Server selected an unrequested scrollback history capability.");
+            _scrollbackHistoryRows = hello.ScrollbackHistoryRows;
+        }
         lock (_stateLock)
         {
             _peerId = hello.PeerId ?? string.Empty;
@@ -335,8 +359,16 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         // Hello geometry must be applied before StateSync, even when the adapter
         // was connected before its consuming terminal was constructed.
         var activityState = await Hmp1Protocol.ReadActivityStateAsync(_stream, ct).ConfigureAwait(false);
-        _outputChannel.Writer.TryWrite(new(syncFrame.Payload, CaptureTerminalState(connected: true),
-            IsStateSync: true, ActivityState: activityState));
+        var scrollbackState = _scrollbackHistoryRows > 0
+            ? await Hmp1ScrollbackState.ReadAsync(_stream, _scrollbackHistoryRows, ct).ConfigureAwait(false)
+            : null;
+        var terminalState = CaptureTerminalState(connected: true);
+        var commandMarkState = _commandMarkHistory
+            ? await Hmp1CommandMarkState.ReadAsync(_stream, terminalState, scrollbackState, ct).ConfigureAwait(false)
+            : null;
+        _outputChannel.Writer.TryWrite(new(syncFrame.Payload, terminalState,
+            IsStateSync: true, ActivityState: activityState, ScrollbackState: scrollbackState,
+            CommandMarkState: commandMarkState));
 
         // Start the background read pump. Important: do NOT capture the caller-supplied
         // CancellationToken here. A "handshake timeout" CT must NOT keep cancelling
@@ -593,10 +625,23 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                 {
                     case Hmp1FrameType.StateSync:
                         var activityState = await Hmp1Protocol.ReadActivityStateAsync(_stream, ct).ConfigureAwait(false);
+                        var scrollbackState = _scrollbackHistoryRows > 0
+                            ? await Hmp1ScrollbackState.ReadAsync(_stream, _scrollbackHistoryRows, ct).ConfigureAwait(false)
+                            : null;
+                        var terminalState = CaptureTerminalState(connected: true);
+                        var commandMarkState = _commandMarkHistory
+                            ? await Hmp1CommandMarkState.ReadAsync(_stream, terminalState, scrollbackState, ct).ConfigureAwait(false)
+                            : null;
                         await _outputChannel.Writer.WriteAsync(
-                            new(frame.Payload, CaptureTerminalState(connected: true),
-                                IsStateSync: true, ActivityState: activityState), ct).ConfigureAwait(false);
+                            new(frame.Payload, terminalState,
+                                IsStateSync: true, ActivityState: activityState, ScrollbackState: scrollbackState,
+                                CommandMarkState: commandMarkState), ct).ConfigureAwait(false);
                         break;
+
+                    case Hmp1FrameType.ScrollbackState:
+                    case Hmp1FrameType.ScrollbackRows:
+                    case Hmp1FrameType.CommandMarkState:
+                        throw new InvalidDataException("Unexpected or unnegotiated scrollback checkpoint.");
 
                     case Hmp1FrameType.ActivityState:
                         throw new InvalidDataException("ActivityState checkpoint without StateSync.");
@@ -659,7 +704,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException or InvalidDataException)
         {
-            // Stream error
+            Debug.WriteLine($"[Hmp1WorkloadAdapter] Read pump disconnected: {ex}");
         }
         finally
         {
@@ -792,149 +837,8 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         }
 
         _outputChannel.Writer.TryComplete();
+        // Ordinary EOF leaves the final output available to the terminal. Explicit
+        // disposal ends that contract and must release unread replay/pixel payloads.
+        while (_outputChannel.Reader.TryRead(out _)) { }
     }
-}
-
-/// <summary>
-/// A peer connected to the same producer as this adapter.
-/// </summary>
-/// <param name="PeerId">The peer's ID.</param>
-/// <param name="DisplayName">Optional human-readable label.</param>
-public readonly record struct PeerInfo(string PeerId, string? DisplayName);
-
-/// <summary>
-/// Arguments for the <see cref="IHmp1ConnectionHandle.OnRoleChanged"/>
-/// callback.
-/// </summary>
-public sealed class RoleChangedEventArgs : EventArgs
-{
-    internal RoleChangedEventArgs(string? primaryPeerId, int width, int height, string reason, bool previouslyPrimary, bool nowPrimary)
-    {
-        PrimaryPeerId = primaryPeerId;
-        Width = width;
-        Height = height;
-        Reason = reason;
-        PreviouslyPrimary = previouslyPrimary;
-        NowPrimary = nowPrimary;
-    }
-
-    /// <summary>The new primary's peer ID, or null when no peer is primary.</summary>
-    public string? PrimaryPeerId { get; }
-
-    /// <summary>The PTY width as of this transition.</summary>
-    public int Width { get; }
-
-    /// <summary>The PTY height as of this transition.</summary>
-    public int Height { get; }
-
-    /// <summary>Free-form reason string from the producer.</summary>
-    public string Reason { get; }
-
-    /// <summary>Whether the receiving adapter was primary before this transition.</summary>
-    public bool PreviouslyPrimary { get; }
-
-    /// <summary>Whether the receiving adapter is primary after this transition.</summary>
-    public bool NowPrimary { get; }
-}
-
-/// <summary>
-/// Arguments for the <see cref="IHmp1ConnectionHandle.OnPeerJoined"/>
-/// callback.
-/// </summary>
-public sealed class PeerJoinEventArgs : EventArgs
-{
-    internal PeerJoinEventArgs(string peerId, string? displayName)
-    {
-        PeerId = peerId;
-        DisplayName = displayName;
-    }
-
-    /// <summary>Peer ID of the joining peer.</summary>
-    public string PeerId { get; }
-
-    /// <summary>Optional human-readable label of the joining peer.</summary>
-    public string? DisplayName { get; }
-}
-
-/// <summary>
-/// Arguments for the <see cref="IHmp1ConnectionHandle.OnPeerLeft"/>
-/// callback.
-/// </summary>
-public sealed class PeerLeaveEventArgs : EventArgs
-{
-    internal PeerLeaveEventArgs(string peerId)
-    {
-        PeerId = peerId;
-    }
-
-    /// <summary>Peer ID of the leaving peer.</summary>
-    public string PeerId { get; }
-}
-
-/// <summary>
-/// Arguments for the <see cref="IHmp1ConnectionHandle.OnConnected"/> callback.
-/// Carries the state assembled from the Hello and StateSync handshake frames.
-/// </summary>
-public sealed class Hmp1ConnectedEventArgs : EventArgs
-{
-    internal Hmp1ConnectedEventArgs(IHmp1ConnectionHandle connection, string peerId, string? primaryPeerId, IReadOnlyList<PeerInfo> peers, int width, int height)
-    {
-        Connection = connection;
-        PeerId = peerId;
-        PrimaryPeerId = primaryPeerId;
-        Peers = peers;
-        Width = width;
-        Height = height;
-    }
-
-    /// <summary>
-    /// The connection handle for this client. Stash this reference for
-    /// later runtime calls (e.g. <see cref="IHmp1ConnectionHandle.RequestPrimaryAsync"/>);
-    /// no other public surface delivers it when the easy-path
-    /// <c>WithHmp1*</c> builder extensions are used.
-    /// </summary>
-    public IHmp1ConnectionHandle Connection { get; }
-
-    /// <summary>Peer ID assigned by the server.</summary>
-    public string PeerId { get; }
-
-    /// <summary>Peer ID of the current primary, or <see langword="null"/> when no peer is primary.</summary>
-    public string? PrimaryPeerId { get; }
-
-    /// <summary>Snapshot of the peer roster at handshake time (excluding self).</summary>
-    public IReadOnlyList<PeerInfo> Peers { get; }
-
-    /// <summary>Producer PTY width reported in the Hello frame.</summary>
-    public int Width { get; }
-
-    /// <summary>Producer PTY height reported in the Hello frame.</summary>
-    public int Height { get; }
-}
-
-/// <summary>
-/// Arguments for the <see cref="IHmp1ConnectionHandle.OnRemoteResized"/> callback.
-/// </summary>
-public sealed class RemoteResizedEventArgs : EventArgs
-{
-    internal RemoteResizedEventArgs(int width, int height, bool causedByLocalPrimary)
-    {
-        Width = width;
-        Height = height;
-        CausedByLocalPrimary = causedByLocalPrimary;
-    }
-
-    /// <summary>The new producer PTY width.</summary>
-    public int Width { get; }
-
-    /// <summary>The new producer PTY height.</summary>
-    public int Height { get; }
-
-    /// <summary>
-    /// <see langword="true"/> when the receiving adapter was primary at the
-    /// moment the resize took effect (typically meaning this client caused
-    /// the resize via <see cref="Hmp1WorkloadAdapter.RequestPrimaryAsync"/>
-    /// or <see cref="Hmp1WorkloadAdapter.ResizeAsync"/>); <see langword="false"/>
-    /// when another peer caused it.
-    /// </summary>
-    public bool CausedByLocalPrimary { get; }
 }

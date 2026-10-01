@@ -188,11 +188,12 @@ public class SvgToPngConverterTests
     public void LoadEmbeddedTypeface_ContainsNerdFontGlyphs()
     {
         using var typeface = SvgToPngConverter.LoadEmbeddedTypeface()!;
+        using var font = new SKFont(typeface);
 
         // Nerd Font PUA codepoints
-        Assert.AreNotEqual(0, typeface.GetGlyph(0xE0A0)); // git branch
-        Assert.AreNotEqual(0, typeface.GetGlyph(0xE0B0)); // powerline arrow
-        Assert.AreNotEqual(0, typeface.GetGlyph(0xF489)); // terminal icon
+        Assert.AreNotEqual(0, font.GetGlyph(0xE0A0)); // git branch
+        Assert.AreNotEqual(0, font.GetGlyph(0xE0B0)); // powerline arrow
+        Assert.AreNotEqual(0, font.GetGlyph(0xF489)); // terminal icon
     }
 
     // --- Full Conversion ---
@@ -229,6 +230,31 @@ public class SvgToPngConverterTests
         // Center pixel should be the background color #1e1e1e
         var pixel = bmp.GetPixel(100, 35);
         Assert.AreEqual(new SKColor(30, 30, 30), pixel);
+    }
+
+    [TestMethod]
+    public void Convert_WithTextPosition_RendersLeftAligned()
+    {
+        var svg = """
+            <svg xmlns="http://www.w3.org/2000/svg" width="200" height="40">
+              <rect width="200" height="40" fill="#000"/>
+              <text x="50" y="20" fill="#fff">Hello</text>
+            </svg>
+            """;
+
+        using var bmp = SKBitmap.Decode(SvgToPngConverter.Convert(svg));
+        var firstTextPixel = bmp.Width;
+        for (var y = 0; y < bmp.Height; y++)
+        {
+            for (var x = 0; x < bmp.Width; x++)
+            {
+                if (bmp.GetPixel(x, y).Red > 0)
+                    firstTextPixel = Math.Min(firstTextPixel, x);
+            }
+        }
+
+        Assert.IsTrue(firstTextPixel >= 50 && firstTextPixel < 60,
+            $"Text should start at its left anchor, but the first text pixel was at {firstTextPixel}.");
     }
 
     [TestMethod]

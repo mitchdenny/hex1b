@@ -2,31 +2,6 @@ using Hex1b.Reflow;
 
 namespace Hex1b;
 
-internal enum ScrollbackPruneReason
-{
-    Capacity,
-    Clear,
-}
-
-internal readonly record struct ScrollbackPrunedRow(
-    long RowId,
-    long? SuccessorRowId,
-    ScrollbackPruneReason Reason);
-
-internal readonly record struct ScrollbackEntry(
-    long RowId,
-    ScrollbackRow Row);
-
-internal readonly record struct ScrollbackPushResult(
-    long RowId,
-    ScrollbackRow? EvictedRow,
-    long? EvictedRowId,
-    long? SuccessorRowId);
-
-internal readonly record struct ScrollbackReplacementResult(
-    ScrollbackEntry[] Entries,
-    int DiscardedRowCount);
-
 /// <summary>
 /// A fixed-capacity circular buffer that stores terminal rows scrolled off screen.
 /// </summary>
@@ -263,11 +238,3 @@ internal sealed class ScrollbackBuffer
         }
     }
 }
-
-/// <summary>
-/// A single row stored in the scrollback buffer.
-/// </summary>
-public readonly record struct ScrollbackRow(
-    TerminalCell[] Cells,
-    int OriginalWidth,
-    DateTimeOffset Timestamp);

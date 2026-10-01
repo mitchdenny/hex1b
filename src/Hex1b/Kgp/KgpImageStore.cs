@@ -55,7 +55,7 @@ public sealed class KgpImageStore
         InvalidIdentity,
         ImageNotFound,
         UnsupportedMedium,
-        UnsupportedCompression,
+        InvalidCompressedData,
         UnsupportedFormat,
         UnsupportedBaseFormat,
         InvalidBaseData,
@@ -80,7 +80,8 @@ public sealed class KgpImageStore
 
     internal readonly record struct AnimationFrameResult(
         AnimationFrameInfo Info,
-        KgpImageData? Image);
+        KgpImageData? Image,
+        string? Error = null);
 
     internal enum AnimationFrameDeleteStatus
     {
@@ -122,6 +123,7 @@ public sealed class KgpImageStore
     private readonly HashSet<uint> _unaddressableImageIds = new();
     private uint _nextId = 1;
     private long _totalSize;
+    private long _reservedDecodedBytes;
     private readonly long _quotaBytes;
     private readonly TerminalGraphicsRetainedBudget? _sharedBudget;
 
@@ -189,6 +191,78 @@ public sealed class KgpImageStore
         get { lock (_lock) return _totalSize; }
     }
 
+    internal long ReservedDecodedBytes
+    {
+        get { lock (_lock) return _reservedDecodedBytes; }
+    }
+
+    internal long ChargedSize
+    {
+        get { lock (_lock) return checked(_totalSize + _reservedDecodedBytes); }
+    }
+
+    private long ChargedSizeUnsafe => checked(_totalSize + _reservedDecodedBytes);
+
+    internal long MaximumCompressedUploadBytes =>
+        Math.Min(MaximumPendingUploadBytes, _sharedBudget?.MaximumInputBytes ?? 1024 * 1024);
+
+    private long MaximumCompressedRasterPixels =>
+        _sharedBudget?.MaximumRasterPixels ?? 16L * 1024 * 1024;
+
+    internal bool TryGetCompressedUploadLimit(
+        KgpParsedCommand.TransmissionData transmission,
+        out long maximumBytes,
+        out string error)
+    {
+        maximumBytes = MaximumCompressedUploadBytes;
+        error = "";
+        if (transmission.Format is not (KgpFormat.Rgb24 or KgpFormat.Rgba32 or KgpFormat.Png) ||
+            transmission.Medium != KgpTransmissionMedium.Direct)
+        {
+            error = "EINVAL:Compressed images require direct RGB, RGBA or PNG data";
+            return false;
+        }
+        if (transmission.Format == KgpFormat.Png)
+            return true;
+        if (!KgpZlibData.ValidDimensions(transmission.Width, transmission.Height, MaximumCompressedRasterPixels))
+        {
+            error = "EFBIG:Image dimensions exceed the raster limit";
+            return false;
+        }
+        var length = checked((long)transmission.Width * transmission.Height *
+            (transmission.Format == KgpFormat.Rgb24 ? 3 : 4));
+        if (length > Array.MaxLength || length > EffectiveQuotaBytes)
+        {
+            error = "ENOSPC:Decoded image exceeds storage capacity";
+            return false;
+        }
+        return true;
+    }
+
+    internal bool TryCreateCompressedImage(
+        KgpParsedCommand.TransmissionData transmission,
+        byte[] data,
+        out KgpImageData? image,
+        out string error)
+    {
+        image = null;
+        if (!TryGetCompressedUploadLimit(transmission, out var maximumBytes, out error))
+            return false;
+        if (data.LongLength > maximumBytes)
+        {
+            error = "EFBIG:Compressed image input exceeds upload limit";
+            return false;
+        }
+        if (!KgpZlibData.TryValidate(data, transmission.Format,
+                transmission.Width, transmission.Height, MaximumCompressedRasterPixels,
+                EffectiveQuotaBytes - data.LongLength, out var validation, out error))
+            return false;
+
+        image = KgpImageData.CreateCompressed(transmission.ImageId, transmission.ImageNumber,
+            data, transmission.Format, validation);
+        return true;
+    }
+
     /// <summary>
     /// Whether a chunked transfer is in progress.
     /// </summary>
@@ -199,6 +273,21 @@ public sealed class KgpImageStore
 
     internal long MaximumPendingUploadBytes
         => Math.Min(Math.Max(0, EffectiveQuotaBytes), Array.MaxLength);
+
+    internal long PendingUploadBytes
+    {
+        get { lock (_lock) return _pendingUpload?.Length ?? 0; }
+    }
+
+    internal long PendingUploadCapacity
+    {
+        get { lock (_lock) return _pendingUpload?.Capacity ?? 0; }
+    }
+
+    internal long RemainingPendingUploadBytes
+    {
+        get { lock (_lock) return _pendingUpload is { } pending ? pending.MaximumBytes - pending.Length : 0; }
+    }
 
     /// <summary>
     /// Allocates a currently unused, non-zero image ID.
@@ -231,11 +320,12 @@ public sealed class KgpImageStore
 
     internal StoreResult StoreImage(
         KgpParsedCommand.TransmissionData transmission,
-        byte[] data)
+        byte[] data,
+        KgpImageData? validatedImage = null)
     {
         lock (_lock)
         {
-            return StoreTransmissionUnsafe(transmission, data);
+            return StoreTransmissionUnsafe(transmission, data, validatedImage);
         }
     }
 
@@ -442,32 +532,58 @@ public sealed class KgpImageStore
             if (info.Status != AnimationFrameStatus.Success)
                 return new AnimationFrameResult(info, Image: null);
 
-            if (data.Length < info.ExpectedDataLength)
+            if (command.Transmission.Compression == KgpParsedCommand.CompressionMode.None &&
+                data.Length != info.ExpectedDataLength)
             {
                 return new AnimationFrameResult(
-                    info with { Status = AnimationFrameStatus.InsufficientData },
-                    Image: null);
-            }
-
-            if (data.Length > info.ExpectedDataLength)
-            {
-                return new AnimationFrameResult(
-                    info with { Status = AnimationFrameStatus.TooMuchData },
-                    Image: null);
-            }
-
-            if (info.RequiredStorageBytes > 0 &&
-                WouldExceedQuota(
-                    _totalSize,
-                    info.RequiredStorageBytes,
-                    EffectiveQuotaBytes))
-            {
-                return new AnimationFrameResult(
-                    info with { Status = AnimationFrameStatus.NoSpace },
+                    info with
+                    {
+                        Status = data.Length < info.ExpectedDataLength
+                            ? AnimationFrameStatus.InsufficientData
+                            : AnimationFrameStatus.TooMuchData,
+                    },
                     Image: null);
             }
 
             var image = _imagesById[info.ImageId];
+            var quotaDelta = checked(info.RequiredStorageBytes - image.ReservedDecodedBytes);
+            if (quotaDelta > 0 &&
+                WouldExceedQuota(ChargedSizeUnsafe, quotaDelta, EffectiveQuotaBytes))
+            {
+                return new AnimationFrameResult(
+                    info with { Status = AnimationFrameStatus.NoSpace }, Image: null);
+            }
+
+            if (command.Transmission.Compression == KgpParsedCommand.CompressionMode.Zlib)
+            {
+                if (data.LongLength > MaximumCompressedUploadBytes)
+                    return new AnimationFrameResult(
+                        info with { Status = AnimationFrameStatus.TooMuchData }, Image: null,
+                        Error: "EFBIG:Compressed frame input exceeds upload limit");
+                if (!KgpZlibData.TryValidate(data, command.Transmission.Format,
+                        info.SourceWidth, info.SourceHeight, MaximumCompressedRasterPixels,
+                        info.ExpectedDataLength, out var validation, out var error))
+                {
+                    var status = error.StartsWith("ENODATA:", StringComparison.Ordinal)
+                        ? AnimationFrameStatus.InsufficientData
+                        : error.StartsWith("EFBIG:", StringComparison.Ordinal)
+                            ? AnimationFrameStatus.TooMuchData
+                            : error.StartsWith("ENOMEM:", StringComparison.Ordinal)
+                                ? AnimationFrameStatus.OutOfMemory
+                                : AnimationFrameStatus.InvalidCompressedData;
+                    return new AnimationFrameResult(info with { Status = status }, Image: null, Error: error);
+                }
+                try
+                {
+                    data = KgpZlibData.Materialize(data, validation.Length);
+                }
+                catch (OutOfMemoryException)
+                {
+                    return new AnimationFrameResult(
+                        info with { Status = AnimationFrameStatus.OutOfMemory }, Image: null);
+                }
+            }
+
             try
             {
                 var animation = CreateNormalizedAnimation(image);
@@ -535,8 +651,9 @@ public sealed class KgpImageStore
                         "KGP animation frame storage accounting changed during a locked transaction.");
                 }
 
+                SetSizesUnsafe(checked(_totalSize + storageDelta),
+                    checked(_reservedDecodedBytes - image.ReservedDecodedBytes));
                 _imagesById[image.ImageId] = updatedImage;
-                SetTotalSizeUnsafe(checked(_totalSize + storageDelta));
                 return new AnimationFrameResult(info, updatedImage);
             }
             catch (OutOfMemoryException)
@@ -621,9 +738,10 @@ public sealed class KgpImageStore
                     removedIndex,
                     currentFrameIndex);
                 var updatedImage = image.WithAnimation(updatedAnimation);
+                SetSizesUnsafe(checked(
+                    _totalSize - (image.StorageSize - updatedImage.StorageSize)),
+                    checked(_reservedDecodedBytes - image.ReservedDecodedBytes + updatedImage.ReservedDecodedBytes));
                 _imagesById[image.ImageId] = updatedImage;
-                SetTotalSizeUnsafe(checked(
-                    _totalSize - (image.StorageSize - updatedImage.StorageSize)));
                 return new AnimationFrameDeleteResult(
                     AnimationFrameDeleteStatus.Deleted,
                     image.ImageId,
@@ -700,7 +818,11 @@ public sealed class KgpImageStore
                 if (control.LoopCount > 0)
                     animation = animation.SetMaximumLoops(control.LoopCount);
 
-                _imagesById[image.ImageId] = image.WithAnimation(animation);
+                var updatedImage = image.WithAnimation(animation);
+                SetSizesUnsafe(
+                    checked(_totalSize - image.StorageSize + updatedImage.StorageSize),
+                    checked(_reservedDecodedBytes - image.ReservedDecodedBytes));
+                _imagesById[image.ImageId] = updatedImage;
                 return new AnimationControlResult(
                     AnimationControlStatus.Success,
                     image.ImageId,
@@ -823,7 +945,7 @@ public sealed class KgpImageStore
             _imagesById.Clear();
             _imagesByNumber.Clear();
             _unaddressableImageIds.Clear();
-            SetTotalSizeUnsafe(0);
+            SetSizesUnsafe(0, 0);
             AbortChunkedTransferUnsafe();
         }
     }
@@ -873,7 +995,9 @@ public sealed class KgpImageStore
     /// <param name="decodedData">The base64-decoded payload data for this chunk.</param>
     /// <returns>
     /// The completed <see cref="KgpImageData"/> when the final chunk (m=0) is received,
-    /// or null if more chunks are expected.
+    /// or null if more chunks are expected or a compressed upload is invalid or
+    /// exceeds its limits. Compressed uploads validate one complete zlib member;
+    /// bounded trailing bytes are retained and charged, but not interpreted.
     /// </returns>
     public KgpImageData? ProcessChunk(KgpCommand command, byte[] decodedData)
     {
@@ -883,19 +1007,31 @@ public sealed class KgpImageStore
         lock (_lock)
         {
             var transmission = command.ToTransmissionData();
+            if (_pendingUpload is null &&
+                transmission.Compression == KgpParsedCommand.CompressionMode.Zlib &&
+                !TryGetCompressedUploadLimit(transmission, out _, out _))
+                return null;
             var result = ProcessChunkUnsafe(
                 initialCommand: null,
                 transmission,
                 ToQuietMode(command.Quiet),
                 quietWasSpecified: command.Quiet != 0,
                 decodedData,
-                Array.MaxLength);
+                transmission.Compression == KgpParsedCommand.CompressionMode.Zlib
+                    ? MaximumCompressedUploadBytes
+                    : Array.MaxLength);
             if (result.Status != ChunkStatus.Complete)
                 return null;
 
             var imageId = result.Transmission.ImageId > 0
                 ? result.Transmission.ImageId
                 : AllocateIdUnsafe();
+            if (result.Transmission.Compression == KgpParsedCommand.CompressionMode.Zlib)
+            {
+                return TryCreateCompressedImage(result.Transmission, result.Data!, out var compressed, out _)
+                    ? compressed!.WithImageId(imageId)
+                    : null;
+            }
             return CreateImage(imageId, result.Transmission, result.Data!);
         }
     }
@@ -1042,7 +1178,8 @@ public sealed class KgpImageStore
 
     private StoreResult StoreTransmissionUnsafe(
         KgpParsedCommand.TransmissionData transmission,
-        byte[] data)
+        byte[] data,
+        KgpImageData? validatedImage = null)
     {
         if (transmission.ImageId > 0 && transmission.ImageNumber > 0)
         {
@@ -1053,8 +1190,19 @@ public sealed class KgpImageStore
         var imageId = transmission.ImageId > 0
             ? transmission.ImageId
             : AllocateIdUnsafe();
-        var image = CreateImage(imageId, transmission, data);
-        if (_sharedBudget is not null && image.StorageSize > EffectiveQuotaBytes)
+        KgpImageData image;
+        if (transmission.Compression == KgpParsedCommand.CompressionMode.Zlib)
+        {
+            if (validatedImage is null &&
+                !TryCreateCompressedImage(transmission, data, out validatedImage, out var error))
+                throw new InvalidDataException(error);
+            image = validatedImage!.WithImageId(imageId);
+        }
+        else
+        {
+            image = CreateImage(imageId, transmission, data);
+        }
+        if ((_sharedBudget is not null || image.IsZlibCompressed) && image.ChargedSize > EffectiveQuotaBytes)
             return new StoreResult(image, Replaced: false, Stored: false);
 
         ImageRelocation? relocation = null;
@@ -1076,32 +1224,34 @@ public sealed class KgpImageStore
         KgpImageData image,
         bool addressable = true)
     {
-        if (_sharedBudget is not null && image.StorageSize > EffectiveQuotaBytes)
+        if ((_sharedBudget is not null || image.IsZlibCompressed) && image.ChargedSize > EffectiveQuotaBytes)
             return new StoreResult(image, Replaced: false, Stored: false);
 
         var replaced = _imagesById.TryGetValue(image.ImageId, out var existing);
         if (existing is not null)
         {
-            SetTotalSizeUnsafe(checked(_totalSize - existing.StorageSize));
+            SetSizesUnsafe(checked(_totalSize - existing.StorageSize),
+                checked(_reservedDecodedBytes - existing.ReservedDecodedBytes));
             _imagesById.Remove(existing.ImageId);
             _unaddressableImageIds.Remove(existing.ImageId);
             RemoveFromNumberIndex(existing);
         }
 
         while (WouldExceedQuota(
-                   _totalSize,
-                   image.StorageSize,
+                   ChargedSizeUnsafe,
+                   image.ChargedSize,
                    EffectiveQuotaBytes) &&
                _imagesById.Count > 0)
         {
             EvictOldest();
         }
 
-        if (_sharedBudget is not null &&
-            WouldExceedQuota(_totalSize, image.StorageSize, EffectiveQuotaBytes))
+        if ((_sharedBudget is not null || image.IsZlibCompressed) &&
+            WouldExceedQuota(ChargedSizeUnsafe, image.ChargedSize, EffectiveQuotaBytes))
             return new StoreResult(image, replaced, Stored: false);
 
-        SetTotalSizeUnsafe(checked(_totalSize + image.StorageSize));
+        SetSizesUnsafe(checked(_totalSize + image.StorageSize),
+            checked(_reservedDecodedBytes + image.ReservedDecodedBytes));
         _imagesById[image.ImageId] = image;
         if (addressable)
             _unaddressableImageIds.Remove(image.ImageId);
@@ -1126,7 +1276,8 @@ public sealed class KgpImageStore
         if (!_imagesById.TryGetValue(imageId, out var image))
             return false;
 
-        SetTotalSizeUnsafe(checked(_totalSize - image.StorageSize));
+        SetSizesUnsafe(checked(_totalSize - image.StorageSize),
+            checked(_reservedDecodedBytes - image.ReservedDecodedBytes));
         _imagesById.Remove(imageId);
         _unaddressableImageIds.Remove(imageId);
         RemoveFromNumberIndex(image);
@@ -1183,11 +1334,15 @@ public sealed class KgpImageStore
     private long EffectiveQuotaBytes =>
         _sharedBudget?.MaximumKgpBytes ?? _quotaBytes;
 
-    private void SetTotalSizeUnsafe(long totalSize)
+    private void SetSizesUnsafe(long totalSize, long reservedDecodedBytes)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(totalSize);
+        ArgumentOutOfRangeException.ThrowIfNegative(reservedDecodedBytes);
+        _ = checked(totalSize + reservedDecodedBytes);
         if (_sharedBudget is not null)
-            _sharedBudget.SetKgpBytes(totalSize);
+            _sharedBudget.SetKgpBytes(totalSize, reservedDecodedBytes);
         _totalSize = totalSize;
+        _reservedDecodedBytes = reservedDecodedBytes;
     }
 
     private static KgpImageData CreateImage(
@@ -1195,6 +1350,8 @@ public sealed class KgpImageStore
         KgpParsedCommand.TransmissionData transmission,
         byte[] data)
     {
+        if (transmission.Compression != KgpParsedCommand.CompressionMode.None)
+            throw new InvalidOperationException("Compressed images require validated backing.");
         var width = transmission.Width;
         var height = transmission.Height;
         if (transmission.Format == KgpFormat.Png)
@@ -1233,13 +1390,6 @@ public sealed class KgpImageStore
         {
             return CreateAnimationFrameFailure(
                 AnimationFrameStatus.UnsupportedMedium,
-                transmission);
-        }
-
-        if (transmission.Compression != KgpParsedCommand.CompressionMode.None)
-        {
-            return CreateAnimationFrameFailure(
-                AnimationFrameStatus.UnsupportedCompression,
                 transmission);
         }
 
@@ -1285,7 +1435,9 @@ public sealed class KgpImageStore
         if (sourceWidth == 0 ||
             sourceHeight == 0 ||
             sourceWidth > image.Width ||
-            sourceHeight > image.Height)
+            sourceHeight > image.Height ||
+            (transmission.Compression == KgpParsedCommand.CompressionMode.Zlib &&
+             !KgpZlibData.ValidDimensions(sourceWidth, sourceHeight, MaximumCompressedRasterPixels)))
         {
             return CreateAnimationFrameFailure(
                 AnimationFrameStatus.InvalidDimensions,
@@ -1398,6 +1550,8 @@ public sealed class KgpImageStore
         var root = image.AnimationState?.GetFrame(0);
         var rootData = root?.Format == KgpFormat.Rgba32
             ? root.Data
+            : image.IsZlibCompressed && image.Format == KgpFormat.Rgba32
+                ? image.Data
             : KgpAnimationFrameComposer.ConvertToRgba(
                 root?.Data ?? image.Data,
                 image.Width,

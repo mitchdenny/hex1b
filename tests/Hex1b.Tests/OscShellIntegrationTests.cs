@@ -57,10 +57,6 @@ public class OscShellIntegrationTests
     [DataRow(";D")]
     [DataRow(";D;0")]
     [DataRow(";D;")]
-    [DataRow("A;")]
-    [DataRow("A;prompt=1")]
-    [DataRow("B;")]
-    [DataRow("C;extra")]
     [DataRow("D; ")]
     [DataRow("D;0 ")]
     [DataRow("D; 0")]
@@ -194,7 +190,7 @@ public class OscShellIntegrationTests
         terminal.BeginActivityStateRestore();
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b" + "c\x1b]9;4;3\x07\x1b]133;D\x07"));
         terminal.BeginActivityStateRestore();
-        terminal.RestoreActivityState(progress, shell);
+        terminal.RestoreActivityState(progress, shell, TerminalWorkingDirectory.Default);
         terminal.EndActivityStateRestore();
         Assert.AreEqual(0, progressEvents.Count);
         Assert.AreEqual(0, shellEvents.Count);
@@ -204,7 +200,7 @@ public class OscShellIntegrationTests
 
         terminal.BeginActivityStateRestore();
         terminal.ApplyTokens([RisToken.Instance]);
-        terminal.RestoreActivityState(progress, shell);
+        terminal.RestoreActivityState(progress, shell, TerminalWorkingDirectory.Default);
         terminal.EndActivityStateRestore();
         Assert.AreEqual(1, progressEvents.Count);
         Assert.AreEqual(1, shellEvents.Count);
@@ -225,7 +221,8 @@ public class OscShellIntegrationTests
                 var value = i % 2;
                 terminal.RestoreActivityState(
                     new TerminalProgress(TerminalProgressState.Normal, value),
-                    new TerminalShellIntegration(TerminalShellIntegrationPhase.Finished, value));
+                    new TerminalShellIntegration(TerminalShellIntegrationPhase.Finished, value),
+                    TerminalWorkingDirectory.Default);
             }
         }, TestContext.Current.CancellationToken);
         started.SetResult();

@@ -1404,7 +1404,10 @@ public class TableNodeTests
     }
 
     [TestMethod]
-    public async Task AsyncDataSource_NavigateDownThenUp_MaintainsCorrectFocus()
+    [DataRow(false, 5)]
+    [DataRow(true, 5)]
+    [DataRow(true, 100)]
+    public async Task AsyncDataSource_NavigateDownThenUp_MaintainsCorrectFocus(bool enableInputCoalescing, int coalescingDelayMs)
     {
         // Arrange
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1424,51 +1427,70 @@ public class TableNodeTests
                 .Header(h => [h.Cell("Name")])
                 .Row((r, item, _) => [r.Cell(item)])
                 .Focus(focusedKey)
-                .OnFocusChanged(key => { focusedKey = key; focusHistory.Add(key); })
+                .OnFocusChanged(key => { Volatile.Write(ref focusedKey, key); focusHistory.Add(key); })
                 .FillHeight(),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions
+            {
+                WorkloadAdapter = workload,
+                EnableInputCoalescing = enableInputCoalescing,
+                InputCoalescingInitialDelayMs = coalescingDelayMs
+            }
         );
         
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        
-        // Wait for initial render
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(5), "Wait for table to render")
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        
-        // Navigate down 60 rows (beyond initial 50-item cache)
-        var downBuilder = new Hex1bTerminalInputSequenceBuilder();
-        for (int i = 0; i < 60; i++)
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var runTask = app.RunAsync(cts.Token);
+        object? focusAfterDown;
+        object? focusAfterUp;
+
+        try
         {
-            downBuilder.Key(Hex1bKey.DownArrow).Wait(20);
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("┃Item 00001"), TimeSpan.FromSeconds(5), "First row focused")
+                .Build()
+                .ApplyAsync(terminal, cts.Token);
+
+            // Enqueueing a key is not an acknowledgement: wait for its focused row to render.
+            // Navigate down 60 rows (beyond initial 50-item cache).
+            var downBuilder = new Hex1bTerminalInputSequenceBuilder();
+            for (int i = 0; i < 60; i++)
+            {
+                var expectedRow = $"┃Item {i + 2:D5}";
+                downBuilder.Key(Hex1bKey.DownArrow)
+                    .WaitUntil(s => s.ContainsText(expectedRow), TimeSpan.FromSeconds(5), $"Focus after down {i + 1}");
+            }
+            await downBuilder.Build().ApplyAsync(terminal, cts.Token);
+
+            focusAfterDown = Volatile.Read(ref focusedKey);
+            TestContext.Current?.WriteLine($"Focus after 60 downs: {focusAfterDown}");
+
+            var upBuilder = new Hex1bTerminalInputSequenceBuilder();
+            for (int i = 0; i < 5; i++)
+            {
+                var expectedRow = $"┃Item {60 - i:D5}";
+                upBuilder.Key(Hex1bKey.UpArrow)
+                    .WaitUntil(s => s.ContainsText(expectedRow), TimeSpan.FromSeconds(5), $"Focus after up {i + 1}");
+            }
+            await upBuilder.Build().ApplyAsync(terminal, cts.Token);
+
+            focusAfterUp = Volatile.Read(ref focusedKey);
+            TestContext.Current?.WriteLine($"Focus after 5 ups: {focusAfterUp}");
+
+            var downAgainBuilder = new Hex1bTerminalInputSequenceBuilder();
+            for (int i = 0; i < 5; i++)
+            {
+                var expectedRow = $"┃Item {57 + i:D5}";
+                downAgainBuilder.Key(Hex1bKey.DownArrow)
+                    .WaitUntil(s => s.ContainsText(expectedRow), TimeSpan.FromSeconds(5), $"Focus after second down {i + 1}");
+            }
+            downAgainBuilder.Ctrl().Key(Hex1bKey.C);
+            await downAgainBuilder.Build().ApplyAsync(terminal, cts.Token);
+            await runTask.WaitAsync(TimeSpan.FromSeconds(5), cts.Token);
         }
-        await downBuilder.Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        
-        var focusAfterDown = focusedKey;
-        TestContext.Current?.WriteLine($"Focus after 60 downs: {focusAfterDown}");
-        
-        // Now navigate up 5 rows
-        var upBuilder = new Hex1bTerminalInputSequenceBuilder();
-        for (int i = 0; i < 5; i++)
+        finally
         {
-            upBuilder.Key(Hex1bKey.UpArrow).Wait(20);
+            await cts.CancelAsync();
+            await runTask;
         }
-        await upBuilder.Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        
-        var focusAfterUp = focusedKey;
-        TestContext.Current?.WriteLine($"Focus after 5 ups: {focusAfterUp}");
-        
-        // Now navigate down again - this should work
-        var downAgainBuilder = new Hex1bTerminalInputSequenceBuilder();
-        for (int i = 0; i < 5; i++)
-        {
-            downAgainBuilder.Key(Hex1bKey.DownArrow).Wait(20);
-        }
-        downAgainBuilder.Ctrl().Key(Hex1bKey.C);
-        await downAgainBuilder.Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        
-        await runTask;
         
         var finalFocus = focusedKey;
         TestContext.Current?.WriteLine($"Final focus: {finalFocus}");
@@ -1478,6 +1500,12 @@ public class TableNodeTests
         Assert.AreEqual("Item 00061", focusAfterDown);
         Assert.AreEqual("Item 00056", focusAfterUp);
         Assert.AreEqual("Item 00061", finalFocus);
+        var expectedFocusHistory = Enumerable.Range(2, 60)
+            .Concat(Enumerable.Range(56, 5).Reverse())
+            .Concat(Enumerable.Range(57, 5))
+            .Select(i => $"Item {i:D5}");
+        TestSeq.AreEqual(expectedFocusHistory, focusHistory.OfType<string>());
+        Assert.IsTrue(dataSource.LoadRequests.Count > 1, "Navigation should cross the initial cached range");
     }
 
     [TestMethod]

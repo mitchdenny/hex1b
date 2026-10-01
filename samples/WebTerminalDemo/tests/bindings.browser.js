@@ -69,7 +69,7 @@ async page => {
       <div id="views"><div class="host" id="a"></div><div class="host" id="b"></div><div class="host" id="c"></div></div>
       <button id="outside">Outside terminal focus</button>`);
     await test.evaluate(async () => {
-      const { validateHistory } = await import("/web-terminal/protocol.js");
+      const { validateHistory } = await import("/web-terminal-test/protocol.js");
       const { WebTerminal, TerminalAction, InputRoute, defaultInputBindings } = await import("/web-terminal/index.js");
       const fixture = window.fixture = {
         views: {}, workers: {}, commands: [], clipboardCalls: [], clipboardPlans: [], gates: [],
@@ -119,7 +119,7 @@ async page => {
       window.Worker = class extends EventTarget {
         constructor() {
           super();
-          this.name = ["a", "b", "c"][Object.keys(fixture.workers).length];
+          this.name = fixture.mountingName;
           fixture.workers[this.name] = this;
           this.revision = 0;
           this.tracking = 0;
@@ -146,6 +146,7 @@ async page => {
           const message = {
             type: "geometry", columns: 40, rows: 12, cellWidth: 10, cellHeight: 20, hyperlinks: [], title: "",
             progress: { state: "none", percentage: null }, shellIntegration: { phase: "unknown", lastExitCode: null },
+            workingDirectory: { uri: null, host: null, path: null }, commandMark: null,
             mouseTracking: this.tracking, peer: { id: this.name, primaryId: "native", isPrimary: false },
             revision: ++this.revision, history, text: history.rowIds.map(rowId => this.line(rowId)).join("\n")
           };
@@ -170,8 +171,10 @@ async page => {
             this.history.selection = { ...this.history.selection, status: "none", ranges: [], text: null };
             this.history.copy = null;
           }
-          if (changes.connected === false) { this.emit({ type: "disconnected" }); return; }
-          if (changes.connected === true) this.emit({ type: "connected" });
+          if (changes.connected === false) {
+            this.emit({ type: "closed", details: { code: 1006, reason: "", wasClean: false } });
+            return;
+          }
           this.frame();
         }
         select(command) {
@@ -246,7 +249,8 @@ async page => {
         if (fixture.config.failAction) return Promise.reject(new Error("Mock host action exploded"));
         return "host result";
       };
-      for (const name of ["a", "b", "c"]) {
+      fixture.mount = async name => {
+        fixture.mountingName = name;
         fixture.views[name] = await WebTerminal.mount(document.getElementById(name), {
           url: "/mock-bindings", readOnly: name === "c",
           sizing: { mode: "fixed", columns: 40, rows: 12 },
@@ -285,7 +289,8 @@ async page => {
           fixture.events.push({ peer: name, type, defaultPrevented: event.defaultPrevented,
             ...(type === "wheel" ? { deltaX: event.deltaX, deltaY: event.deltaY, deltaMode: event.deltaMode } : {}) }),
         { passive: true });
-      }
+      };
+      for (const name of ["a", "b", "c"]) await fixture.mount(name);
       fixture.nativePaste = (name, text) => {
         const input = fixture.views[name].element.shadowRoot.querySelector("textarea");
         const data = new DataTransfer();
@@ -426,7 +431,10 @@ async page => {
           `${invalidation}: stale clipboard content was delivered`);
         check(after.clipboardCalls.length === before.clipboardCalls.length + 1 &&
           after.inputErrors.length === before.inputErrors.length + 1, `${invalidation}: pending paste did not reject once`);
-        if (invalidation === "disconnect") await worker("a", { connected: true });
+        if (invalidation === "disconnect") await test.evaluate(async () => {
+          fixture.views.a.dispose();
+          await fixture.mount("a");
+        });
         if (invalidation === "buffer") await worker("a", { buffer: "main" });
       }
     });
@@ -449,8 +457,10 @@ async page => {
       "Read-only view failed to copy or attempted to read clipboard");
       check(!appCommands(await commandsSince(before, "c")).length &&
         await test.locator("#c textarea").isDisabled(), "Read-only inspection emitted application input");
-      check(after.observed.some(item => item.peer === "c" && item.context.readOnly && item.context.mouseCaptured),
-        "Read-only/capture context was not supplied to policy");
+      const readOnlyInputs = after.observed.filter(item => item.peer === "c");
+      check(await test.evaluate(() => fixture.views.c.geometry.mouseTracking === 1002) &&
+        readOnlyInputs.length > 0 && readOnlyInputs.every(item => item.context.readOnly && !item.context.mouseCaptured),
+        "Read-only policy must suppress application mouse capture even when the producer enables tracking");
     });
 
     await section("application right-button capture and Shift override retain gesture ownership", async () => {

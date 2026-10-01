@@ -462,7 +462,7 @@ public class SixelRetainedMemoryBudgetTests
     }
 
     [TestMethod]
-    public async Task FittingCompressedReplacement_NonMultipleOfThreeQuota_ReplacesNormally()
+    public async Task TruncatedCompressedReplacement_NonMultipleOfThreeQuota_RejectsWithoutEvictingSixel()
     {
         var state = await CreateMixedKgpSixelStateAsync();
         await using var terminal = state.Terminal;
@@ -475,16 +475,15 @@ public class SixelRetainedMemoryBudgetTests
                 replacement)));
 
         var stored = terminal.Terminal.KgpImageStore.GetImageById(1);
-        Assert.IsNotNull(stored);
-        TestSeq.AreEqual(replacement, stored.Data);
+        Assert.IsNull(stored);
         Assert.IsNotNull(terminal.Terminal.KgpImageStore.GetImageById(2));
-        Assert.AreEqual(8L, terminal.Terminal.KgpImageStore.TotalSize);
+        Assert.AreEqual(4L, terminal.Terminal.KgpImageStore.TotalSize);
         Assert.HasCount(1, terminal.Terminal.KgpPlacements);
         Assert.AreEqual(2u, terminal.Terminal.KgpPlacements[0].ImageId);
         Assert.AreEqual(
-            state.SixelBytes + 8,
+            state.SixelBytes + 4,
             terminal.Terminal.GraphicsRetainedByteCount);
-        StringAssert.Contains(terminal.WorkloadInput, ";OK");
+        StringAssert.Contains(terminal.WorkloadInput, ";EINVAL:");
     }
 
     [TestMethod]

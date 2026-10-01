@@ -7,7 +7,7 @@
 #
 
 CC = gcc
-CFLAGS = -Wall -Wextra -O2 -fPIC
+CFLAGS = -Wall -Wextra -O2 -fPIC -pthread
 LDFLAGS = -shared
 
 # Allow overriding the target architecture for cross-compilation
@@ -45,7 +45,8 @@ else
 endif
 
 SOURCES = hex1binterop.c
-OBJECTS = $(SOURCES:.c=.o)
+BUILDDIR = ../obj/native/$(RID)
+OBJECTS = $(addprefix $(BUILDDIR)/,$(SOURCES:.c=.o))
 
 # Output to runtimes directory structure for NuGet packaging
 OUTDIR = ../runtimes/$(RID)/native
@@ -56,8 +57,26 @@ $(OUTDIR)/$(TARGET): $(OBJECTS)
 	@mkdir -p $(OUTDIR)
 	$(CC) $(LDFLAGS) -o $@ $^
 
-%.o: %.c
+$(BUILDDIR)/%.o: %.c Makefile
+	@mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+TESTDIR = ../../../tests/native
+TEST_RUNNER ?=
+
+$(BUILDDIR)/startup-target: $(TESTDIR)/startup-target.c Makefile
+	@mkdir -p $(BUILDDIR)
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILDDIR)/pty-startup-tests: $(TESTDIR)/pty-startup-tests.c hex1binterop.c Makefile
+	@mkdir -p $(BUILDDIR)
+	$(CC) $(CFLAGS) $< -o $@ -lutil -pthread
+
+test-startup: $(BUILDDIR)/pty-startup-tests $(BUILDDIR)/startup-target
+	$(TEST_RUNNER) $(BUILDDIR)/pty-startup-tests $(abspath $(BUILDDIR)/startup-target)
+
+check-exports: all
+	bash ../../../.github/scripts/assert-native-exports.sh $(OUTDIR)/$(TARGET)
 
 clean:
 	rm -f $(OBJECTS)
@@ -69,4 +88,4 @@ install: $(OUTDIR)/$(TARGET)
 	@echo "For development, you can copy to /usr/local/lib:"
 	@echo "  sudo cp $(OUTDIR)/$(TARGET) /usr/local/lib/"
 
-.PHONY: all clean install
+.PHONY: all clean install test-startup check-exports

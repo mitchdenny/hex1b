@@ -166,6 +166,30 @@ public class ColorIndexMappingTests
     }
 
     [TestMethod]
+    public void Color256_CubeAndGrayscale_AllChannelsUseXtermLevels()
+    {
+        using var t = new TestTerminal();
+        int[] levels = [0, 95, 135, 175, 215, 255];
+        for (var index = 16; index < 256; index++)
+        {
+            t.Write($"\x1b[H\x1b[38;5;{index};48;5;{index};58;5;{index}mX");
+            using var snapshot = t.Terminal.CreateSnapshot();
+            var cell = snapshot.GetCell(0, 0);
+            var cube = index - 16;
+            var expected = index < 232
+                ? (levels[cube / 36], levels[(cube / 6) % 6], levels[cube % 6])
+                : ((index - 232) * 10 + 8, (index - 232) * 10 + 8, (index - 232) * 10 + 8);
+            foreach (var color in new[] { cell.Foreground, cell.Background, cell.UnderlineColor })
+            {
+                Assert.IsNotNull(color);
+                Assert.AreEqual(expected, ((int)color.Value.R, (int)color.Value.G, (int)color.Value.B), $"Index {index}");
+                Assert.AreEqual(Hex1bColorKind.Indexed, color.Value.Kind);
+                Assert.AreEqual(index, color.Value.AnsiIndex);
+            }
+        }
+    }
+
+    [TestMethod]
     public void Sgr39_ResetsToDefaultForeground()
     {
         using var t = new TestTerminal();

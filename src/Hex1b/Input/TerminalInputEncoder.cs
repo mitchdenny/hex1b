@@ -52,6 +52,22 @@ internal static class TerminalInputEncoder
             return modifier == 1 ? $"\x1bO{function}" : $"\x1b[1;{modifier}{function}";
         }
 
+        if (modes.ApplicationKeypad)
+        {
+            var keypad = input.Key switch
+            {
+                >= Hex1bKey.NumPad0 and <= Hex1bKey.NumPad9 => (char)('p' + (input.Key - Hex1bKey.NumPad0)),
+                Hex1bKey.Multiply => 'j',
+                Hex1bKey.Add => 'k',
+                Hex1bKey.Subtract => 'm',
+                Hex1bKey.Decimal => 'n',
+                Hex1bKey.Divide => 'o',
+                _ => '\0'
+            };
+            if (keypad != '\0')
+                return modifier == 1 ? $"\x1bO{keypad}" : $"\x1bO{modifier}{keypad}";
+        }
+
         var text = input.Key switch
         {
             Hex1bKey.Enter => "\r",
@@ -78,6 +94,11 @@ internal static class TerminalInputEncoder
             {
                 text = "\0";
             }
+        }
+        else if (input.Alt && text.Length == 0 && input.Key is >= Hex1bKey.A and <= Hex1bKey.Z)
+        {
+            // Synthetic shortcut events omit text; reconstruct it only at the byte boundary.
+            text = ((char)((input.Shift ? 'A' : 'a') + (input.Key - Hex1bKey.A))).ToString();
         }
 
         return input.Alt && text.Length > 0 ? "\x1b" + text : text;

@@ -6,10 +6,11 @@ namespace Hex1b;
 /// <summary>Immutable activity pair and shared reducer for authoritative and standalone terminals.</summary>
 internal sealed record TerminalActivityState(
     TerminalProgress Progress,
-    TerminalShellIntegration ShellIntegration)
+    TerminalShellIntegration ShellIntegration,
+    TerminalWorkingDirectory WorkingDirectory)
 {
     internal static TerminalActivityState Default { get; } =
-        new(TerminalProgress.Default, TerminalShellIntegration.Default);
+        new(TerminalProgress.Default, TerminalShellIntegration.Default, TerminalWorkingDirectory.Default);
 
     internal TerminalActivityState Apply(AnsiToken token) => token switch
     {
@@ -20,6 +21,12 @@ internal sealed record TerminalActivityState(
 
     internal TerminalActivityState ApplyOsc(string command, string parameters, string payload)
     {
+        if (command == "7")
+        {
+            var directory = TerminalWorkingDirectory.TryCreate(payload);
+            return directory is null ? this : this with { WorkingDirectory = directory };
+        }
+
         if (command == "9" && parameters == "4")
         {
             var separator = payload.IndexOf(';');
@@ -45,42 +52,64 @@ internal sealed record TerminalActivityState(
 
         if (command == "133")
         {
-            // The tokenizer places a bare marker in Payload, but a marker with an
-            // argument in Parameters (including D with an explicitly empty argument).
-            var marker = parameters.Length == 0 ? payload : parameters;
-            if (marker == "D")
-            {
-                int? exitCode = null;
-                if (parameters.Length != 0 && payload.Length != 0)
-                {
-                    if (!IsAsciiDecimal(payload, allowSign: true) ||
-                        !int.TryParse(payload, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var value))
-                        return this;
-                    exitCode = value;
-                }
-                return this with
-                {
-                    ShellIntegration = new TerminalShellIntegration(TerminalShellIntegrationPhase.Finished, exitCode)
-                };
-            }
-
-            if (parameters.Length != 0)
+            if (!TryParseMarker(parameters, payload, out var phase, out var exitCode, out _))
                 return this;
-            var phase = marker switch
+
+            if (phase == TerminalShellIntegrationPhase.Finished)
+                return this with { ShellIntegration = new TerminalShellIntegration(phase, exitCode) };
+
+            return this with
             {
-                "A" => TerminalShellIntegrationPhase.Prompt,
-                "B" => TerminalShellIntegrationPhase.CommandLine,
-                "C" => TerminalShellIntegrationPhase.Executing,
-                _ => TerminalShellIntegrationPhase.Unknown
+                ShellIntegration = new TerminalShellIntegration(phase, ShellIntegration.LastExitCode)
             };
-            if (phase != TerminalShellIntegrationPhase.Unknown)
-                return this with
-                {
-                    ShellIntegration = new TerminalShellIntegration(phase, ShellIntegration.LastExitCode)
-                };
         }
 
         return this;
+    }
+
+    /// <summary>
+    /// Parses an OSC 133 marker and its optional trailing raw parameter string (e.g.
+    /// <c>cmdline_url=...</c>), which is captured verbatim and never interpreted here.
+    /// </summary>
+    internal static bool TryParseMarker(string parameters, string payload,
+        out TerminalShellIntegrationPhase phase, out int? exitCode, out string? rawParameters)
+    {
+        phase = TerminalShellIntegrationPhase.Unknown;
+        exitCode = null;
+        rawParameters = null;
+
+        // The tokenizer places a bare marker in Payload, but a marker with an
+        // argument in Parameters (including D with an explicitly empty argument).
+        var marker = parameters.Length == 0 ? payload : parameters;
+        var argument = parameters.Length == 0 ? "" : payload;
+
+        if (marker == "D")
+        {
+            phase = TerminalShellIntegrationPhase.Finished;
+            if (argument.Length == 0)
+                return true;
+
+            // Unlike A/B/C, D's argument is strictly an exit code — no trailing raw
+            // parameters are recognized here (no known extension uses them on D).
+            if (!IsAsciiDecimal(argument, allowSign: true) ||
+                !int.TryParse(argument, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var value))
+                return false;
+            exitCode = value;
+            return true;
+        }
+
+        phase = marker switch
+        {
+            "A" => TerminalShellIntegrationPhase.Prompt,
+            "B" => TerminalShellIntegrationPhase.CommandLine,
+            "C" => TerminalShellIntegrationPhase.Executing,
+            _ => TerminalShellIntegrationPhase.Unknown
+        };
+        if (phase == TerminalShellIntegrationPhase.Unknown)
+            return false;
+        if (argument.Length != 0)
+            rawParameters = argument;
+        return true;
     }
 
     private static bool IsAsciiDecimal(ReadOnlySpan<char> text, bool allowSign)

@@ -13,6 +13,12 @@ internal interface IPtyHandle : IAsyncDisposable
     /// <summary>
     /// Starts the process with the given parameters.
     /// </summary>
+    /// <remarks>
+    /// Failure to establish the requested working directory must fail startup.
+    /// Unix startup confirms the exec handshake, not application readiness.
+    /// Failed or canceled startup must release provisional descriptors and reap its child;
+    /// disposal must remain safe after any startup outcome.
+    /// </remarks>
     Task StartAsync(
         string fileName,
         string[] arguments,

@@ -42,8 +42,8 @@ It does not derive a separate npm version from tags, commits, or `package.json`.
 existing version action. Prereleases never move `latest`. Fork and Dependabot
 PRs still build, test, and upload the npm artifact, but **do not run the
 credential-bearing NuGet publish job**. Same-repository PRs continue publishing
-NuGet previews to GitHub Packages. Publishing jobs run only in the canonical
-repository.
+NuGet previews to GitHub Packages, except for the automated baseline maintenance
+runs described below. Publishing jobs run only in the canonical repository.
 If a short SHA is entirely numeric and starts with zero, the shared action
 prefixes that identifier with `g` to satisfy npm's SemVer rules. This
 normalization applies to both npm and NuGet, not just one distribution.
@@ -59,6 +59,23 @@ The .NET test/package jobs depend on that job. Publishing downloads this artifac
 for npmjs and uses `npm publish <tarball> --ignore-scripts`; it does not install development
 dependencies, rebuild, or run package lifecycle scripts with publishing credentials.
 No npm version-stamping commit or git tag is created.
+
+### Automated baseline maintenance
+
+PRs opened by `github-actions[bot]` from this repository's
+`bot/baseline-bump/...` branches, and pushes that merge those PRs into their
+target branch, skip package publishing when the complete change modifies only
+the bot-managed baseline block in `src/Hex1b/Hex1b.csproj`. Builds, tests,
+package verification, and npm/NuGet artifact uploads still run.
+
+The workflow skips the entire publishing job, not just its push steps, so these
+runs do not request production environment approval or hold the branch's CI
+queue while waiting for that approval. Normal CI still uses the existing
+per-branch concurrency group and may wait behind an earlier run.
+
+Manually authored baseline changes and pushes containing other changes retain
+normal publishing behavior. Manual workflow dispatch also retains normal
+publishing, even when the selected commit is a merged baseline bump.
 
 ## One-time manual npmjs bootstrap: `0.1.0`
 

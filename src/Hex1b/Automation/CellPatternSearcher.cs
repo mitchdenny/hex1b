@@ -525,14 +525,3 @@ public sealed class CellPatternSearcher
 
     internal ImmutableList<IPatternStep> Steps => _steps;
 }
-
-/// <summary>
-/// Direction of movement in the terminal grid.
-/// </summary>
-public enum Direction
-{
-    Right,
-    Left,
-    Up,
-    Down
-}

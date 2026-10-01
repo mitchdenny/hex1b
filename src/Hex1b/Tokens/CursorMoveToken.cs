@@ -1,25 +1,6 @@
 namespace Hex1b.Tokens;
 
 /// <summary>
-/// Direction for relative cursor movement.
-/// </summary>
-public enum CursorMoveDirection
-{
-    /// <summary>Cursor Up (CUU) - ESC [ n A</summary>
-    Up,
-    /// <summary>Cursor Down (CUD) - ESC [ n B</summary>
-    Down,
-    /// <summary>Cursor Forward/Right (CUF) - ESC [ n C</summary>
-    Forward,
-    /// <summary>Cursor Back/Left (CUB) - ESC [ n D</summary>
-    Back,
-    /// <summary>Cursor Next Line (CNL) - ESC [ n E - move to beginning of line n lines down</summary>
-    NextLine,
-    /// <summary>Cursor Previous Line (CPL) - ESC [ n F - move to beginning of line n lines up</summary>
-    PreviousLine
-}
-
-/// <summary>
 /// Represents a CSI cursor movement command.
 /// </summary>
 /// <param name="Direction">The direction to move.</param>
@@ -41,26 +22,3 @@ public enum CursorMoveDirection
 /// </para>
 /// </remarks>
 public sealed record CursorMoveToken(CursorMoveDirection Direction, int Count = 1) : AnsiToken;
-
-/// <summary>
-/// Represents a CSI Cursor Horizontal Absolute (CHA) command: ESC [ n G
-/// </summary>
-/// <param name="Column">1-based column number. Default is 1.</param>
-/// <remarks>
-/// <para>
-/// Moves the cursor to column n in the current row.
-/// </para>
-/// </remarks>
-public sealed record CursorColumnToken(int Column = 1) : AnsiToken;
-
-/// <summary>
-/// Represents a CSI Vertical Position Absolute (VPA) command: ESC [ n d
-/// </summary>
-/// <param name="Row">1-based row number. Default is 1.</param>
-/// <remarks>
-/// <para>
-/// Moves the cursor to row n in the current column.
-/// Also known as Line Position Absolute (LPA).
-/// </para>
-/// </remarks>
-public sealed record CursorRowToken(int Row = 1) : AnsiToken;

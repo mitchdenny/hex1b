@@ -45,6 +45,9 @@ public class ConsolePresentationAdapterTests
     [DataRow("\x1b[65;30;97;1;0;1_", "a")]
     [DataRow("\x1b[13;28;13;1;0;1_", "\r")]
     [DataRow("\x1b[65;30;97;1;0;3_", "aaa")]
+    [DataRow("\u001b[69;18;101;1;2;1_", "\u001be")]
+    [DataRow("\u001b[69;18;69;1;18;1_", "\u001bE")]
+    [DataRow("\u001b[69;18;8364;1;9;1_", "\u20ac")]
     public void WindowsConsoleDriver_TryTranslateWin32InputSequence_DecodesForwardedKeyboardInput(
         string sequence,
         string expected)
@@ -175,6 +178,39 @@ public class ConsolePresentationAdapterTests
         await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
 
         Assert.IsFalse(adapter.Capabilities.SupportsKgp);
+    }
+
+    [TestMethod]
+    [DataRow("ENOTSUP: unsupported format")]
+    [DataRow("EINVAL: invalid query")]
+    [DataRow("")]
+    [DataRow("OK trailing garbage")]
+    public async Task EnterRawModeAsync_WhenKgpQueryFails_ConsumesReplyWithoutEnablingKgp(string reply)
+    {
+        using var driver = new FakeConsoleDriver($"a\x1b_Gi=2147483647;{reply}\x1b\\bc");
+        await using var adapter = new ConsolePresentationAdapter(
+            driver, kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+
+        Assert.IsFalse(adapter.Capabilities.SupportsKgp);
+        Assert.AreEqual("abc", Encoding.ASCII.GetString(input.Span));
+    }
+
+    [TestMethod]
+    public async Task EnterRawModeAsync_WhenKgpReplyHasDifferentId_PreservesReplyWithoutEnablingKgp()
+    {
+        const string response = "\x1b_Gi=123;OK\x1b\\abc";
+        using var driver = new FakeConsoleDriver(response);
+        await using var adapter = new ConsolePresentationAdapter(
+            driver, kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+
+        Assert.IsFalse(adapter.Capabilities.SupportsKgp);
+        Assert.AreEqual(response, Encoding.ASCII.GetString(input.Span));
     }
 
     [TestMethod]

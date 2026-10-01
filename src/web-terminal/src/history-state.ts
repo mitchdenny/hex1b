@@ -23,8 +23,9 @@ export class HistoryState {
 
   get viewport(): HistoryViewport {
     if (!this.#history) return { available: false, following: true, pending: false };
-    const { selection, copy, ...viewport } = this.#history;
+    const { selection, copy, markers, markerResult, markerPage, viewportError, ...viewport } = this.#history;
     return { ...viewport, rowIds: [...viewport.rowIds], available: true, revision: this.#revision,
+      ...(viewportError && viewport.requestId >= this.#viewportRequest ? { navigationError: viewportError } : {}),
       pending: viewport.requestId < this.#viewportRequest };
   }
 
@@ -138,6 +139,18 @@ export class HistoryState {
     this.#flushDeferredEndpoint();
     this.#viewportRequest = ++this.#nextRequest;
     this.#send({ type: "viewport", live: true, requestId: this.#viewportRequest });
+    this.#change();
+  }
+
+  scrollTo(top: number): void {
+    const history = this.#requireHistory();
+    if (!Number.isSafeInteger(top) || top < 0 || top > 2147483647)
+      throw new RangeError("Scroll top must be a nonnegative 32-bit integer");
+    this.#flushDeferredEndpoint();
+    this.#viewportRequest = ++this.#nextRequest;
+    this.#send({ type: "viewport", requestId: this.#viewportRequest,
+      top: Math.min(top, history.liveTop), generation: history.generation,
+      originRowId: history.rowIds[0], originTop: history.top });
     this.#change();
   }
 

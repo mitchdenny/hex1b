@@ -182,11 +182,9 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     /// <inheritdoc />
     /// <remarks>
     /// Windows exposes no <c>TIOCGWINSZ</c> equivalent through the console APIs
-    /// this driver uses, so this always reports unavailable. See
-    /// <see href="https://github.com/mitchdenny/hex1b/issues/455">#455</see> for
-    /// the corresponding query-based discovery paths this driver does not yet
-    /// support either (console input records require different handling than the
-    /// raw stdin byte stream <see cref="ConsolePresentationAdapter"/> probes).
+    /// this driver uses, so this always reports unavailable.
+    /// <see cref="ConsolePresentationAdapter"/> instead discovers pixel metrics
+    /// through VT queries, whose replies are forwarded as UTF-8 by this driver.
     /// </remarks>
     public bool TryGetWindowPixelSize(out int pixelWidth, out int pixelHeight)
     {
@@ -424,6 +422,8 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
 
         if (vk == 0 && key.wVirtualScanCode == 0 && ch != 0)
         {
+            // Terminal replies arrive through the same synthetic key records as
+            // forwarded VT input. Preserve their bytes for the capability probe.
             ProcessVirtualTerminalInputChar(ch);
             return;
         }

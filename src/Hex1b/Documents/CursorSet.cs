@@ -279,17 +279,3 @@ public class CursorSet : IReadOnlyList<DocumentCursor>
     private static DocumentOffset Min(DocumentOffset a, DocumentOffset b) => a < b ? a : b;
     private static DocumentOffset Max(DocumentOffset a, DocumentOffset b) => a > b ? a : b;
 }
-
-/// <summary>
-/// Immutable snapshot of cursor positions for undo/redo.
-/// </summary>
-public sealed record CursorSetSnapshot(
-    IReadOnlyList<CursorSnapshotEntry> Entries,
-    int PrimaryIndex);
-
-/// <summary>
-/// Single cursor state within a snapshot.
-/// </summary>
-public sealed record CursorSnapshotEntry(
-    DocumentOffset Position,
-    DocumentOffset? SelectionAnchor);

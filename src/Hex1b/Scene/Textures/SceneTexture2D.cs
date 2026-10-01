@@ -175,18 +175,3 @@ public class SceneTexture2D
         return a + (b - a) * t;
     }
 }
-
-[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
-public enum TextureWrapMode
-{
-    Clamp,
-    Repeat,
-    MirrorRepeat
-}
-
-[Experimental("HEX1B_SCENE", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/scene.md")]
-public enum TextureFilterMode
-{
-    Nearest,
-    Linear
-}

@@ -12,6 +12,149 @@ namespace Hex1b.Tests;
 [TestClass]
 public class Hwt1Hmp1IntegrationTests
 {
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task RelayHistory_PostAttachmentOutput_UsesReplicaScrollback(bool retainHistory)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var server = new Hmp1PresentationAdapter(20, 5);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(20, 5).WithScrollback(100).Build();
+        var connection = await ConnectAsync(server);
+        await using var handle = connection.Handle;
+        await using var client = connection.Client;
+        await using var view = new Hwt1PresentationAdapter();
+        var builder = Hex1bTerminal.CreateBuilder().WithWorkload(client).WithPresentation(view);
+        if (retainHistory)
+            builder.WithScrollback(100);
+        await using var mirror = builder.Build();
+        await ReadUntilAsync(view, frame => PeerId(frame) is not null);
+
+        workload.Write(string.Concat(Enumerable.Range(0, 50).Select(row => $"ROW-{row:D3}\r\n")) + "READY");
+        await WaitForScreenAsync(mirror, snapshot => snapshot.ContainsText("READY"));
+        var live = await ReadUntilAsync(view, frame => frame.GetProperty("history").GetProperty("totalRows").GetInt32()
+            == mirror.ScrollbackCount + mirror.Height);
+        var liveHistory = live.GetProperty("history");
+        Assert.IsTrue(producer.ScrollbackCount > 0);
+        Assert.AreEqual(retainHistory ? producer.ScrollbackCount : 0, liveHistory.GetProperty("liveTop").GetInt32());
+        view.IsReadOnly = true;
+        await view.HandleMessageAsync("""{"type":"viewport","requestId":1,"delta":-20}"""u8.ToArray());
+        var scrolled = await ReadUntilAsync(view, frame =>
+            frame.GetProperty("history").GetProperty("requestId").GetInt64() == 1);
+        var history = scrolled.GetProperty("history");
+        Assert.AreEqual(!retainHistory, history.GetProperty("following").GetBoolean());
+        Assert.AreEqual(retainHistory ? mirror.ScrollbackCount - 20 : 0, history.GetProperty("top").GetInt32());
+        if (!retainHistory)
+            return;
+
+        var firstRow = history.GetProperty("rowIds")[0].GetString();
+        await view.HandleMessageAsync(Encoding.UTF8.GetBytes($$"""
+            {"type":"selection","requestId":2,"action":"start","generation":"{{history.GetProperty("generation").GetString()}}","rowId":"{{firstRow}}","column":0,"mode":"line"}
+            """));
+        var selected = await ReadUntilAsync(view, frame =>
+            frame.GetProperty("history").GetProperty("selection").GetProperty("requestId").GetInt64() == 2);
+        StringAssert.Contains(selected.GetProperty("history").GetProperty("selection").GetProperty("text").GetString()!,
+            $"ROW-{history.GetProperty("top").GetInt32():D3}");
+
+        workload.Write("\r\nNEXT");
+        await WaitForScreenAsync(mirror, snapshot => snapshot.ContainsText("NEXT"));
+        var updated = await ReadUntilAsync(view, frame =>
+            frame.GetProperty("history").GetProperty("liveTop").GetInt32() > liveHistory.GetProperty("liveTop").GetInt32());
+        Assert.AreEqual(firstRow, updated.GetProperty("history").GetProperty("rowIds")[0].GetString());
+        await view.HandleMessageAsync("""{"type":"viewport","requestId":3,"live":true}"""u8.ToArray());
+        var returned = await ReadUntilAsync(view, frame =>
+            frame.GetProperty("history").GetProperty("requestId").GetInt64() == 3);
+        Assert.IsTrue(returned.GetProperty("history").GetProperty("following").GetBoolean());
+    }
+
+    [TestMethod]
+    public async Task RelayHistory_LateAttachment_TransfersRetainedProducerHistory()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var server = new Hmp1PresentationAdapter(20, 5);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(20, 5).WithScrollback(100).Build();
+        workload.Write(string.Concat(Enumerable.Range(0, 50).Select(row => $"OLD-{row:D3}\r\n")) + "READY");
+        await WaitForScreenAsync(producer, snapshot => snapshot.ContainsText("READY"));
+        Assert.IsTrue(producer.ScrollbackCount > 0);
+        var connection = await ConnectAsync(server);
+        await using var handle = connection.Handle;
+        await using var client = connection.Client;
+        await using var view = new Hwt1PresentationAdapter();
+        await using var mirror = Hex1bTerminal.CreateBuilder().WithWorkload(client)
+            .WithPresentation(view).WithScrollback(100).Build();
+        await WaitForScreenAsync(mirror, snapshot => snapshot.ContainsText("READY"));
+        var baseline = await ReadUntilAsync(view, frame => PeerId(frame) is not null);
+        Assert.AreEqual(producer.ScrollbackCount, baseline.GetProperty("history").GetProperty("liveTop").GetInt32());
+        Assert.AreEqual(producer.ScrollbackCount + 5, baseline.GetProperty("history").GetProperty("totalRows").GetInt32());
+        await view.HandleMessageAsync("""{"type":"viewport","requestId":1,"delta":-100}"""u8.ToArray());
+        var scrolled = await ReadUntilAsync(view, frame =>
+            frame.GetProperty("history").GetProperty("requestId").GetInt64() == 1);
+        Assert.AreEqual(0, scrolled.GetProperty("history").GetProperty("top").GetInt32());
+        await view.HandleMessageAsync(Encoding.UTF8.GetBytes($$"""
+            {"type":"selection","requestId":2,"action":"start","generation":"{{scrolled.GetProperty("history").GetProperty("generation").GetString()}}","rowId":"{{scrolled.GetProperty("history").GetProperty("rowIds")[0].GetString()}}","column":0,"mode":"line"}
+            """));
+        var selected = await ReadUntilAsync(view, frame =>
+            frame.GetProperty("history").GetProperty("selection").GetProperty("requestId").GetInt64() == 2);
+        StringAssert.Contains(selected.GetProperty("history").GetProperty("selection").GetProperty("text").GetString()!, "OLD-000");
+        await using var direct = await server.CreateBrowserViewAsync("direct-history");
+        var authoritative = await ReadUntilAsync(direct, frame => PeerId(frame) is not null);
+        Assert.AreEqual(producer.ScrollbackCount, authoritative.GetProperty("history").GetProperty("liveTop").GetInt32());
+    }
+
+    [TestMethod]
+    public async Task RelayHistory_Reattach_RestoresMarkerDetailsAndNavigationToRetainedText()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var server = new Hmp1PresentationAdapter(20, 5);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(20, 5).WithScrollback(100).Build();
+        workload.Write("\x1b]133;C;cmdline_url=echo%20MARKED\aMARKED COMMAND\r\n" +
+            "\x1b]133;D;7\aDONE\r\n" +
+            string.Concat(Enumerable.Range(0, 30).Select(row => $"ROW-{row:D3}\r\n")) + "READY");
+        await WaitForScreenAsync(producer, snapshot => snapshot.ContainsText("READY"));
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var connection = await ConnectAsync(server);
+            await using (var handle = connection.Handle)
+            await using (var client = connection.Client)
+            await using (var view = new Hwt1PresentationAdapter())
+            await using (var mirror = Hex1bTerminal.CreateBuilder().WithWorkload(client)
+                .WithPresentation(view).WithScrollback(100).Build())
+            {
+                var baseline = await ReadUntilAsync(view, frame =>
+                    frame.GetProperty("history").GetProperty("markers").GetArrayLength() == 2);
+                var markers = baseline.GetProperty("history").GetProperty("markers");
+                Assert.AreEqual("command:1", markers[0].GetProperty("id").GetString());
+                Assert.AreEqual("command:2", markers[1].GetProperty("id").GetString());
+                await view.HandleMessageAsync(
+                    """{"type":"marker","action":"details","id":"command:1","requestId":1}"""u8.ToArray());
+                var details = await ReadUntilAsync(view, frame =>
+                    frame.GetProperty("history").TryGetProperty("markerResult", out var result) &&
+                    result.GetProperty("requestId").GetInt64() == 1);
+                Assert.AreEqual("cmdline_url=echo%20MARKED", details.GetProperty("history")
+                    .GetProperty("markerResult").GetProperty("details").GetProperty("rawParameters").GetString());
+                await view.HandleMessageAsync(
+                    """{"type":"marker","action":"jump","id":"command:1","requestId":2}"""u8.ToArray());
+                var jumped = await ReadUntilAsync(view, frame =>
+                    frame.GetProperty("history").TryGetProperty("markerResult", out var result) &&
+                    result.GetProperty("requestId").GetInt64() == 2);
+                var history = jumped.GetProperty("history");
+                Assert.IsTrue(history.GetProperty("markerResult").GetProperty("success").GetBoolean());
+                Assert.AreEqual(0, history.GetProperty("top").GetInt32());
+                await view.HandleMessageAsync(Encoding.UTF8.GetBytes($$"""
+                    {"type":"selection","requestId":3,"action":"start","generation":"{{history.GetProperty("generation").GetString()}}","rowId":"{{history.GetProperty("rowIds")[0].GetString()}}","column":0,"mode":"line"}
+                    """));
+                var selected = await ReadUntilAsync(view, frame =>
+                    frame.GetProperty("history").GetProperty("selection").GetProperty("requestId").GetInt64() == 3);
+                StringAssert.Contains(selected.GetProperty("history").GetProperty("selection")
+                    .GetProperty("text").GetString()!, "MARKED COMMAND");
+            }
+            Assert.AreEqual(0, server.ClientCount);
+        }
+    }
+
     public static IEnumerable<object[]> KgpPlacementCuts()
     {
         var placement = KgpTestHelper.BuildCommand("a=p,i=7311,X=1,Y=3,z=11,C=1,q=2");
@@ -109,12 +252,16 @@ public class Hwt1Hmp1IntegrationTests
     }
 
     [TestMethod]
-    [DataRow(false, false)]
-    [DataRow(false, true)]
-    [DataRow(true, false)]
-    [DataRow(true, true)]
+    [DataRow(false, false, false)]
+    [DataRow(false, true, false)]
+    [DataRow(true, false, false)]
+    [DataRow(true, true, false)]
+    [DataRow(false, false, true)]
+    [DataRow(false, true, true)]
+    [DataRow(true, false, true)]
+    [DataRow(true, true, true)]
     public async Task LateAttachment_DuringKgpPlacementReplacement_RetainsUnusedPalette(
-        bool alternateScreen, bool keepPlacement)
+        bool alternateScreen, bool keepPlacement, bool compressed)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         await using var server = new Hmp1PresentationAdapter(20, 10);
@@ -134,9 +281,12 @@ public class Hwt1Hmp1IntegrationTests
             .WithPresentation(firstView).Build();
         var red = Enumerable.Range(0, 9).SelectMany(_ => new byte[] { 255, 0, 0, 255 }).ToArray();
         var green = Enumerable.Range(0, 9).SelectMany(_ => new byte[] { 0, 255, 0, 255 }).ToArray();
+        var encodedRed = compressed ? Compress(red) : red;
+        var encodedGreen = compressed ? Compress(green) : green;
+        var compression = compressed ? ",o=z" : "";
         workload.Write((alternateScreen ? "\x1b[?1049h" : "") + "\x1b[?2026h" +
-            KgpTestHelper.BuildCommand("a=t,f=32,s=3,v=3,i=7300,q=2", red) +
-            KgpTestHelper.BuildCommand("a=t,f=32,s=3,v=3,i=7301,q=2", green) +
+            KgpTestHelper.BuildCommand("a=t,f=32,s=3,v=3,i=7300,q=2" + compression, encodedRed) +
+            KgpTestHelper.BuildCommand("a=t,f=32,s=3,v=3,i=7301,q=2" + compression, encodedGreen) +
             "\x1b[2;3H" + KgpTestHelper.BuildCommand("a=p,i=7300,C=1,q=2") +
             "\x1b[4;3H" + KgpTestHelper.BuildCommand("a=p,i=7301,C=1,q=2") + "\x1b[?2026l");
         await ReadUntilAsync(firstView, frame => frame.GetProperty("placements").GetArrayLength() == 2);
@@ -172,6 +322,13 @@ public class Hwt1Hmp1IntegrationTests
         Assert.AreEqual(alternateScreen, actual.InAlternateScreen);
         TestSeq.AreEqual(red, actual.KgpImages[7300].Data);
         TestSeq.AreEqual(green, actual.KgpImages[7301].Data);
+        Assert.AreEqual(compressed, actual.KgpImages[7300].IsZlibCompressed);
+        Assert.AreEqual(compressed, actual.KgpImages[7301].IsZlibCompressed);
+        if (compressed)
+        {
+            TestSeq.AreEqual(encodedRed, actual.KgpImages[7300].EncodedData.ToArray());
+            TestSeq.AreEqual(encodedGreen, actual.KgpImages[7301].EncodedData.ToArray());
+        }
         foreach (var placement in actual.KgpPlacements)
         {
             Assert.AreEqual(7, placement.Column);
@@ -180,6 +337,58 @@ public class Hwt1Hmp1IntegrationTests
             Assert.IsTrue(placement.UsesNativeSize);
         }
         await ReadUntilAsync(lateView, frame => frame.GetProperty("placements").GetArrayLength() == 2);
+    }
+
+    [TestMethod]
+    public async Task ProducerBackedView_ReplacementsAndReconnect_SendCurrentResourcesAsIndependentBaselines()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var server = new Hmp1PresentationAdapter(20, 10);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(20, 10).Build();
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=1,o=z,i=1,C=1,q=2", Compress([1, 0, 0, 255]))));
+        await using var first = await server.CreateBrowserViewAsync("first");
+        var firstBytes = await first.ReadFrameAsync();
+        var firstCopy = firstBytes.ToArray();
+        await first.HandleMessageAsync("""{"type":"ack","revision":1}"""u8.ToArray());
+        for (var generation = 2; generation <= 65; generation++)
+            producer.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand(
+                "a=T,f=32,s=1,v=1,o=z,i=1,C=1,q=2", Compress([(byte)generation, 0, 0, 255]))));
+        var latest = await first.ReadFrameAsync();
+        using (var metadata = JsonDocument.Parse(latest.Slice(8, BinaryPrimitives.ReadInt32LittleEndian(latest.Span[4..]))))
+            Assert.AreEqual(1, metadata.RootElement.GetProperty("retainedImages").GetArrayLength());
+        TestSeq.AreEqual(new byte[] { 65, 0, 0, 255 }, latest.Span[^4..].ToArray());
+
+        await using var late = await server.CreateBrowserViewAsync("late");
+        var lateBytes = await late.ReadFrameAsync();
+        TestSeq.AreEqual(new byte[] { 65, 0, 0, 255 }, lateBytes.Span[^4..].ToArray());
+        await first.DisposeAsync();
+        TestSeq.AreEqual(firstCopy, firstBytes.ToArray());
+        for (var reconnect = 0; reconnect < 5; reconnect++)
+        {
+            await using var fresh = await server.CreateBrowserViewAsync($"reconnect-{reconnect}");
+            var bytes = await fresh.ReadFrameAsync();
+            using var metadata = JsonDocument.Parse(bytes.Slice(8, BinaryPrimitives.ReadInt32LittleEndian(bytes.Span[4..])));
+            Assert.IsTrue(metadata.RootElement.GetProperty("full").GetBoolean());
+            Assert.AreEqual(1, metadata.RootElement.GetProperty("images").GetArrayLength());
+            Assert.AreEqual(1, metadata.RootElement.GetProperty("retainedImages").GetArrayLength());
+            TestSeq.AreEqual(new byte[] { 65, 0, 0, 255 }, bytes.Span[^4..].ToArray());
+        }
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand("a=d,d=I,i=1,q=2")));
+        await late.HandleMessageAsync("""{"type":"ack","revision":1}"""u8.ToArray());
+        var empty = await late.ReadFrameAsync();
+        using var emptyMetadata = JsonDocument.Parse(empty.Slice(8, BinaryPrimitives.ReadInt32LittleEndian(empty.Span[4..])));
+        Assert.AreEqual(0, emptyMetadata.RootElement.GetProperty("retainedImages").GetArrayLength());
+    }
+
+    private static byte[] Compress(byte[] data)
+    {
+        using var output = new MemoryStream();
+        using (var zlib = new System.IO.Compression.ZLibStream(output,
+            System.IO.Compression.CompressionLevel.Fastest, leaveOpen: true))
+            zlib.Write(data);
+        return output.ToArray();
     }
 
     [TestMethod]
@@ -232,7 +441,8 @@ public class Hwt1Hmp1IntegrationTests
         Assert.IsTrue(nativeClient.Peers.Any(peer => peer.PeerId == browserId));
         await nativeClient.RequestPrimaryAsync(40, 12);
         Assert.IsTrue(await nativeClient.WaitForRoleAsync(true, TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
-        var primary = await ReadUntilAsync(browser, frame => PrimaryId(frame) == nativeClient.PeerId);
+        var primary = await ReadUntilAsync(browser, frame => PrimaryId(frame) == nativeClient.PeerId &&
+            frame.GetProperty("columns").GetInt32() == 40 && frame.GetProperty("rows").GetInt32() == 12);
         Assert.AreEqual(40, primary.GetProperty("columns").GetInt32());
         Assert.AreEqual(12, primary.GetProperty("rows").GetInt32());
         Assert.IsFalse(primary.GetProperty("peer").GetProperty("isPrimary").GetBoolean());
@@ -252,7 +462,10 @@ public class Hwt1Hmp1IntegrationTests
         Assert.AreEqual(1, server.ClientCount);
         await nativeClient.RequestPrimaryAsync(20, 10);
         Assert.IsTrue(await nativeClient.WaitForRoleAsync(true, TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        // Role acknowledgement can arrive before the producer applies the resize.
+        await WaitForScreenAsync(producer, snapshot => snapshot.Width == 20 && snapshot.Height == 10);
         Assert.AreEqual(20, producer.Width);
+        Assert.AreEqual(10, producer.Height);
     }
 
     [TestMethod]
@@ -763,7 +976,10 @@ public class Hwt1Hmp1IntegrationTests
     }
 
     [TestMethod]
-    public async Task ResizeAndPrimaryRequests_WaitForProducerConfirmation_IgnoreSecondaryResize()
+    [DataRow(40, 12)]
+    [DataRow(1, 1)]
+    [DataRow(19, 9)]
+    public async Task ResizeAndPrimaryRequests_WaitForProducerConfirmation_IgnoreSecondaryResize(int columns, int rows)
     {
         var (serverStream, clientStream) = CreateStreams();
         await using var server = serverStream;
@@ -776,21 +992,22 @@ public class Hwt1Hmp1IntegrationTests
         await using var mirror = Hex1bTerminal.CreateBuilder().WithWorkload(client).WithPresentation(view).Build();
         await ReadUntilAsync(view, m => PeerId(m) == "viewer");
 
-        await view.HandleMessageAsync("""{"type":"resize","columns":40,"rows":12}"""u8.ToArray());
+        await view.HandleMessageAsync(JsonSerializer.SerializeToUtf8Bytes(new { type = "resize", columns, rows }));
         var resize = await Hmp1Protocol.ReadFrameAsync(server, TestContext.Current.CancellationToken)
             .AsTask().WaitAsync(TimeSpan.FromSeconds(5));
         Assert.AreEqual(Hmp1FrameType.Resize, resize!.Value.Type);
-        Assert.AreEqual((40, 12), Hmp1Protocol.ParseResize(resize.Value.Payload));
+        Assert.AreEqual((columns, rows), Hmp1Protocol.ParseResize(resize.Value.Payload));
         Assert.AreEqual(20, mirror.Width);
         Assert.AreEqual(20, view.Width);
-        await Hmp1Protocol.WriteResizeAsync(server, 40, 12, TestContext.Current.CancellationToken);
-        await ReadUntilAsync(view, m => m.GetProperty("columns").GetInt32() == 40);
+        await Hmp1Protocol.WriteResizeAsync(server, columns, rows, TestContext.Current.CancellationToken);
+        await ReadUntilAsync(view, m => m.GetProperty("columns").GetInt32() == columns &&
+            m.GetProperty("rows").GetInt32() == rows);
 
         await view.HandleMessageAsync("""{"type":"requestPrimary","columns":50,"rows":15}"""u8.ToArray());
         var claim = await Hmp1Protocol.ReadFrameAsync(server, TestContext.Current.CancellationToken)
             .AsTask().WaitAsync(TimeSpan.FromSeconds(5));
         Assert.AreEqual(Hmp1FrameType.RequestPrimary, claim!.Value.Type);
-        Assert.AreEqual(40, mirror.Width);
+        Assert.AreEqual(columns, mirror.Width);
         await Hmp1Protocol.WriteRoleChangeAsync(server, "viewer", 50, 15, "RequestPrimary", TestContext.Current.CancellationToken);
         await ReadUntilAsync(view, m => m.GetProperty("columns").GetInt32() == 50);
 

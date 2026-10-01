@@ -17,6 +17,7 @@ internal sealed class TerminalInstance
     private readonly Action<TerminalInstance> _onCompleted;
     private readonly string _name;
     private readonly string _scene;
+    private readonly DemoReflowStrategy _reflowStrategy;
     private readonly DateTimeOffset _createdAt = DateTimeOffset.UtcNow;
     private Task _completion = Task.CompletedTask;
     private bool _stopping;
@@ -27,6 +28,7 @@ internal sealed class TerminalInstance
     {
         Id = Guid.NewGuid().ToString("N");
         _scene = request.Scene;
+        _reflowStrategy = request.ResolvedReflowStrategy;
         _tapes = tapeCatalog.ForScene(_scene);
         _name = request.Name?.Trim() ?? $"{char.ToUpperInvariant(_scene[0])}{_scene[1..]} {Id[..6]}";
         _logger = logger;
@@ -34,6 +36,8 @@ internal sealed class TerminalInstance
         _stop = new CancellationTokenSource();
         Stopping = _stop.Token;
         Presentation = new Hmp1PresentationAdapter(request.Columns, request.Rows);
+        if (request.GetReflowProvider() is { } reflow)
+            Presentation.WithReflow(reflow);
         _demo = _scene == "shell" ? null : new DemoWorkload(_scene, request.Columns, request.Rows);
         var child = _demo is null ? new Hex1bTerminalChildProcess(
             OperatingSystem.IsWindows() ? "cmd.exe" : Environment.GetEnvironmentVariable("SHELL") ?? "/bin/sh",
@@ -48,7 +52,7 @@ internal sealed class TerminalInstance
             Height = request.Rows,
             WorkloadAdapter = (IHex1bTerminalWorkloadAdapter?)_demo ?? child!,
             PresentationAdapter = Presentation,
-            ScrollbackCapacity = 1000,
+            ScrollbackCapacity = _scene == "marks" ? DemoWorkload.MarkScenarioScrollbackCapacity : 1000,
             RunCallback = async ct =>
             {
                 if (_demo is not null)
@@ -75,8 +79,10 @@ internal sealed class TerminalInstance
         lock (_gate)
             return new(Id, _name, _scene, Presentation.Width, Presentation.Height,
                 Presentation.ClientCount, Presentation.PrimaryPeerId, _createdAt,
-                _demo?.Paused, _demo?.Rate, _demo?.Batch,
-                _tapes.Select(tape => tape.Info).ToArray(), _tapePlayback.Status);
+                _scene == "marks" ? null : _demo?.Paused,
+                _scene == "marks" ? null : _demo?.Rate,
+                _scene == "marks" ? null : _demo?.Batch,
+                _tapes.Select(tape => tape.Info).ToArray(), _tapePlayback.Status, _reflowStrategy);
     }
 
     public void Start() => _completion = Task.Run(RunLifetimeAsync);
@@ -114,7 +120,7 @@ internal sealed class TerminalInstance
         {
             if (_stopping || Stopping.IsCancellationRequested)
                 return 404;
-            if (_demo is null)
+            if (_demo is null || _scene == "marks")
                 return 409;
             if (request.Paused is { } paused) _demo.Paused = paused;
             if (request.Rate is { } rate) _demo.Rate = rate;

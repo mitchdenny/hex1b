@@ -87,19 +87,3 @@ internal class KgpImageRegistry
         _currentLayer = 0;
     }
 }
-
-/// <summary>
-/// A KGP image registered during rendering, with its absolute position and layer.
-/// </summary>
-internal readonly record struct KgpImageEntry(
-    KgpCellData Data,
-    int AbsoluteX,
-    int AbsoluteY,
-    int Layer);
-
-/// <summary>
-/// A rectangular occluder (window bounds) registered during rendering.
-/// </summary>
-internal readonly record struct OccluderEntry(
-    int Layer,
-    Rect Bounds);

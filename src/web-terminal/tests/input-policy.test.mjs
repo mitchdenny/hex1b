@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { InputPolicy, InputRoute, TerminalAction, defaultInputBindings, inputModifiers } from "../dist/input-policy.js";
-import { assertCommandSize, LIMITS } from "../dist/protocol.js";
+import { InputPolicy, InputRoute, TerminalAction, defaultInputBindings, inputModifiers } from "../.build/input-policy.js";
+import { assertCommandSize, LIMITS } from "../.build/protocol.js";
 
 const key = (key, overrides = {}) => ({ type: "key", key, ctrl: false, alt: false, shift: false, meta: false, ...overrides });
 const pointer = (overrides = {}) => ({ type: "pointer", button: "right", ...inputModifiers({}), ...overrides });
@@ -44,6 +44,19 @@ test("Windows-style context click applies in both screens, with Shift capture ov
       assert.equal(policy.resolve(pointer(), context({ buffer, mouseCaptured: true, ...override })).action,
         TerminalAction.CopyOrPaste);
   }
+});
+
+test("Alt shortcuts remain browser-owned unless explicitly routed to the application", () => {
+  const policy = new InputPolicy();
+  for (const modifiers of [{ alt: true }, { alt: true, shift: true }, { alt: true, ctrl: true, shift: true }])
+    assert.equal(policy.resolve(key("e", modifiers), context()).route, InputRoute.Browser);
+  assert.equal(policy.resolve(key("e", { alt: true, ctrl: true }), context()).route, InputRoute.Application);
+
+  const overridden = new InputPolicy({ inputBindings: [
+    { id: "host.alt", match: input => input.type === "key" && input.alt, route: InputRoute.Application }
+  ] });
+  assert.equal(overridden.resolve(key("e", { alt: true }), context()).route, InputRoute.Application);
+  assert.equal(overridden.resolve({ type: "text", text: "\u20ac" }, context()).route, InputRoute.Continue);
 });
 
 test("Matching IDs replace defaults, explicit removal disables them, and views stay independent", () => {

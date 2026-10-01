@@ -14,6 +14,16 @@ describe state transfer between the first-party server and browser client.
 evolve together without wire-compatibility guarantees; keep their versions
 paired and upgrade them together.
 
+**Terminal controls** opens a right-side drawer for creating/attaching terminals,
+choosing renderers, and playing scenario tapes. It floats over the workspace:
+opening or closing it never resizes the terminals or reconnects their views.
+Use **Close**, Escape while focused inside, or click outside to dismiss it.
+The drawer scrolls independently on small screens and respects reduced motion.
+It starts closed when the page opens a terminal automatically; an explicit empty
+workspace (`?empty=1`) starts with the drawer open.
+Narrow windows use a compact title bar; very short windows hide the activity and
+failure-demo strips to preserve terminal space. Enlarge the window to restore them.
+
 ## Run
 
 From the repository root, using Node.js 24 or newer for the frontend build:
@@ -26,11 +36,23 @@ dotnet run --project samples/WebTerminalDemo -c Release
 
 Open <http://localhost:5290> in a browser with WebGPU or WebGL2 and worker
 `OffscreenCanvas` support. The .NET build compiles the package and the
-TypeScript playground, then copies the package's complete `dist/` tree to
-`wwwroot/web-terminal/`. The playground consumes the package by its npm name,
+TypeScript playground, then copies the package's `dist/` assets to
+`wwwroot/web-terminal/`: one package JavaScript bundle, `index.js`, containing
+the public API and both workers, plus its source map, declarations, and separate
+font/license assets. The playground's own application modules remain separate.
+The playground consumes the package by its npm name,
 resolved by a browser import map. The generated assets are included in
 `dotnet publish`; Node.js is not needed by the deployed ASP.NET host. Neither
 WASM nor xterm.js is required.
+
+For vendoring elsewhere, copy the bundle plus its `fonts/` directory and licenses,
+or provide explicit `font.faces` URLs. Workers reuse the actual bundle URL with
+`#hex1b-terminal-worker` / `#hex1b-link-detection-worker` fragments; no separate
+worker JavaScript files or Blob URLs are needed. Renaming the unmodified bundle
+preserves this behavior, including its query string. Same-origin workers support
+`worker-src 'self'`. Rebundling into an application may require explicit worker
+URLs pointing to a separately hosted unmodified bundle and explicit font URLs;
+see the package's [deployment examples](../../src/web-terminal/README.md#module-and-worker-deployment).
 
 If another run occupies 5290, stop that run or choose a separate port:
 
@@ -44,6 +66,428 @@ eight web views. **The shell scene runs a real local shell
 with your privileges. Do not put this sample behind a reverse proxy or expose
 it to other users.** Closing a view does not stop its terminal: use **End terminal**
 to terminate the shared workload explicitly.
+
+By default, the **Interactive shell** scene enables
+`Hmp1PresentationAdapter.WithReflow(GhosttyReflowStrategy.Instance)` on its
+shared producer. Narrowing wraps shell output and widening rejoins soft wraps;
+hard newlines remain separate. Retained history participates, subject to the
+sample's 1,000-physical-row scrollback limit. Alternate-screen applications
+still use crop/redraw semantics; their saved main screen reflows on return.
+Selections are invalidated by resize. The other generated text/graphics scenes retain
+crop behavior. The library's adapter defaults have not changed: consumers must
+[opt in on their producer](../../docs/web-terminal.md#shell-reflow-configuration).
+
+## Try a large pre-populated marked history
+
+Choose **Terminal controls → Scene → Long scrollback (48 marks)**,
+leave the transport at **Direct HWT1**, and select **New terminal**. Alternatively,
+open <http://localhost:5290/?scene=marks&renderer=webgl2>.
+
+This scene emits **48 real OSC 133 marks** (A/B/C/D for each of 12 synthetic
+commands) across **20,000+ command/output rows**, plus a header and unmarked tail.
+Output lengths cycle through 0, 120, 960, and 5,580 lines; every fifth command fails.
+This produces dense clusters, longer gaps, and both successful and failed commands.
+No shell commands are executed. Wait for **MARKS_READY**, then drag the thumb,
+hover marks, or use the view's **Marks** menu to jump to old commands.
+
+The scene has a 25,000-row scrollback capacity and enables Ghostty reflow by
+default so initial view sizing does not discard early marks. It seeds once and
+remains idle: input, resize, and subsequent attachments do not regenerate it.
+Rate and pause controls are disabled. Explicitly choosing crop/no-reflow can
+discard rows during resizing; very narrow reflow can also exceed the retained
+physical-row capacity.
+
+Use Direct HWT1 to inspect the complete producer history. The existing HMP1 relay
+uses its own 1,000-row replica and does not replay all producer scrollback to late
+attachments; this scene does not change those transport semantics.
+
+With the demo running, validate the seeded inventory and overlay drawer:
+
+```sh
+npm run test:assets --prefix samples/WebTerminalDemo
+playwright-cli -s=marks open 'http://localhost:5290/?empty=1'
+playwright-cli -s=marks run-code --filename samples/WebTerminalDemo/tests/populated-marks.browser.js
+playwright-cli -s=marks run-code --filename samples/WebTerminalDemo/tests/controls-markers.browser.js
+playwright-cli -s=marks close
+```
+
+## Try light/dark terminal palettes
+
+The always-visible **Color mode**, **Light palette**, and **Dark palette** controls
+update every current view and subsequent mount, including command previews.
+**System** follows your browser's preferred color scheme. Each mode retains its
+own palette selection for the lifetime of the page; choosing an inactive mode's
+palette does not switch the current mode. The demo's `--cp-*` CSS tokens separately
+theme the surrounding page chrome. Changes do not recreate sessions or send
+terminal input. `?scoutTheme=light` or `?scoutTheme=dark` sets the initial mode.
+
+Both selectors start with **Hex1b Light / Hex1b Dark**, the library defaults.
+The pair adapts Tomorrow Night Eighties: neutral charcoal and warm stone exchange
+foreground/background roles, while OKLCH-adjusted ANSI colors keep the same hues
+and controlled text contrast in each mode. No palette options are needed to get
+this behavior when mounting the library directly.
+
+Additional comparison presets live in the demo's
+[client/palettes.ts](client/palettes.ts), not the library:
+
+- **Ghostty-compatible dark**: a muted, classic dark terminal palette.
+- **Campbell dark**: the familiar Windows terminal ANSI colors.
+- **Fluent-inspired light/dark (experimental)**: neutral surfaces and blue accents
+  inspired by Fluent and Aspire dashboard styling. These are exploratory demo
+  palettes, **not official Fluent or Aspire themes**.
+- **Hex1b Light / Hex1b Dark**: the package's two exported default palettes.
+
+Upstream notices for the comparison presets are retained in
+[wwwroot/THIRD-PARTY-NOTICES.txt](wwwroot/THIRD-PARTY-NOTICES.txt).
+The copied library assets carry Hex1b's license and the bundled font license.
+
+Each preset is an ordinary JSON-compatible `TerminalPalette` object supplied by
+the consumer. Colors are `#RRGGBB`; `ansi` has exactly 16 entries in ANSI order:
+black, red, green, yellow, blue, magenta, cyan, white, then the same eight bright
+colors. `foreground` and `background` are required; `cursor`,
+`selectionBackground`, and `extended` (indexed colors 16–255) are optional.
+You can copy a preset object or load the same shape from your application's JSON.
+The library does not know the demo's preset names.
+
+At mount time the host supplies `colorMode`, `lightModePalette`, and
+`darkModePalette`. Live changes call `terminal.setColorMode("light")` or
+`terminal.setPalette("dark", palette)`. See
+[client/appearance.ts](client/appearance.ts) for the shared demo wiring, including
+applying the latest choices to mounts that finish asynchronously.
+
+The ANSI swatches show the active palette, not server output. To compare actual
+indexed rendering with literal RGB output, paste this into an idle **Interactive
+shell** once, then use the appearance controls:
+
+```sh
+printf '\033[0mDefault colors\n\033[41m ANSI red \033[0m\n\033[48;2;18;58;188m Truecolor #123abc \033[0m\n'
+```
+
+Default and ANSI colors follow the selected palette. Explicit RGB text/background
+colors remain literal; switching palettes does not recolor application-chosen
+truecolor or image pixels.
+
+With the demo running, exercise the controls and real worker-rendered pixels:
+
+```sh
+playwright-cli -s=palettes open 'http://localhost:5290/?empty=1'
+playwright-cli -s=palettes run-code --filename samples/WebTerminalDemo/tests/palettes.browser.js
+playwright-cli -s=palettes close
+```
+
+## Try local link previews
+
+Open <http://localhost:5290>, create an **Interactive shell** terminal, and choose
+**Links → Preview links (opt in)** in that view's controls. Each new view starts
+with **OSC 8 only (default)**: inferred text detection is disabled, and existing
+allowlisted OSC 8 navigation is unchanged. No query parameter enables detection.
+
+Print some targets at an idle POSIX shell prompt:
+
+```sh
+printf ' %s \n' 'https://example.com/docs' 'mailto:demo@example.com' \
+  'demo:preview' '/workspace/project/README.md' 'C:\Code\project\README.md' \
+  '~/project/README.md' 'PROJ-123'
+```
+
+Hold **Ctrl or Cmd and click** a detected target. URI previews, remote-file
+callbacks, and the custom `PROJ-123` regex write plain text to the existing view
+status and playground status. Hovering reveals the destination/activation hint.
+The preview mode also replaces OSC 8 navigation with the URI-preview action.
+It does not call `window.open`, fetch an issue, run commands, or access files.
+Paths refer to the terminal's environment, **not the browser's local filesystem**;
+the remote-file callback only displays the literal target and reported remote
+working directory. It does not expand `~` or check existence.
+
+Change the picker while connected: it calls `setLinks` without remounting.
+When previews are enabled, **Underline** selects **Always**, **On hover**, or
+**None**, and **Style** selects **Solid** or **Dashed** independently. Both
+controls update the current view immediately; hover-only underlines appear
+without holding Ctrl/Cmd, while activation still requires Ctrl/Cmd+click.
+**None** hides inferred underlines but leaves links clickable. On narrow views,
+scroll the view toolbar horizontally to reach these controls.
+**All links disabled** calls `setLinks(false)`; **OSC 8 only (default)** calls
+`setLinks({ detection: false })`, restoring legacy allowlisted OSC 8 navigation.
+All named demo actions are registered at mount time, including when detection
+is off. Reconnecting a view retains its picker choice; new views opt in
+independently. This works with either sample transport and renderer selection.
+
+Only currently visible text is considered, including displayed history. Keep
+the surrounding spaces in the example: uncertain/clipped edges are deliberately
+not activated. HWT1 is unchanged: soft-wrap flags already exist, but wide-wrap
+padding metadata is missing, so some wide-character wraps cannot be recognized.
+There is no off-screen continuation fetch. Built-in paths are whitespace-delimited;
+use custom rules for quotes, spaces, UNC paths, and location suffixes.
+OSC 8 occupies its spans even when blocked/disabled, and existing application
+SGR underline styles/colors are preserved.
+
+The dedicated regex worker bounds detection work and isolates pathological
+regexes from rendering. Synchronous trusted resolvers still run on the main
+thread and cannot be preempted: keep them fast and side-effect-free.
+Detection diagnostics appear through `onLinkDetectionError` and `onStatus`.
+See the package's [complete link API examples](../../src/web-terminal/README.md#opt-in-text-links-and-host-actions)
+for all text modes, action payloads, rule disabling, and worker deployment.
+This walkthrough is not a claim of browser validation or performance measurements.
+
+## Scrollbars, padding, and bookmarks
+
+Each view has independent, live **Scrollbar** controls:
+
+| Mode | Behavior |
+| --- | --- |
+| **Canvas overlay** (default) | An auto-hiding Canvas2D track over the terminal's right edge. |
+| **Canvas beside** | A non-fading scrollbar in a reserved gutter, outside terminal cells, while scrollback is available. |
+| **Native HTML** | A fixed terminal mount beside a native overflow rail and external marker ticks. |
+| **Disabled** | No scrollbar chrome; wheel, keyboard, and public history APIs still work. |
+
+These controls use `setScrollbar`, not a new mount or socket. **T/R/B/L** set
+asymmetric outer padding in CSS pixels. The compact scrolling row has per-view
+**Painter** and **Tooltip** selectors; it scrolls horizontally rather than
+adding more rows of controls.
+
+| Painter | Behavior |
+| --- | --- |
+| **Default** | Monochrome inset capsule thumb with circles up to 5 CSS pixels across that move sideways around it without shifting their row positions; continuous dragging and short row-step transitions keep motion smooth in short histories. Nearby floated marks share one smooth, fading Bezier shadow that gently returns to the track. Kind/outcome-specific marker shades, track opacity `0.35`, thumb and markers `1`. |
+| **Custom soft fade** | Delegates to `renderDefaultScrollbar` with a longer quadratic fade in overlay mode and respects reduced motion. Beside mode stays visible. |
+| **Styled default** | Uses `createDefaultScrollbarRenderer` with track/thumb/marker opacity `0.12`/`0.7`/`0.85`, retaining live theme colors. |
+| **Custom Canvas2D** | Draws a narrow rail, square thumb with grips, and diamond markers directly; the hovered marker gets an outline. |
+
+Painter selection affects canvas modes only; the operating system controls
+native-thumb visibility. Canvas scrollbars have no thumb focus outline; keyboard
+focus keeps them visible and navigable. The default track has rounded ends,
+including its extended shadow. The default, soft-fade, styled, and custom
+Canvas2D painters use palette-derived marker shades for command input, execution,
+success, failure, and bookmarks, unless a host explicitly overrides a color.
+Every part's configured opacity multiplies the frame
+fade and incoming canvas alpha. The default factory is built on the same
+`render(frame)` callback as the fully custom painter; it does not change hit
+regions or interaction. Supplied appearance colors must be bounded concrete
+CSS colors, not `var()` or `currentColor`. Explicit per-marker colors override
+configured success/error colors and theme fallbacks. See the package's
+[appearance options](../../src/web-terminal/README.md#configure-the-default-capsule-painter)
+for validation and snapshot semantics.
+
+**Tooltip → Default** shows safe built-in hover content. **Custom HTML**
+decorates `renderDefaultScrollbarTooltip(context)` with a source/row heading
+and the playground's existing `--cp-*` theme variables. **Off** disables canvas
+tooltips without disabling marker clicks. Returned HTML is automatically mounted
+in a light-DOM overlay and positioned beside the mark, clamped within the terminal.
+The callback stays synchronous: command details arrive in subsequent calls as
+loading, ready, or error states; the 8,192 UTF-16-unit detail limit still applies.
+Tooltips hide during thumb dragging, on pointer leave, disconnect, configuration
+changes, and disposal. Their abort signals also support cleanup of externally
+owned DOM when a host returns `null`.
+
+**Tooltip → Terminal preview** embeds a real, independently scrolled
+`WebTerminal` at the hovered command mark. To try it, run the **Shell integration**
+tape in an **Interactive shell**, select this tooltip mode, and hover a canvas
+command tick. The popup includes command metadata and a miniature terminal showing
+retained output at that mark. This is not a historical screen recording:
+subsequent output remains live, historical graphics are not reconstructed, and
+discarded marks cannot be previewed.
+
+The demo's [terminal-preview.ts](client/terminal-preview.ts) returns `null` from
+the synchronous tooltip callback and positions its own larger HTML popup in the
+document body, avoiding clipping by the floating window. After details arrive
+and a brief hover delay, it mounts a secondary view using the parent's transport,
+renderer, and font. The terminal stays hidden until `scrollToMarker` succeeds.
+The main view's scroll position, focus, selection, and resize authority are
+unchanged. Preview input, links, and scrollbars are disabled; `/ws?preview=true`
+also sets server-side `Hwt1PresentationAdapter.IsReadOnly` before processing input.
+The tooltip abort signal disposes both the embedded view and popup on leave,
+dragging, mode changes, or parent disposal. Connection/navigation failures appear
+in the popup rather than showing an unrelated live screen.
+
+Each open preview temporarily consumes one of the demo's eight browser-view
+slots. Custom bookmarks remain per-view and use the ordinary HTML tooltip,
+not a second terminal connection.
+
+Default and custom HTML previews show labels or retained shell phase, exit
+status, and `cmdline_url`/raw parameters as text. They never invent command text
+for shells that did not supply it or interpret command content as HTML.
+**Markers** hides/shows ticks without removing the underlying retained inventory.
+The native wrapper and public layout, viewport, marker, and navigation APIs
+remain unchanged; native mode does not use these canvas tooltip settings.
+
+For fixtures, the painter retains the existing `.view-scrollbar-fade` selector
+and `default`/`custom` values (the latter is still **Custom soft fade**).
+Its new values are `styled` and `drawn`. The tooltip selector is
+`.view-scrollbar-tooltip`, with values `default`, `custom`, `terminal`, and `off`.
+
+The **Marks (N)** menu in each window's title bar lists retained shell marks and
+bookmarks with clickable row locations and command exit statuses. It remains
+available when the scrollbar fades, when there is no scrollback yet, or when
+scrollbar chrome is disabled. Marks in an inactive buffer are disabled; marks
+whose backing content was discarded are collected and disappear from the menu.
+Escape closes the menu and returns focus to its toggle.
+
+Scrollbar ticks require scrollback and fade with the overlay scrollbar; beside
+mode keeps them visible. For overlay mode, hover its right
+edge to reveal them. Adding or updating marks briefly reveals the scrollbar.
+Command marks require OSC 133 output from the shell/application: ordinary
+commands are not automatically inferred. With an idle Interactive shell, expand
+**Terminal controls**, select **Scenario tape > Shell integration**, and play
+the tape to generate real command marks. The empty Marks menu also explains this.
+The tape adds labeled history rows so the scrollbar is visible. Hover its command
+ticks to inspect decoded command details, including spaces, quotes, `&&`, and
+slashes. Prompt/input/executing marks (OSC 133 A/B/C) carry the percent-encoded
+details; finished marks (D) carry exit status only. Input and executing marks can
+share a row, so a hovered tick may resolve to the input mark for that command.
+Prompt/input anchors may be pruned by shell redraw; the tape gives finished marks
+their own durable output rows.
+Direct views read producer marks directly; relay views restore retained shell
+marks through the separate optional HMP1 command-mark extension. Restart the sample after
+editing a tape because the catalog loads tape content at startup.
+
+**Bookmark** anchors the first presented row. **Remove bookmark** removes the
+most recent custom bookmark in that view, not a shell mark. Shell marks and
+bookmarks come from the authoritative `markers` inventory; the demo no longer
+approximates command locations from latest-mark callbacks or limits its own
+history to 20 entries. Current progress, shell phase, directory, and latest-mark
+status remain separate activity indicators. Scrollbar ticks jump using
+`scrollToMarker`, including after supported producer reflow. Unavailable,
+evicted, or expired anchors reject rather than jumping to an unrelated row.
+Collection also releases retained marker metadata and custom-bookmark quota
+slots. Retained main-buffer marks survive temporary alternate-screen use.
+
+Try an Interactive shell, print retained output, scroll back, and bookmark it:
+
+```sh
+i=1; while [ "$i" -le 120 ]; do printf 'ROW-%03d alpha beta gamma\n' "$i"; i=$((i+1)); done
+```
+
+Switch all four scrollbar modes, change padding, select a smaller fixed grid,
+and click the bookmark tick. In either canvas mode, compare all four painters,
+then hover a bookmark or shell mark with each Tooltip setting. The Marks menu
+still works with Tooltip Off or scrollbar chrome disabled. In Auto mode a primary may resize the producer to fit the
+remaining content box; fixed grids and secondary views fit without taking
+primary. Reconnecting retains presentation settings but creates a new
+view-owned bookmark lifetime. Custom markers do not survive disconnect.
+The native wrapper is disposed on mode replacement, closure, reconnect, and
+view removal. It stays available in minimal-chrome mode.
+
+The wrapper in [`client/native-scrollbar.ts`](client/native-scrollbar.ts) uses
+only public layout, viewport, marker, and navigation APIs. It caps its spacer
+at 8 million CSS pixels and maps the browser's actual scroll range to retained
+rows. Pending navigation does not feed older positions back into the native
+thumb, and drag events are coalesced per animation frame. Only the spacer
+scrolls; the terminal canvas remains fixed.
+
+The implementations live together in
+[`client/scrollbar-renderer.ts`](client/scrollbar-renderer.ts). To reuse the styled
+default and decorated HTML in another host, provide callbacks on the same options
+object:
+
+```ts
+import {
+  createDefaultScrollbarRenderer, renderDefaultScrollbarTooltip
+} from "@hex1b/web-terminal";
+
+terminal.setScrollbar({
+  render: createDefaultScrollbarRenderer({
+    track: { opacity: 0.12 }, thumb: { opacity: 0.7 }, markers: { opacity: 0.85 }
+  }),
+  tooltip(context) {
+    const element = renderDefaultScrollbarTooltip(context);
+    element.style.borderLeft = "3px solid var(--cp-accent)";
+    return element;
+  }
+});
+```
+
+Here `terminal` is an existing mounted handle and `--cp-accent` is supplied by
+the embedding page. See the package guide for [complete custom-fade and native-wrapper examples,
+marker lifetime, and limitations](../../src/web-terminal/README.md#scrollbars-padding-and-retained-markers).
+HMP1 relay views recover bounded retained text when the optional scrollback
+extension is negotiated. Without negotiation they retain only locally observed
+history. Retained shell marks use an independently negotiated extension;
+custom/browser-owned bookmarks are not transferred. See
+[Optional HMP1 relay](#optional-hmp1-relay) for configuration and fallback.
+
+Run the persistent browser fixture against a running demo:
+
+```sh
+playwright-cli -s=sb open 'http://localhost:5290/?empty=1'
+playwright-cli -s=sb run-code --filename samples/WebTerminalDemo/tests/scrollbars.browser.js
+playwright-cli -s=sb run-code --filename samples/WebTerminalDemo/tests/native-scrollbar.browser.js
+playwright-cli -s=sb run-code --filename samples/WebTerminalDemo/tests/controls-markers.browser.js
+playwright-cli -s=sb close
+```
+
+It exercises both renderers, real default scrollbar pixels/fading, synchronous
+custom painting, live mode changes, asymmetric padding, native navigation,
+retained command details, bookmark jumps after reflow, and cleanup without
+replacing the connection. It holds real worker frame acknowledgements while
+dragging during live output and checks that gestures do not leak application
+input when mouse tracking is enabled.
+The focused native fixture checks browser extent limits, scaled row mapping,
+pending-navigation feedback suppression, and listener disposal using a public
+handle stub; it needs only the emitted demo assets.
+
+## Minimal chrome
+
+Click **Minimal chrome** in a terminal view's title bar to fill the browser page
+with that view. Playground controls, other views, title bars, and status bars
+are hidden; the selected scrollbar presentation remains usable. A small **Restore controls** button stays
+in the top-right corner and restores the previous floating-window layout.
+
+The terminal stays connected and retains its sizing mode: **Auto** adjusts the
+primary terminal's grid to the extra space, while a fixed grid scales to fit.
+Secondary views still follow their primary; expanding one does not take
+primary ownership. Hidden views stay connected. Connection-error and reconnect
+overlays remain available in minimal mode.
+
+This does not enter the browser's fullscreen mode or intercept Escape, so
+terminal applications keep their normal keyboard controls.
+
+With the demo running and `playwright-cli` available, run the browser regression
+from the repository root in a separate automation session:
+
+```sh
+playwright-cli -s=minimal-chrome open 'http://localhost:5290/?empty=1'
+playwright-cli -s=minimal-chrome run-code --filename samples/WebTerminalDemo/tests/minimal-chrome.playwright.js
+playwright-cli -s=minimal-chrome close
+```
+
+The regression creates and removes its own text terminal. It covers full-page
+and narrow-screen layout, sizing, focus, secondary views, and reconnect/close
+behavior.
+
+## Choose a reflow strategy
+
+Use **New terminal reflow** before clicking **New terminal** to compare the
+built-in strategies without editing sample code. **Default** preserves the
+scene policy above. You can explicitly select Ghostty, VTE, Kitty, WezTerm,
+Alacritty, Windows Terminal, Foot, iTerm2, xterm, or **None (crop)**.
+The iTerm2 and xterm strategies currently use crop behavior in Hex1b.
+Cropping erases a wide glyph split by the right edge rather than retaining an
+unpaired lead cell that would wrap incorrectly during replay.
+**Auto (server environment)** detects the server's terminal environment, not
+the browser; use a named strategy for reproducible comparisons.
+
+The selection is applied once to the shared HMP1 producer during creation.
+Changing the picker or attaching another view does not change an existing
+terminal. The **Existing terminal** list shows each instance's reflow policy,
+with Default resolved to Ghostty or None.
+
+Both **Direct HWT1** and **HMP1 relay -> HWT1** honor the selection. Each demo
+relay replica inherits its producer's reflow provider, including graphics-anchor
+mapping; only the primary peer can resize the shared terminal. HMP1 does not
+negotiate a reflow strategy with arbitrary remote consumers, so other hosts that
+build terminal replicas must configure matching producer and replica policies.
+
+For a repeatable experiment, open `/?scene=shell&reflow=Vte`; the `reflow`
+query parameter uses the option values shown below and requests a new terminal
+unless `empty=1` is also supplied. The HTTP creation API accepts the same choice:
+
+```json
+{"scene":"shell","columns":80,"rows":24,"reflowStrategy":"Vte"}
+```
+
+Valid values are `Default`, `None`, `Auto`, `Alacritty`, `Foot`, `Ghostty`,
+`ITerm2`, `Kitty`, `Vte`, `WezTerm`, `WindowsTerminal`, and `Xterm`.
+Omitting `reflowStrategy` uses Default; unknown values are rejected with HTTP
+400. Creation responses and `GET /api/terminals` include `reflowStrategy`.
 
 ## Play a scenario tape
 
@@ -89,6 +533,7 @@ and overlapping starts or cancellation without an active tape return 409.
 From the repository root:
 
 ```sh
+npm run build --prefix src/web-terminal
 npm test --prefix src/web-terminal
 ```
 
@@ -97,8 +542,21 @@ peer/primary metadata validation,
 native/thumbnail framebuffer sizing, large-grid GPU caps, hidden/restored
 surfaces, and logical-uniform updates. They use a stub GPU interface and do not
 exercise actual GPU rendering, mounted DOM/input, `ResizeObserver`, or view
-lifetime. They exercise the package's compiled ES modules using Node's built-in
-test runner.
+lifetime. Private unit tests use the ignored `.build/` modules; packaging checks
+use the real single-file `dist/index.js` bundle. Build first so both are current.
+Tests use Node's built-in test runner.
+
+Some browser fixtures inspect private renderer/protocol modules. After the
+package build, prepare those **test-only** assets explicitly:
+
+```sh
+npm --prefix samples/WebTerminalDemo run test:assets
+```
+
+This copies private `.build/` modules to `wwwroot/web-terminal-test/` for those
+fixtures only. That directory is excluded from publishing; it is not a package
+export or part of normal demo deployment. Production package assets remain the
+single JavaScript bundle under `wwwroot/web-terminal/`.
 
 With the sample serving assets and an existing WebGPU-enabled Playwright CLI
 browser session, run the persisted mounted-DOM fixture from the repository root:
@@ -122,16 +580,34 @@ origin:
 |---|---|
 | `gpu.browser.js` | Real WebGPU readback of a native 3x3 sprite, framebuffer resizing, and retained image/glyph resources. |
 | `fonts.browser.js` | Real font-rendered borders at five raster scales, Nerd Font symbols, delayed worker font readiness, per-view font selection, and font-load failure cleanup. |
+| `palettes.browser.js` | Visible independent light/dark selectors, live and subsequent mounts, system preference, Ghostty SGR42 green, retained scrollback recoloring without text/row loss, no input/reconnect, and real ANSI/default versus unchanged truecolor pixels. |
 | `sizing.browser.js` | Auto font-size controls, fixed-grid presets, keyboard selection, resize authority, and retained sizing policy across primary handoff. |
 | `floating.browser.js` | Real workers/WebSockets/HMP1, dragging, primary-only resize, takeover, detach/reattach, and independent instances. |
+| `resize-handles.browser.js` | Eight-direction window resizing, proximity highlights, pointer capture/cancellation, size/origin limits, and primary versus secondary/fixed-grid sizing. |
 | `lifecycle.browser.js` | Closure overlays, native close details before/after mounting, rejected upgrades, local initialization failures, explicit reconnect, per-view isolation, and owner completion through direct/relay transports. |
 | `input.browser.js` | Real POSIX shell input, Backspace, history, paste, MouseTest, thumbnail coordinates, and window-chrome focus. Build `samples/MouseTest` in Release first. |
 | `tapes.browser.js` | Scene-filtered tapes in an existing shell, shared-view output, retained identity/geometry, overlap rejection, cancellation, visible failures, and shutdown cleanup. |
+| `shell-integration.browser.js` | Plays the actual Shell integration tape at normal demo sizing; checks retained A/B/C metadata, all three executing marks, real exit statuses on three status-only D marks, execution-before-completion row ordering, and decoded hover labels for all three commands, including spaces, quotes, `&&`, and slashes. Prompt/input anchors may be pruned by shell redraw. |
+| `terminal-preview.browser.js` | Embedded command previews through direct and HMP1 views: decoded HWT output at distinct marks, hidden-until-confirmed rendering, source viewport/selection/focus/geometry preservation, server-enforced read-only behavior, cancellation and disposal, bookmark fallback, connection errors, and parent closure. |
 | `hyperlinks.browser.js` | Real OSC 8 output through HWT1 and the worker, Ctrl/Cmd activation, safe new tabs, selection/capture isolation, read-only thumbnails, destination updates, and scrollback. |
 | `history.browser.js` | Shared producer history, independent viewports, character/word/logical-line/block selection, held/released wheel scrolling, clipboard intent, capture override, read-only inspection, and eviction. Clipboard writes are intercepted rather than changing the user's clipboard. |
+| `relay-history.browser.js` | Relayed history, read-only wheel navigation, independent viewports, return-to-live, late history matching direct attachment, and reconnect preserving the retained range without duplication. |
+| `relay-reattach.browser.js` | Two real UI close/reattach cycles after the Shell integration tape: the sole primary closes, the producer stays active with zero peers, and a secondary reattaches. Checks retained geometry, history range/text, B/C/D marks, command details, exit statuses, jumps, real decoded hover labels, and no browser errors; takes primary before repeating. |
+| `marker-retention.browser.js` | Real scrollback-capacity eviction collects command marks and custom bookmarks, removes menu entries, and rejects navigation to collected IDs. |
+| `scrollbar-monochrome.browser.js` | Palette-derived thumb/marker shades across light/dark modes and all four canvas painters, live same-mode palette replacement, thumb contrast, drag/focus behavior, and explicit color overrides surviving palette changes. |
+| `scrollbar-mark-circles.browser.js` | Deterministic million-row history with 200 marks: circular pixels, empty displacement gaps, clicks and thumb dragging at three widths/positions in both placements/themes and scale factors 1/2. Requires `npm run test:assets`. |
+| `marker-distribution.browser.js` | Real POSIX output emits 2,560 OSC 133 marks with an uneven gap and unmarked tail; verifies every retained row, paged inventory, painted track positions, and navigation to the oldest mark. Requires `npm run test:assets`. |
+| `populated-marks.browser.js` | Selects the marked-history scene, checks all 48 emitted marks across 20,000+ rows, command details, full-track distribution, navigation, late attachment, and stable resize/input. Requires `npm run test:assets`. |
+| `controls-markers.browser.js` | Overlay drawer preserves workspace, canvas, grid, and connection; keyboard dismissal, narrow-screen scrolling, reduced motion, and accessible marker/bookmark navigation. |
+| `scrollbar-beside.browser.js` | Real WebGPU/WebGL2 pixels across all four demo painters: beside remains visible beyond the fade thresholds, while switching to overlay restores auto-hide. |
+| `reflow.browser.js` | Real shell output and retained history through repeated shrink/grow cycles, hard/soft breaks, wide/combining text, primary-only resize, selection invalidation, and editing a pending shell command. |
+| `reflow-options.browser.js` | Creation-time strategy selection through the playground and HTTP API, preserved defaults, shared-instance policy, and real shell crop versus reflow through direct and relay views. |
 | `bindings.browser.js` | Per-view input overrides, named actions, Windows-style right-click copy/paste, clipboard failures/races, capture ownership, and native text/paste/IME paths. Clipboard access is mocked. |
 | `selection-ui.browser.js` | Default, augmented, and replaced selection controls; host CSS, highlight parts, canvas alignment, focus/input isolation, action reuse, UI errors, and disposal. |
 | `graphics.browser.js` | Sixel and KGP in mixed WebGPU/WebGL2 views, renderer controls/diagnostics, cached-image movement, and late attachment to silent server-driven animation. |
+| `graphics-stream.browser.js` | Reviewed HWT1 capture replay through the actual decoder and WebGPU/WebGL2 renderer, with pixel readback and a screenshot-ready canvas. This is offline frame replay, not a live WebSocket/worker check. |
+| `graphics-worker-stream.browser.js` | A reviewed full HWT1 frame through the mounted client, actual worker and GPU. Only WebSocket transport is replaced; the mounted canvas stays available for screenshots until navigation. |
+| `proteinview-live.browser.js` | An explicitly supplied ProteinView binary/model through this sample's actual shell scene, socket, mounted client and worker. Checks changing image presentations, viewport pixels and bounded browser image ownership. |
 | `relay.browser.js` | Direct/relay transport selection, mixed peers, input and resize authority, primary closure, fresh reconnect/navigation-return replicas, retained KGP movement, and silent animation. |
 | `titles.browser.js` | Real POSIX shell title output through direct HWT1 and HMP1 relay, initial/late/reconnect notifications, safe header text and fallback, reset retention, duplicate/resync suppression, and disposal. |
 | `activity.browser.js` | Host-owned progress/severity and shell-phase chrome, direct and relayed current state, paused late attachment, resync, and fresh reconnect. No shell hooks required. |
@@ -157,7 +633,187 @@ The package's Node regressions and TypeScript builds run in CI. The browser
 fixtures remain focused, explicitly invoked checks; they are not a claim of
 broad HMP graphics/performance stability or a browser/device compatibility matrix.
 
+### Opt-in raw graphics investigations
+
+`tests/Hex1b.Tests/Diagnostics/` contains an internal duplex workload recorder and
+exact-chunk replay adapter. These record original byte arrays at the PTY adapter
+boundary, including terminal replies; Tape, Asciinema, and HWT1 frame recordings
+are not substitutes for this transcript. A PTY can split/coalesce application
+writes, and an input write completing does not prove application consumption.
+
+The ordinary `ProteinViewGraphicsStreamTests` exercise fragmented raw input,
+picker replies, raw and zlib-compressed RGBA, PNG, and Unicode virtual placements.
+The opt-in comparison records compressed and otherwise equivalent uncompressed
+streams and checks that both retain the same exact pixels:
+
+```sh
+HEX1B_GRAPHICS_EVIDENCE=/absolute/new/private/evidence-directory \
+  dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --no-progress \
+  --filter "FullyQualifiedName~ProteinViewGraphicsStreamTests"
+```
+
+To capture the real application, first build a reviewed ProteinView checkout
+locally. The investigation baseline is upstream commit
+`9b9a0790bc78f1d2a7c0923905049d27c67c05e2`; the test never downloads or installs it.
+Supply an absolute binary path and the bundled model:
+
+```sh
+HEX1B_PROTEINVIEW_EXECUTABLE=/absolute/ProteinView/target/release/proteinview \
+HEX1B_PROTEINVIEW_MODEL=/absolute/ProteinView/examples/4HHB.pdb \
+HEX1B_GRAPHICS_EVIDENCE=/absolute/new/private/application-evidence \
+  dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --no-progress \
+  --filter "FullyQualifiedName~ProteinViewInvestigationTests"
+```
+
+This Unix-only runner launches the binary directly, not a shell. Each case uses
+80x24 cells, a 20-second deadline, a 64 MiB/100,000-event capture budget, and
+four-second sampling windows. Cases cover plain/Braille/FullHD, uppercase `M`,
+safe observed terminal hints versus a separate normalized environment, and
+HMP1 producer-backed versus direct HWT1 projection. It records binary/model
+hashes, picker logs, byte transcripts and sampled HWT1 frames. It does not
+reproduce arbitrary inherited environments or a native Ghostty session.
+SSH/session identifier values are never copied; only their presence is retained.
+Do not run under tmux, where upstream may change passthrough configuration.
+Without the explicit environment variables these investigation cases are skipped.
+
+Keep captures private and review them before sharing. The binary runs with your
+privileges; supply only a reviewed executable and local input. An interrupted,
+failed, or budget-exceeded transcript is not a successful reproduction.
+
+For browser readback, use a loopback-only static test host serving the matching
+built client at `/web-terminal/` and **only reviewed `.hwt` files** at `/evidence/`.
+Do not expose raw transcripts, environment metadata, arbitrary files, or a
+production host. Navigate to
+`/?frame=rgba-control.hwt&backend=webgpu`, then run:
+
+```sh
+playwright-cli run-code "$(< samples/WebTerminalDemo/tests/graphics-stream.browser.js)"
+```
+
+Use `backend=webgl2` for that renderer. Repeat `frame` parameters in recorded
+order when replaying deltas (for example, before/after `M`). The optional
+`minimum` asserts a red-pixel lower bound for the synthetic red image. Without it,
+the fixture reports pixel counts for investigation; zero images or pixels do not
+constitute success. Real FullHD acceptance requires visible molecular output in
+the viewport, not just an ACK, texture allocation, or colored header text.
+
+For the mounted-worker check, navigate to a full-frame artifact with `?frame=...`
+and invoke `graphics-worker-stream.browser.js` instead. It runs the real client
+and worker with only the socket replaced, so it can distinguish renderer-only
+fixture effects from actual client behavior. It does not establish live network
+transport behavior. Navigate away or close the isolated browser to dispose it.
+
+To inspect an already reviewed reduced raw-output file (without launching an
+application), use:
+
+```sh
+HEX1B_GRAPHICS_STREAM=/absolute/reduced-output.bin \
+HEX1B_GRAPHICS_REPLAY_OUTPUT=/absolute/new/private/replay-directory \
+  dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --no-progress \
+  --filter "FullyQualifiedName~GraphicsStreamReplayTests"
+```
+
+The replay runner limits input to 8 MiB, rechunks to 997 bytes to exercise raw
+framing, and appends a last-row processing marker. It saves retained-image hashes
+and an HWT1 frame. Preserve the original capture and a transformation manifest
+separately: replay rechunking and the marker are not original application bytes.
+
+## ProteinView live and sustained validation
+
+After starting this sample, the live fixture can run a reviewed, already-built
+ProteinView executable through its normal shell scene. It does not download or
+modify the application. Use an isolated browser and a task-owned sample process
+with a clean POSIX shell (`SHELL=/bin/sh`); the fixture uses POSIX argument quoting.
+Supply URL-encoded absolute paths where necessary:
+
+```sh
+playwright-cli -s=proteinview-validation open \
+  'http://localhost:5290/health?executable=/absolute/ProteinView/target/release/proteinview&model=/absolute/ProteinView/examples/4HHB.pdb&backend=webgpu'
+playwright-cli -s=proteinview-validation run-code \
+  "$(< samples/WebTerminalDemo/tests/proteinview-live.browser.js)"
+```
+
+The fixture creates its own terminal, runs `--fullhd`, toggles auto-rotation and
+waits for 50 observed image-upload/presentation changes. It reads actual
+compositor pixels rather than a renderer-only mock. The result includes peak
+texture/image/atlas counters. These browser counters are not the producer's
+retained-memory counters. Use `backend=webgl2` for the other renderer.
+
+On success the application stays paused for screenshots or reconnect checks.
+Run the lifecycle fixture in that same browser to check FullHD/HD/Braille mode
+switching and 20 reconnects alternating direct HWT1 and HMP1-replica views:
+
+```sh
+playwright-cli -s=proteinview-validation run-code \
+  "$(< samples/WebTerminalDemo/tests/proteinview-lifecycle.browser.js)"
+```
+
+It checks one 800x400 RGBA texture after each reconnect and zero image textures
+in text modes. These dimensions belong to the pinned application/model and
+80x24 test geometry, not a general meaning of "FullHD". To save screenshots,
+set `window.proteinViewEvidenceDirectory` to an existing private absolute
+directory before invoking it. The fixture preserves the workload on completion
+or failure for inspection.
+
+The caller must dispose `window.proteinViewAcceptance.terminal` and end the
+owned instance with `DELETE /api/terminals/{instanceId}` from the same origin,
+then close the isolated browser. Closing the browser alone does not terminate
+the sample's shared workload.
+
+For bounded **server-side** actual-application ownership measurements, run the
+opt-in sustained capture separately:
+
+```sh
+HEX1B_PROTEINVIEW_EXECUTABLE=/absolute/ProteinView/target/release/proteinview \
+HEX1B_PROTEINVIEW_MODEL=/absolute/ProteinView/examples/4HHB.pdb \
+HEX1B_GRAPHICS_SUSTAINED_EVIDENCE=/absolute/new/private/sustained-directory \
+  dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj --no-progress \
+  --filter "FullyQualifiedName~Capture_ExplicitSustainedRun"
+```
+
+This run requires 200 distinct accepted image generations within 60 seconds and
+a 64 MiB/100,000-event raw duplex budget. It records physical encoded retention,
+decoded-capacity reservations and acknowledged HWT1 frames independently.
+It deliberately retains an initial snapshot and one caller-owned decoded array.
+Reported allocation churn includes capture and projection overhead; it is not a
+benchmark or a process-wide memory bound. Ordinary snapshot/image references
+remain valid after live eviction or disposal, so retaining them extends their
+lifetime outside the terminal's current-screen accounting.
+
+Set `HEX1B_GRAPHICS_ACK_INTERVAL_MS=16` for a separate, explicitly paced HWT1
+acknowledgement comparison. The default is immediate acknowledgement. Pacing
+changes capture/projection frequency and allocation overhead; it does not
+simulate or replace measurements from the actual browser connection.
+
+### Compressed image ownership
+
+Kitty zlib uploads are validated completely before publication. The terminal
+retains their compressed backing in the existing `KgpImageData`, so snapshots
+and non-web consumers see authoritative image data too. Each `Data` access on a
+compressed image returns a fresh caller-owned array in its declared format
+(RGB, RGBA, or PNG bytes). Read it once per operation; the terminal does not keep
+a decoded-array cache. Existing uncompressed image behavior is unchanged.
+
+The live-screen budget charges actual compressed storage plus a conservative
+decoded-capacity reservation. That is not a process-memory limit: chunk assembly,
+validation, transport projection and caller-owned arrays have separate transient
+costs, and retaining old snapshots keeps their ordinary image references alive.
+Snapshot disposal does not invalidate those references. HWT1 drops obsolete KGP
+generations from its current projection cache while preserving resources still
+used by current placements; already emitted frames own their payloads separately.
+
+Malformed checksums, truncation, invalid output sizes and exceeded limits reject
+the upload rather than publishing a partially decoded image. One complete zlib
+member is interpreted; bounded trailing input is ignored but retained and charged,
+not interpreted as another image.
+
 ## Shared instances and floating views
+
+Drag a window's title bar to move it. Resize from any of its four edges or four
+corners: each bar highlights as the pointer approaches the border, shows the
+appropriate resize cursor, and stays highlighted while dragging. Top and left
+handles keep the opposite edge fixed, stopping at the workspace origin; all
+handles respect the window's 240×180 minimum and 3200×2200 maximum size.
 
 - **New terminal** creates a persistent producer, initially 100×30, and mounts a
   view that explicitly requests primary.
@@ -283,9 +939,11 @@ Producer Hex1bTerminal -> HMP1 -> per-view Hex1bTerminal -> HWT1 -> browser
 
 Each browser connection creates a fresh HMP1 client and terminal replica over
 bounded in-memory duplex pipes. This uses the real HMP1 handshake, state/image
-replay, live output, input, and primary/resize messages without requiring a
+replay, negotiated retained text history, live output, input, and primary/resize messages without requiring a
 socket or another process. Closing the view disposes its peer and replica, not
 the shared producer. Attaching again or reloading creates a new replica.
+Initial screen replay preserves hard breaks and soft continuations, including
+wide-character wrap padding, so already-wrapped output can reflow after attaching.
 
 The selector applies to newly opened views, including thumbnails. Existing
 views retain their transport; their title and selected-view metrics show it.
@@ -297,9 +955,113 @@ All scenes and workload controls work in both modes. For retained-image replay,
 start the Kitty graphics or Graphics animation scene, then attach a relay view
 after pixels were uploaded, close it, and attach again. The shell scene can run
 `KgpCloudDemo` to exercise upload-once sprites and synchronized placement
-replacement. Relay views receive the live screen at attachment and accumulate
-their own subsequent scrollback; they do not receive the producer's pre-existing
-history. Direct views retain the existing shared-history behavior.
+replacement. Relay views receive the live screen and a negotiated suffix of
+pre-existing producer history. Direct views still read shared history directly.
+
+**Two-tier scrollback configuration:** Both producer and replica need their own
+`WithScrollback(...)` configuration; this demo configures 1,000 rows on each.
+`Hmp1ClientOptions.ScrollbackHistoryRows` defaults to 10,000 and accepts
+0..100,000 (`0` disables the request). The receiver's configured capacity remains
+authoritative. `Hmp1ServerOptions.EnableScrollbackHistory` and the direct
+`Hmp1PresentationAdapter.EnableScrollbackHistory` property default to `true`;
+the first builder listener's setting wins on a shared adapter.
+The demo relay requests the client defaults automatically; no additional UI
+selector is needed.
+Retained shell marks are requested separately: `EnableCommandMarkHistory`
+defaults to `true` on `Hmp1ClientOptions`, `Hmp1ServerOptions`, and the direct
+presentation adapter, with first-listener settings on the shared server adapter.
+
+For a separately hosted relay, these configuration snippets assume existing
+builders and a connected bidirectional HMP1 `stream`:
+
+```csharp
+producerBuilder
+    .WithScrollback(1000)
+    .WithHmp1UdsServer("terminal.sock", options =>
+        options.EnableScrollbackHistory = true);
+
+replicaBuilder
+    .WithScrollback(1000)
+    .WithHmp1Stream(stream, options =>
+    {
+        options.ScrollbackHistoryRows = 1000;
+        options.EnableCommandMarkHistory = true;
+    });
+```
+
+No HMP1 version bump is required: optional `ClientHello` history fields request
+version `1` and a row limit, and `Hello` acknowledges them only when the producer
+has storage and allows transfer. A negotiated `StateSync` is followed by mandatory
+`ActivityState`, then `ScrollbackState` and bounded `ScrollbackRows` chunks.
+Separately negotiated `commandMarkHistoryVersion: 1` adds `CommandMarkState`
+after those rows (or directly after activity when text history is not negotiated).
+The full checkpoint is validated before screen, activity, history, and command marks are
+atomically applied; graphics replay, parser continuation, and live output follow.
+Malformed/truncated history fails the connection without partial replay.
+
+The newest contiguous suffix is bounded by the requested/accepted row limit,
+32 MiB of chunk payloads (including row-length prefixes, excluding the 8-byte
+header), and two million cells. The header exposes how many
+producer rows were omitted, rather than inventing text. Checkpoints replace
+history, so a fresh reconnect recovers the retained range and resync does not
+append duplicates. An available empty checkpoint clears history; an unavailable
+checkpoint forwarded from an upstream without this extension does not perform
+an additional history replacement. Explicit CSI 3 J or RIS in the screen replay
+still has its normal effect on local history. Text retains graphemes,
+continuation cells, soft wraps, padding,
+colors, and hyperlinks as inert data. `CommandMarkState` restores eligible OSC 133
+marks with raw details, phase, status, producer IDs, and the ID high-water mark.
+It is bounded to 10,000 newest eligible marks and an 8 MiB frame; local command
+and text capacities still apply. Custom/browser-owned markers and historical
+graphics are not transferred.
+
+Closing the last view does not dispose its shared producer. Reattaching a relay
+can recover the producer's retained history and shell marks, including details,
+hover labels, and jumps, when both extensions are negotiated. Checkpoints replace
+records rather than append duplicates and do not synthesize `CommandMarkAdded`
+events. Marks backed by omitted history, the untransferred saved main screen
+while alternate-screen output is active, or subsequently redrawn/evicted text
+cannot be recovered. The tape's prompt/input marks can still disappear naturally
+when their backing rows change; its durable executing/finished rows remain
+subject to ordinary retention.
+
+**Fallback troubleshooting:** With a current HMP1 peer that lacks this extension,
+or when either side opts out, missing history negotiation keeps screen-only text replay.
+A new relay then has no pre-attachment history, and reconnecting with a fresh
+replica has the same limitation. This compatibility applies to the current
+mandatory-`ActivityState` baseline, not ancient pre-`ActivityState` peers.
+Changing the HTML/canvas scrollbar cannot recover history the transport omitted.
+Command marks fall back independently: missing command-mark capability fields or
+`EnableCommandMarkHistory = false` preserves the old locally observed behavior
+without disabling negotiated text history. Conversely, command marks on the
+transferred active screen can be restored when scrollback transfer is disabled.
+New scrolling output is retained locally as before, including for read-only views.
+Stored main-buffer history transfers even while an alternate screen is active,
+but remains hidden until returning; alternate-screen output does not contribute
+ordinary main-buffer history.
+
+To compare late attachment and reconnect, print enough numbered shell lines to
+scroll, pause output, and open direct and relay views. With negotiation and equal
+capacity, both should expose the same retained text range. Reconnecting the relay
+should recover that range without duplication. Repeat with
+`ScrollbackHistoryRows = 0` to observe the text-history fallback (command marks
+remain independently negotiated). See
+[the wire contract](../../docs/muxer-protocol.md#scrollbackstate-0x0e-and-scrollbackrows-0x0f)
+for binary layout and validation limits.
+To check retained marks manually, play **Shell integration** in the sole relay
+window, close that window, then reattach to the same instance (do not delete the
+instance). Inspect **Marks**, hover a retained command tick, and jump to its text.
+Custom bookmarks from the closed view are intentionally absent. See
+[CommandMarkState](../../docs/muxer-protocol.md#commandmarkstate-0x10) for mark
+negotiation, positioning, and independent fallback.
+
+Run the corresponding full-stack regression against an isolated demo server
+using its current-page origin:
+
+```sh
+playwright-cli -s=relay-reattach open 'http://localhost:5290/?empty=1'
+playwright-cli -s=relay-reattach run-code "$(< samples/WebTerminalDemo/tests/relay-reattach.browser.js)"
+```
 
 Run `tests/relay.browser.js` with the Playwright CLI invocation above for a
 focused direct/relay lifecycle comparison. The existing `graphics.browser.js`,
@@ -357,7 +1119,8 @@ that call until the user chooses Take primary.
 | Options / handle members | Current sample behavior |
 |---|---|
 | `url` | Required view WebSocket URL; the sample uses the page's origin. |
-| `workerUrl` | Optional URL for the package's worker entry when your asset pipeline hosts it elsewhere. Preserve its relative module dependencies; defaults to the module-relative packaged worker. |
+| `workerUrl` | Optional `string \| URL` for the terminal module worker, such as `/web-terminal/index.js#hex1b-terminal-worker`. Relative strings resolve against the page; default is the actual bundle URL with this fragment. |
+| `linkDetectionWorkerUrl` | Parallel override for the detection worker, such as `/web-terminal/index.js#hex1b-link-detection-worker`. Both workers are included in the package's single JS bundle. |
 | `scale` | `"auto"` (default) snapshots DPR at mount and clamps it to 0.5..3; an explicit numeric raster-scale setting must also be 0.5..3. |
 | `font` | Optional `{ family, faces?: [{ url, weight?, style? }] }`. Defaults to bundled Cascadia Mono NF; see font selection below. |
 | `sizing` | Initial sizing policy: `{ mode: "auto", fontSize: 16 }` by default, or `{ mode: "fixed", columns, rows }`. Secondary views still follow the primary. |
@@ -375,7 +1138,7 @@ that call until the user chooses Take primary.
 | `onInputError(error)` | Errors from UI-dispatched actions or input-policy callbacks. Errors also appear in the view's inspection status. Public API calls reject/throw to their caller. |
 | `focus()` | Focus this view's input, or its wrapper when input is disabled. |
 | `requestPrimary()` | Request primary using the retained sizing policy: the font-sized fitted grid in Auto, or the configured fixed grid. Requires a visible container; no optimistic role change. |
-| `resize(columns, rows)` | One-off primary-only request, 20..300 columns by 10..100 rows; no optimistic reflow or sizing-policy change. |
+| `resize(columns, rows)` | One-off primary-only request, 1..300 columns by 1..100 rows; no optimistic reflow or sizing-policy change. |
 | `setSizing(sizing)` | Change the connected primary's Auto/font-size or fixed-grid policy. Grid requests are throttled and applied by the server. |
 | `scrollLines(delta)` | Request a relative text scroll; positive values move toward live output. Does not require primary. |
 | `scrollToLive()` | Return this viewport to live output without resizing or taking primary. |
@@ -658,7 +1421,7 @@ resize the producer.
 `fontSize` is an integer from 8 to 32. It controls display-cell scale relative
 to the original 16-size presentation: 12 uses 7.5x15 CSS-pixel cells instead of
 10x20. The server still owns 10x20 logical-pixel cells, so images and mouse
-coordinates remain consistent. Local requests retain their 20..300 by 10..100
+coordinates remain consistent. Local requests retain their 1..300 by 1..100
 grid bounds; when those bounds prevent the requested text size from fitting,
 the surface scales down to remain visible. Fixed grids and secondary views
 always contain-fit, without an Auto font-size cap.
@@ -978,7 +1741,7 @@ produce frames.
   backend switch. There is no Canvas2D terminal renderer.
 - Fixed 10x20 logical-pixel cells. Device pixel ratio affects browser
   rasterization, not terminal protocol geometry. Local resize/claim requests use
-  20..300 columns and 10..100 rows; a native HMP1 primary can establish a larger
+  1..300 columns and 1..100 rows; a native HMP1 primary can establish a larger
   authoritative grid. Projection rejects grids beyond 1024 columns, 512 rows,
   or 262,144 cells without clamping the producer/mirror. Within that envelope,
   GPU canvas limits reduce framebuffer resolution rather than grid dimensions.
@@ -998,7 +1761,7 @@ produce frames.
   are allocated. Producer graphics accounting remains independent.
   Inactive resources are evicted first; exceeding visible-resource limits ends
   the session explicitly.
-- Historical graphics, hyperlink activation, a complete
+- Historical graphics, a complete
   screen-reader experience, ligature shaping, and a cross-browser font/shaping
   guarantee remain future work. Glyphs are clipped to server-owned spans; decoration and
   cursor appearance still need a broader fidelity corpus.

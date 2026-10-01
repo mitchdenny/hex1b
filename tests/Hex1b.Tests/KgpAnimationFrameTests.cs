@@ -448,7 +448,6 @@ public class KgpAnimationFrameTests
 
     [TestMethod]
     [DataRow("t=f", "EINVAL:Animation frame transmission requires direct data")]
-    [DataRow("o=z", "EINVAL:Animation frame compression is not supported")]
     [DataRow("f=100", "EINVAL:Animation frames require RGB or RGBA data")]
     public void AnimationFrame_UnsupportedTransferShape_ReturnsError(
         string control,
@@ -557,7 +556,86 @@ public class KgpAnimationFrameTests
 
     [TestMethod]
     [DataRow("m=0")]
-    [DataRow("a=f,m=0,r=2")]
+    [DataRow("a=f,r=1,m=0")]
+    [DataRow("a=f,r=99,i=99,f=24,s=99,v=99,x=99,y=99,z=99,o=z,t=f,m=0")]
+    [DataRow("r=99,I=99,f=24,s=99,v=99,x=99,y=99,z=99,o=z,m=0")]
+    public void AnimationFrame_ContinuationMetadata_PreservesInitialFrame(string controls)
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        StoreBaseImage(terminal, 1, 1, 1, KgpFormat.Rgba32, [0, 0, 0, 255]);
+        var original = GetImage(terminal, 1);
+
+        SendKgp(terminal, FrameCommand("f=32,s=1,v=1,i=1,z=73,m=1", [1, 2, 3]));
+        Assert.AreSame(original, GetImage(terminal, 1));
+        workload.AssertNoResponse();
+        SendKgp(terminal, KgpTestHelper.BuildCommand(controls, [255]));
+
+        Assert.AreEqual("\x1b_Gi=1,r=2;OK\x1b\\", workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
+        AssertFrame(GetImage(terminal, 1), 1, [0, 0, 0, 255], 0);
+        AssertFrame(GetImage(terminal, 1), 2, [1, 2, 3, 255], 73);
+    }
+
+    [TestMethod]
+    public void AnimationFrame_KittyDoomChunkedRootUpdates_ChangeDisplayedPixels()
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        const int width = 320;
+        const int height = 200;
+        var pixels = new byte[width * height * 3];
+
+        for (var frame = 0; frame < 3; frame++)
+        {
+            Array.Fill(pixels, (byte)(frame * 90));
+            var base64 = Convert.ToBase64String(pixels);
+            using var before = terminal.CreateSnapshot();
+            for (var offset = 0; offset < base64.Length; offset += 4096)
+            {
+                var payload = base64.Substring(offset, Math.Min(4096, base64.Length - offset));
+                var more = offset + payload.Length < base64.Length ? 1 : 0;
+                var controls = offset == 0
+                    ? frame == 0
+                        ? $"a=T,i=1,f=24,s={width},v={height},q=2,c=80,r=24,C=1,m={more}"
+                        : $"a=f,r=1,i=1,f=24,q=2,x=0,y=0,s={width},v={height},m={more}"
+                    : frame == 0 ? $"m={more}" : $"a=f,r=1,q=2,m={more}";
+                SendKgp(terminal, $"\x1b_G{controls};{payload}\x1b\\");
+                if (more == 1)
+                {
+                    using var pending = terminal.CreateSnapshot();
+                    if (frame == 0)
+                        Assert.IsEmpty(pending.KgpImages);
+                    else
+                        TestSeq.AreEqual(before.KgpImages[1].CurrentFrameData,
+                            pending.KgpImages[1].CurrentFrameData);
+                }
+            }
+            if (frame > 0)
+                SendKgp(terminal, KgpTestHelper.BuildCommand("a=a,q=2,c=1,i=1"));
+
+            using var after = terminal.CreateSnapshot();
+            var image = after.KgpImages[1];
+            Assert.AreEqual(1, image.FrameCount);
+            Assert.AreEqual(1, image.CurrentFrameNumber);
+            var expected = frame == 0 ? pixels : Enumerable.Range(0, width * height * 4)
+                .Select(i => i % 4 == 3 ? (byte)255 : (byte)(frame * 90)).ToArray();
+            TestSeq.AreEqual(expected, image.CurrentFrameData);
+            Assert.AreEqual(1, after.KgpPlacements.Count);
+            Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+            workload.AssertNoResponse();
+        }
+    }
+
+    [TestMethod]
+    [DataRow("a=t,m=0")]
+    [DataRow("a=T,m=0")]
+    [DataRow("a=p,m=0")]
+    [DataRow("a=q,m=0")]
+    [DataRow("a=a,m=0")]
+    [DataRow("a=c,m=0")]
+    [DataRow("a=f,r=2")]
     public void AnimationFrame_InvalidContinuation_AbortsWithoutMutation(
         string continuationControls)
     {
@@ -600,7 +678,10 @@ public class KgpAnimationFrameTests
     }
 
     [TestMethod]
-    public void AnimationFrame_ChunkedPayloadExceedsExpectedSize_AbortsAtomically()
+    [DataRow("a=f,m=0")]
+    [DataRow("a=f,m=0,i=99,r=99,s=999,v=999,f=32")]
+    [DataRow("m=0,i=99,r=99,s=999,v=999,f=32")]
+    public void AnimationFrame_ChunkedPayloadExceedsExpectedSize_AbortsAtomically(string controls)
     {
         var workload = new RecordingWorkloadAdapter();
         using var terminal = CreateTerminal(workload);
@@ -617,7 +698,7 @@ public class KgpAnimationFrameTests
 
         SendKgp(
             terminal,
-            FrameCommand("m=0", [4, 5]));
+            KgpTestHelper.BuildCommand(controls, [4, 5]));
 
         Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
         Assert.AreEqual(1, GetImage(terminal, 1).FrameCount);

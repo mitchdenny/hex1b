@@ -41,6 +41,82 @@ public sealed partial class Hex1bTerminal
     /// </remarks>
     public event Action<TerminalShellIntegration>? ShellIntegrationChanged;
 
+    /// <summary>Gets the working directory last reported by OSC 7.</summary>
+    /// <remarks>
+    /// Defaults to no reported directory. RIS clears it; soft reset, screen changes, and
+    /// process exit preserve it, matching <see cref="Progress"/> and
+    /// <see cref="ShellIntegration"/>.
+    /// </remarks>
+    public TerminalWorkingDirectory WorkingDirectory
+    {
+        get { lock (_bufferLock) return _activityState.WorkingDirectory; }
+    }
+
+    /// <summary>Occurs when the reported working directory changes to a distinct value.</summary>
+    /// <remarks>
+    /// Subscribing does not emit the baseline; read <see cref="WorkingDirectory"/> for
+    /// current state.
+    /// </remarks>
+    public event Action<TerminalWorkingDirectory>? WorkingDirectoryChanged;
+
+    private readonly List<TerminalCommandMark> _commandMarks = [];
+    private int _commandMarkHistoryCapacity = int.MaxValue;
+
+    /// <summary>
+    /// Gets retained OSC 133 command marks, oldest first.
+    /// </summary>
+    /// <remarks>
+    /// Capacity is configured via <see cref="Hex1bTerminalOptions.CommandMarkHistoryCapacity"/>;
+    /// by default marks live as long as their text. If a configured count limit is
+    /// exceeded, the oldest marks are evicted. Marks are also removed when their
+    /// backing text is cleared, reset, or evicted from the screen and scrollback.
+    /// Retained main-buffer marks survive alternate-screen use. Browser marker positions
+    /// survive supported reflow while their text is retained; the capture-time coordinates
+    /// in <see cref="TerminalCommandMark"/> remain unchanged.
+    /// </remarks>
+    public IReadOnlyList<TerminalCommandMark> CommandMarks
+    {
+        get { lock (_bufferLock) return [.. _commandMarks]; }
+    }
+
+    /// <summary>Occurs when a new OSC 133 command mark is recorded.</summary>
+    /// <remarks>Subscribing does not emit prior marks; read <see cref="CommandMarks"/> for
+    /// current history.</remarks>
+    public event Action<TerminalCommandMark>? CommandMarkAdded;
+
+    private void RecordCommandMarkIfPresent(string command, string parameters, string payload)
+    {
+        if (command != "133" || _commandMarkHistoryCapacity == 0)
+            return;
+        if (!TerminalActivityState.TryParseMarker(parameters, payload, out var phase, out var exitCode,
+                out var rawParameters))
+            return;
+
+        CollectExpiredTextAnchors();
+        EnsureTextRows();
+        var mark = new TerminalCommandMark(phase, exitCode, rawParameters, _textGeneration, _textScreenRowIds[_cursorY]);
+        var buffer = GetTextBuffer();
+        var anchor = RegisterTextAnchor($"command:{checked(++_nextCommandAnchorId)}", buffer,
+            buffer.HistoryCount + _cursorY, _cursorX + (_pendingWrap ? 1 : 0));
+        _commandAnchors.Add(mark, anchor);
+        _commandMarks.Add(mark);
+        TrimCommandMarks();
+        ReleaseExpiredMarkerDetails();
+        CommandMarkAdded?.Invoke(mark);
+    }
+
+    private void TrimCommandMarks()
+    {
+        while (_commandMarks.Count > _commandMarkHistoryCapacity)
+        {
+            var oldest = _commandMarks[0];
+            _historyTextAnchors.Remove(_commandAnchors[oldest]);
+            _textAnchors.Remove(_commandAnchors[oldest]);
+            _commandAnchors.Remove(oldest);
+            _commandMarks.RemoveAt(0);
+        }
+    }
+
     internal void SubscribeActivityStateChanged(Action<TerminalActivityState> handler)
     {
         lock (_bufferLock)
@@ -62,11 +138,12 @@ public sealed partial class Hex1bTerminal
         }
     }
 
-    internal void RestoreActivityState(TerminalProgress progress, TerminalShellIntegration shellIntegration)
+    internal void RestoreActivityState(TerminalProgress progress, TerminalShellIntegration shellIntegration,
+        TerminalWorkingDirectory workingDirectory)
     {
         lock (_bufferLock)
         {
-            SetActivityState(new TerminalActivityState(progress, shellIntegration));
+            SetActivityState(new TerminalActivityState(progress, shellIntegration, workingDirectory));
         }
         PresentationInvalidated?.Invoke();
     }
@@ -105,5 +182,7 @@ public sealed partial class Hex1bTerminal
             ProgressChanged?.Invoke(state.Progress);
         if (previous.ShellIntegration != state.ShellIntegration)
             ShellIntegrationChanged?.Invoke(state.ShellIntegration);
+        if (previous.WorkingDirectory != state.WorkingDirectory)
+            WorkingDirectoryChanged?.Invoke(state.WorkingDirectory);
     }
 }

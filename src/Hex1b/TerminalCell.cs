@@ -32,6 +32,9 @@ public readonly record struct TerminalCell(
     Hex1bColor? UnderlineColor = null,
     UnderlineStyle UnderlineStyle = UnderlineStyle.None)
 {
+    // A wide glyph wrapped before this cell; the blank is geometry, not text.
+    internal bool IsWideWrapPadding { get; init; }
+
     /// <summary>An empty cell with default attributes.</summary>
     public static readonly TerminalCell Empty = new(" ", null, null, CellAttributes.None, 0, default);
 

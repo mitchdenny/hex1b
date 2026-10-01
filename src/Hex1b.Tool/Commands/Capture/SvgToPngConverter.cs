@@ -136,7 +136,7 @@ internal static class SvgToPngConverter
                 canvas.Skew(-0.2f, 0);
             }
 
-            canvas.DrawText(t.Content, t.X, t.Y, font, paint);
+            canvas.DrawText(t.Content, t.X, t.Y, SKTextAlign.Left, font, paint);
 
             if (isItalic)
                 canvas.Restore();

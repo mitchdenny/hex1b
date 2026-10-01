@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createRenderBackend } from "../dist/backend-selection.js";
-import { RendererUnavailableError } from "../dist/render-backend.js";
-import { normalizeRenderer } from "../dist/renderer-options.js";
-import { WebGpuBackend } from "../dist/webgpu-backend.js";
-import { WebGl2Backend } from "../dist/webgl2-backend.js";
-import { TerminalRenderer } from "../dist/renderer.js";
-import { WebTerminal } from "../dist/index.js";
+import { createRenderBackend } from "../.build/backend-selection.js";
+import { RendererUnavailableError } from "../.build/render-backend.js";
+import { normalizeRenderer } from "../.build/renderer-options.js";
+import { WebGpuBackend } from "../.build/webgpu-backend.js";
+import { WebGl2Backend } from "../.build/webgl2-backend.js";
+import { TerminalRenderer } from "../.build/renderer.js";
+import { WebTerminal } from "../.build/index.js";
 
 test("Renderer preferences default to auto and reject unsupported values before mounting", () => {
   assert.equal(normalizeRenderer(), "auto");

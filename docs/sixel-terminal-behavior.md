@@ -977,12 +977,13 @@ including a fully unrelated reply, ordinary keyboard input, or a partially
 read fragment of a reply that eventually times out — is preserved
 byte-for-byte, in original order, into `_prefetchedInput`, so nothing the
 probe does not explicitly recognize and consume is ever lost, reordered, or
-duplicated. On Windows, `ConsolePresentationAdapter` skips the entire Sixel
-probe outright (Windows console input records are not a raw byte stream
-compatible with these replies) and reports every tier as `NotAttempted` with
-an explicit diagnostic reason, rather than attempting to read a stream that
-does not exist for that platform — Sixel support and metrics stay unknown on
-Windows unless declared directly via `WithSixelSupport`.
+duplicated. Windows uses the same probe pass: `WindowsConsoleDriver` forwards
+VT replies from console input records as UTF-8 while retaining its keyboard,
+mouse, and resize handling. Discovery depends on replies from the console host
+and upstream terminal, not on the operating system or terminal name. Missing
+Sixel replies leave support unknown and metrics unavailable; a direct
+`WithSixelSupport` declaration still takes precedence. KGP is enabled only by
+an `OK` reply for the probe image ID, not by an error reply or a timeout.
 
 ## Presentation boundaries (#458)
 

@@ -34,8 +34,8 @@ when the recorded process exits.
 
 The build:
 
-1. Builds the existing native web terminal and copies its complete module tree,
-   worker, and bundled Nerd Font into generated static assets.
+1. Builds the native web terminal and copies its browser bundle (including its
+   workers) and bundled Nerd Font into generated static assets.
 2. Runs the existing API documentation generator with an isolated output path.
 3. Generates the three referenced SVG previews missing from the legacy assets.
 4. Builds the standalone sample catalog, then uses `driver/` to capture each
@@ -176,7 +176,7 @@ nonexistent producer to resize/reflow.
   The host exposes the current visible frame as selectable plain text instead.
 - Playback has the same browser requirements as the native web terminal:
   WebGPU or WebGL2, workers, transferable OffscreenCanvas, and worker font loading.
-- The single-file/embedded NuGet browser distribution is separate work.
+- The site serves the browser bundle directly, without an ASP.NET asset endpoint.
 - Complete hosting, Docker, and external-asset examples are cloneable source-only
   samples with prerequisites. Their projects are built, but the site build never
   starts their services or provisions their environments. These pages deliberately

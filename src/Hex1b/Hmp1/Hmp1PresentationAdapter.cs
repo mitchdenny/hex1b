@@ -6,6 +6,7 @@ using System.Threading.Channels;
 using Hex1b.Automation;
 using Hex1b.Diagnostics;
 using Hex1b.Sixel;
+using Hex1b.Reflow;
 
 namespace Hex1b;
 
@@ -35,9 +36,11 @@ namespace Hex1b;
 /// fresh <see cref="Hmp1FrameType.StateSync"/> are broadcast to all peers.
 /// </para>
 /// </remarks>
-public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentationAdapter
+public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentationAdapter,
+    ITerminalReflowProvider, IInternalTerminalReflowProvider
 {
     private readonly List<Hmp1ClientSession> _sessions = [];
+    private readonly Hmp1OutputProjection _outputProjection = new();
     private readonly object _sessionsLock = new();
     private readonly Channel<ReadOnlyMemory<byte>> _inputChannel;
     private Hex1bTerminal? _terminal;
@@ -45,6 +48,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     private int _height;
     private string? _primaryPeerId;
     private bool _disposed;
+    private ITerminalReflowProvider _reflowStrategy = NoReflowStrategy.Instance;
+    private bool _reflowEnabled;
     private Hmp1SixelStateReplay.ReplayResult? _lastSixelReplayResult;
 
     internal Hex1bMetrics Metrics { get; set; } = Hex1bMetrics.Default;
@@ -73,7 +78,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             new BoundedChannelOptions(1000)
             {
                 FullMode = BoundedChannelFullMode.DropOldest,
-                SingleReader = true,
+                SingleReader = false,
                 SingleWriter = false
             });
     }
@@ -83,6 +88,53 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
     /// <inheritdoc />
     public int Height => _height;
+
+    /// <summary>
+    /// Gets or sets whether new clients may negotiate retained scrollback transfer.
+    /// Defaults to true. Configure before accepting clients. Producers without
+    /// scrollback storage and peers without the extension use screen-only replay.
+    /// </summary>
+    public bool EnableScrollbackHistory { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether new clients may negotiate retained OSC 133 mark transfer.
+    /// Defaults to true. Configure before accepting clients.
+    /// </summary>
+    public bool EnableCommandMarkHistory { get; set; } = true;
+
+    /// <summary>
+    /// Enables producer-side reflow using the specified strategy.
+    /// By default, resize crops the screen without reflow.
+    /// </summary>
+    /// <param name="strategy">The reflow strategy; use <see cref="GhosttyReflowStrategy.Instance"/> for shell terminals.</param>
+    /// <returns>This adapter for fluent configuration before terminal construction.</returns>
+    /// <remarks>
+    /// Configure the producer, not individual browser views. Primary-peer resize authority
+    /// is unchanged. Ghostty reflows main-screen text and retained scrollback, but not
+    /// alternate-screen layouts. Scrollback capacity still bounds retained history.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The strategy is null.</exception>
+    public Hmp1PresentationAdapter WithReflow(ITerminalReflowProvider strategy)
+    {
+        _reflowStrategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+        _reflowEnabled = true;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public bool ReflowEnabled => _reflowEnabled;
+
+    /// <inheritdoc/>
+    public bool ShouldClearSoftWrapOnAbsolutePosition => _reflowStrategy.ShouldClearSoftWrapOnAbsolutePosition;
+
+    /// <inheritdoc/>
+    public ReflowResult Reflow(ReflowContext context) => _reflowStrategy.Reflow(context);
+
+    bool IInternalTerminalReflowProvider.TryReflowWithAnchors(
+        ReflowContext context,
+        IReadOnlyList<TerminalReflowAnchor> anchors,
+        out InternalReflowResult result)
+        => InternalTerminalReflow.TryReflow(_reflowStrategy, context, anchors, out result);
 
     /// <summary>
     /// Gets the peer ID of the current primary, or <see langword="null"/> when
@@ -263,6 +315,15 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
         try
         {
+            session.CommandMarkHistory = clientHello.CommandMarkHistoryVersion == Hmp1CommandMarkState.Version &&
+                EnableCommandMarkHistory && _terminal is not null;
+            if (clientHello.ScrollbackHistoryVersion == Hmp1ScrollbackState.Version &&
+                EnableScrollbackHistory && _terminal?.Scrollback is not null)
+            {
+                if (clientHello.ScrollbackHistoryRows <= 0 || clientHello.ScrollbackHistoryRows > Hmp1ScrollbackState.MaxRows)
+                    throw new InvalidDataException("Invalid requested scrollback history limit.");
+                session.ScrollbackHistoryRows = clientHello.ScrollbackHistoryRows;
+            }
             return await CompleteClientHandshakeAsync(session, ct).ConfigureAwait(false);
         }
         catch
@@ -367,6 +428,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         Hmp1ClientSession[] existingPeers;
         byte[] syncBytes;
         Hmp1ActivityState activityState;
+        Hmp1ScrollbackState? scrollbackState = null;
+        Hmp1CommandMarkState? commandMarkState = null;
         IReadOnlyList<KgpPlacement> kgpPlacements;
         IReadOnlyDictionary<uint, KgpImageData> kgpImages;
         DateTimeOffset? kgpAnimationTimestamp;
@@ -394,7 +457,10 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             {
                 // A peer must also receive unplaced images: future output can
                 // place or animate retained pixels without transmitting them again.
-                using var snap = _terminal.CreateSnapshot(includeAllKgpImages: true, includeSavedTitles: true);
+                using var snap = _terminal.CaptureHmp1Snapshot(session.ScrollbackHistoryRows, session.CommandMarkHistory,
+                    out scrollbackState, out commandMarkState);
+                widthSnapshot = snap.Width;
+                heightSnapshot = snap.Height;
                 var prefix = BuildStateReplayPrefix(snap);
                 var ansi = snap.ToAnsi(new TerminalAnsiOptions
                 {
@@ -411,7 +477,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                     // ghosting on every fresh viewer connect or RoleChange-driven
                     // re-StateSync.)
                     IncludeTrailingNewline = false,
-                }, includeHyperlinks: true);
+                }, includeHyperlinks: true, preserveSoftWrap: true);
                 var suffix = BuildStateReplaySuffix(snap);
                 activityState = Hmp1ActivityState.Capture(snap);
                 var progress = activityState.BuildProgressReplay();
@@ -431,6 +497,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             }
             else
             {
+                widthSnapshot = _width;
+                heightSnapshot = _height;
                 activityState = Hmp1ActivityState.Default;
                 syncBytes = [];
                 kgpPlacements = [];
@@ -444,8 +512,6 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             }
 
             primarySnapshot = _primaryPeerId;
-            widthSnapshot = _width;
-            heightSnapshot = _height;
 
             if (kgpImages.Count > 0)
             {
@@ -499,6 +565,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             // sequence. Seed the new parser after all replay commands and before
             // live output can deliver the remainder of that sequence.
             var pendingAnsi = _terminal?.CapturePendingAnsiOutput() ?? ReadOnlyMemory<byte>.Empty;
+            pendingAnsi = Hmp1OutputProjection.ProjectContinuation(pendingAnsi.Span);
             if (!pendingAnsi.IsEmpty)
             {
                 EnqueueControlFrameAsync(session, async stream =>
@@ -545,10 +612,15 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         // pump hasn't started yet). Failures here are propagated because the caller
         // hasn't yet received a handle.
         await Hmp1Protocol.WriteHelloAsync(
-            stream, widthSnapshot, heightSnapshot, peerId, primarySnapshot, roster, ct).ConfigureAwait(false);
+            stream, widthSnapshot, heightSnapshot, peerId, primarySnapshot, roster, ct,
+            session.ScrollbackHistoryRows, session.CommandMarkHistory).ConfigureAwait(false);
 
         await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.StateSync, syncBytes, ct).ConfigureAwait(false);
         await Hmp1Protocol.WriteActivityStateAsync(stream, activityState, ct).ConfigureAwait(false);
+        if (scrollbackState is not null)
+            await scrollbackState.WriteAsync(stream, session.ScrollbackHistoryRows, ct).ConfigureAwait(false);
+        if (commandMarkState is not null)
+            await commandMarkState.WriteAsync(stream, scrollbackState?.Rows.Count ?? 0, ct).ConfigureAwait(false);
 
         ct.ThrowIfCancellationRequested();
         // Always enter the pumps so their finally blocks clean up even if the
@@ -696,15 +768,19 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
         var replayActivity = _terminal?.Hmp1ReplayActivityState;
+        var replayScrollback = _terminal?.Hmp1ReplayScrollbackState ?? Hmp1ScrollbackState.Unavailable;
+        var replayCommands = _terminal?.Hmp1ReplayCommandMarkState ?? Hmp1CommandMarkState.Unavailable;
         if (_disposed || (data.IsEmpty && replayActivity is null)) return ValueTask.CompletedTask;
-
-        // Copy once; each session's pump consumes the same buffer view.
-        var copy = data.ToArray();
 
         // Enqueue to each client's write channel (non-blocking).
         // Clients that can't keep up will be disconnected.
         lock (_sessionsLock)
         {
+            if (replayActivity is not null)
+                _outputProjection.Reset();
+            // Project once, even without clients. The producer still parses the
+            // original bytes and owns replies; viewers receive only rendering output.
+            var copy = _terminal is null ? data.ToArray() : _outputProjection.Process(data.Span);
             for (var i = _sessions.Count - 1; i >= 0; i--)
             {
                 var session = _sessions[i];
@@ -713,6 +789,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                     browserView.RecordOutputBatch();
                     continue;
                 }
+                if (copy.IsEmpty && replayActivity is null)
+                    continue;
                 var work = replayActivity is null
                     ? new Hmp1OutboundWork(copy, null)
                     : new Hmp1OutboundWork(default, async stream =>
@@ -721,6 +799,13 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                             .ConfigureAwait(false);
                         await Hmp1Protocol.WriteActivityStateAsync(stream, replayActivity, session.Cts.Token)
                             .ConfigureAwait(false);
+                        if (session.ScrollbackHistoryRows > 0)
+                            await replayScrollback.WriteAsync(stream, session.ScrollbackHistoryRows, session.Cts.Token)
+                                .ConfigureAwait(false);
+                        if (session.CommandMarkHistory)
+                            await replayCommands.WriteAsync(stream,
+                                Math.Min(replayScrollback.Rows.Count, session.ScrollbackHistoryRows), session.Cts.Token)
+                                .ConfigureAwait(false);
                     });
                 if (!session.OutputChannel.Writer.TryWrite(work))
                 {
@@ -777,6 +862,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         {
             snapshot = [.. _sessions];
             _sessions.Clear();
+            _terminal = null;
         }
 
         foreach (var session in snapshot)
@@ -785,7 +871,16 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         }
 
         _inputChannel.Writer.TryComplete();
-        Disconnected?.Invoke();
+        while (_inputChannel.Reader.TryRead(out _)) { }
+        try
+        {
+            Disconnected?.Invoke();
+        }
+        finally
+        {
+            Disconnected = null;
+            Resized = null;
+        }
     }
 
     /// <summary>
@@ -799,22 +894,32 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     {
         try
         {
-            await foreach (var work in session.OutputChannel.Reader.ReadAllAsync(session.Cts.Token)
-                .ConfigureAwait(false))
+            while (await session.OutputChannel.Reader.WaitToReadAsync(session.Cts.Token).ConfigureAwait(false))
             {
-                if (work.ControlWriter is { } writer)
+                while (session.OutputChannel.Reader.TryRead(out var work))
                 {
-                    await writer(session.Stream).ConfigureAwait(false);
-                }
-                else if (!work.Output.IsEmpty)
-                {
-                    await Hmp1Protocol.WriteFrameAsync(
-                        session.Stream, Hmp1FrameType.Output, work.Output, session.Cts.Token).ConfigureAwait(false);
-                }
-                // Flush periodically (after draining available items)
-                if (session.OutputChannel.Reader.Count == 0)
-                {
-                    await session.Stream.FlushAsync(session.Cts.Token).ConfigureAwait(false);
+                    try
+                    {
+                        session.Cts.Token.ThrowIfCancellationRequested();
+                        if (work.ControlWriter is not null)
+                            await work.ControlWriter(session.Stream).ConfigureAwait(false);
+                        else if (!work.Output.IsEmpty)
+                        {
+                            for (var offset = 0; offset < work.Output.Length;)
+                            {
+                                var length = Math.Min(Hmp1Protocol.MaxPayloadSize, work.Output.Length - offset);
+                                await Hmp1Protocol.WriteFrameAsync(session.Stream, Hmp1FrameType.Output,
+                                    work.Output.Slice(offset, length), session.Cts.Token).ConfigureAwait(false);
+                                offset += length;
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        work = default;
+                    }
+                    if (session.OutputChannel.Reader.Count == 0)
+                        await session.Stream.FlushAsync(session.Cts.Token).ConfigureAwait(false);
                 }
             }
         }
@@ -1124,6 +1229,9 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         if (session.BrowserView is { } view)
             await view.DisposeAsync().ConfigureAwait(false);
         session.OutputChannel.Writer.TryComplete();
+        // Completion/cancellation does not discard buffered output or replay
+        // delegates, which can own an entire graphics snapshot.
+        while (session.OutputChannel.Reader.TryRead(out _)) { }
 
         try
         {
@@ -1193,7 +1301,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             OutputChannel = Channel.CreateBounded<Hmp1OutboundWork>(new BoundedChannelOptions(1000)
             {
                 FullMode = BoundedChannelFullMode.Wait,
-                SingleReader = true,
+                SingleReader = false,
                 SingleWriter = false
             });
         }
@@ -1209,6 +1317,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         public int Disposed;
         public int RemoteWidth { get; set; }
         public int RemoteHeight { get; set; }
+        public int ScrollbackHistoryRows { get; set; }
+        public bool CommandMarkHistory { get; set; }
 
         /// <summary>
         /// Per-client outbound queue. When full, the client is disconnected rather than

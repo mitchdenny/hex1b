@@ -1,7 +1,10 @@
-import type { InputModifiers, PointerButton, SelectionMode, SelectionRange,
+import type { InputModifiers, PointerButton, SelectionMode, SelectionRange, TerminalLinkUnderlineStyle,
   TerminalBuffer, TerminalFont, TerminalGeometry, TerminalPeer, TerminalSize, TerminalStats,
   TerminalRendererPreference, TerminalStatusLevel, TerminalProgress, TerminalShellIntegration,
-  TerminalCloseDetails, TerminalPlaybackState } from "./types.js";
+  TerminalWorkingDirectory, TerminalCommandMark, TerminalTransportCloseDetails, TerminalPlaybackState } from "./types.js";
+import type { LinkDetectionSnapshot } from "./link-detection.js";
+import type { TerminalPalette } from "./terminal-palette.js";
+import type { MarkerResult, TerminalMarker } from "./scrollbar-types.js";
 
 export type SelectionText =
   | { status: "valid"; text: string }
@@ -14,6 +17,10 @@ export interface HistoryMetadata {
   following: boolean; requestId: number; rowIds: string[];
   selection: HistorySelection;
   copy: (SelectionText & { requestId: number }) | null;
+  markers?: TerminalMarker[];
+  markerResult?: MarkerResult | null;
+  viewportError?: string | null;
+  markerPage?: { revision: string; offset: number; total: number } | null;
 }
 export interface TerminalCell {
   index: number; foreground: number; background: number; underlineColor: number;
@@ -34,10 +41,14 @@ export interface ImagePlacement {
 }
 export interface FrameMetadata extends TerminalGeometry {
   version: 1; full: boolean; revision: number; baseRevision: number;
+  colorEncodings?: string[];
+  colorEncoding?: "indexed-v1" | null;
   peer: TerminalPeer; history: HistoryMetadata | null;
   title: string;
   progress: TerminalProgress;
   shellIntegration: TerminalShellIntegration;
+  workingDirectory: TerminalWorkingDirectory;
+  commandMark: TerminalCommandMark | null;
   defaultBackground?: number; defaultForeground?: number;
   cursor: { visible: boolean; x: number; y: number; shape: number };
   images: ImageMetadata[]; retainedImages: string[]; placements: ImagePlacement[]; warnings: string[];
@@ -55,8 +66,12 @@ export type InputCommand =
   | { type: "key"; key: string; ctrl: boolean; alt: boolean; shift: boolean }
   | MouseCommand;
 export type TerminalCommand = InputCommand
+  | { type: "colorEncoding"; value: "indexed-v1" }
   | { type: "viewport"; requestId: number; delta?: number; live?: boolean;
+      top?: number; generation?: string; originRowId?: string; originTop?: number;
       extend?: { row: number; column: number } }
+  | { type: "marker"; action: "add" | "remove" | "jump" | "details"; requestId: number;
+      id: string; generation?: string; rowId?: string; column?: number }
   | { type: "selection"; action: "clear"; requestId: number }
   | { type: "selection"; action: "start" | "extend"; mode: SelectionMode;
       requestId: number; generation: string; rowId: string; column: number }
@@ -65,10 +80,21 @@ export type TerminalCommand = InputCommand
   | { type: "resync" }
   | { type: "ack"; revision: number };
 export type WorkerInputMessage =
-  | { type: "init"; canvas: OffscreenCanvas; url: string; scale: number; font: TerminalFont;
-      renderer: TerminalRendererPreference; recording?: boolean }
-  | ({ type: "viewport" } & TerminalSize)
+  | { type: "init"; canvas: OffscreenCanvas;
+      transport: { type: "websocket"; url: string } | { type: "recording"; url: string } | { type: "custom" };
+      scale: number; font: TerminalFont;
+      renderer: TerminalRendererPreference; palette?: TerminalPalette }
   | { type: "playback"; action: "play" | "pause" | "restart" }
+  | { type: "transportConnected" }
+  | { type: "transportFrame"; buffer: ArrayBuffer }
+  | { type: "transportSent" }
+  | { type: "transportClosed"; details: TerminalTransportCloseDetails }
+  | { type: "transportError"; message: string }
+  | { type: "palette"; palette: TerminalPalette }
+  | ({ type: "viewport" } & TerminalSize)
+  | { type: "linkDetection"; enabled: boolean; generation: number }
+  | { type: "linkDecorations"; revision: number; generation: number; serial: number;
+      ranges: readonly SelectionRange[]; underlineStyle?: TerminalLinkUnderlineStyle }
   | { type: "command"; command: TerminalCommand }
   | { type: "stop" };
 export interface WorkerStats extends TerminalStats {
@@ -85,10 +111,17 @@ export interface WorkerStats extends TerminalStats {
 export type WorkerOutputMessage =
   | { type: "connected" }
   | { type: "playback"; state: TerminalPlaybackState }
-  | { type: "closed"; details: TerminalCloseDetails }
+  | { type: "transportConnect" }
+  | { type: "transportSend"; control: string }
+  | { type: "transportReceived" }
+  | { type: "closed"; details: TerminalTransportCloseDetails }
   | { type: "status"; message: string; level: TerminalStatusLevel }
   | ({ type: "geometry"; peer: TerminalPeer; history: HistoryMetadata | null;
        revision: number; title: string; progress: TerminalProgress; shellIntegration: TerminalShellIntegration;
+       workingDirectory: TerminalWorkingDirectory; commandMark: TerminalCommandMark | null;
+       linkGeneration?: number; linkSnapshot?: LinkDetectionSnapshot;
        text: string; hyperlinks: HyperlinkRange[] } & TerminalGeometry)
+  | { type: "linkSnapshot"; generation: number; snapshot: LinkDetectionSnapshot }
+  | { type: "linkDecorations"; revision: number; generation: number; serial: number }
   | { type: "history"; history: HistoryMetadata | null; revision: number; text: string }
   | { type: "stats"; stats: WorkerStats; text?: string };

@@ -23,8 +23,8 @@ async page => {
     if (!primary || primary.terminal.sizing.mode !== "auto") return false;
     const box = primary.element.querySelector(".terminal-mount").getBoundingClientRect();
     const scale = primary.terminal.sizing.fontSize / 16;
-    const columns = Math.max(20, Math.min(300, Math.floor(box.width / (10 * scale))));
-    const rows = Math.max(10, Math.min(100, Math.floor(box.height / (20 * scale))));
+    const columns = Math.max(1, Math.min(300, Math.floor(box.width / (10 * scale))));
+    const rows = Math.max(1, Math.min(100, Math.floor(box.height / (20 * scale))));
     return [...webTerminalViews.values()].every(view => view.terminal.geometry.columns === columns &&
       view.terminal.geometry.rows === rows && view.stats.columns === columns && view.stats.rows === rows);
   });
@@ -83,7 +83,7 @@ async page => {
     stage = "resizing a fixed-grid window";
     await first.locator(".view-title").click();
     const beforeFixedResize = resizeCount();
-    const handle = await first.locator(".resize-handle").boundingBox();
+    const handle = await first.locator('.resize-handle[data-edge="se"]').boundingBox();
     await test.mouse.move(handle.x + 5, handle.y + 5);
     await test.mouse.down();
     await test.mouse.move(handle.x - 175, handle.y - 95, { steps: 10 });

@@ -1961,11 +1961,10 @@ public class KgpTerminalTests
     }
 
     [TestMethod]
-    [DataRow("f=32,m=0")]
-    [DataRow("s=1,m=0")]
-    [DataRow("i=99,m=0")]
-    [DataRow("k=opaque,m=0")]
-    [DataRow("a=t,m=0")]
+    [DataRow("a=p,m=0")]
+    [DataRow("a=q,m=0")]
+    [DataRow("a=a,m=0")]
+    [DataRow("a=c,m=0")]
     [DataRow("a=f,m=0")]
     public void Continuation_ForbiddenControl_AbortsUsingInitialIdentity(
         string controlData)
@@ -1987,6 +1986,41 @@ public class KgpTerminalTests
         Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
         Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
         Assert.IsEmpty(terminal.KgpPlacements);
+    }
+
+    [TestMethod]
+    [DataRow("f=24,s=99,v=99,o=z,t=f,i=99,p=99,c=9,r=9,m=0")]
+    [DataRow("a=t,f=24,s=99,v=99,i=99,m=0")]
+    [DataRow("a=T,f=24,s=99,v=99,i=99,p=99,c=9,r=9,m=0")]
+    [DataRow("I=99,m=0")]
+    [DataRow("k=opaque,m=0")]
+    public void Continuation_RepeatedMetadata_PreservesInitialImageAndPlacement(string controls)
+    {
+        var workload = new RecordingWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1,v=2,i=31,p=7,c=2,r=3,C=1,m=1",
+            new byte[] { 1, 2, 3 }));
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(31));
+        Assert.IsEmpty(terminal.KgpPlacements);
+
+        SendKgp(terminal, KgpTestHelper.BuildCommand(
+            controls, new byte[] { 4, 5, 6, 7, 8 }));
+
+        Assert.AreEqual("\x1b_Gi=31;OK\x1b\\", workload.ReadResponse());
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        var image = terminal.KgpImageStore.GetImageById(31)!;
+        Assert.IsNotNull(image);
+        Assert.AreEqual(1u, image.Width);
+        Assert.AreEqual(2u, image.Height);
+        Assert.AreEqual(KgpFormat.Rgba32, image.Format);
+        TestSeq.AreEqual(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, image.Data);
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
+        var placement = TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(31u, placement.ImageId);
+        Assert.AreEqual(7u, placement.PlacementId);
+        Assert.AreEqual(2u, placement.DisplayColumns);
+        Assert.AreEqual(3u, placement.DisplayRows);
     }
 
     [TestMethod]

@@ -3,9 +3,9 @@ export const MAX_FONT_SIZE = 32;
 const NATIVE_FONT_SIZE = 16;
 
 export function dimensions(columns: number, rows: number): TerminalGrid {
-  if (!Number.isInteger(columns) || columns < 20 || columns > 300 ||
-      !Number.isInteger(rows) || rows < 10 || rows > 100) {
-    throw new RangeError("Requested grid must be 20-300 columns by 10-100 rows");
+  if (!Number.isInteger(columns) || columns < 1 || columns > 300 ||
+      !Number.isInteger(rows) || rows < 1 || rows > 100) {
+    throw new RangeError("Requested grid must be 1-300 columns by 1-100 rows");
   }
   return { columns, rows };
 }
@@ -28,8 +28,8 @@ export function requestedGrid(size: TerminalSize, geometry: TerminalGeometry, si
   if (size.width <= 0 || size.height <= 0) return null;
   const scale = sizing.fontSize / NATIVE_FONT_SIZE;
   return {
-    columns: Math.max(20, Math.min(300, Math.floor(size.width / (geometry.cellWidth * scale)))),
-    rows: Math.max(10, Math.min(100, Math.floor(size.height / (geometry.cellHeight * scale))))
+    columns: Math.max(1, Math.min(300, Math.floor(size.width / (geometry.cellWidth * scale)))),
+    rows: Math.max(1, Math.min(100, Math.floor(size.height / (geometry.cellHeight * scale))))
   };
 }
 

@@ -7,6 +7,8 @@ namespace WebTerminalDemo;
 
 internal sealed class DemoWorkload : IHex1bTerminalWorkloadAdapter
 {
+    private const int MarkScenarioCommandCount = 12;
+    internal const int MarkScenarioScrollbackCapacity = 25000;
     private const int ImageWidth = 320, ImageHeight = 180;
     private readonly string _scene;
     private readonly Channel<byte[]> _output = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(2)
@@ -27,7 +29,7 @@ internal sealed class DemoWorkload : IHex1bTerminalWorkloadAdapter
 
     public DemoWorkload(string scene, int columns, int rows)
     {
-        if (scene is not ("mixed" or "text" or "sixel" or "kgp" or "animation" or "activity"))
+        if (scene is not ("mixed" or "text" or "sixel" or "kgp" or "animation" or "activity" or "marks"))
             throw new ArgumentException("Unknown demo scene.", nameof(scene));
         _scene = scene;
         if (scene == "activity") _rate = 1;
@@ -131,6 +133,12 @@ internal sealed class DemoWorkload : IHex1bTerminalWorkloadAdapter
         long tick = 0, line = 0;
         try
         {
+            if (_scene == "marks")
+            {
+                await PopulateMarksAsync(ct);
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return;
+            }
             while (true)
             {
                 ct.ThrowIfCancellationRequested();
@@ -199,6 +207,35 @@ internal sealed class DemoWorkload : IHex1bTerminalWorkloadAdapter
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (ChannelClosedException) when (ct.IsCancellationRequested) { }
         finally { _output.Writer.TryComplete(); }
+    }
+
+    private async Task PopulateMarksAsync(CancellationToken ct)
+    {
+        var output = new StringBuilder("\x1b[?25l\x1b[?7l\x1b[r\x1b[0m\x1b[2J\x1b[H")
+            .Append($"Long marked scrollback: {MarkScenarioCommandCount} commands / {MarkScenarioCommandCount * 4} marks\r\n")
+            .Append("Synthetic commands: no shell commands are executed.\r\n")
+            .Append("Scroll, drag the thumb, hover marks, or open the Marks menu.\r\n\r\n");
+        for (var command = 1; command <= MarkScenarioCommandCount; command++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var text = $"demo-check --case {command:D4}";
+            var exitCode = command % 5 == 0 ? 1 : 0;
+            var lines = ((command - 1) % 4) switch { 0 => 0, 1 => 120, 2 => 960, _ => 5580 };
+            output.Append("\x1b]133;A\a> \x1b]133;B\a").Append(text).Append("\r\n")
+                .Append("\x1b]133;C;cmdline_url=").Append(Uri.EscapeDataString(text)).Append('\a');
+            for (var line = 1; line <= lines; line++)
+                output.Append($"  case {command:D4} | output {line:D2} | retained validation text\r\n");
+            output.Append("\x1b]133;D;").Append(exitCode).Append('\a')
+                .Append(exitCode == 0 ? "\x1b[32m" : "\x1b[31m")
+                .Append($"case {command:D4}: {(exitCode == 0 ? "passed" : "failed")}\x1b[0m\r\n");
+        }
+        for (var line = 1; line <= 100; line++)
+            output.Append($"Unmarked tail {line:D3}: history and marks remain available above.\r\n");
+        output.Append($"MARKS_READY: {MarkScenarioCommandCount} commands / {MarkScenarioCommandCount * 4} marks\r\n")
+            .Append("Fixed dataset: resizing and reconnecting do not regenerate it.\r\n");
+        var bytes = Encoding.UTF8.GetBytes(output.ToString());
+        for (var offset = 0; offset < bytes.Length; offset += 16384)
+            await _output.Writer.WriteAsync(bytes.AsSpan(offset, Math.Min(16384, bytes.Length - offset)).ToArray(), ct);
     }
 
     private void Dashboard(StringBuilder output, int columns, int rows, long tick)

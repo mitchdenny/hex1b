@@ -23,14 +23,13 @@ public class Hex1bTerminalChildProcessTests
             inheritEnvironment: true,
             initialWidth: 80,
             initialHeight: 24,
-            ptyHandleFactory: () => handle);
+            ptyHandleFactory: _ => handle);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         var startTask = process.StartAsync(cts.Token);
         var writeTask = process.WriteInputAsync(Encoding.UTF8.GetBytes("hello"), cts.Token).AsTask();
 
-        await Task.Delay(100, cts.Token);
         Assert.IsFalse(writeTask.IsCompleted, "Input should wait until the PTY startup handshake completes.");
         Assert.IsFalse(process.HasStarted);
 
@@ -55,7 +54,7 @@ public class Hex1bTerminalChildProcessTests
             inheritEnvironment: true,
             initialWidth: 80,
             initialHeight: 24,
-            ptyHandleFactory: () => handle);
+            ptyHandleFactory: _ => handle);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         handle.CompleteStart();

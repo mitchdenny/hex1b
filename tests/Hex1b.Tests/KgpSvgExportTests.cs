@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using System.IO.Compression;
 using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
@@ -30,6 +31,76 @@ public class KgpSvgExportTests
     private static void Send(Hex1bTerminal terminal, string escapeSequence)
     {
         terminal.ApplyTokens(AnsiTokenizer.Tokenize(escapeSequence));
+    }
+
+    [TestMethod]
+    [DataRow(KgpFormat.Rgb24)]
+    [DataRow(KgpFormat.Rgba32)]
+    [DataRow(KgpFormat.Png)]
+    public void SvgExport_CompressedFormat_WithMultipleCropsMatchesRaw(KgpFormat format)
+    {
+        using var rawWorkload = new Hex1bAppWorkloadAdapter();
+        using var rawTerminal = CreateTerminal(rawWorkload, 20, 10);
+        using var compressedWorkload = new Hex1bAppWorkloadAdapter();
+        using var compressedTerminal = CreateTerminal(compressedWorkload, 20, 10);
+        var data = format == KgpFormat.Png
+            ? Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAMAAAADCAYAAABWKLW/AAAAEUlEQVR4nGP4z8DwH4YZcHIAXdcR79xPMRAAAAAASUVORK5CYII=")
+            : Enumerable.Range(0, 9 * (format == KgpFormat.Rgb24 ? 3 : 4)).Select(i => (byte)i).ToArray();
+        var controls = $"a=t,f={(int)format},s=3,v=3,i=1,q=2";
+        Send(rawTerminal, KgpTestHelper.BuildCommand(controls, data));
+        Send(compressedTerminal, KgpTestHelper.BuildCommand(controls + ",o=z", Compress(data)));
+        var placements = KgpTestHelper.BuildCommand("a=p,i=1,p=1,x=1,y=1,w=2,h=2,C=1,q=2") +
+            "\x1b[3;4H" + KgpTestHelper.BuildCommand("a=p,i=1,p=2,x=2,y=2,w=1,h=1,C=1,q=2");
+        Send(rawTerminal, placements);
+        Send(compressedTerminal, placements);
+        using var raw = rawTerminal.CreateSnapshot();
+        using var compressed = compressedTerminal.CreateSnapshot();
+        Assert.AreEqual(2, compressed.KgpPlacements.Count);
+
+        Assert.AreEqual(raw.ToSvg(), compressed.ToSvg());
+    }
+
+    [TestMethod]
+    public void SvgExport_CompressedImage_MultipleCropsInflateOnlyOnce()
+    {
+        using var rawWorkload = new Hex1bAppWorkloadAdapter();
+        using var rawTerminal = CreateTerminal(rawWorkload, 20, 10);
+        using var compressedWorkload = new Hex1bAppWorkloadAdapter();
+        using var compressedTerminal = CreateTerminal(compressedWorkload, 20, 10);
+        var data = new byte[512 * 512 * 3];
+        var controls = "a=t,f=24,s=512,v=512,i=1,q=2";
+        Send(rawTerminal, KgpTestHelper.BuildCommand(controls, data));
+        Send(compressedTerminal, KgpTestHelper.BuildCommand(controls + ",o=z", Compress(data)));
+        for (var i = 1; i <= 8; i++)
+        {
+            var placement = $"\x1b[{i};1H" + KgpTestHelper.BuildCommand(
+                $"a=p,i=1,p={i},x={i},y={i},w=1,h=1,C=1,q=2");
+            Send(rawTerminal, placement);
+            Send(compressedTerminal, placement);
+        }
+        using var raw = rawTerminal.CreateSnapshot();
+        using var compressed = compressedTerminal.CreateSnapshot();
+        Assert.AreEqual(8, compressed.KgpPlacements.Count);
+        _ = raw.ToSvg();
+        _ = compressed.ToSvg();
+        var beforeRaw = GC.GetAllocatedBytesForCurrentThread();
+        var expected = raw.ToSvg();
+        var rawAllocation = GC.GetAllocatedBytesForCurrentThread() - beforeRaw;
+        var beforeCompressed = GC.GetAllocatedBytesForCurrentThread();
+        var actual = compressed.ToSvg();
+        var compressedAllocation = GC.GetAllocatedBytesForCurrentThread() - beforeCompressed;
+
+        Assert.AreEqual(expected, actual);
+        Assert.IsLessThan(rawAllocation + data.Length + 64 * 1024, compressedAllocation,
+            "Export owns one decoded-format array per image, not one per placement.");
+    }
+
+    private static byte[] Compress(byte[] data)
+    {
+        using var output = new MemoryStream();
+        using (var zlib = new ZLibStream(output, CompressionLevel.Fastest, leaveOpen: true))
+            zlib.Write(data);
+        return output.ToArray();
     }
 
     [TestMethod]

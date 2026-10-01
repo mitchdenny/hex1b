@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.IO.Compression;
 using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
@@ -12,6 +13,323 @@ public class WebTerminalProjectionTests
         SupportsSixel = true, SupportsKgp = true, SupportsTrueColor = true,
         CellPixelWidth = 10, CellPixelHeight = 20
     };
+
+    [TestMethod]
+    [DataRow(KgpFormat.Rgb24)]
+    [DataRow(KgpFormat.Rgba32)]
+    [DataRow(KgpFormat.Png)]
+    public void Encode_CompressedImages_DeduplicatesBeforeInflatingAndPreservesFormat(KgpFormat format)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        var data = format == KgpFormat.Png
+            ? Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAMAAAADCAYAAABWKLW/AAAAEUlEQVR4nGP4z8DwH4YZcHIAXdcR79xPMRAAAAAASUVORK5CYII=")
+            : Enumerable.Range(0, 9).SelectMany(_ => format == KgpFormat.Rgb24
+                ? new byte[] { 10, 20, 30 } : [10, 20, 30, 40]).ToArray();
+        var dimensions = format == KgpFormat.Png ? "" : ",s=3,v=3";
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand($"a=T,f={(int)format}{dimensions},o=z,i=1,p=1,C=1,q=2", Compress(data)) +
+            "\x1b[2;2H" + KgpTestHelper.BuildCommand("a=p,i=1,p=2,C=1,q=2")));
+        var projection = new Hwt1RenderProjection();
+        using var snapshot = terminal.CreateSnapshot();
+        Assert.IsTrue(snapshot.KgpImages[1].IsZlibCompressed);
+        using var initial = Decode(projection.Encode(snapshot, Capabilities, 0, 1, 1));
+        Assert.AreEqual(1, projection.KgpMaterializationCount);
+        Assert.AreEqual(2, initial.Metadata.RootElement.GetProperty("placements").GetArrayLength());
+        Assert.AreEqual(format == KgpFormat.Png ? "png" : "rgba",
+            initial.Metadata.RootElement.GetProperty("images")[0].GetProperty("format").GetString());
+        var expected = format == KgpFormat.Rgb24
+            ? Enumerable.Range(0, 9).SelectMany(_ => new byte[] { 10, 20, 30, 255 }).ToArray() : data;
+        TestSeq.AreEqual(expected, initial.Pixels);
+        for (var i = 0; i < 5; i++)
+        {
+            using var unchanged = Decode(projection.Encode(snapshot, Capabilities, 0, 2, 2));
+            Assert.AreEqual(0, unchanged.Pixels.Length);
+        }
+        using var full = Decode(projection.Encode(snapshot, Capabilities, 0, 3, 3, forceFull: true));
+        TestSeq.AreEqual(expected, full.Pixels);
+        Assert.AreEqual(1, projection.KgpMaterializationCount, "Resync resends existing resources without reinflating.");
+
+        // The raw equivalent must have the same resource identity.
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand($"a=T,f={(int)format}{dimensions},i=1,p=1,C=1,q=2", data)));
+        using var raw = terminal.CreateSnapshot();
+        using var delta = Decode(projection.Encode(raw, Capabilities, 0, 4, 4));
+        Assert.AreEqual(0, delta.Pixels.Length);
+        Assert.AreEqual(1, projection.RetainedImageCount);
+    }
+
+    [TestMethod]
+    public void Encode_CompressedUnchangedImage_DoesNotAllocateDecodedArrays()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        var pixels = new byte[512 * 512 * 4];
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=T,f=32,s=512,v=512,o=z,i=1,C=1,q=2", Compress(pixels))));
+        using var snapshot = terminal.CreateSnapshot();
+        var projection = new Hwt1RenderProjection();
+        projection.Encode(snapshot, Capabilities, 0, 0, 0);
+        projection.Encode(snapshot, Capabilities, 0, 0, 0);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < 5; i++)
+            projection.Encode(snapshot, Capabilities, 0, i, i);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.IsLessThan((long)pixels.Length, allocated, "Unchanged frames must not allocate even one decoded image.");
+        Assert.AreEqual(1, projection.KgpMaterializationCount);
+    }
+
+    [TestMethod]
+    [DataRow(1)]
+    [DataRow(20)]
+    [DataRow(1600)]
+    public void Encode_ProteinSizedImage_ReportsConsumerAllocationByPlacementCount(int placementCount)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        terminal.Resize(80, 24);
+        var pixels = new byte[800 * 400 * 4];
+        var projection = new Hwt1RenderProjection();
+        ApplyGeneration(0);
+        using (var baseline = terminal.CreateSnapshot())
+            projection.Encode(baseline, Capabilities, 0, 0, 0);
+        ApplyGeneration(1);
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        using var snapshot = terminal.CreateSnapshot();
+        var snapshotAllocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.AreEqual(placementCount, snapshot.KgpPlacements.Count);
+        before = GC.GetAllocatedBytesForCurrentThread();
+        var update = projection.Encode(snapshot, Capabilities, 0, 1, 1);
+        var resourceUpdateAllocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        before = GC.GetAllocatedBytesForCurrentThread();
+        var unchanged = projection.Encode(snapshot, Capabilities, 0, 2, 2);
+        var unchangedAllocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        before = GC.GetAllocatedBytesForCurrentThread();
+        var decoded = snapshot.KgpImages[1].Data;
+        var materializationAllocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        GC.KeepAlive(decoded);
+        var updateMetadataBytes = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(update.AsSpan(4));
+        var unchangedMetadataBytes = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(unchanged.AsSpan(4));
+        Assert.AreEqual(2, projection.KgpMaterializationCount);
+        Assert.AreEqual(1, projection.RetainedImageCount);
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            placementCount,
+            formatBytes = pixels.Length,
+            snapshotAllocated,
+            materializationAllocated,
+            resourceUpdateAllocated,
+            unchangedAllocated,
+            updateFrameBytes = update.Length,
+            updateMetadataBytes,
+            unchangedFrameBytes = unchanged.Length,
+            unchangedMetadataBytes,
+            estimatedSnapshotAndProjectionBytesFor200Updates2394Frames =
+                200L * resourceUpdateAllocated + 2194L * unchangedAllocated + 2394L * snapshotAllocated
+        }));
+
+        void ApplyGeneration(byte generation)
+        {
+            pixels[0] = generation;
+            var output = new StringBuilder(KgpTestHelper.BuildCommand(
+                "a=t,f=32,s=800,v=400,o=z,i=1,q=2", Compress(pixels)));
+            for (var i = 0; i < placementCount; i++)
+                output.Append($"\x1b[{i / 80 + 1};{i % 80 + 1}H")
+                    .Append(KgpTestHelper.BuildCommand($"a=p,i=1,p={i + 1},c=1,r=1,C=1,q=2"));
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize(output.ToString()));
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void Encode_SameIdGenerations_RetainsOnlyCurrentSharedResourcesAndDeletesToZero(bool compressed)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        var projection = new Hwt1RenderProjection();
+        var data = new byte[128 * 128 * 4];
+        for (var offset = 3; offset < data.Length; offset += 4)
+            data[offset] = 255;
+        var compression = compressed ? ",o=z" : "";
+        var root = compressed ? Compress(data) : data;
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand($"a=T,f=32,s=128,v=128,i=1,p=1,c=1,r=1,C=1,q=2{compression}", root) +
+            KgpTestHelper.BuildCommand($"a=T,f=32,s=128,v=128,i=2,p=2,c=1,r=1,C=1,q=2{compression}", root)));
+        using var initialSnapshot = terminal.CreateSnapshot();
+        using var initial = Decode(projection.Encode(initialSnapshot, Capabilities, 0, 0, 0));
+        var sharedKey = initial.Metadata.RootElement.GetProperty("images")[0].GetProperty("key").GetString();
+        Assert.AreEqual(1, projection.RetainedImageCount);
+        Assert.AreEqual((long)data.Length, projection.RetainedImageBytes);
+
+        for (var generation = 1; generation <= 64; generation++)
+        {
+            for (var offset = 0; offset < data.Length; offset += 4)
+                data[offset] = (byte)generation;
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand(
+                $"a=T,f=32,s=128,v=128,i=1,p=1,c=1,r=1,C=1,q=2{compression}",
+                compressed ? Compress(data) : data)));
+            using var snapshot = terminal.CreateSnapshot();
+            using var frame = Decode(projection.Encode(snapshot, Capabilities, 0, generation, generation));
+            var metadata = frame.Metadata.RootElement;
+            var retained = metadata.GetProperty("retainedImages").EnumerateArray()
+                .Select(key => key.GetString()).ToHashSet();
+            var placed = metadata.GetProperty("placements").EnumerateArray()
+                .Select(placement => placement.GetProperty("key").GetString()).ToHashSet();
+            Assert.IsTrue(retained.SetEquals(placed), $"Generation {generation} retained obsolete browser textures.");
+            Assert.AreEqual(2, retained.Count, "The unchanged second image still owns the original shared resource.");
+            Assert.IsTrue(retained.Contains(sharedKey));
+            Assert.AreEqual(1, metadata.GetProperty("images").GetArrayLength());
+            Assert.AreEqual(2, projection.RetainedImageCount);
+            Assert.AreEqual(2L * data.Length, projection.RetainedImageBytes);
+            TestSeq.AreEqual(data, frame.Pixels);
+        }
+        Assert.AreEqual(compressed ? 65 : 0, projection.KgpMaterializationCount);
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand("a=d,d=I,i=1,q=2")));
+        using (var snapshot = terminal.CreateSnapshot())
+        using (var frame = Decode(projection.Encode(snapshot, Capabilities, 0, 65, 65)))
+        {
+            Assert.AreEqual(1, projection.RetainedImageCount);
+            Assert.AreEqual((long)data.Length, projection.RetainedImageBytes);
+            Assert.AreEqual(sharedKey,
+                frame.Metadata.RootElement.GetProperty("retainedImages")[0].GetString());
+        }
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand("a=d,d=I,i=2,q=2")));
+        using (var snapshot = terminal.CreateSnapshot())
+        using (var frame = Decode(projection.Encode(snapshot, Capabilities, 0, 66, 66)))
+        {
+            Assert.AreEqual(0, projection.RetainedImageCount);
+            Assert.AreEqual(0L, projection.RetainedImageBytes);
+            Assert.AreEqual(0, frame.Metadata.RootElement.GetProperty("retainedImages").GetArrayLength());
+        }
+        projection.Clear();
+        Assert.AreEqual(0L, projection.RetainedImageBytes);
+        Assert.AreEqual((byte)0, initial.Pixels[0], "Returned frames remain caller-owned across replacement and deletion.");
+    }
+
+    [TestMethod]
+    public void Encode_CompressedOverBudget_RejectsBeforeAnyInflation()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        var pixels = new byte[4096 * 2048 * 4];
+        for (var i = 1; i <= 3; i++)
+        {
+            pixels[0] = (byte)i;
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand(
+                $"a=T,f=32,s=4096,v=2048,o=z,i={i},c=1,r=1,C=1,q=2", Compress(pixels))));
+        }
+        using var snapshot = terminal.CreateSnapshot();
+        Assert.AreEqual(3, snapshot.KgpImages.Count);
+        var projection = new Hwt1RenderProjection();
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var error = Assert.Throws<InvalidDataException>(() => projection.Encode(snapshot, Capabilities, 0, 1, 1));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Contains("64 MiB", error.Message);
+        Assert.AreEqual(0, projection.KgpMaterializationCount);
+        Assert.AreEqual(0, projection.RetainedImageCount);
+        Assert.AreEqual(0u, projection.Revision);
+        Assert.IsLessThan((long)pixels.Length, allocated, "Budget rejection must precede format-byte materialization.");
+    }
+
+    [TestMethod]
+    public void Encode_CompressedPngWithOversizedMetadata_RejectsPayloadBeforeInflation()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        var png = CreatePngWithMetadata(32 * 1024 * 1024, (byte)'a');
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand(
+            "a=T,f=100,o=z,i=1,c=1,r=1,C=1,q=2", Compress(png))));
+        using var snapshot = terminal.CreateSnapshot();
+        var image = TestSeq.Single(snapshot.KgpImages.Values);
+        Assert.AreEqual(3u, image.Width);
+        Assert.AreEqual((long)png.Length, image.ReservedDecodedBytes);
+        var projection = new Hwt1RenderProjection();
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        var error = Assert.Throws<InvalidDataException>(() => projection.Encode(snapshot, Capabilities, 0, 1, 1));
+
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Contains("PNG payload", error.Message);
+        Assert.IsLessThan((long)png.Length / 8, allocated);
+        Assert.AreEqual(0, projection.KgpMaterializationCount);
+        Assert.AreEqual(0u, projection.Revision);
+        Assert.AreEqual(0L, projection.RetainedImageBytes);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void Encode_CompressedPngMetadata_BoundsActiveAndReplacementPayloads(bool simultaneous)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+        var projection = new Hwt1RenderProjection();
+        for (var i = 0; i < 3; i++)
+        {
+            var png = CreatePngWithMetadata(24 * 1024 * 1024, (byte)('a' + i));
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand(
+                $"a=T,f=100,o=z,i={(simultaneous ? i + 1 : 1)},c=1,r=1,C=1,q=2", Compress(png))));
+            if (simultaneous)
+                continue;
+            using var snapshot = terminal.CreateSnapshot();
+            var frame = projection.Encode(snapshot, Capabilities, 0, i, i);
+            Assert.IsTrue(frame.AsSpan(frame.Length - png.Length).SequenceEqual(png));
+            Assert.AreEqual(1, projection.RetainedImageCount);
+            Assert.AreEqual((long)png.Length, projection.RetainedImageBytes,
+                "Replacement must release obsolete PNG payloads even when their textures are tiny.");
+        }
+        if (simultaneous)
+        {
+            using var snapshot = terminal.CreateSnapshot();
+            Assert.AreEqual(3, snapshot.KgpImages.Count);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var error = Assert.Throws<InvalidDataException>(() => projection.Encode(snapshot, Capabilities, 0, 1, 1));
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Contains("64 MiB", error.Message);
+            Assert.AreEqual(0, projection.KgpMaterializationCount);
+            Assert.AreEqual(0L, projection.RetainedImageBytes);
+            Assert.IsLessThan(1024L * 1024, allocated);
+        }
+        projection.Clear();
+        Assert.AreEqual(0L, projection.RetainedImageBytes);
+    }
+
+    private static byte[] CreatePngWithMetadata(int metadataBytes, byte fill)
+    {
+        var png = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAMAAAADCAYAAABWKLW/AAAAEUlEQVR4nGP4z8DwH4YZcHIAXdcR79xPMRAAAAAASUVORK5CYII=");
+        var result = new byte[png.Length + metadataBytes + 12];
+        png.AsSpan(0, 33).CopyTo(result);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(result.AsSpan(33), metadataBytes);
+        "tEXt"u8.CopyTo(result.AsSpan(37));
+        result.AsSpan(41, metadataBytes).Fill(fill);
+        "Comment\0"u8.CopyTo(result.AsSpan(41));
+        var table = new uint[256];
+        for (uint i = 0; i < table.Length; i++)
+        {
+            var value = i;
+            for (var bit = 0; bit < 8; bit++)
+                value = (value & 1) != 0 ? (value >> 1) ^ 0xedb88320 : value >> 1;
+            table[i] = value;
+        }
+        var crc = uint.MaxValue;
+        foreach (var value in result.AsSpan(37, metadataBytes + 4))
+            crc = table[(crc ^ value) & 255] ^ (crc >> 8);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(result.AsSpan(41 + metadataBytes), ~crc);
+        png.AsSpan(33).CopyTo(result.AsSpan(45 + metadataBytes));
+        return result;
+    }
+
+    private static byte[] Compress(byte[] data)
+    {
+        using var output = new MemoryStream();
+        using (var zlib = new ZLibStream(output, CompressionLevel.Fastest, leaveOpen: true))
+            zlib.Write(data);
+        return output.ToArray();
+    }
 
     [TestMethod]
     public void Encode_Hyperlinks_PreservesWideCellsAndWrappedViewportRanges()
@@ -485,7 +803,7 @@ public class WebTerminalProjectionTests
             "\x1b_Ga=T,f=32,s=1,v=1,i=2,p=1,c=1,r=1,C=1,q=2;AAD//w==\x1b\\"));
         using var next = terminal.CreateSnapshot();
         using var delta = Decode(projection.Encode(next, Capabilities, 0, 2, 2));
-        Assert.AreEqual(2, delta.Metadata.RootElement.GetProperty("retainedImages").GetArrayLength());
+        Assert.AreEqual(1, delta.Metadata.RootElement.GetProperty("retainedImages").GetArrayLength());
         using var full = Decode(projection.Encode(next, Capabilities, 0, 2, 3, forceFull: true));
         Assert.AreEqual(1, full.Metadata.RootElement.GetProperty("retainedImages").GetArrayLength());
         Assert.AreEqual(1, full.Metadata.RootElement.GetProperty("images").GetArrayLength());

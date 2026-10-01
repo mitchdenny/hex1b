@@ -4,48 +4,6 @@ using Hex1b.Sixel;
 
 namespace Hex1b.Tokens;
 
-internal enum DcsSequenceStatus
-{
-    Complete,
-    Cancelled,
-    Malformed,
-    Unterminated,
-}
-
-internal readonly record struct DcsIntroducer(
-    byte? PrivateMarker,
-    IReadOnlyList<int?> Parameters,
-    IReadOnlyList<byte> Intermediates,
-    byte? FinalByte,
-    bool IsValid)
-{
-    public bool IsSixel =>
-        IsValid &&
-        PrivateMarker is null &&
-        Intermediates.Count == 0 &&
-        FinalByte == (byte)'q';
-}
-
-internal sealed record DcsFrame(
-    DcsSequenceStatus Status,
-    DcsIntroducer Introducer,
-    ReadOnlyMemory<byte> RetainedContent,
-    long ByteCount,
-    bool RetentionLimitExceeded,
-    byte[] ContentHash,
-    SixelParseResult SixelResult);
-
-internal readonly record struct DcsFrameBoundary(int TextByteOffset, DcsFrame Frame);
-
-internal sealed record DcsByteStreamBatch(
-    ReadOnlyMemory<byte> TextBytes,
-    IReadOnlyList<DcsFrameBoundary> Frames)
-{
-    public static DcsByteStreamBatch Empty { get; } = new(
-        ReadOnlyMemory<byte>.Empty,
-        Array.Empty<DcsFrameBoundary>());
-}
-
 internal sealed class DcsByteStreamParser
 {
     internal const int DefaultRetentionLimit = 1024 * 1024;

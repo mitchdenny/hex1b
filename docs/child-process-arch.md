@@ -74,9 +74,54 @@ Windows, the project file itself publishes a debuggable non-AOT version of
 `hex1bpty.exe` for the current Windows architecture (`win-x64` or `win-arm64`)
 as part of a normal `dotnet build`. For package production, the same MSBuild
 wiring publishes Native AOT helpers for the Windows runtime assets required by
-CI so the packaged runtime assets remain self-contained. If the helper is not
-available, Hex1b falls back to the existing in-process `WindowsPtyHandle`
-implementation so local development and existing tests continue to work.
+CI so the packaged runtime assets remain self-contained. The default
+`WindowsPtyMode.RequireProxy` fails if the helper is unavailable.
+`WindowsPtyMode.Direct` explicitly selects the in-process ConPTY implementation.
+
+#### Choosing the Windows PTY socket path
+
+`WindowsPtyProxySocketPath` selects the exact filesystem socket path, separately from
+`WindowsPtyHostPath` (the helper executable). For example, on Windows:
+
+```csharp
+using Hex1b;
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithPtyProcess(options =>
+    {
+        options.FileName = "cmd.exe";
+        options.WindowsPtyProxySocketPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".myapp-pty", "session.socket");
+    })
+    .Build();
+
+await terminal.RunAsync();
+```
+
+The path is snapshotted when the callback returns, must be normalized and absolute,
+and is used without a generated suffix. Windows paths must fit the 107-byte UTF-8
+Unix-domain socket limit and use ordinary local filesystem names, not UNC paths,
+device names, or alternate data streams. Use a distinct path for each concurrent
+session. When unset, Hex1b retains the unique `hex1bpty-<guid>.socket` filename in
+`HEX1B_PTY_SHIM_SOCKET_DIR`, or otherwise the user's `.hex1b/hex1bpty` directory
+(with LocalApplicationData as the fallback when the user profile is unavailable).
+On Windows, setting this option with a mode other than `WindowsPtyMode.RequireProxy`
+throws `InvalidOperationException` when the process starts, before launching a
+process or creating socket files. The option is ignored on Linux/macOS, like the
+other Windows-specific PTY settings.
+
+Choose a dedicated directory: Hex1b creates it with a protected, current-user-only
+inheritable DACL, or repairs an existing directory's DACL. Roots, shared temporary
+directories, profile directories, and final-directory links/reparse points are
+rejected. The socket inherits the directory restriction and its DACL is explicitly
+restricted and verified before listening. Permission errors fail startup.
+The helper still validates the per-launch token before starting the workload.
+
+Existing socket paths and reservation files (`<socket-path>.lock`) are not
+overwritten. The helper's listener removes its endpoint on normal shutdown, and
+the parent releases its reservation when disposed. Forced termination can leave a
+stale endpoint; remove it only after confirming its owning session has ended.
 
 ### 4. Hex1bTerminalChildProcess (`src/Hex1b/Terminal/Hex1bTerminalChildProcess.cs`)
 

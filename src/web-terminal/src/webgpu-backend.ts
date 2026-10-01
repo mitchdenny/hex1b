@@ -1,6 +1,18 @@
 import { QUAD_STRIDE, RendererUnavailableError } from "./render-backend.js";
 import type { RenderBackend, RenderBatch, RenderColor, RenderPixels, RenderTexture } from "./render-backend.js";
 
+// The DOM library declares WebGPU interfaces but omits these runtime constants.
+declare const GPUBufferUsage: {
+  readonly COPY_DST: number;
+  readonly UNIFORM: number;
+  readonly VERTEX: number;
+};
+declare const GPUTextureUsage: {
+  readonly COPY_DST: number;
+  readonly TEXTURE_BINDING: number;
+  readonly RENDER_ATTACHMENT: number;
+};
+
 const shader = /* wgsl */ `
 struct Viewport { size: vec2f, padding: vec2f }
 @group(0) @binding(0) var<uniform> viewport: Viewport;
@@ -146,7 +158,9 @@ export class WebGpuBackend implements RenderBackend {
     });
     // Acquire the presentation surface last. A null context leaves it usable by WebGL2.
     const context = canvas.getContext("webgpu");
-    if (!context) throw new RendererUnavailableError("Could not create an OffscreenCanvas WebGPU context");
+    if (!context || !("configure" in context)) {
+      throw new RendererUnavailableError("Could not create an OffscreenCanvas WebGPU context");
+    }
     this.context = context;
     context.configure({ device: this.device, format: this.format, alphaMode: "opaque" });
   }

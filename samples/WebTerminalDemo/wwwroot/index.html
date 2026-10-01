@@ -8,7 +8,8 @@
     (() => {
       const param = new URLSearchParams(window.location.search).get("scoutTheme");
       const theme =
-        param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        param === "light" || param === "dark" ? param
+          : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
       document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
@@ -70,9 +71,26 @@
     main { height: calc(100dvh - 32px); display: flex; flex-direction: column; gap: 12px; }
     h1 { margin: 0; font-size: 24px; letter-spacing: -.5px; }
     header p { margin: 0; color: var(--cp-text-muted); }
+    .page-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .page-header > button { flex: none; }
     .panel { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; padding: 12px; }
-    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
-    .instance-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; border-left: 1px solid var(--cp-border); padding-left: 12px; }
+    .controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end; }
+    .controls > label { min-width: 0; }
+    .controls select { min-width: 0; max-width: 100%; }
+    .controls > #create, .controls > .instance-controls, .controls > .tape-controls { grid-column: 1 / -1; }
+    .appearance-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
+    .appearance-controls select { max-width: 100%; }
+    .appearance-controls p { margin: 0; font-size: 12px; color: var(--cp-text-muted); }
+    #palette-swatches { display: flex; align-items: center; gap: 3px; padding: 6px 8px; border: 1px solid var(--cp-border); border-radius: 6px; font-size: 11px; }
+    #palette-swatches > :first-child { margin-right: 5px; }
+    .palette-swatch { width: 12px; height: 16px; border: 1px solid var(--cp-border-strong); }
+    #terminal-controls { position: fixed; z-index: 2147483646; inset: 0 0 0 auto; width: min(480px, 100vw); height: 100dvh; max-height: none; overflow: auto; overscroll-behavior: contain; padding: 16px; border-radius: 16px 0 0 16px; box-shadow: var(--cp-shadow); transform: translateX(100%); visibility: hidden; pointer-events: none; transition: transform 180ms ease-out, visibility 0s 180ms; }
+    #terminal-controls[data-open=true] { transform: translateX(0); visibility: visible; pointer-events: auto; transition-delay: 0s; }
+    .drawer-heading { position: sticky; top: -16px; z-index: 1; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px; margin: -16px -16px 16px; background: var(--cp-surface); border-bottom: 1px solid var(--cp-border); }
+    .drawer-heading h2 { margin: 0; font-size: 20px; }
+    @media (prefers-reduced-motion: reduce) { #terminal-controls { transition: none; } }
+    .instance-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; border-top: 1px solid var(--cp-border); padding-top: 12px; }
+    .instance-controls > label:first-child { flex-basis: 100%; }
     label { display: grid; gap: 4px; color: var(--cp-text-muted); font-size: 13px; }
     button, select, input { font: inherit; min-height: 34px; border: 1px solid var(--cp-border-strong); border-radius: .625rem; padding: 6px 10px; background: var(--cp-bg-elevated); color: var(--cp-text); }
     input[type=number] { width: 68px; }
@@ -93,14 +111,25 @@
     #status[data-level=ready] { color: var(--cp-success); }
     #warnings { color: var(--cp-warning); white-space: pre-wrap; margin: 8px 0; }
     #workspace { position: relative; overflow: auto; flex: 1; min-height: 320px; background: var(--cp-bg-elevated); border: 1px solid var(--cp-border); border-radius: 16px; }
-    #workspace.empty::before { content: "Create a terminal or attach a view above. Closing a view keeps its terminal running."; display: block; padding: 32px; color: var(--cp-text-muted); }
-    .terminal-window { position: absolute; display: flex; flex-direction: column; min-width: 240px; min-height: 180px; overflow: hidden; border: 1px solid var(--cp-border-strong); border-radius: .625rem; background: var(--cp-surface); }
+    #workspace.empty::before { content: "Open Terminal controls to create a terminal or attach a view. Closing a view keeps its terminal running."; display: block; padding: 32px; color: var(--cp-text-muted); }
+    .terminal-window { position: absolute; display: flex; flex-direction: column; min-width: 240px; min-height: 180px; border: 1px solid var(--cp-border-strong); border-radius: .625rem; background: var(--cp-surface); container-type: size; }
     .terminal-window.selected { border-color: var(--cp-accent); }
-    .view-titlebar { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 8px; padding: 4px 8px; background: var(--cp-surface-soft); cursor: grab; touch-action: none; user-select: none; }
+    .view-titlebar { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 8px; padding: 4px 8px; border-radius: .625rem .625rem 0 0; background: var(--cp-surface-soft); cursor: grab; touch-action: none; user-select: none; }
     .view-title { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 600; }
     .view-role { flex: none; font-size: 11px; color: var(--cp-text-muted); }
+    .view-marker-details { flex: none; overflow: visible; max-height: none; color: var(--cp-text); font-size: 11px; cursor: auto; }
+    .view-marker-details > summary { padding: 3px 6px; border: 1px solid var(--cp-border-strong); border-radius: 6px; background: var(--cp-bg-elevated); white-space: nowrap; }
+    .marker-panel { position: absolute; top: 36px; right: 8px; z-index: 4; width: min(360px, calc(100% - 16px)); max-height: min(320px, 55dvh); overflow: auto; padding: 12px; border: 1px solid var(--cp-border-strong); border-radius: 8px; background: var(--cp-surface); box-shadow: var(--cp-shadow); user-select: text; cursor: auto; }
+    .marker-panel p { margin: 0 0 8px; white-space: normal; font-size: 12px; }
+    .marker-list { display: grid; gap: 4px; }
+    .marker-list .marker-jump { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+    .marker-jump::before { content: ""; flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--cp-accent); }
+    .marker-jump[data-source=custom]::before { background: var(--cp-link); }
+    .marker-jump[data-error=true]::before { background: var(--cp-danger); }
     .terminal-window[data-primary=true] .view-role { color: var(--cp-accent); font-weight: 600; }
-    .view-tools { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 4px; overflow: hidden; padding: 4px 6px; border-bottom: 1px solid var(--cp-border); }
+    .view-tools { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 4px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; padding: 4px 6px; border-bottom: 1px solid var(--cp-border); }
+    .view-tools label { display: flex; flex: none; align-items: center; gap: 4px; font-size: 11px; white-space: nowrap; }
+    .view-tools select { min-height: 26px; height: 26px; padding: 2px 4px; font-size: 11px; }
     .view-failures { display: flex; flex: 0 0 36px; min-width: 0; align-items: center; gap: 6px; padding: 4px 6px; border-bottom: 1px solid var(--cp-border); }
     .view-failures label { display: flex; flex: 1; min-width: 0; align-items: center; font-size: 11px; }
     .view-failure { flex: 1; min-width: 0; height: 26px; min-height: 26px; padding: 2px 4px; font-size: 11px; border-radius: 6px; }
@@ -114,6 +143,31 @@
     [data-connected=false] .view-activity { visibility: hidden; }
     .terminal-stage { display: flex; position: relative; flex: 1 1 0; min-width: 0; min-height: 0; }
     .terminal-mount { flex: 1 1 0; min-width: 0; min-height: 0; contain: size; overflow: hidden; }
+    .view-scrollbars { display: flex; flex: none; align-items: center; gap: 8px; padding: 4px 8px; overflow-x: auto; border-top: 1px solid var(--cp-border); }
+    .view-scrollbars label { display: flex; flex: none; align-items: center; gap: 4px; font-size: 11px; }
+    .view-scrollbars select, .view-scrollbars input, .view-scrollbars button { min-height: 24px; padding: 2px 4px; font-size: 11px; }
+    .view-scrollbars button, .marker-count { flex: none; white-space: nowrap; }
+    .demo-scrollbar-tooltip-heading { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid var(--cp-border); white-space: normal; }
+    .demo-scrollbar-tooltip-heading strong { color: var(--cp-accent); }
+    .demo-scrollbar-tooltip-heading span { margin-left: auto; color: var(--cp-text-muted); font-size: 11px; }
+    .demo-terminal-preview { position: fixed; z-index: 10000; box-sizing: border-box; padding: 12px; max-height: calc(100dvh - 24px); overflow: hidden; pointer-events: none; border: 1px solid var(--cp-border-strong); border-radius: .625rem; background: var(--cp-surface); color: var(--cp-text); box-shadow: var(--cp-shadow); font: 12px/1.4 "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif; }
+    .demo-terminal-preview-command { max-height: 48px; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; font-family: Consolas, "Courier New", Courier, monospace; }
+    .demo-terminal-preview-status, .demo-terminal-preview-caption { margin-top: 8px; color: var(--cp-text-muted); }
+    .demo-terminal-preview-mount { position: relative; width: 100%; margin-top: 8px; overflow: hidden; border-radius: 4px; background: var(--cp-bg-elevated); }
+    .demo-terminal-preview:not([data-state="ready"]) .hex1b-terminal { visibility: hidden; }
+    .demo-terminal-preview[data-state="error"] .demo-terminal-preview-status { color: var(--cp-danger); }
+    .demo-terminal-preview[data-state="error"] .demo-terminal-preview-mount { display: none; }
+    .view-padding { display: flex; gap: 4px; }
+    .view-padding input { width: 44px; }
+    .marker-count { font-size: 11px; color: var(--cp-text-muted); }
+    .native-scrollbar { display: flex; flex: 0 0 32px; min-height: 0; align-self: flex-start; background: var(--cp-surface-soft); }
+    .native-scrollbar-rail { flex: 1; min-width: 0; overflow-y: scroll; overflow-x: hidden; overscroll-behavior: contain; scrollbar-gutter: stable; }
+    .native-scrollbar-spacer { width: 1px; pointer-events: none; }
+    .native-scrollbar-markers { position: relative; flex: 0 0 12px; }
+    .native-marker { position: absolute; left: 1px; width: 10px; height: 4px; min-height: 0; padding: 0; border: 0; border-radius: 0; transform: translateY(-50%); background: var(--cp-accent); }
+    .native-marker[data-source=custom] { background: var(--cp-link); }
+    .native-marker[data-error=true] { background: var(--cp-danger); }
+    .native-marker:focus-visible, .native-marker:hover { z-index: 1; height: 8px; }
     .closed-overlay { position: absolute; inset: 0; z-index: 1; display: flex; overflow: auto; padding: 12px; background: var(--cp-overlay); }
     .closed-overlay[hidden] { display: none; }
     .closed-card { margin: auto; width: 100%; max-width: 480px; padding: 16px; border: 1px solid var(--cp-border-strong); border-radius: 12px; background: var(--cp-surface); box-shadow: var(--cp-shadow); overflow-wrap: anywhere; }
@@ -129,14 +183,52 @@
     .view-resolution { width: 96px; }
     .font-size { flex: none; min-width: 28px; text-align: center; font: 10px Consolas, "Courier New", Courier, monospace; color: var(--cp-text-muted); }
     .view-status[data-level=error] { color: var(--cp-danger); }
-    .resize-handle { position: absolute; right: 3px; bottom: 3px; width: 16px; height: 16px; border-right: 3px solid var(--cp-border-strong); border-bottom: 3px solid var(--cp-border-strong); cursor: se-resize; touch-action: none; }
+    @container (max-width: 420px) {
+      .view-titlebar { gap: 4px; }
+      .view-role { display: none; }
+      .view-titlebar .minimal-chrome-toggle { font-size: 0; }
+      .minimal-chrome-toggle::after { content: "Full"; font-size: 11px; }
+    }
+    @container (max-height: 220px) {
+      .view-failures, .view-activity { display: none; }
+    }
+    .resize-handle { position: absolute; z-index: 2; touch-action: none; user-select: none; }
+    .resize-handle::after { content: ""; position: absolute; border: 0 solid var(--cp-border-strong); border-radius: 3px; opacity: .45; pointer-events: none; transition: border-color 100ms, opacity 100ms; }
+    .resize-handle:hover::after, .resize-handle[data-active=true]::after { border-color: var(--cp-accent); opacity: 1; }
+    .resize-handle[data-edge=n], .resize-handle[data-edge=s] { left: 10px; right: 10px; height: 12px; cursor: ns-resize; }
+    .resize-handle[data-edge=n] { top: -6px; }
+    .resize-handle[data-edge=s] { bottom: -6px; }
+    .resize-handle[data-edge=n]::after, .resize-handle[data-edge=s]::after { inset: 5px 0; border-top-width: 2px; }
+    .resize-handle[data-edge=e], .resize-handle[data-edge=w] { top: 10px; bottom: 10px; width: 12px; cursor: ew-resize; }
+    .resize-handle[data-edge=e] { right: -6px; }
+    .resize-handle[data-edge=w] { left: -6px; }
+    .resize-handle[data-edge=e]::after, .resize-handle[data-edge=w]::after { inset: 0 5px; border-left-width: 2px; }
+    .resize-handle[data-edge=ne], .resize-handle[data-edge=nw],
+    .resize-handle[data-edge=se], .resize-handle[data-edge=sw] { z-index: 3; width: 20px; height: 20px; }
+    .resize-handle[data-edge=ne] { right: -10px; top: -10px; cursor: nesw-resize; }
+    .resize-handle[data-edge=nw] { left: -10px; top: -10px; cursor: nwse-resize; }
+    .resize-handle[data-edge=se] { right: -10px; bottom: -10px; cursor: nwse-resize; }
+    .resize-handle[data-edge=sw] { left: -10px; bottom: -10px; cursor: nesw-resize; }
+    .resize-handle[data-edge=ne]::after { inset: 9px 9px 0 0; border-top-width: 2px; border-right-width: 2px; }
+    .resize-handle[data-edge=nw]::after { inset: 9px 0 0 9px; border-top-width: 2px; border-left-width: 2px; }
+    .resize-handle[data-edge=se]::after { inset: 0 9px 9px 0; border-bottom-width: 2px; border-right-width: 2px; }
+    .resize-handle[data-edge=sw]::after { inset: 0 0 9px 9px; border-bottom-width: 2px; border-left-width: 2px; }
     .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-top: 12px; }
     dt { font-size: 12px; color: var(--cp-text-muted); }
     dd { font: 15px/1.7 Consolas, "Courier New", Courier, monospace; margin: 0; }
     details { color: var(--cp-text-muted); max-height: 40vh; overflow: auto; flex: none; }
     summary { cursor: pointer; }
     #screen-mirror { overflow: auto; max-height: 200px; white-space: pre; font: 12px/1.4 Consolas, "Courier New", Courier, monospace; }
-    @media (max-width: 640px) { body { padding: 8px; } main { height: calc(100dvh - 16px); } .instance-controls { border-left: 0; padding-left: 0; } }
+    @media (max-width: 640px) { body { padding: 8px; } main { height: calc(100dvh - 16px); } .page-header h1 { font-size: 20px; } }
+    #restore-chrome { position: fixed; top: 8px; right: 8px; z-index: 2147483647; font-size: 12px; box-shadow: var(--cp-shadow); }
+    body.minimal-chrome { padding: 0; overflow: hidden; }
+    body.minimal-chrome main { height: 100dvh; gap: 0; }
+    body.minimal-chrome main > :not(#workspace) { display: none; }
+    body.minimal-chrome #workspace { min-height: 0; overflow: hidden; border: 0; border-radius: 0; }
+    body.minimal-chrome .terminal-window:not(.minimal-chrome) { visibility: hidden; }
+    /* Override floating bounds without changing the inline geometry restored on exit. */
+    .terminal-window.minimal-chrome { position: fixed; inset: 0 !important; width: 100% !important; height: 100dvh !important; min-width: 0; min-height: 0; border: 0; border-radius: 0; }
+    .terminal-window.minimal-chrome > :not(.terminal-stage) { display: none; }
   </style>
   <script type="importmap">
     { "imports": { "@hex1b/web-terminal": "./web-terminal/index.js" } }
@@ -144,12 +236,34 @@
   <script type="module" src="./playground/main.js"></script>
 </head>
 <body>
+  <button id="restore-chrome" type="button" hidden title="Restore playground controls and the previous window layout">Restore controls</button>
   <main>
-    <header>
-      <h1>WebTerminalDemo</h1>
-      <p>HMP1 shared terminals · HWT1 GPU-rendered views · primary-owned geometry</p>
+    <header class="page-header">
+      <div>
+        <h1>WebTerminalDemo</h1>
+        <p>HMP1 shared terminals · HWT1 GPU-rendered views · primary-owned geometry</p>
+      </div>
+      <button id="toggle-terminal-controls" type="button" aria-controls="terminal-controls" aria-expanded="false">Terminal controls</button>
     </header>
-    <section class="panel controls" aria-label="Terminal controls">
+    <section class="panel appearance-controls" aria-label="Terminal appearance">
+      <label>Color mode
+        <select id="color-mode">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+      <label>Light palette <select id="light-palette"></select></label>
+      <label>Dark palette <select id="dark-palette"></select></label>
+      <div id="palette-swatches" role="group" aria-label="Active palette ANSI swatches"></div>
+      <p>All views · live, no reconnect. Fluent-inspired palettes are experimental, not official Fluent or Aspire themes.</p>
+    </section>
+    <aside id="terminal-controls" class="panel" role="dialog" aria-labelledby="terminal-controls-heading" aria-hidden="true" data-open="false" inert>
+      <header class="drawer-heading">
+        <h2 id="terminal-controls-heading">Terminal controls</h2>
+        <button id="close-terminal-controls" type="button" aria-label="Close terminal controls">Close</button>
+      </header>
+      <section class="controls" aria-label="Terminal controls">
       <label>Scene
         <select id="scene">
           <option value="mixed">Mixed text + graphics</option>
@@ -158,7 +272,24 @@
           <option value="kgp">Kitty graphics</option>
           <option value="animation">Graphics animation</option>
           <option value="activity">Progress and shell activity</option>
+          <option value="marks">Long scrollback (48 marks)</option>
           <option value="shell">Interactive shell</option>
+        </select>
+      </label>
+      <label>New terminal reflow
+        <select id="reflow-strategy" title="Chosen when creating a terminal; shared by every attached view.">
+          <option value="Default">Default (scene-specific)</option>
+          <option value="None">None (crop)</option>
+          <option value="Ghostty">Ghostty</option>
+          <option value="Vte">VTE</option>
+          <option value="Kitty">Kitty</option>
+          <option value="WezTerm">WezTerm</option>
+          <option value="Alacritty">Alacritty</option>
+          <option value="WindowsTerminal">Windows Terminal</option>
+          <option value="Foot">Foot</option>
+          <option value="ITerm2">iTerm2 (crop)</option>
+          <option value="Xterm">xterm (crop)</option>
+          <option value="Auto">Auto (server environment)</option>
         </select>
       </label>
       <label>New view maximum scale
@@ -213,7 +344,8 @@
         <button id="stop-tape" disabled title="Cancel automation without stopping the terminal or undoing input">Stop tape</button>
         <p id="tape-status" role="status">Choose an existing terminal to play a tape.</p>
       </div>
-    </section>
+      </section>
+    </aside>
     <p id="status" role="status" aria-live="polite">Create a terminal or attach to an existing instance.</p>
     <section id="workspace" class="empty" aria-label="Floating terminal views"></section>
     <details class="panel">

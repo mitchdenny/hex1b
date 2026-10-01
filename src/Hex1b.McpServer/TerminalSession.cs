@@ -136,54 +136,102 @@ public sealed class TerminalSession : IAsyncDisposable
         string? asciinemaFilePath = null,
         CancellationToken ct = default)
     {
-        // Create the child process with PTY
-        var process = new Hex1bTerminalChildProcess(
-            command,
-            arguments,
-            workingDirectory,
-            environment,
-            inheritEnvironment: true,
-            initialWidth: width,
-            initialHeight: height);
-
-        // Create a capturing presentation adapter so the terminal's output pump runs
-        var presentation = new CapturingPresentationAdapter(width, height);
-
-        // Create asciinema recorder - either in recording mode (if path provided) or idle mode
-        AsciinemaRecorder asciinemaRecorder;
-        if (!string.IsNullOrWhiteSpace(asciinemaFilePath))
+        Hex1bTerminalChildProcess? process = null;
+        CapturingPresentationAdapter? presentation = null;
+        AsciinemaRecorder? asciinemaRecorder = null;
+        Hex1bTerminal? terminal = null;
+        try
         {
-            asciinemaRecorder = new AsciinemaRecorder(asciinemaFilePath, new AsciinemaRecorderOptions
+            // Validate dimensions before launching, as terminal construction did before
+            // pumps were deferred until after process startup.
+            if (width <= 0)
+                throw new InvalidOperationException("Width must be greater than zero.");
+            if (height <= 0)
+                throw new InvalidOperationException("Height must be greater than zero.");
+
+            process = new Hex1bTerminalChildProcess(
+                command,
+                arguments,
+                workingDirectory,
+                environment,
+                inheritEnvironment: true,
+                initialWidth: width,
+                initialHeight: height);
+
+            presentation = new CapturingPresentationAdapter(width, height);
+            asciinemaRecorder = !string.IsNullOrWhiteSpace(asciinemaFilePath)
+                ? new AsciinemaRecorder(asciinemaFilePath, new AsciinemaRecorderOptions
+                {
+                    AutoFlush = true,
+                    Title = $"{command} session",
+                    Command = command
+                })
+                : new AsciinemaRecorder();
+
+            var terminalOptions = new Hex1bTerminalOptions
             {
-                AutoFlush = true,
-                Title = $"{command} session",
-                Command = command
-            });
+                PresentationAdapter = presentation,
+                WorkloadAdapter = process,
+                Width = width,
+                Height = height
+            };
+            terminalOptions.WorkloadFilters.Add(asciinemaRecorder);
+
+            // The terminal constructor starts pumps. Do not create them until startup
+            // succeeds; output produced meanwhile remains buffered by the PTY.
+            await process.StartAsync(ct);
+            terminal = new Hex1bTerminal(terminalOptions);
+
+            return new TerminalSession(id, process, terminal, presentation, asciinemaRecorder, command, arguments, workingDirectory, asciinemaFilePath, width, height);
         }
-        else
+        catch (Exception startupError)
         {
-            // Create in idle mode for dynamic recording later
-            asciinemaRecorder = new AsciinemaRecorder();
+            List<Exception> errors = [startupError];
+            async ValueTask DisposeResourceAsync(IAsyncDisposable? resource)
+            {
+                if (resource is null)
+                    return;
+
+                try
+                {
+                    await resource.DisposeAsync();
+                }
+                catch (Exception cleanupError)
+                {
+                    errors.Add(cleanupError);
+                }
+            }
+
+            // A constructed terminal owns both adapters, but not its filters.
+            if (terminal is not null)
+            {
+                await DisposeResourceAsync(terminal);
+            }
+            else
+            {
+                await DisposeResourceAsync(process);
+                await DisposeResourceAsync(presentation);
+            }
+            if (asciinemaRecorder is not null)
+            {
+                // Recorder disposal uses a best-effort flush. Observe that failure
+                // explicitly, but still dispose the recorder to release its resources.
+                try
+                {
+                    await asciinemaRecorder.FlushAsync();
+                }
+                catch (Exception cleanupError)
+                {
+                    errors.Add(cleanupError);
+                }
+            }
+            await DisposeResourceAsync(asciinemaRecorder);
+
+            if (errors.Count > 1)
+                throw new AggregateException("Terminal session startup and cleanup failed.", errors);
+
+            throw;
         }
-
-        // Create the virtual terminal with presentation adapter to enable output pumping
-        var terminalOptions = new Hex1bTerminalOptions
-        {
-            PresentationAdapter = presentation,
-            WorkloadAdapter = process,
-            Width = width,
-            Height = height
-        };
-
-        // Always add asciinema recorder as a workload filter (it will filter events based on IsRecording)
-        terminalOptions.WorkloadFilters.Add(asciinemaRecorder);
-
-        var terminal = new Hex1bTerminal(terminalOptions);
-
-        // Start the process
-        await process.StartAsync(ct);
-
-        return new TerminalSession(id, process, terminal, presentation, asciinemaRecorder, command, arguments, workingDirectory, asciinemaFilePath, width, height);
     }
 
     /// <summary>

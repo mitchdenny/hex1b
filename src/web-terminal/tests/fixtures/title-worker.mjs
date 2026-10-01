@@ -1,6 +1,7 @@
 import { parentPort } from "node:worker_threads";
 import { setImmediate as nextTurn } from "node:timers/promises";
-import { TerminalRenderer } from "../../dist/renderer.js";
+import { TerminalRenderer } from "../../.build/renderer.js";
+import { foregroundColor } from "../../.build/terminal-palette.js";
 
 // Execute the real worker with only its transport, GPU, and animation clock doubled.
 const listeners = new Map();
@@ -15,6 +16,7 @@ globalThis.fetch = async url => {
   parentPort.postMessage({ type: "requested", url: String(url) });
   return recordingResponse.promise;
 };
+let renderedForeground;
 globalThis.self = {
   addEventListener(type, handler) { listeners.set(type, handler); },
   postMessage(message) { parentPort.postMessage({ type: "output", message }); },
@@ -41,7 +43,8 @@ const renderer = {
   resize() {},
   updateImages() {},
   prepareGlyphs() {},
-  render() {
+  render(cells, metadata, _blink, _links, palette) {
+    renderedForeground = cells[0] ? foregroundColor(cells[0], metadata, palette) : undefined;
     if (holdPresentation) presentation = Promise.withResolvers();
     return { cpuMs: 0, quads: 1, drawCalls: 1 };
   },
@@ -50,7 +53,7 @@ const renderer = {
   dispose() { this.disposed = true; }
 };
 TerminalRenderer.create = async () => renderer;
-await import("../../dist/terminal-worker.js");
+await import("../../.build/terminal-worker.js");
 
 let sequence = Promise.resolve();
 parentPort.on("message", ({ id, action, message, buffer, details }) => {
@@ -84,6 +87,7 @@ parentPort.on("message", ({ id, action, message, buffer, details }) => {
         break;
     }
     await nextTurn();
-    parentPort.postMessage({ type: "done", id });
+    parentPort.postMessage({ type: "done", id,
+      ...(action === "renderedForeground" ? { result: renderedForeground } : {}) });
   }).catch(error => parentPort.postMessage({ type: "failure", id, error: error.stack }));
 });

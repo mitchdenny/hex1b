@@ -12,3 +12,4 @@ HEX1B0007  | Hex1b.ApiDesign  | Warning  | Receiver of widget instance extension
 HEX1B0008  | Hex1b.ApiDesign  | Warning  | A single widget-builder callback parameter must be named `builder`.
 HEX1B0009  | Hex1b.ApiDesign  | Warning  | A widget extension/instance method should declare at most one widget-builder callback parameter.
 HEX1B0010  | Hex1b.ApiDesign  | Warning  | Widget must not override both Build (compositional path) and ReconcileAsync (primitive path).
+HEX1B0011  | Hex1b.ApiDesign  | Disabled | One distinct top-level type per file; enabled as an error only for the main Hex1b library.

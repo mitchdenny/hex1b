@@ -822,11 +822,3 @@ public sealed class TreeNode : Hex1bNode
         return FlattenedItems.Any(e => e.Node.IsLoading);
     }
 }
-
-/// <summary>
-/// Internal structure for flattened tree view (used for rendering/navigation).
-/// </summary>
-internal readonly record struct FlattenedTreeEntry(
-    TreeItemNode Node,
-    int Depth,
-    bool[] IsLastAtDepth);

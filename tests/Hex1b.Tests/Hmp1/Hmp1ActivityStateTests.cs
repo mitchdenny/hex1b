@@ -760,7 +760,8 @@ public class Hmp1ActivityStateTests
     private static Hmp1ActivityState Activity(int state, int? percentage, int phase, int? exitCode) => new()
     {
         Progress = new() { State = state, Percentage = percentage },
-        ShellIntegration = new() { Phase = phase, LastExitCode = exitCode }
+        ShellIntegration = new() { Phase = phase, LastExitCode = exitCode },
+        WorkingDirectory = new() { Uri = null }
     };
 
     private static async Task<JsonElement> ReadActivityFrameAsync(

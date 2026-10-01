@@ -16,6 +16,9 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 # Serialize publishes per branch so that npm/NuGet pushes and tag/GH-release
 # creation happen in commit order. PR builds get their own per-PR group so
 # concurrent PRs do not block each other.
@@ -33,15 +36,25 @@ jobs:
   # build, publish and GitHub-release steps.
   version:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       version: ${{ steps.v.outputs.version }}
       kind: ${{ steps.v.outputs.kind }}
       base: ${{ steps.v.outputs.base }}
+      skip_publish: ${{ steps.publish-policy.outputs.skip_publish }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Determine baseline publishing policy
+        id: publish-policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B .github/scripts/baseline_publish_policy.py
 
       - name: Generate version
         id: v
@@ -56,12 +69,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           package-manager-cache: false
@@ -102,7 +115,7 @@ jobs:
         run: node .github/scripts/publish-web-terminal.mjs --verify
 
       - name: Upload npm artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: npm-web-terminal
           path: artifacts/npm/*.tgz
@@ -125,10 +138,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -159,6 +172,7 @@ jobs:
           dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
             --no-build \
             -- --report-trx --report-trx-filename test-results.trx \
+               --timeout 10m --diagnostic --diagnostic-output-directory ./TestResults/diagnostics \
                --results-directory ./TestResults
           dotnet test tests/Hex1b.Analyzers.Tests/Hex1b.Analyzers.Tests.csproj \
             --no-build \
@@ -182,7 +196,7 @@ jobs:
 
       - name: Setup Node.js for content build
         if: runner.os == 'Linux'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
 
@@ -208,14 +222,14 @@ jobs:
           reporter: dotnet-trx
 
       - name: Upload test results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: success() || failure()
         with:
           name: test-results-${{ runner.os }}
           path: ./TestResults/
 
       - name: Upload SVG attachments
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: success() || failure()
         with:
           name: svg-attachments-${{ runner.os }}
@@ -227,14 +241,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Build native library
         working-directory: src/Hex1b/native
-        run: make
+        run: make all test-startup check-exports
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native/libhex1binterop.so
@@ -243,14 +257,14 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Build native library
         working-directory: src/Hex1b/native
-        run: make
+        run: make all test-startup check-exports
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: native-linux-arm64
           path: src/Hex1b/runtimes/linux-arm64/native/libhex1binterop.so
@@ -259,14 +273,20 @@ jobs:
     runs-on: macos-15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Build native library (cross-compile x86_64 from ARM64)
         working-directory: src/Hex1b/native
-        run: make TARGET_ARCH=x86_64
+        run: make TARGET_ARCH=x86_64 all check-exports
+
+      - name: Verify Rosetta and run x64 startup tests
+        working-directory: src/Hex1b/native
+        run: |
+          test "$(arch -x86_64 /usr/bin/uname -m)" = "x86_64"
+          make TARGET_ARCH=x86_64 TEST_RUNNER="arch -x86_64" test-startup
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: native-osx-x64
           path: src/Hex1b/runtimes/osx-x64/native/libhex1binterop.dylib
@@ -275,14 +295,14 @@ jobs:
     runs-on: macos-15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Build native library
         working-directory: src/Hex1b/native
-        run: make
+        run: make all test-startup check-exports
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native/libhex1binterop.dylib
@@ -291,10 +311,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -303,7 +323,7 @@ jobs:
         run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-x64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-x64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: pty-host-windows-x64
           path: artifacts/pty-host/win-x64/
@@ -312,10 +332,10 @@ jobs:
     runs-on: windows-11-arm
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -324,7 +344,7 @@ jobs:
         run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-arm64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-arm64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: pty-host-windows-arm64
           path: artifacts/pty-host/win-arm64/
@@ -338,45 +358,45 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
       - name: Download native library - linux-x64
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native
 
       - name: Download native library - linux-arm64
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: native-linux-arm64
           path: src/Hex1b/runtimes/linux-arm64/native
 
       - name: Download native library - osx-x64
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: native-osx-x64
           path: src/Hex1b/runtimes/osx-x64/native
 
       - name: Download native library - osx-arm64
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native
 
       - name: Download PTY shim - win-x64
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: pty-host-windows-x64
           path: src/Hex1b/runtimes/win-x64/native
 
       - name: Download PTY shim - win-arm64
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: pty-host-windows-arm64
           path: src/Hex1b/runtimes/win-arm64/native
@@ -414,7 +434,7 @@ jobs:
         run: bash .github/scripts/assert-nuget-contents.sh ./artifacts "${{ needs.version.outputs.version }}"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-packages-pr
           path: ./artifacts/*.nupkg
@@ -428,45 +448,45 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
       - name: Download native library - linux-x64
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native
 
       - name: Download native library - linux-arm64
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: native-linux-arm64
           path: src/Hex1b/runtimes/linux-arm64/native
 
       - name: Download native library - osx-x64
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: native-osx-x64
           path: src/Hex1b/runtimes/osx-x64/native
 
       - name: Download native library - osx-arm64
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native
 
       - name: Download PTY shim - win-x64
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: pty-host-windows-x64
           path: src/Hex1b/runtimes/win-x64/native
 
       - name: Download PTY shim - win-arm64
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: pty-host-windows-arm64
           path: src/Hex1b/runtimes/win-arm64/native
@@ -504,7 +524,7 @@ jobs:
         run: bash .github/scripts/assert-nuget-contents.sh ./artifacts "${{ needs.version.outputs.version }}"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-packages-release
           path: ./artifacts/*.nupkg
@@ -516,6 +536,7 @@ jobs:
     # Keep this marker in the PR body: <!-- hex1b:skip-preview-publish -->
     if: >-
       needs.version.outputs.kind == 'pr' &&
+      needs.version.outputs.skip_publish == 'false' &&
       github.event_name == 'pull_request' &&
       !contains(github.event.pull_request.body, '<!-- hex1b:skip-preview-publish -->') &&
       github.repository == 'mitchdenny/hex1b' &&
@@ -530,18 +551,18 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Download artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: nuget-packages-pr
           path: ./artifacts
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -692,7 +713,11 @@ jobs:
   publish-release:
     runs-on: ubuntu-latest
     needs: [version, build-release]
-    if: needs.version.outputs.kind != 'pr' && github.repository == 'mitchdenny/hex1b'
+    # Skip the whole job so baseline maintenance never requests production approval.
+    if: >-
+      needs.version.outputs.kind != 'pr' &&
+      needs.version.outputs.skip_publish == 'false' &&
+      github.repository == 'mitchdenny/hex1b'
     environment: production
     permissions:
       contents: write
@@ -701,23 +726,23 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Download artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: nuget-packages-release
           path: ./artifacts
 
       - name: Download npm artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: npm-web-terminal
           path: artifacts/npm
 
       - name: Setup Node.js for npm trusted publishing
         if: vars.NPM_PUBLISH_ENABLED == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           package-manager-cache: false
@@ -736,7 +761,7 @@ jobs:
           '
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -921,10 +946,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 

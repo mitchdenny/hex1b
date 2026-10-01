@@ -8,7 +8,9 @@ namespace Hex1b.Tokens;
 /// authoritative reply shape is <c>CSI ? Pn (; Pn)* c</c>, where DEC parameter
 /// <c>4</c> anywhere after the device-class parameter declares Sixel graphics support.
 /// Whether <see cref="Hex1bTerminal"/> answers this token at all depends on query
-/// ownership: it stays silent when the active presentation's
+/// ownership: it stays silent when the workload's
+/// <see cref="IHex1bTerminalWorkloadAdapter.HandlesProtocolQueries"/> is
+/// <see langword="true"/> (the remote producer owns replies), or the active presentation's
 /// <see cref="IHex1bTerminalPresentationAdapter.AnswersProtocolQueriesDirectly"/> is
 /// <see langword="true"/> (a real upstream terminal will already answer directly), and
 /// otherwise synthesizes a reply from its own authoritative capability model.

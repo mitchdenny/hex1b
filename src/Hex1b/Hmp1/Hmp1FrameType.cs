@@ -91,5 +91,10 @@ internal enum Hmp1FrameType : byte
     KgpAnimationState = 0x0C,
 
     // Server → Client. Mandatory authoritative activity baseline immediately after StateSync.
-    ActivityState = 0x0D
+    ActivityState = 0x0D,
+
+    // Negotiated scrollback-v1 checkpoint, after ActivityState and before graphics/live output.
+    ScrollbackState = 0x0E,
+    ScrollbackRows = 0x0F,
+    CommandMarkState = 0x10
 }

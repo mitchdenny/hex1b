@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.IO.Compression;
 using Hex1b.Automation;
 using Hex1b.Tokens;
 using Microsoft.Extensions.Time.Testing;
@@ -10,10 +11,49 @@ namespace Hex1b.Tests.Hmp1;
 public class Hmp1KgpStateReplayTests
 {
     [TestMethod]
-    [DataRow(KgpFormat.Rgb24)]
-    [DataRow(KgpFormat.Rgba32)]
-    [DataRow(KgpFormat.Png)]
-    public async Task WriteAsync_UnplacedResidentImage_PreservesFormatAndLaterPlacement(KgpFormat format)
+    public async Task WriteAsync_CompressedRoot_ChunksEncodedBytesWithMatchingCompressionControl()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var producer = CreateTerminal(workload, TimeProvider.System);
+        var pixels = new byte[1024 * 512 * 4];
+        var encoded = Compress(pixels);
+        Assert.IsGreaterThan(3072, encoded.Length);
+        producer.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand(
+            "a=T,f=32,s=1024,v=512,o=z,i=7,c=1,r=1,C=1,q=2", encoded)));
+        using var snapshot = producer.CreateSnapshot(includeAllKgpImages: true);
+        Assert.AreEqual(1, snapshot.KgpImages.Count);
+        using var stream = new MemoryStream();
+        await Hmp1KgpStateReplay.WriteAsync(stream, snapshot.KgpPlacements, snapshot.KgpImages,
+            snapshot.CursorX, snapshot.CursorY, TestContext.Current.CancellationToken);
+        Assert.IsLessThan((long)pixels.Length / 8, stream.Length,
+            "Replay must transmit the retained encoded root, not materialized pixels.");
+        stream.Position = 0;
+        using var viewerWorkload = new Hex1bAppWorkloadAdapter();
+        using var viewer = CreateTerminal(viewerWorkload, TimeProvider.System);
+        var wire = new StringBuilder();
+        while (stream.Position < stream.Length)
+        {
+            var frame = (await Hmp1Protocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken))!.Value;
+            Assert.AreEqual(Hmp1FrameType.Output, frame.Type);
+            var ansi = Encoding.UTF8.GetString(frame.Payload.Span);
+            wire.Append(ansi);
+            viewer.ApplyTokens(AnsiTokenizer.Tokenize(ansi));
+        }
+        Assert.Contains(",o=z,m=1;", wire.ToString());
+        var replay = viewer.KgpImageStore.GetImageById(7)!;
+        Assert.IsTrue(replay.IsZlibCompressed);
+        TestSeq.AreEqual(encoded, replay.EncodedData.ToArray());
+        TestSeq.AreEqual(pixels, replay.Data);
+    }
+
+    [TestMethod]
+    [DataRow(KgpFormat.Rgb24, false)]
+    [DataRow(KgpFormat.Rgba32, false)]
+    [DataRow(KgpFormat.Png, false)]
+    [DataRow(KgpFormat.Rgb24, true)]
+    [DataRow(KgpFormat.Rgba32, true)]
+    [DataRow(KgpFormat.Png, true)]
+    public async Task WriteAsync_UnplacedResidentImage_PreservesFormatAndLaterPlacement(KgpFormat format, bool compressed)
     {
         var time = new FakeTimeProvider();
         using var producerWorkload = new Hex1bAppWorkloadAdapter();
@@ -22,8 +62,10 @@ public class Hmp1KgpStateReplayTests
             ? Convert.FromBase64String(
                 "iVBORw0KGgoAAAANSUhEUgAAAAMAAAADCAYAAABWKLW/AAAAEUlEQVR4nGP4z8DwH4YZcHIAXdcR79xPMRAAAAAASUVORK5CYII=")
             : Enumerable.Range(0, 3 * 3 * (format == KgpFormat.Rgb24 ? 3 : 4)).Select(i => (byte)i).ToArray();
+        var encoded = compressed ? Compress(pixels) : pixels;
         producer.ApplyTokens(AnsiTokenizer.Tokenize(
-            KgpTestHelper.BuildCommand($"a=t,f={(int)format},s=3,v=3,i=7300,q=2", pixels)));
+            KgpTestHelper.BuildCommand($"a=t,f={(int)format},s=3,v=3,i=7300,q=2" +
+                (compressed ? ",o=z" : ""), encoded)));
         using var source = producer.CreateSnapshot(includeAllKgpImages: true);
         using var viewerWorkload = new Hex1bAppWorkloadAdapter();
         using var viewer = CreateTerminal(viewerWorkload, time);
@@ -40,6 +82,9 @@ public class Hmp1KgpStateReplayTests
         using var replay = viewer.CreateSnapshot();
         Assert.AreEqual(format, replay.KgpImages[7300].Format);
         TestSeq.AreEqual(pixels, replay.KgpImages[7300].Data);
+        Assert.AreEqual(compressed, replay.KgpImages[7300].IsZlibCompressed);
+        if (compressed)
+            TestSeq.AreEqual(encoded, replay.KgpImages[7300].EncodedData.ToArray());
         Assert.AreEqual(7, TestSeq.Single(replay.KgpPlacements).Column);
     }
 
@@ -81,9 +126,11 @@ public class Hmp1KgpStateReplayTests
     }
 
     [TestMethod]
-    [DataRow(false)]
-    [DataRow(true)]
-    public async Task WriteAsync_UnplacedNewerImageNumber_PreservesOlderPlacementAndFutureNumberLookup(bool wrappedIds)
+    [DataRow(false, false)]
+    [DataRow(true, false)]
+    [DataRow(false, true)]
+    [DataRow(true, true)]
+    public async Task WriteAsync_UnplacedNewerImageNumber_PreservesOlderPlacementAndFutureNumberLookup(bool wrappedIds, bool compressed)
     {
         var time = new FakeTimeProvider();
         using var producerWorkload = new Hex1bAppWorkloadAdapter();
@@ -96,9 +143,11 @@ public class Hmp1KgpStateReplayTests
         }
         else
             producer.ApplyTokens(AnsiTokenizer.Tokenize(
-                KgpTestHelper.BuildCommand("a=T,f=32,s=1,v=1,I=42,C=1,q=2", [1, 0, 0, 255])));
+                KgpTestHelper.BuildCommand("a=T,f=32,s=1,v=1,I=42,C=1,q=2" + (compressed ? ",o=z" : ""),
+                    compressed ? Compress([1, 0, 0, 255]) : [1, 0, 0, 255])));
         producer.ApplyTokens(AnsiTokenizer.Tokenize(
-            KgpTestHelper.BuildCommand("a=t,f=32,s=1,v=1,I=42,q=2", [2, 0, 0, 255])));
+            KgpTestHelper.BuildCommand("a=t,f=32,s=1,v=1,I=42,q=2" + (compressed ? ",o=z" : ""),
+                compressed ? Compress([2, 0, 0, 255]) : [2, 0, 0, 255])));
         using var source = producer.CreateSnapshot(includeAllKgpImages: true);
         using var viewerWorkload = new Hex1bAppWorkloadAdapter();
         using var viewer = CreateTerminal(viewerWorkload, time);
@@ -198,7 +247,9 @@ public class Hmp1KgpStateReplayTests
     }
 
     [TestMethod]
-    public async Task WriteAsync_ComposedAnimation_PreservesAllFramesGapsAndStoppedCurrentFrame()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task WriteAsync_ComposedAnimation_PreservesAllFramesGapsAndStoppedCurrentFrame(bool compressed)
     {
         var time = new FakeTimeProvider();
         using var producerWorkload = new Hex1bAppWorkloadAdapter();
@@ -206,7 +257,8 @@ public class Hmp1KgpStateReplayTests
         var root = Enumerable.Range(0, 40 * 30).SelectMany(_ => new byte[] { 80, 40, 20 }).ToArray();
         producer.ApplyTokens(AnsiTokenizer.Tokenize(
             "\x1b[3;5H" +
-            KgpTestHelper.BuildCommand("a=T,f=24,s=40,v=30,i=7,p=11,X=9,Y=19,C=1,q=2", root) +
+            KgpTestHelper.BuildCommand("a=T,f=24,s=40,v=30,i=7,p=11,X=9,Y=19,C=1,q=2" +
+                (compressed ? ",o=z" : ""), compressed ? Compress(root) : root) +
             KgpTestHelper.BuildCommand("a=f,f=32,s=1,v=1,i=7,c=1,x=2,y=3,z=30,q=2", [200, 100, 50, 128]) +
             KgpTestHelper.BuildCommand("a=f,f=32,s=1,v=1,i=7,x=1,y=1,X=1,z=-1,q=2", [17, 34, 51, 0]) +
             KgpTestHelper.BuildCommand("a=f,f=32,s=40,v=30,i=7,X=1,z=45,q=2", KgpTestHelper.CreatePixelData(40, 30)) +
@@ -341,6 +393,14 @@ public class Hmp1KgpStateReplayTests
         viewerTime.Advance(TimeSpan.FromSeconds(10));
         Assert.AreEqual(2, viewer.KgpImageStore.GetImageById(7)!.CurrentFrameNumber);
         TestSeq.AreEqual(new byte[] { 2, 0, 0, 255 }, viewer.KgpImageStore.GetImageById(7)!.CurrentFrameData);
+    }
+
+    private static byte[] Compress(byte[] data)
+    {
+        using var output = new MemoryStream();
+        using (var zlib = new ZLibStream(output, CompressionLevel.Fastest, leaveOpen: true))
+            zlib.Write(data);
+        return output.ToArray();
     }
 
     private static Hex1bTerminal CreateTerminal(Hex1bAppWorkloadAdapter workload, TimeProvider time)

@@ -36,29 +36,3 @@ public sealed class GridContext : WidgetContext<GridWidget>
 
     internal GridContext() { }
 }
-
-/// <summary>
-/// A typed collection for grid column or row definitions with convenience Add overloads.
-/// </summary>
-/// <typeparam name="T">The definition type.</typeparam>
-public sealed class GridDefinitionCollection<T> : List<T>
-{
-}
-
-/// <summary>
-/// Extension methods for adding definitions to grid definition collections.
-/// </summary>
-public static class GridDefinitionCollectionExtensions
-{
-    /// <summary>
-    /// Adds a column definition with the specified width hint.
-    /// </summary>
-    public static void Add(this GridDefinitionCollection<GridColumnDefinition> collection, SizeHint width)
-        => collection.Add(new GridColumnDefinition(width));
-
-    /// <summary>
-    /// Adds a row definition with the specified height hint.
-    /// </summary>
-    public static void Add(this GridDefinitionCollection<GridRowDefinition> collection, SizeHint height)
-        => collection.Add(new GridRowDefinition(height));
-}

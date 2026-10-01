@@ -5,6 +5,7 @@ internal sealed class TerminalTextBuffer(
     long generation, bool alternate, int width, int height, int historyCount,
     Func<int, long> rowId, Func<int, int, TerminalCell> getCell, Func<int, int> rowWidth)
 {
+    private Dictionary<long, int>? _rowIndex;
     internal long Generation => generation;
     internal bool Alternate => alternate;
     internal int Width => width;
@@ -18,9 +19,12 @@ internal sealed class TerminalTextBuffer(
 
     internal int FindRow(long id)
     {
-        for (var row = 0; row < TotalRows; row++)
-            if (rowId(row) == id)
-                return row;
-        return -1;
+        if (_rowIndex is null)
+        {
+            _rowIndex = new(TotalRows);
+            for (var row = 0; row < TotalRows; row++)
+                _rowIndex[rowId(row)] = row;
+        }
+        return _rowIndex.GetValueOrDefault(id, -1);
     }
 }

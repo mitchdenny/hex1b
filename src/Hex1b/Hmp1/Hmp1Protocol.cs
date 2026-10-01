@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Hex1b;
 
@@ -86,7 +87,10 @@ internal static class Hmp1Protocol
         var length = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(1));
 
         if (length < 0 || length > MaxPayloadSize ||
-            (type == Hmp1FrameType.ActivityState && length > Hmp1ActivityState.MaxPayloadSize))
+            (type == Hmp1FrameType.ActivityState && length > Hmp1ActivityState.MaxPayloadSize) ||
+            (type == Hmp1FrameType.ScrollbackState && length != 8) ||
+            (type == Hmp1FrameType.ScrollbackRows && length > Hmp1ScrollbackState.MaxChunkBytes) ||
+            (type == Hmp1FrameType.CommandMarkState && length > Hmp1CommandMarkState.MaxPayloadSize))
             throw new InvalidOperationException($"Invalid frame payload length: {length}");
 
         ReadOnlyMemory<byte> payload;
@@ -132,7 +136,9 @@ internal static class Hmp1Protocol
         string peerId,
         string? primaryPeerId,
         IReadOnlyList<HelloPeerInfo> peers,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int scrollbackHistoryRows = 0,
+        bool commandMarkHistory = false)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(
             new HelloPayload
@@ -142,7 +148,10 @@ internal static class Hmp1Protocol
                 Height = height,
                 PeerId = peerId,
                 PrimaryPeerId = primaryPeerId,
-                Peers = peers.ToList()
+                Peers = peers.ToList(),
+                ScrollbackHistoryVersion = scrollbackHistoryRows > 0 ? Hmp1ScrollbackState.Version : 0,
+                ScrollbackHistoryRows = scrollbackHistoryRows,
+                CommandMarkHistoryVersion = commandMarkHistory ? Hmp1CommandMarkState.Version : 0
             },
             Hmp1JsonContext.Default.HelloPayload);
         return WriteFrameAsync(stream, Hmp1FrameType.Hello, json, ct);
@@ -179,13 +188,18 @@ internal static class Hmp1Protocol
         Stream stream,
         string? displayName,
         string? defaultRole,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int scrollbackHistoryRows = 0,
+        bool commandMarkHistory = false)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(
             new ClientHelloPayload
             {
                 DisplayName = displayName,
-                DefaultRole = defaultRole
+                DefaultRole = defaultRole,
+                ScrollbackHistoryVersion = scrollbackHistoryRows > 0 ? Hmp1ScrollbackState.Version : 0,
+                ScrollbackHistoryRows = scrollbackHistoryRows,
+                CommandMarkHistoryVersion = commandMarkHistory ? Hmp1CommandMarkState.Version : 0
             },
             Hmp1JsonContext.Default.ClientHelloPayload);
         return WriteFrameAsync(stream, Hmp1FrameType.ClientHello, json, ct);
@@ -362,138 +376,4 @@ internal static class Hmp1Protocol
         }
         return totalRead;
     }
-}
-
-/// <summary>
-/// A single HMP protocol frame.
-/// </summary>
-/// <param name="Type">The frame type.</param>
-/// <param name="Payload">The raw payload bytes.</param>
-internal readonly record struct Hmp1Frame(Hmp1FrameType Type, ReadOnlyMemory<byte> Payload);
-
-/// <summary>
-/// JSON payload for the <see cref="Hmp1FrameType.Hello"/> frame.
-/// </summary>
-internal sealed class HelloPayload
-{
-    /// <summary>Protocol version. Always <see cref="Hmp1Protocol.Version"/>.</summary>
-    public int Version { get; set; }
-
-    /// <summary>Terminal width in columns.</summary>
-    public int Width { get; set; }
-
-    /// <summary>Terminal height in rows.</summary>
-    public int Height { get; set; }
-
-    /// <summary>
-    /// Opaque peer ID assigned to the receiving client by the producer.
-    /// Stable for the lifetime of the connection. Clients must treat the
-    /// string as opaque (no parsing, no format assumptions) — see the
-    /// "Peer IDs" section of <c>docs/muxer-protocol.md</c> for the full
-    /// opacity contract.
-    /// </summary>
-    public string? PeerId { get; set; }
-
-    /// <summary>
-    /// The peer ID of the current primary, or null when no peer is currently
-    /// primary (initial state, or after the previous primary disconnected).
-    /// </summary>
-    public string? PrimaryPeerId { get; set; }
-
-    /// <summary>
-    /// Roster of other peers currently connected to the same producer
-    /// (excluding the receiving client).
-    /// </summary>
-    public List<HelloPeerInfo>? Peers { get; set; }
-}
-
-/// <summary>
-/// Roster entry inside <see cref="HelloPayload.Peers"/> and
-/// <see cref="Hmp1FrameType.PeerJoin"/> payloads.
-/// </summary>
-internal sealed class HelloPeerInfo
-{
-    /// <summary>Peer ID.</summary>
-    public string PeerId { get; set; } = string.Empty;
-
-    /// <summary>Optional human-readable label.</summary>
-    public string? DisplayName { get; set; }
-}
-
-/// <summary>
-/// JSON payload for the <see cref="Hmp1FrameType.ClientHello"/> frame
-/// (client → server, sent immediately on connect).
-/// </summary>
-internal sealed class ClientHelloPayload
-{
-    /// <summary>
-    /// Optional human-readable label that the producer surfaces in its peer
-    /// roster (e.g. "dashboard", "aspire-cli").
-    /// </summary>
-    public string? DisplayName { get; set; }
-
-    /// <summary>
-    /// Optional default-role hint:
-    /// <c>"secondary"</c> requests that the client not be auto-promoted on first
-    /// attach; <c>"primary"</c> is the inverse hint. Currently the producer
-    /// never auto-promotes, so this is preserved only as a UX hint reachable
-    /// to the server-side consumer code. The strongly-typed
-    /// <see cref="Hex1b.Hmp1Role"/> enum is the recommended surface; this
-    /// string is what's serialised on the wire.
-    /// </summary>
-    public string? DefaultRole { get; set; }
-}
-
-/// <summary>
-/// JSON payload for the <see cref="Hmp1FrameType.RequestPrimary"/> frame.
-/// </summary>
-internal sealed class RequestPrimaryPayload
-{
-    /// <summary>Requested PTY width in columns.</summary>
-    public int Cols { get; set; }
-
-    /// <summary>Requested PTY height in rows.</summary>
-    public int Rows { get; set; }
-}
-
-/// <summary>
-/// JSON payload for the <see cref="Hmp1FrameType.RoleChange"/> frame.
-/// </summary>
-internal sealed class RoleChangePayload
-{
-    /// <summary>The peer ID of the new primary, or null when no peer is primary.</summary>
-    public string? PrimaryPeerId { get; set; }
-
-    /// <summary>Current PTY width.</summary>
-    public int Width { get; set; }
-
-    /// <summary>Current PTY height.</summary>
-    public int Height { get; set; }
-
-    /// <summary>
-    /// Reason for the change (free-form, currently one of <c>"RequestPrimary"</c>
-    /// or <c>"PrimaryDisconnected"</c>).
-    /// </summary>
-    public string Reason { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// JSON payload for the <see cref="Hmp1FrameType.PeerJoin"/> frame.
-/// </summary>
-internal sealed class PeerJoinPayload
-{
-    /// <summary>Peer ID of the joining client.</summary>
-    public string PeerId { get; set; } = string.Empty;
-
-    /// <summary>Optional human-readable label of the joining client.</summary>
-    public string? DisplayName { get; set; }
-}
-
-/// <summary>
-/// JSON payload for the <see cref="Hmp1FrameType.PeerLeave"/> frame.
-/// </summary>
-internal sealed class PeerLeavePayload
-{
-    /// <summary>Peer ID of the leaving client.</summary>
-    public string PeerId { get; set; } = string.Empty;
 }

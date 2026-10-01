@@ -7,7 +7,7 @@ async page => {
   let instance;
   let stage = "outer shell";
   test.on("pageerror", error => errors.push(error.message));
-  const canvas = test.locator('.terminal-window[data-view="1"] canvas');
+  const canvas = test.locator('.terminal-window[data-view="1"] canvas:not(.scrollbar-canvas)');
   const clickText = async text => {
     const position = await test.evaluate(text => {
       const lines = webTerminalViews.get("1").terminal.screenText.split("\n");

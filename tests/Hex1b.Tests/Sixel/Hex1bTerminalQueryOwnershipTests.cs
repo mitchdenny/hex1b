@@ -12,13 +12,13 @@ namespace Hex1b.Tests.Sixel;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="Hex1bTerminal"/> only stays silent for presentations whose
+/// For locally hosted workloads, <see cref="Hex1bTerminal"/> stays silent for presentations whose
 /// <see cref="IHex1bTerminalPresentationAdapter.AnswersProtocolQueriesDirectly"/> is
 /// <see langword="true"/> (raw upstream passthrough, where a real terminal already
 /// answers these queries itself); every other presentation — headless, WebSocket, or
 /// a hand-written fake — gets a synthesized reply from <see cref="Hex1bTerminal"/>'s
-/// own authoritative model, so exactly one answerer always exists and duplicate
-/// responses are impossible.
+/// own authoritative model. Workloads with an upstream query owner suppress all
+/// locally generated replies, independently of the presentation.
 /// </para>
 /// <para>
 /// These tests intentionally build presentation fakes with hand-picked
@@ -47,11 +47,13 @@ public class Hex1bTerminalQueryOwnershipTests
     /// assertions, mirroring how a real workload would receive a synthesized
     /// reply as ordinary input.
     /// </summary>
-    private sealed class QueuedOutputWorkloadAdapter : IHex1bTerminalWorkloadAdapter
+    private class QueuedOutputWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     {
         private readonly Channel<ReadOnlyMemory<byte>> _output = Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
         private readonly List<byte> _written = [];
         private TaskCompletionSource _writtenChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private bool _returnedOutput;
+        public TaskCompletionSource OutputProcessed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public event Action? Disconnected
         {
@@ -90,10 +92,14 @@ public class Hex1bTerminalQueryOwnershipTests
 
         public async ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
         {
+            if (_returnedOutput) OutputProcessed.TrySetResult();
             while (await _output.Reader.WaitToReadAsync(ct))
             {
                 if (_output.Reader.TryRead(out var item))
+                {
+                    _returnedOutput = true;
                     return item;
+                }
             }
 
             return ReadOnlyMemory<byte>.Empty;
@@ -191,6 +197,71 @@ public class Hex1bTerminalQueryOwnershipTests
         SixelSupport = support,
         SixelCellMetrics = metrics,
     };
+
+    private sealed class UpstreamOwnedWorkloadAdapter : QueuedOutputWorkloadAdapter, IHex1bTerminalWorkloadAdapter
+    {
+        public bool HandlesProtocolQueries => true;
+    }
+
+    [TestMethod]
+    [DataRow(Da1Query, "\x1b[?62c", true)]
+    [DataRow(Csi18Query, "\x1b[8;24;80t", true)]
+    [DataRow(Csi16Query, "\x1b[6;20;10t", true)]
+    [DataRow(Csi14Query, "\x1b[4;480;800t", true)]
+    [DataRow("\x1b[5n", "\x1b[0n", false)]
+    [DataRow("\x1b[6n", "\x1b[1;1R", false)]
+    [DataRow("\x1b_Ga=q,i=7,f=32,s=1,v=1;AAAAAA==\x1b\\", "\x1b_Gi=7;OK\x1b\\", false)]
+    [DataRow("\x1b_Ga=t,i=7,f=32,s=1,v=1;AAAAAA==\x1b\\", "\x1b_Gi=7;OK\x1b\\", false)]
+    [DataRow("\x1b_Ga=p,i=7\x1b\\", "\x1b_Gi=7;ENOENT:Image not found\x1b\\", false)]
+    public async Task ProtocolResponse_UpstreamOwnership_SuppressesOnlyGeneratedReplies(
+        string query, string expected, bool presentationOwnsQuery)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        foreach (var upstreamOwned in new[] { false, true })
+        foreach (var nativePresentation in new[] { false, true })
+        {
+            var workload = upstreamOwned
+                ? new UpstreamOwnedWorkloadAdapter()
+                : new QueuedOutputWorkloadAdapter();
+            Assert.AreEqual(upstreamOwned, ((IHex1bTerminalWorkloadAdapter)workload).HandlesProtocolQueries);
+            var capabilities = new TerminalCapabilities
+            {
+                SupportsKgp = true,
+                SixelCellMetrics = new SixelCellMetrics(10, 20, SixelCellMetricsSource.Direct, SixelCellMetricsReliability.Authoritative),
+            };
+            await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+            {
+                WorkloadAdapter = workload,
+                PresentationAdapter = nativePresentation
+                    ? new NativeFakePresentationAdapter(capabilities)
+                    : new FakePresentationAdapter(capabilities),
+                Width = 80,
+                Height = 24,
+            });
+
+            workload.EnqueueOutput(query);
+            await workload.OutputProcessed.Task.WaitAsync(timeout.Token);
+            // This input write also drains any earlier queued protocol write.
+            await terminal.SendInputAsync("keyboard"u8.ToArray(), timeout.Token);
+
+            var suppress = upstreamOwned || (nativePresentation && presentationOwnsQuery);
+            Assert.AreEqual((suppress ? "" : expected) + "keyboard",
+                Encoding.UTF8.GetString(workload.WrittenBytes));
+        }
+    }
+
+    [TestMethod]
+    public async Task HandlesProtocolQueries_Hmp1BeforeConnection_IsTrue()
+    {
+        await using var workload = new Hmp1WorkloadAdapter(new Hmp1ClientOptions
+        {
+            StreamFactory = _ => throw new InvalidOperationException("No connection is required."),
+        });
+
+        Assert.IsTrue(workload.HandlesProtocolQueries);
+        Assert.IsFalse(workload.IsPrimary);
+    }
 
     // DA1 -----------------------------------------------------------------------
 

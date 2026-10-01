@@ -4,8 +4,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { writeSampleRepository } from "./sample-repository.mjs";
-import { parseRecording } from "../../web-terminal/dist/recording.js";
-import { decodeFrame } from "../../web-terminal/dist/protocol.js";
+import { parseRecording } from "../../web-terminal/.build/recording.js";
+import { decodeFrame } from "../../web-terminal/.build/protocol.js";
 
 const execute = promisify(execFile);
 const site = fileURLToPath(new URL("../", import.meta.url));

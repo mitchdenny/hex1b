@@ -41,6 +41,9 @@ public sealed class NoReflowStrategy : ITerminalReflowProvider
             {
                 Array.Fill(row, TerminalCell.Empty);
             }
+            if (newWidth > 0 && !string.IsNullOrEmpty(row[^1].Character) &&
+                DisplayWidth.GetGraphemeWidth(row[^1].Character) > 1)
+                row[^1] = TerminalCell.Empty;
             screenRows[y] = row;
         }
 

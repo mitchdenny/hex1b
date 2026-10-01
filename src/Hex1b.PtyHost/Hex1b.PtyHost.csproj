@@ -40,5 +40,12 @@
     <Compile Include="..\Hex1b\WindowsPtySocketPaths.cs" Link="WindowsPtySocketPaths.cs" />
     <Compile Include="..\Hex1b\WindowsPtyHandle.cs" Link="WindowsPtyHandle.cs" />
     <Compile Include="..\Hex1b\WindowsPtyShimProtocol.cs" Link="WindowsPtyShimProtocol.cs" />
+    <Compile Include="..\Hex1b\WindowsPtyShimFrameType.cs" Link="WindowsPtyShimFrameType.cs" />
+    <Compile Include="..\Hex1b\WindowsPtyShimLaunchRequest.cs" Link="WindowsPtyShimLaunchRequest.cs" />
+    <Compile Include="..\Hex1b\WindowsPtyShimStartedResponse.cs" Link="WindowsPtyShimStartedResponse.cs" />
+    <Compile Include="..\Hex1b\WindowsPtyShimResizeRequest.cs" Link="WindowsPtyShimResizeRequest.cs" />
+    <Compile Include="..\Hex1b\WindowsPtyShimExitNotification.cs" Link="WindowsPtyShimExitNotification.cs" />
+    <Compile Include="..\Hex1b\WindowsPtyShimErrorResponse.cs" Link="WindowsPtyShimErrorResponse.cs" />
+    <Compile Include="..\Hex1b\WindowsPtyShimJsonContext.cs" Link="WindowsPtyShimJsonContext.cs" />
   </ItemGroup>
 </Project>

@@ -6,23 +6,6 @@ using Hex1b.Theming;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// Specifies how the backdrop is visually rendered.
-/// </summary>
-public enum BackdropStyle
-{
-    /// <summary>
-    /// Transparent backdrop - base layer content shows through unchanged.
-    /// Clicks are still captured.
-    /// </summary>
-    Transparent,
-    
-    /// <summary>
-    /// Solid color backdrop - completely covers the base layer.
-    /// </summary>
-    Opaque
-}
-
-/// <summary>
 /// A widget that fills its available space and intercepts all input.
 /// Used as a modal backdrop to prevent interaction with layers below.
 /// Can optionally display a background color (for dimming effects) and

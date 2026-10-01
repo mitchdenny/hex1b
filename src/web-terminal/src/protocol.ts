@@ -1,5 +1,7 @@
 import type { FrameMetadata, HistoryMetadata, SelectionText, TerminalCell, TerminalFrame } from "./wire-types.js";
 import { isRecord } from "./validation.js";
+import { validateMarkerId } from "./marker-state.js";
+import { validateColorReference } from "./terminal-palette.js";
 
 // Binary validation is deliberately independent of the GPU and the transport.
 export const LIMITS = Object.freeze({
@@ -7,6 +9,7 @@ export const LIMITS = Object.freeze({
   frameBytes: 96 * 1024 * 1024,
   metadataBytes: 8 * 1024 * 1024,
   titleUnits: 4096,
+  commandMarkParameterUnits: 8192,
   cells: 262144,
   images: 4096,
   placements: 16384,
@@ -57,6 +60,9 @@ export function validateHistory(history: unknown, columns: number, rows: number)
     throw new Error("Invalid history following state");
   }
   integer(history.requestId, "viewport request id");
+  if (history.viewportError !== undefined && history.viewportError !== null &&
+      (typeof history.viewportError !== "string" || history.viewportError.length > 4096))
+    throw new Error("Invalid viewport error");
   array(history.rowIds, "viewport row ids", rows);
   if (history.rowIds.length !== rows || new Set(history.rowIds).size !== rows) throw new Error("Invalid viewport row ids");
   for (const id of history.rowIds) rowId(id, "viewport row id");
@@ -81,6 +87,60 @@ export function validateHistory(history: unknown, columns: number, rows: number)
     integer(history.copy.requestId, "copy request id", 1);
     validateSelectionText(history.copy);
   }
+  if (history.markers !== undefined) {
+    array(history.markers, "history markers", LIMITS.metadataBytes / 48);
+    const ids = new Set<string>();
+    for (const marker of history.markers) {
+      if (!isRecord(marker) || typeof marker.id !== "string") throw new Error("Invalid history marker");
+      validateMarkerId(marker.id);
+      if (ids.has(marker.id)) throw new Error("Duplicate history marker ID");
+      ids.add(marker.id);
+      if (marker.source !== "command" && marker.source !== "custom") throw new Error("Invalid marker source");
+      if (!marker.id.startsWith(`${marker.source}:`)) throw new Error("Marker source disagrees with its ID");
+      if (marker.buffer !== "main" && marker.buffer !== "alternate") throw new Error("Invalid marker buffer");
+      integer(marker.column, "marker column", 0, 1024);
+      if (marker.row !== null) {
+        integer(marker.row, "marker row", 0, totalRows - 1);
+        if (marker.buffer !== history.buffer) throw new Error("Inactive-buffer marker has a resolved row");
+      }
+      if (marker.source === "command") validateCommandMark({ ...marker, rawParameters: null });
+      else if (marker.phase !== undefined && marker.phase !== null) throw new Error("Custom marker has a shell phase");
+    }
+  }
+  if (history.markerPage !== undefined && history.markerPage !== null) {
+    const page = history.markerPage;
+    if (!isRecord(page) || typeof page.revision !== "string" || !page.revision.length || page.revision.length > 64)
+      throw new Error("Invalid marker page revision");
+    const total = integer(page.total, "marker inventory count", 1, Math.floor(LIMITS.metadataBytes / 48));
+    const offset = integer(page.offset, "marker page offset", 0, total - 1);
+    if (!Array.isArray(history.markers) || !history.markers.length || offset + history.markers.length > total)
+      throw new Error("Invalid marker page length");
+  }
+  if (history.markerResult !== undefined && history.markerResult !== null) {
+    const result = history.markerResult;
+    if (!isRecord(result) || typeof result.success !== "boolean") throw new Error("Invalid marker result");
+    integer(result.requestId, "marker request ID", 1);
+    if (result.error !== undefined && result.error !== null &&
+        (typeof result.error !== "string" || result.error.length > 4096)) throw new Error("Invalid marker error");
+    if (result.markerId !== undefined && result.markerId !== null) {
+      if (typeof result.markerId !== "string") throw new Error("Invalid result marker ID");
+      validateMarkerId(result.markerId);
+    }
+    if (result.details !== undefined && result.details !== null) validateCommandMark(result.details);
+  }
+}
+
+function validateCommandMark(commandMark: unknown): void {
+  if (!isRecord(commandMark) || typeof commandMark.phase !== "string" ||
+      !["unknown", "prompt", "commandLine", "executing", "finished"].includes(commandMark.phase))
+    throw new Error("Invalid terminal command mark");
+  if (commandMark.exitCode !== null) {
+    integer(commandMark.exitCode, "terminal command mark exit code", -2147483648, 2147483647);
+    if (commandMark.phase !== "finished") throw new Error("Non-finished terminal command mark has an exit code");
+  }
+  if (commandMark.rawParameters !== null &&
+      (typeof commandMark.rawParameters !== "string" || commandMark.rawParameters.length > LIMITS.commandMarkParameterUnits))
+    throw new Error("Invalid terminal command mark parameters");
 }
 
 function validateSelectionText(selection: Record<string, unknown>): asserts selection is Record<string, unknown> & SelectionText {
@@ -98,6 +158,13 @@ function validateMetadata(metadata: unknown): asserts metadata is FrameMetadata 
   }
   integer(metadata.revision, "revision", 1);
   integer(metadata.baseRevision, "base revision");
+  if (metadata.colorEncoding !== undefined && metadata.colorEncoding !== null &&
+      metadata.colorEncoding !== "indexed-v1") throw new Error("Unsupported color encoding");
+  if (metadata.colorEncodings !== undefined) {
+    array(metadata.colorEncodings, "color encodings", 16);
+    if (metadata.colorEncodings.some(value => typeof value !== "string" || value.length > 64))
+      throw new Error("Invalid color encodings");
+  }
   if (typeof metadata.title !== "string" || metadata.title.length > LIMITS.titleUnits ||
       /[\u0000-\u001f\u007f-\u009f\ud800-\udfff]/u.test(metadata.title)) {
     throw new Error("Invalid terminal title");
@@ -121,6 +188,16 @@ function validateMetadata(metadata: unknown): asserts metadata is FrameMetadata 
     integer(shell.lastExitCode, "terminal shell exit code", -2147483648, 2147483647);
   if (shell.phase === "unknown" && shell.lastExitCode !== null)
     throw new Error("Unknown terminal shell phase has an exit code");
+  const workingDirectory = metadata.workingDirectory;
+  if (!isRecord(workingDirectory)) throw new Error("Invalid terminal working directory");
+  const wdFields = [workingDirectory.uri, workingDirectory.host, workingDirectory.path];
+  if (wdFields.every(field => field === null)) {
+    // No directory reported yet.
+  } else if (wdFields.some(field => typeof field !== "string" || field.length > LIMITS.metadataBytes)) {
+    throw new Error("Invalid terminal working directory");
+  }
+  const commandMark = metadata.commandMark;
+  if (commandMark !== null) validateCommandMark(commandMark);
   const columns = integer(metadata.columns, "columns", 1, 1024);
   const rows = integer(metadata.rows, "rows", 1, 512);
   if (typeof metadata.mouseTracking !== "number" || ![0, 9, 1000, 1002, 1003].includes(metadata.mouseTracking)) {
@@ -246,6 +323,11 @@ export function decodeFrame(buffer: unknown): TerminalFrame {
     const foreground = u32();
     const background = u32();
     const underlineColor = u32();
+    if (metadata.colorEncoding === "indexed-v1") {
+      validateColorReference(foreground);
+      validateColorReference(background);
+      validateColorReference(underlineColor, true);
+    }
     const attributes = view.getUint16(offset, true);
     const width = view.getUint8(offset + 2);
     const underlineStyle = view.getUint8(offset + 3);

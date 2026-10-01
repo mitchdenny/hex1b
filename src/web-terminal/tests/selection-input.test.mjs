@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cellPoint, WheelAccumulator, SelectionGesture } from "../dist/selection-input.js";
-import { captureMouse } from "../dist/mouse-input.js";
+import { cellPoint, WheelAccumulator, SelectionGesture } from "../.build/selection-input.js";
+import { captureMouse } from "../.build/mouse-input.js";
 
 const point = { x: 4, y: 3 };
 const local = { tracking: 0, historical: false, readOnly: false };
@@ -174,7 +174,7 @@ test("Ctrl/Cmd hyperlink clicks open on release without application or selection
         assert.deepEqual(opened, ["https://example.com/"]);
         assert.deepEqual(commands, []);
       }, tracking, undefined, {
-        hyperlink: () => "https://example.com/", openHyperlink: uri => opened.push(uri)
+        hyperlink: () => ({ id: "link", target: "https://example.com/" }), openHyperlink: link => opened.push(link.target)
       });
     }
   }
@@ -196,7 +196,7 @@ test("Plain clicks, shift selection, and explicit routing retain ownership over 
       emit("pointerup", { buttons: 0 });
       assert.deepEqual(commands.map(command => command.type), expected);
     }, tracking, resolve, {
-      hyperlink: () => "https://example.com/", openHyperlink: () => assert.fail("Unexpected hyperlink activation")
+      hyperlink: () => ({ id: "link", target: "https://example.com/" }), openHyperlink: () => assert.fail("Unexpected hyperlink activation")
     });
   }
 });
@@ -218,7 +218,7 @@ test("Dragging, cancellation, scrolling, stale targets, and disposal never activ
       cancel(harness);
       harness.emit("pointerup", { buttons: 0 });
     }, 1003, undefined, {
-      hyperlink: () => "https://example.com/", openHyperlink: () => assert.fail("Canceled hyperlink activated")
+      hyperlink: () => ({ id: "link", target: "https://example.com/" }), openHyperlink: () => assert.fail("Canceled hyperlink activated")
     });
   }
   let uri = "https://example.com/old";
@@ -229,7 +229,7 @@ test("Dragging, cancellation, scrolling, stale targets, and disposal never activ
     uri = "https://example.com/old";
     emit("pointerup", { buttons: 0 });
   }, 1003, undefined, {
-    hyperlink: () => uri, openHyperlink: () => assert.fail("Changed hyperlink activated")
+    hyperlink: () => ({ id: uri, target: uri }), openHyperlink: () => assert.fail("Changed hyperlink activated")
   });
 });
 
@@ -252,7 +252,54 @@ test("Hyperlink hover hints track modifiers, frame changes, and pointer departur
     emit("pointerleave");
     assert.equal(canvas.title, "");
     assert.equal(canvas.style.cursor, "");
-  }, 0, undefined, { hyperlink: () => uri });
+  }, 0, undefined, { hyperlink: () => ({ id: uri, target: uri }) });
+});
+
+test("Plain-click links activate on release with pointer context, without mouse reports", () => {
+  const activations = [];
+  mouseHarness(({ emit, commands, canvas }) => {
+    emit("pointermove", { buttons: 0 });
+    assert.equal(canvas.style.cursor, "pointer");
+    assert.match(canvas.title, /Click to activate/);
+    emit("pointerdown");
+    assert.equal(activations.length, 0);
+    emit("pointerup", { buttons: 0 });
+    assert.equal(activations.length, 1);
+    assert.equal(activations[0].link.target, "/remote/file");
+    assert.equal(activations[0].input.type, "pointer");
+    assert.equal(activations[0].input.point.x, 2);
+    assert.equal(activations[0].input.point.y, 2);
+    assert.deepEqual(commands, []);
+  }, 1003, undefined, {
+    hyperlink: () => ({ id: "file", target: "/remote/file", activation: "click" }),
+    openHyperlink: (link, input) => activations.push({ link, input })
+  });
+});
+
+test("Identical targets with changed match identity cannot activate a held gesture", () => {
+  let id = "first";
+  mouseHarness(({ emit, mouse }) => {
+    emit("pointerdown", { ctrlKey: true });
+    id = "second";
+    mouse.refresh();
+    emit("pointerup", { buttons: 0 });
+  }, 0, undefined, {
+    hyperlink: () => ({ id, target: "https://example.com/" }),
+    openHyperlink: () => assert.fail("A replaced link must not activate")
+  });
+});
+
+test("Hover callbacks are indexed transitions, not repeated work on every pointer move", () => {
+  const hovered = [];
+  mouseHarness(({ emit }) => {
+    emit("pointermove", { buttons: 0 });
+    emit("pointermove", { buttons: 0, clientX: 26 });
+    emit("pointerleave");
+    assert.deepEqual(hovered, ["one", null]);
+  }, 0, undefined, {
+    hyperlink: () => ({ id: "one", target: "mailto:a@b.test" }),
+    hoverHyperlink: link => hovered.push(link?.id ?? null)
+  });
 });
 
 test("Browser-routed pointer gestures preserve the native context menu even under capture", () => {

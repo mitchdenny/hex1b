@@ -68,7 +68,7 @@ async page => {
       headers: { Origin: origin }, data: { paused: true }
     });
     const original = await authoritative(instanceId);
-    const secondaryHandle = await second.locator(".resize-handle").boundingBox();
+    const secondaryHandle = await second.locator('.resize-handle[data-edge="se"]').boundingBox();
     const resizeBefore = sent.filter(command => command.type === "resize").length;
     await test.mouse.move(secondaryHandle.x + 5, secondaryHandle.y + 5);
     await test.mouse.down();
@@ -93,7 +93,7 @@ async page => {
     const thumbnailSizes = [];
     for (const [width, height] of [[600, 180], [240, 180], [240, 500], [restoredSize.width, restoredSize.height]]) {
       const box = await second.boundingBox();
-      const handle = await second.locator(".resize-handle").boundingBox();
+      const handle = await second.locator('.resize-handle[data-edge="se"]').boundingBox();
       await test.mouse.move(handle.x + 5, handle.y + 5);
       await test.mouse.down();
       await test.mouse.move(handle.x + 5 + width - box.width, handle.y + 5 + height - box.height, { steps: 8 });
@@ -118,7 +118,7 @@ async page => {
     check(sent.filter(command => command.type === "resize").length === resizeBefore, "Shrinking a thumbnail emitted resize");
 
     await first.locator(".view-title").click();
-    const primaryHandle = await first.locator(".resize-handle").boundingBox();
+    const primaryHandle = await first.locator('.resize-handle[data-edge="se"]').boundingBox();
     await test.mouse.move(primaryHandle.x + 5, primaryHandle.y + 5);
     await test.mouse.down();
     await test.mouse.move(primaryHandle.x - 195, primaryHandle.y - 95, { steps: 10 });
@@ -126,8 +126,8 @@ async page => {
     await test.waitForFunction(() => {
       const [a, b] = [...webTerminalViews.values()];
       const box = a.element.querySelector(".terminal-mount").getBoundingClientRect();
-      const columns = Math.max(20, Math.min(300, Math.floor(box.width / 10)));
-      const rows = Math.max(10, Math.min(100, Math.floor(box.height / 20)));
+      const columns = Math.max(1, Math.min(300, Math.floor(box.width / 10)));
+      const rows = Math.max(1, Math.min(100, Math.floor(box.height / 20)));
       return a.terminal.geometry.columns === columns && a.terminal.geometry.rows === rows &&
         b.terminal.geometry.columns === columns && b.terminal.geometry.rows === rows &&
         a.stats.columns === columns && a.stats.rows === rows && b.stats.columns === columns && b.stats.rows === rows;
@@ -139,6 +139,7 @@ async page => {
     check(sent.filter(command => command.type === "resize").length === noEcho, `Geometry update caused resize loop: ${JSON.stringify(sent.filter(command => command.type === "resize"))}`);
 
     // Explicit takeover changes the grid to the new primary's host box.
+    await second.focus();
     await second.locator(".view-title").click();
     await second.locator(".take-primary").click();
     await test.waitForFunction(() => {

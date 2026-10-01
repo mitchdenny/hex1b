@@ -11,6 +11,114 @@ namespace Hex1b.Tests;
 public class Hwt1PresentationAdapterTests
 {
     [TestMethod]
+    [DataRow(1, 1)]
+    [DataRow(1, 24)]
+    [DataRow(80, 1)]
+    [DataRow(19, 9)]
+    public async Task Constructor_SmallPositiveGrid_MatchesTerminalDimensions(int columns, int rows)
+    {
+        await using var presentation = new Hwt1PresentationAdapter(columns, rows);
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(new RecordingWorkload())
+            .WithPresentation(presentation)
+            .WithDimensions(columns, rows)
+            .Build();
+
+        using var metadata = ReadMetadata(await presentation.ReadFrameAsync(TestContext.Current.CancellationToken));
+        Assert.AreEqual(columns, terminal.Width);
+        Assert.AreEqual(rows, terminal.Height);
+        Assert.AreEqual(columns, metadata.RootElement.GetProperty("columns").GetInt32());
+        Assert.AreEqual(rows, metadata.RootElement.GetProperty("rows").GetInt32());
+    }
+
+    [TestMethod]
+    [DataRow(0, 1)]
+    [DataRow(1, 0)]
+    [DataRow(-1, 1)]
+    [DataRow(1, -1)]
+    [DataRow(301, 1)]
+    [DataRow(1, 101)]
+    public void Constructor_InvalidDimensions_Rejects(int columns, int rows)
+    {
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new Hwt1PresentationAdapter(columns, rows));
+    }
+
+    [TestMethod]
+    public async Task ReadFrameAsync_ReplacementAndDeletion_WaitForAckBeforePruningPreviousFrameResources()
+    {
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = CreateTerminal(presentation, new RecordingWorkload());
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            KgpTestHelper.BuildCommand("a=T,f=32,s=1,v=1,i=1,C=1,q=2", [1, 0, 0, 255])));
+        var first = await presentation.ReadFrameAsync();
+        var firstCopy = first.ToArray();
+        using var firstMetadata = ReadMetadata(first);
+        var firstKey = firstMetadata.RootElement.GetProperty("retainedImages")[0].GetString()!;
+        var projection = (Hwt1RenderProjection)typeof(Hwt1PresentationAdapter)
+            .GetField("_projection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(presentation)!;
+        var images = (System.Collections.IDictionary)typeof(Hwt1RenderProjection)
+            .GetField("_images", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(projection)!;
+        var next = presentation.ReadFrameAsync().AsTask();
+        for (var generation = 2; generation <= 65; generation++)
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand(
+                "a=T,f=32,s=1,v=1,i=1,C=1,q=2", [(byte)generation, 0, 0, 255])));
+
+        Assert.IsFalse(next.IsCompleted);
+        Assert.AreEqual(1, projection.RetainedImageCount);
+        Assert.IsTrue(images.Contains(firstKey), "The outstanding frame still owns its resource until acknowledgement.");
+        await presentation.HandleMessageAsync("""{"type":"ack","revision":1}"""u8.ToArray());
+        var latest = await next.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        var latestCopy = latest.ToArray();
+        using var latestMetadata = ReadMetadata(latest);
+        Assert.AreEqual(1, latestMetadata.RootElement.GetProperty("retainedImages").GetArrayLength());
+        Assert.IsFalse(images.Contains(firstKey));
+        TestSeq.AreEqual(new byte[] { 65, 0, 0, 255 }, latest.Span[^4..].ToArray());
+
+        var deletion = presentation.ReadFrameAsync().AsTask();
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(KgpTestHelper.BuildCommand("a=d,d=I,i=1,q=2")));
+        Assert.IsFalse(deletion.IsCompleted);
+        Assert.AreEqual(1, projection.RetainedImageCount, "Deletion must not prune an outstanding frame before its ACK.");
+        await presentation.HandleMessageAsync("""{"type":"ack","revision":2}"""u8.ToArray());
+        using var deleted = ReadMetadata(await deletion.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        Assert.AreEqual(0, deleted.RootElement.GetProperty("retainedImages").GetArrayLength());
+        Assert.AreEqual(0L, projection.RetainedImageBytes);
+        await presentation.DisposeAsync();
+        TestSeq.AreEqual(firstCopy, first.ToArray());
+        TestSeq.AreEqual(latestCopy, latest.ToArray());
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_RetainedAdapter_ReleasesProjectedImagesButPreservesReturnedFrame()
+    {
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = CreateTerminal(presentation, new RecordingWorkload());
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b_Ga=T,f=32,s=1,v=1,i=1,p=1,C=1,q=2;/wAA/w==\x1b\\"));
+        var frame = await presentation.ReadFrameAsync();
+        var original = frame.ToArray();
+        var projection = (Hwt1RenderProjection)typeof(Hwt1PresentationAdapter)
+            .GetField("_projection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(presentation)!;
+        Assert.AreEqual(1, projection.RetainedImageCount);
+        Assert.AreEqual(4L, projection.RetainedImageBytes);
+        var pending = presentation.ReadFrameAsync().AsTask();
+
+        await presentation.DisposeAsync();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => pending);
+        Assert.AreEqual(0, projection.RetainedImageCount);
+        Assert.AreEqual(0L, projection.RetainedImageBytes);
+        foreach (var name in new[] { "_terminal", "_muxer", "_session", "Resized", "Disconnected" })
+            Assert.IsNull(typeof(Hwt1PresentationAdapter)
+                .GetField(name, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .GetValue(presentation), name);
+        TestSeq.AreEqual(original, frame.ToArray());
+        GC.KeepAlive(presentation);
+    }
+
+    [TestMethod]
     [DataRow(false, false)]
     [DataRow(true, false)]
     [DataRow(false, true)]
@@ -261,7 +369,16 @@ public class Hwt1PresentationAdapterTests
     }
 
     [TestMethod]
-    public async Task HandleMessageAsync_Resize_WaitsForAckAndEstablishesNewBaseline()
+    [DataRow("resize", 40, 12)]
+    [DataRow("resize", 1, 1)]
+    [DataRow("resize", 1, 24)]
+    [DataRow("resize", 80, 1)]
+    [DataRow("resize", 19, 9)]
+    [DataRow("requestPrimary", 1, 1)]
+    [DataRow("requestPrimary", 1, 24)]
+    [DataRow("requestPrimary", 80, 1)]
+    [DataRow("requestPrimary", 19, 9)]
+    public async Task HandleMessageAsync_Resize_WaitsForAckAndEstablishesNewBaseline(string type, int columns, int rows)
     {
         var workload = new RecordingWorkload();
         await using var presentation = new Hwt1PresentationAdapter(20, 10);
@@ -269,10 +386,10 @@ public class Hwt1PresentationAdapterTests
         await presentation.ReadFrameAsync();
         var next = presentation.ReadFrameAsync().AsTask();
 
-        await presentation.HandleMessageAsync("""{"type":"resize","columns":40,"rows":12}"""u8.ToArray());
-        Assert.AreEqual(40, terminal.Width);
-        Assert.AreEqual(12, terminal.Height);
-        Assert.AreEqual((40, 12), workload.LastSize);
+        await presentation.HandleMessageAsync(JsonSerializer.SerializeToUtf8Bytes(new { type, columns, rows }));
+        Assert.AreEqual(columns, terminal.Width);
+        Assert.AreEqual(rows, terminal.Height);
+        Assert.AreEqual((columns, rows), workload.LastSize);
         Assert.IsFalse(next.IsCompleted);
         await presentation.HandleMessageAsync("""{"type":"ack","revision":1}"""u8.ToArray());
 
@@ -280,9 +397,9 @@ public class Hwt1PresentationAdapterTests
         using var metadata = ReadMetadata(bytes);
         Assert.IsTrue(metadata.RootElement.GetProperty("full").GetBoolean());
         Assert.AreEqual(0u, metadata.RootElement.GetProperty("baseRevision").GetUInt32());
-        Assert.AreEqual(40, metadata.RootElement.GetProperty("columns").GetInt32());
-        Assert.AreEqual(12, metadata.RootElement.GetProperty("rows").GetInt32());
-        Assert.AreEqual(480, ReadCellCount(bytes));
+        Assert.AreEqual(columns, metadata.RootElement.GetProperty("columns").GetInt32());
+        Assert.AreEqual(rows, metadata.RootElement.GetProperty("rows").GetInt32());
+        Assert.AreEqual(columns * rows, ReadCellCount(bytes));
     }
 
     [TestMethod]
@@ -402,7 +519,14 @@ public class Hwt1PresentationAdapterTests
     [DataRow("""{"type":"rate","rate":60,"batch":100}""")]
     [DataRow("""{"type":"resize","columns":301,"rows":10}""")]
     [DataRow("""{"type":"resize","columns":20,"rows":101}""")]
-    [DataRow("""{"type":"requestPrimary","columns":19,"rows":10}""")]
+    [DataRow("""{"type":"resize","columns":0,"rows":10}""")]
+    [DataRow("""{"type":"resize","columns":20,"rows":0}""")]
+    [DataRow("""{"type":"resize","columns":-1,"rows":10}""")]
+    [DataRow("""{"type":"resize","columns":20,"rows":-1}""")]
+    [DataRow("""{"type":"requestPrimary","columns":0,"rows":10}""")]
+    [DataRow("""{"type":"requestPrimary","columns":20,"rows":0}""")]
+    [DataRow("""{"type":"requestPrimary","columns":-1,"rows":10}""")]
+    [DataRow("""{"type":"requestPrimary","columns":20,"rows":-1}""")]
     [DataRow("""{"type":"requestPrimary","columns":20,"rows":101}""")]
     [DataRow("""{"type":"ack","revision":1}""")]
     public async Task HandleMessageAsync_InvalidCommand_RejectsWithoutChangingDimensions(string json)

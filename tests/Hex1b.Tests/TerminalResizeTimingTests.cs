@@ -106,6 +106,8 @@ public class TerminalResizeTimingTests
             
             // Then arrange with the final bounds
             node.Arrange(new Rect(0, 0, 148, 36));
+
+            await WaitForTerminalContentAsync(handle, GetStartupTimeout(), TestContext.Current.CancellationToken);
             
             // Assert
             Assert.IsTrue(resizeCount > 0, "Resize event should have fired");
@@ -203,6 +205,7 @@ public class TerminalResizeTimingTests
         {
             await invalidateSignal.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
             await WaitForTerminalStateAsync(handle, TerminalState.Running, GetStartupTimeout(), TestContext.Current.CancellationToken);
+            await WaitForTerminalContentAsync(handle, GetStartupTimeout(), TestContext.Current.CancellationToken);
             
             // Assert
             Assert.IsTrue(invalidateCalled, "Invalidate callback should have been called when output arrived");

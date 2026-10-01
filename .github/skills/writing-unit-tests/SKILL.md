@@ -535,6 +535,46 @@ Not every widget needs every combination, but consider which dimensions are rele
 
 ## Low-Level API Testing (Isolation)
 
+### Output-Pump Allocation Regressions
+
+Measure `GC.GetAllocatedBytesForCurrentThread()` around a synchronous application
+region, not across awaits or for the whole process. A workload filter returning
+`ValueTask.CompletedTask` can start the measurement after parsing; the terminal's
+`PresentationInvalidated` callback can finish it. Assert both callbacks used the
+same thread. Use a large batch of allocation-free tokens (such as SGR resets)
+and a byte budget that excludes per-token bookkeeping but allows fixed overhead.
+Keep parsing and HWT frame generation outside the measured region, then separately
+verify frame delivery and batch accounting. See `Hwt1ImpactCollectionTests` for
+raw, pre-tokenized, and HMP StateSync coverage. Confirm the guard fails when the
+optimization is disabled; behavior-only assertions do not prove allocation removal.
+
+### Keyboard Wire Conformance
+
+Use literal expected bytes independent of the production key/text mapper. For
+example, Alt+Shift+E is `1B45`, while Ctrl+Alt+E is `1B05` in Hex1b's legacy
+automation profile. Exercise the public automator and sequence builder against a
+recording workload, asserting immediately after awaited sends rather than sleeping.
+See `TerminalKeyboardMatrixTests` for the key/modifier/cursor-mode/keypad-mode
+matrix and completeness checks that fail when an enum grows. Include modifier
+reset, overlap, ordering, and replay after mode changes; constructing a sequence
+must not freeze its wire encoding. Keep physical layout, AltGr/IME, and negotiated
+keyboard protocols distinct from this logical-key encoding contract.
+
+### Native Windows Console Probes
+
+Run native console tests in a child process under `WindowsProxyPtyHandle`, not
+against the test runner's own console. `WindowsConsoleProbeTests` launches the
+already-built test executable with an exact `--filter` and a child-only
+environment marker; its guarded child test constructs the real console driver.
+The parent acts as the terminal, waits for an explicit probe-start marker before
+replying, and checks a result written through the driver. This exercises ConPTY and
+`ReadConsoleInputW` without runtime compilation or shared-console mutation.
+Do not synchronize on the outgoing KGP query: some ConPTY hosts consume APC
+queries instead of forwarding them, even though input can still be tested.
+Keep the existing test-host packaging unchanged rather than changing the host
+for unrelated PTY tests to satisfy this fixture. Use bounded
+cancellation and dispose the PTY to terminate children on assertion failures.
+
 For APIs that are dependencies of `Hex1bApp` (like `Surface`), test in isolation:
 
 ```csharp

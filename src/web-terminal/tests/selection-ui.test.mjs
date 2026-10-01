@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { SelectionUI, sameSelectionUIState, selectionRectangles } from "../dist/selection-ui.js";
-import { WebTerminal } from "../dist/web-terminal.js";
+import { SelectionUI, sameSelectionUIState, selectionRectangles } from "../.build/selection-ui.js";
+import { WebTerminal } from "../.build/web-terminal.js";
 
 function snapshot() {
   return {
@@ -146,8 +146,8 @@ test("Host UI errors are surfaced without silently showing a successful default 
   await Promise.resolve();
   assert.equal(button.hidden, true);
   assert.deepEqual(errors, ["UI failed"]);
-  assert.throws(() => new WebTerminal({ onSelectionUI: async () => {} }), /synchronous/);
-  assert.throws(() => new WebTerminal({ onSelectionUI: false }), /synchronous/);
+  assert.throws(() => new WebTerminal({ url: "/ws", onSelectionUI: async () => {} }), /synchronous/);
+  assert.throws(() => new WebTerminal({ url: "/ws", onSelectionUI: false }), /synchronous/);
 });
 
 test("Default controls reflect unavailable, pending, invalidated, disconnected and offscreen read-only selections", async () => {

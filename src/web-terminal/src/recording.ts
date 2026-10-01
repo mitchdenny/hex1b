@@ -28,6 +28,7 @@ export function parseRecording(text: string): Recording {
   let revision = 0;
   let columns = 0;
   let rows = 0;
+  let colorEncoding: "indexed-v1" | null = null;
   let retained = new Set<string>();
   const frames = value.frames.map((entry: unknown, index): RecordingFrame => {
     if (!isRecord(entry) || typeof entry.timeMs !== "number" || !Number.isFinite(entry.timeMs) ||
@@ -43,7 +44,8 @@ export function parseRecording(text: string): Recording {
     if (index === 0 && !metadata.full)
       throw new Error("Recording must start with a full HWT1 frame");
     if (!metadata.full && (metadata.baseRevision !== revision || metadata.revision <= revision ||
-        metadata.columns !== columns || metadata.rows !== rows))
+        metadata.columns !== columns || metadata.rows !== rows ||
+        (metadata.colorEncoding ?? null) !== colorEncoding))
       throw new Error(`Broken recording delta chain at frame ${index}`);
     if (metadata.full) retained.clear();
     for (const image of frame.images) retained.add(image.key);
@@ -54,6 +56,7 @@ export function parseRecording(text: string): Recording {
     revision = metadata.revision;
     columns = metadata.columns;
     rows = metadata.rows;
+    colorEncoding = metadata.colorEncoding ?? null;
     previousTime = entry.timeMs;
     return { timeMs: entry.timeMs, data: bytes.buffer };
   });
