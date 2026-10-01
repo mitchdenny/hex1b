@@ -1,0 +1,5270 @@
+[
+  {
+    "id": "api-design-fence-1",
+    "title": "API Design Guidelines — example 1",
+    "page": "guide/api-design.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "api-design-fence-2",
+    "title": "API Design Guidelines — example 2",
+    "page": "guide/api-design.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "api-design-fence-3",
+    "title": "API Design Guidelines — example 3",
+    "page": "guide/api-design.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "api-design-fence-4",
+    "title": "API Design Guidelines — example 4",
+    "page": "guide/api-design.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "api-design-fence-5",
+    "title": "API Design Guidelines — example 5",
+    "page": "guide/api-design.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "api-design-fence-6",
+    "title": "API Design Guidelines — example 6",
+    "page": "guide/api-design.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "api-design-fence-7",
+    "title": "API Design Guidelines — example 7",
+    "page": "guide/api-design.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "api-design-fence-8",
+    "title": "API Design Guidelines — example 8",
+    "page": "guide/api-design.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "building-clis-flow-basic",
+    "title": "Your First Flow App — flowBasic",
+    "page": "guide/building-clis.md",
+    "codeKey": "flowBasicCode",
+    "kind": "CodeBlock",
+    "status": "standalone"
+  },
+  {
+    "id": "building-clis-flow-state",
+    "title": "Your First Flow App — flowState",
+    "page": "guide/building-clis.md",
+    "codeKey": "flowStateCode",
+    "kind": "CodeBlock",
+    "status": "standalone"
+  },
+  {
+    "id": "building-clis-exit-code",
+    "title": "Your First Flow App — exitCode",
+    "page": "guide/building-clis.md",
+    "codeKey": "exitCodeCode",
+    "kind": "CodeBlock",
+    "status": "standalone"
+  },
+  {
+    "id": "building-clis-spinner",
+    "title": "Your First Flow App — spinner",
+    "page": "guide/building-clis.md",
+    "codeKey": "spinnerCode",
+    "kind": "CodeBlock",
+    "status": "standalone"
+  },
+  {
+    "id": "building-clis-fence-1",
+    "title": "Your First Flow App — example 1",
+    "page": "guide/building-clis.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "building-clis-fence-2",
+    "title": "Your First Flow App — example 2",
+    "page": "guide/building-clis.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "building-clis-fence-3",
+    "title": "Your First Flow App — example 3",
+    "page": "guide/building-clis.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "building-clis-fence-4",
+    "title": "Your First Flow App — example 4",
+    "page": "guide/building-clis.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "building-clis-fence-5",
+    "title": "Your First Flow App — example 5",
+    "page": "guide/building-clis.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "building-clis-fence-6",
+    "title": "Your First Flow App — example 6",
+    "page": "guide/building-clis.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "cli-fence-1",
+    "title": "CLI Tool — example 1",
+    "page": "guide/cli.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "composition-fence-1",
+    "title": "Composing Widgets — example 1",
+    "page": "guide/composition.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-2",
+    "title": "Composing Widgets — example 2",
+    "page": "guide/composition.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-3",
+    "title": "Composing Widgets — example 3",
+    "page": "guide/composition.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-4",
+    "title": "Composing Widgets — example 4",
+    "page": "guide/composition.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-5",
+    "title": "Composing Widgets — example 5",
+    "page": "guide/composition.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-6",
+    "title": "Composing Widgets — example 6",
+    "page": "guide/composition.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-7",
+    "title": "Composing Widgets — example 7",
+    "page": "guide/composition.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-8",
+    "title": "Composing Widgets — example 8",
+    "page": "guide/composition.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-9",
+    "title": "Composing Widgets — example 9",
+    "page": "guide/composition.md",
+    "codeKey": "fence-9",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-10",
+    "title": "Composing Widgets — example 10",
+    "page": "guide/composition.md",
+    "codeKey": "fence-10",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-11",
+    "title": "Composing Widgets — example 11",
+    "page": "guide/composition.md",
+    "codeKey": "fence-11",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-12",
+    "title": "Composing Widgets — example 12",
+    "page": "guide/composition.md",
+    "codeKey": "fence-12",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-13",
+    "title": "Composing Widgets — example 13",
+    "page": "guide/composition.md",
+    "codeKey": "fence-13",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-14",
+    "title": "Composing Widgets — example 14",
+    "page": "guide/composition.md",
+    "codeKey": "fence-14",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-15",
+    "title": "Composing Widgets — example 15",
+    "page": "guide/composition.md",
+    "codeKey": "fence-15",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-16",
+    "title": "Composing Widgets — example 16",
+    "page": "guide/composition.md",
+    "codeKey": "fence-16",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "composition-fence-17",
+    "title": "Composing Widgets — example 17",
+    "page": "guide/composition.md",
+    "codeKey": "fence-17",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "getting-started-step1",
+    "title": "Step 1: Hello World",
+    "page": "guide/getting-started.md",
+    "codeKey": "step1Code",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "getting-started-step1"
+  },
+  {
+    "id": "getting-started-step2",
+    "title": "Step 2: Interactive Counter",
+    "page": "guide/getting-started.md",
+    "codeKey": "step2Code",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "getting-started-step2"
+  },
+  {
+    "id": "getting-started-step3",
+    "title": "Step 3: Simple Todo List",
+    "page": "guide/getting-started.md",
+    "codeKey": "step3Code",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "getting-started-step3"
+  },
+  {
+    "id": "getting-started-step4",
+    "title": "Step 4: Todo with Input",
+    "page": "guide/getting-started.md",
+    "codeKey": "step4Code",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "getting-started-step4"
+  },
+  {
+    "id": "getting-started-step5",
+    "title": "Step 5: Complete Todo App",
+    "page": "guide/getting-started.md",
+    "codeKey": "step5Code",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "getting-started-step5"
+  },
+  {
+    "id": "input-fence-1",
+    "title": "Input Handling — example 1",
+    "page": "guide/input.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-2",
+    "title": "Input Handling — example 2",
+    "page": "guide/input.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-3",
+    "title": "Input Handling — example 3",
+    "page": "guide/input.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-4",
+    "title": "Input Handling — example 4",
+    "page": "guide/input.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-5",
+    "title": "Input Handling — example 5",
+    "page": "guide/input.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-6",
+    "title": "Input Handling — example 6",
+    "page": "guide/input.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-7",
+    "title": "Input Handling — example 7",
+    "page": "guide/input.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-8",
+    "title": "Input Handling — example 8",
+    "page": "guide/input.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-9",
+    "title": "Input Handling — example 9",
+    "page": "guide/input.md",
+    "codeKey": "fence-9",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-10",
+    "title": "Input Handling — example 10",
+    "page": "guide/input.md",
+    "codeKey": "fence-10",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-11",
+    "title": "Input Handling — example 11",
+    "page": "guide/input.md",
+    "codeKey": "fence-11",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-12",
+    "title": "Input Handling — example 12",
+    "page": "guide/input.md",
+    "codeKey": "fence-12",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-13",
+    "title": "Input Handling — example 13",
+    "page": "guide/input.md",
+    "codeKey": "fence-13",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-14",
+    "title": "Input Handling — example 14",
+    "page": "guide/input.md",
+    "codeKey": "fence-14",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-15",
+    "title": "Input Handling — example 15",
+    "page": "guide/input.md",
+    "codeKey": "fence-15",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-16",
+    "title": "Input Handling — example 16",
+    "page": "guide/input.md",
+    "codeKey": "fence-16",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-17",
+    "title": "Input Handling — example 17",
+    "page": "guide/input.md",
+    "codeKey": "fence-17",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-18",
+    "title": "Input Handling — example 18",
+    "page": "guide/input.md",
+    "codeKey": "fence-18",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-19",
+    "title": "Input Handling — example 19",
+    "page": "guide/input.md",
+    "codeKey": "fence-19",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-20",
+    "title": "Input Handling — example 20",
+    "page": "guide/input.md",
+    "codeKey": "fence-20",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "input-fence-21",
+    "title": "Input Handling — example 21",
+    "page": "guide/input.md",
+    "codeKey": "fence-21",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "layout",
+    "title": "Layout Demo",
+    "page": "guide/layout.md",
+    "codeKey": "",
+    "kind": "TerminalDemo",
+    "status": "standalone",
+    "example": "layout",
+    "reason": "Extract complete backend widget implementation into a normal console app."
+  },
+  {
+    "id": "layout-fence-1",
+    "title": "Layout System — example 1",
+    "page": "guide/layout.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "layout-fence-2",
+    "title": "Layout System — example 2",
+    "page": "guide/layout.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "layout-fence-3",
+    "title": "Layout System — example 3",
+    "page": "guide/layout.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "layout-fence-4",
+    "title": "Layout System — example 4",
+    "page": "guide/layout.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "layout-fence-5",
+    "title": "Layout System — example 5",
+    "page": "guide/layout.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "layout-fence-6",
+    "title": "Layout System — example 6",
+    "page": "guide/layout.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "layout-fence-7",
+    "title": "Layout System — example 7",
+    "page": "guide/layout.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "layout-fence-8",
+    "title": "Layout System — example 8",
+    "page": "guide/layout.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "layout-fence-9",
+    "title": "Layout System — example 9",
+    "page": "guide/layout.md",
+    "codeKey": "fence-9",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "layout-fence-10",
+    "title": "Layout System — example 10",
+    "page": "guide/layout.md",
+    "codeKey": "fence-10",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "layout-fence-11",
+    "title": "Layout System — example 11",
+    "page": "guide/layout.md",
+    "codeKey": "fence-11",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "performance-fence-1",
+    "title": "Performance & Metrics — example 1",
+    "page": "guide/performance.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "performance-fence-2",
+    "title": "Performance & Metrics — example 2",
+    "page": "guide/performance.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "performance-fence-3",
+    "title": "Performance & Metrics — example 3",
+    "page": "guide/performance.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "performance-fence-4",
+    "title": "Performance & Metrics — example 4",
+    "page": "guide/performance.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "performance-fence-5",
+    "title": "Performance & Metrics — example 5",
+    "page": "guide/performance.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "presentation-adapters-fence-1",
+    "title": "Presentation Adapters — example 1",
+    "page": "guide/presentation-adapters.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "presentation-adapters-fence-2",
+    "title": "Presentation Adapters — example 2",
+    "page": "guide/presentation-adapters.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "presentation-adapters-fence-3",
+    "title": "Presentation Adapters — example 3",
+    "page": "guide/presentation-adapters.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "presentation-adapters-fence-4",
+    "title": "Presentation Adapters — example 4",
+    "page": "guide/presentation-adapters.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "presentation-adapters-fence-5",
+    "title": "Presentation Adapters — example 5",
+    "page": "guide/presentation-adapters.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "presentation-adapters-fence-6",
+    "title": "Presentation Adapters — example 6",
+    "page": "guide/presentation-adapters.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "presentation-adapters-fence-7",
+    "title": "Presentation Adapters — example 7",
+    "page": "guide/presentation-adapters.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "presentation-adapters-fence-8",
+    "title": "Presentation Adapters — example 8",
+    "page": "guide/presentation-adapters.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "presentation-adapters-fence-9",
+    "title": "Presentation Adapters — example 9",
+    "page": "guide/presentation-adapters.md",
+    "codeKey": "fence-9",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "terminal-emulator-fence-1",
+    "title": "Terminal Emulator — example 1",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "terminal-emulator-fence-2",
+    "title": "Terminal Emulator — example 2",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "source-only",
+    "reason": "Headless build command demonstration; requires a buildable working directory and has no visible terminal presentation."
+  },
+  {
+    "id": "terminal-emulator-fence-3",
+    "title": "Terminal Emulator — example 3",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "source-only",
+    "reason": "Docker provisioning example requires Docker and pulls a container image; not an automatically recorded TUI."
+  },
+  {
+    "id": "terminal-emulator-fence-4",
+    "title": "Terminal Emulator — example 4",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "source-only",
+    "reason": "Complete Docker configuration example requires an explicitly configured host-data mount and container working directory."
+  },
+  {
+    "id": "terminal-emulator-fence-5",
+    "title": "Terminal Emulator — example 5",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "source-only",
+    "reason": "Complete Docker build example requires the externally supplied test-env/Dockerfile."
+  },
+  {
+    "id": "terminal-emulator-fence-6",
+    "title": "Terminal Emulator — example 6",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "terminal-emulator-fence-7",
+    "title": "Terminal Emulator — example 7",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "terminal-emulator-fence-8",
+    "title": "Terminal Emulator — example 8",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "terminal-emulator-fence-9",
+    "title": "Terminal Emulator — example 9",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-9",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-1",
+    "title": "Testing Hex1b Applications — example 1",
+    "page": "guide/testing.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-2",
+    "title": "Testing Hex1b Applications — example 2",
+    "page": "guide/testing.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-3",
+    "title": "Testing Hex1b Applications — example 3",
+    "page": "guide/testing.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-4",
+    "title": "Testing Hex1b Applications — example 4",
+    "page": "guide/testing.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-5",
+    "title": "Testing Hex1b Applications — example 5",
+    "page": "guide/testing.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-6",
+    "title": "Testing Hex1b Applications — example 6",
+    "page": "guide/testing.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-7",
+    "title": "Testing Hex1b Applications — example 7",
+    "page": "guide/testing.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-8",
+    "title": "Testing Hex1b Applications — example 8",
+    "page": "guide/testing.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-9",
+    "title": "Testing Hex1b Applications — example 9",
+    "page": "guide/testing.md",
+    "codeKey": "fence-9",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-10",
+    "title": "Testing Hex1b Applications — example 10",
+    "page": "guide/testing.md",
+    "codeKey": "fence-10",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-11",
+    "title": "Testing Hex1b Applications — example 11",
+    "page": "guide/testing.md",
+    "codeKey": "fence-11",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-12",
+    "title": "Testing Hex1b Applications — example 12",
+    "page": "guide/testing.md",
+    "codeKey": "fence-12",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-13",
+    "title": "Testing Hex1b Applications — example 13",
+    "page": "guide/testing.md",
+    "codeKey": "fence-13",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-14",
+    "title": "Testing Hex1b Applications — example 14",
+    "page": "guide/testing.md",
+    "codeKey": "fence-14",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-15",
+    "title": "Testing Hex1b Applications — example 15",
+    "page": "guide/testing.md",
+    "codeKey": "fence-15",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-16",
+    "title": "Testing Hex1b Applications — example 16",
+    "page": "guide/testing.md",
+    "codeKey": "fence-16",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-17",
+    "title": "Testing Hex1b Applications — example 17",
+    "page": "guide/testing.md",
+    "codeKey": "fence-17",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-18",
+    "title": "Testing Hex1b Applications — example 18",
+    "page": "guide/testing.md",
+    "codeKey": "fence-18",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-19",
+    "title": "Testing Hex1b Applications — example 19",
+    "page": "guide/testing.md",
+    "codeKey": "fence-19",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-20",
+    "title": "Testing Hex1b Applications — example 20",
+    "page": "guide/testing.md",
+    "codeKey": "fence-20",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-21",
+    "title": "Testing Hex1b Applications — example 21",
+    "page": "guide/testing.md",
+    "codeKey": "fence-21",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-22",
+    "title": "Testing Hex1b Applications — example 22",
+    "page": "guide/testing.md",
+    "codeKey": "fence-22",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-23",
+    "title": "Testing Hex1b Applications — example 23",
+    "page": "guide/testing.md",
+    "codeKey": "fence-23",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-24",
+    "title": "Testing Hex1b Applications — example 24",
+    "page": "guide/testing.md",
+    "codeKey": "fence-24",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "testing-fence-25",
+    "title": "Testing Hex1b Applications — example 25",
+    "page": "guide/testing.md",
+    "codeKey": "fence-25",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "theming",
+    "title": "Theming Demo",
+    "page": "guide/theming.md",
+    "codeKey": "",
+    "kind": "TerminalDemo",
+    "status": "standalone",
+    "example": "theming",
+    "reason": "Extract complete backend widget implementation into a normal console app."
+  },
+  {
+    "id": "theming-fence-1",
+    "title": "Theming — example 1",
+    "page": "guide/theming.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "theming-fence-2",
+    "title": "Theming — example 2",
+    "page": "guide/theming.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "theming-fence-3",
+    "title": "Theming — example 3",
+    "page": "guide/theming.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "theming-fence-4",
+    "title": "Theming — example 4",
+    "page": "guide/theming.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "theming-fence-5",
+    "title": "Theming — example 5",
+    "page": "guide/theming.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "theming-fence-6",
+    "title": "Theming — example 6",
+    "page": "guide/theming.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tui-fence-1",
+    "title": "Terminal User Interfaces — example 1",
+    "page": "guide/tui.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "using-the-emulator-fence-1",
+    "title": "Using the Emulator — example 1",
+    "page": "guide/using-the-emulator.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "source-only",
+    "reason": "ASP.NET hosting integration, not a console TUI; requires a web host and separate browser frontend."
+  },
+  {
+    "id": "using-the-emulator-fence-2",
+    "title": "Using the Emulator — example 2",
+    "page": "guide/using-the-emulator.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "source-only",
+    "reason": "ASP.NET hosting integration requires external SSH/Docker workloads and a separate browser frontend."
+  },
+  {
+    "id": "using-the-emulator-fence-3",
+    "title": "Using the Emulator — example 3",
+    "page": "guide/using-the-emulator.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "accordion-basic",
+    "title": "Accordion - Basic Usage",
+    "page": "guide/widgets/accordion.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "accordion-basic"
+  },
+  {
+    "id": "accordion-actions",
+    "title": "Accordion - Action Icons",
+    "page": "guide/widgets/accordion.md",
+    "codeKey": "actionsCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "accordion-actions"
+  },
+  {
+    "id": "accordion-sections",
+    "title": "Accordion — sections",
+    "page": "guide/widgets/accordion.md",
+    "codeKey": "sectionsSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/accordion-sections.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "accordion-actions",
+    "title": "Accordion — actions",
+    "page": "guide/widgets/accordion.md",
+    "codeKey": "actionsSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/accordion-actions.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "accordion-toggle",
+    "title": "Accordion — toggle",
+    "page": "guide/widgets/accordion.md",
+    "codeKey": "toggleSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/accordion-toggle.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "accordion-fence-1",
+    "title": "Accordion — example 1",
+    "page": "guide/widgets/accordion.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "align-demo",
+    "title": "Align Widget - Interactive Demo",
+    "page": "guide/widgets/align.md",
+    "codeKey": "demoCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "align-demo"
+  },
+  {
+    "id": "align-basic",
+    "title": "AlignWidget — basic",
+    "page": "guide/widgets/align.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone"
+  },
+  {
+    "id": "align-center",
+    "title": "AlignWidget — center",
+    "page": "guide/widgets/align.md",
+    "codeKey": "centerSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/align-center.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "align-bottom-right",
+    "title": "AlignWidget — bottomRight",
+    "page": "guide/widgets/align.md",
+    "codeKey": "bottomRightSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/align-bottom-right.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "align-top-center",
+    "title": "AlignWidget — topCenter",
+    "page": "guide/widgets/align.md",
+    "codeKey": "topCenterSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/align-top-center.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "align-fence-1",
+    "title": "AlignWidget — example 1",
+    "page": "guide/widgets/align.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "align-fence-2",
+    "title": "AlignWidget — example 2",
+    "page": "guide/widgets/align.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "align-fence-3",
+    "title": "AlignWidget — example 3",
+    "page": "guide/widgets/align.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "align-fence-4",
+    "title": "AlignWidget — example 4",
+    "page": "guide/widgets/align.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "align-fence-5",
+    "title": "AlignWidget — example 5",
+    "page": "guide/widgets/align.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "align-fence-6",
+    "title": "AlignWidget — example 6",
+    "page": "guide/widgets/align.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "align-fence-7",
+    "title": "AlignWidget — example 7",
+    "page": "guide/widgets/align.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "border-basic",
+    "title": "BorderWidget — basic",
+    "page": "guide/widgets/border.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone"
+  },
+  {
+    "id": "border-basic",
+    "title": "BorderWidget — basic",
+    "page": "guide/widgets/border.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/border-basic.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "border-title",
+    "title": "BorderWidget — title",
+    "page": "guide/widgets/border.md",
+    "codeKey": "titleSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/border-title.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "border-fence-1",
+    "title": "BorderWidget — example 1",
+    "page": "guide/widgets/border.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "border-fence-2",
+    "title": "BorderWidget — example 2",
+    "page": "guide/widgets/border.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "border-fence-3",
+    "title": "BorderWidget — example 3",
+    "page": "guide/widgets/border.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "button-basic",
+    "title": "Button Widget - Basic Usage",
+    "page": "guide/widgets/button.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "button-basic"
+  },
+  {
+    "id": "button-async",
+    "title": "Button Widget - Async Work Demo",
+    "page": "guide/widgets/button.md",
+    "codeKey": "asyncCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "button-async"
+  },
+  {
+    "id": "button-counter",
+    "title": "Button Widget - Counter Demo",
+    "page": "guide/widgets/button.md",
+    "codeKey": "counterCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "button-counter"
+  },
+  {
+    "id": "button-basic",
+    "title": "ButtonWidget — basic",
+    "page": "guide/widgets/button.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/button-basic.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "button-focus",
+    "title": "ButtonWidget — focus",
+    "page": "guide/widgets/button.md",
+    "codeKey": "focusSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/button-focus.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "button-fence-1",
+    "title": "ButtonWidget — example 1",
+    "page": "guide/widgets/button.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "button-fence-2",
+    "title": "ButtonWidget — example 2",
+    "page": "guide/widgets/button.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "button-fence-3",
+    "title": "ButtonWidget — example 3",
+    "page": "guide/widgets/button.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "button-fence-4",
+    "title": "ButtonWidget — example 4",
+    "page": "guide/widgets/button.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "chart-column-basic",
+    "title": "Column Chart - Basic Usage",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "columnBasicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-column-basic"
+  },
+  {
+    "id": "chart-column-multiseries",
+    "title": "Column Chart - Multi-Series",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "columnMultiSeriesCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-column-multiseries"
+  },
+  {
+    "id": "chart-bar-basic",
+    "title": "Bar Chart - Basic Usage",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "barBasicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-bar-basic"
+  },
+  {
+    "id": "chart-breakdown",
+    "title": "Breakdown Chart",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "breakdownCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-breakdown"
+  },
+  {
+    "id": "chart-donut-basic",
+    "title": "Donut Chart - Basic Usage",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "donutBasicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-donut-basic"
+  },
+  {
+    "id": "chart-donut-pie",
+    "title": "Pie Chart",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "donutPieCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-donut-pie"
+  },
+  {
+    "id": "chart-legend",
+    "title": "Legend Widget",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "legendCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-legend"
+  },
+  {
+    "id": "chart-timeseries-basic",
+    "title": "Time Series - Basic",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "timeSeriesBasicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-timeseries-basic"
+  },
+  {
+    "id": "chart-timeseries-multi",
+    "title": "Time Series - Multi-Series",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "timeSeriesMultiCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-timeseries-multi"
+  },
+  {
+    "id": "chart-timeseries-fill",
+    "title": "Time Series - Area Fill",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "timeSeriesFillCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-timeseries-fill"
+  },
+  {
+    "id": "chart-timeseries-stacked",
+    "title": "Time Series - Stacked Area",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "timeSeriesStackedCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-timeseries-stacked"
+  },
+  {
+    "id": "chart-scatter-basic",
+    "title": "Scatter Chart - Basic",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "scatterBasicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-scatter-basic"
+  },
+  {
+    "id": "chart-scatter-grouped",
+    "title": "Scatter Chart - Grouped",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "scatterGroupedCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-scatter-grouped"
+  },
+  {
+    "id": "chart-formatting",
+    "title": "Charts - Custom Value Formatting",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "formattingCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-formatting"
+  },
+  {
+    "id": "chart-bar-grouped",
+    "title": "Bar Chart - Grouped with Generic Binding",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "genericBindingCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "chart-bar-grouped"
+  },
+  {
+    "id": "charts-fence-1",
+    "title": "Charts — example 1",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "checkbox-basic",
+    "title": "Checkbox Widget - Basic Usage",
+    "page": "guide/widgets/checkbox.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "checkbox-basic"
+  },
+  {
+    "id": "checkbox-states",
+    "title": "Checkbox Widget - States",
+    "page": "guide/widgets/checkbox.md",
+    "codeKey": "statesCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "checkbox-states"
+  },
+  {
+    "id": "drag-drop-basic",
+    "title": "Drag & Drop - Basic Usage",
+    "page": "guide/widgets/drag-drop.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "drag-drop-basic"
+  },
+  {
+    "id": "drag-drop-ghost",
+    "title": "Drag & Drop - Ghost Overlay",
+    "page": "guide/widgets/drag-drop.md",
+    "codeKey": "ghostCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "drag-drop-ghost"
+  },
+  {
+    "id": "drag-drop-accept",
+    "title": "Drag & Drop - Accept Predicates",
+    "page": "guide/widgets/drag-drop.md",
+    "codeKey": "acceptCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "drag-drop-accept"
+  },
+  {
+    "id": "drag-drop-target",
+    "title": "Drag & Drop - Drop Targets",
+    "page": "guide/widgets/drag-drop.md",
+    "codeKey": "dropTargetCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "drag-drop-target"
+  },
+  {
+    "id": "drag-drop-kanban",
+    "title": "Drag & Drop - Kanban Board",
+    "page": "guide/widgets/drag-drop.md",
+    "codeKey": "kanbanCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "drag-drop-kanban"
+  },
+  {
+    "id": "drag-drop-fence-1",
+    "title": "Drag & Drop — example 1",
+    "page": "guide/widgets/drag-drop.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "drag-drop-fence-2",
+    "title": "Drag & Drop — example 2",
+    "page": "guide/widgets/drag-drop.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "dragbar-basic",
+    "title": "DragBarPanel - Basic Usage",
+    "page": "guide/widgets/dragbar.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "dragbar-basic"
+  },
+  {
+    "id": "dragbar-vertical",
+    "title": "DragBarPanel - Vertical Resizing",
+    "page": "guide/widgets/dragbar.md",
+    "codeKey": "verticalCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "dragbar-vertical"
+  },
+  {
+    "id": "dragbar-multi-panel",
+    "title": "DragBarPanel - Multi-Panel Layout",
+    "page": "guide/widgets/dragbar.md",
+    "codeKey": "multiPanelCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "dragbar-multi-panel"
+  },
+  {
+    "id": "dragbar-fence-1",
+    "title": "DragBarPanel — example 1",
+    "page": "guide/widgets/dragbar.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "dragbar-fence-2",
+    "title": "DragBarPanel — example 2",
+    "page": "guide/widgets/dragbar.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "dragbar-fence-3",
+    "title": "DragBarPanel — example 3",
+    "page": "guide/widgets/dragbar.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "effectpanel-fence-1",
+    "title": "EffectPanelWidget — example 1",
+    "page": "guide/widgets/effectpanel.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "effectpanel-fence-2",
+    "title": "EffectPanelWidget — example 2",
+    "page": "guide/widgets/effectpanel.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "effectpanel-fence-3",
+    "title": "EffectPanelWidget — example 3",
+    "page": "guide/widgets/effectpanel.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "effectpanel-fence-4",
+    "title": "EffectPanelWidget — example 4",
+    "page": "guide/widgets/effectpanel.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "figlet-basic",
+    "title": "FigletText Widget - Basic Usage",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "figlet-basic"
+  },
+  {
+    "id": "figlet-fonts",
+    "title": "FigletText Widget - Bundled Fonts",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "fontsCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "figlet-fonts"
+  },
+  {
+    "id": "figlet-color",
+    "title": "FigletText Widget - Color via EffectPanel",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "colorCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "figlet-color"
+  },
+  {
+    "id": "figlet-full-width",
+    "title": "FigletText — fullWidth",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "fullWidthSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/figlet-layout-fullwidth.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "figlet-fitted",
+    "title": "FigletText — fitted",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "fittedSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/figlet-layout-fitted.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "figlet-smushed",
+    "title": "FigletText — smushed",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "smushedSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/figlet-layout-smushed.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "figlet-clip",
+    "title": "FigletText — clip",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "clipSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/figlet-overflow-clip.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "figlet-wrap",
+    "title": "FigletText — wrap",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "wrapSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/figlet-overflow-wrap.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "figlet-gallery-static",
+    "title": "FigletText — galleryStatic",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "galleryStaticSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/figlet-fonts-gallery.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "figlet-custom-font",
+    "title": "FigletText — customFont",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "customFontSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/figlet-custom-font.cs",
+    "status": "source-only",
+    "reason": "Requires the unprovided fonts/colossal.flf asset."
+  },
+  {
+    "id": "figlet-subclass",
+    "title": "FigletText — subclass",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "subclassSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/figlet-subclass.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "figlet-fence-1",
+    "title": "FigletText — example 1",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "float-basic",
+    "title": "Float - Basic Usage",
+    "page": "guide/widgets/float.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "float-basic"
+  },
+  {
+    "id": "float-alignment",
+    "title": "Float - Alignment Explorer",
+    "page": "guide/widgets/float.md",
+    "codeKey": "alignmentCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "float-alignment"
+  },
+  {
+    "id": "float-overlay",
+    "title": "Float - Interactive Overlay",
+    "page": "guide/widgets/float.md",
+    "codeKey": "overlayCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "float-overlay"
+  },
+  {
+    "id": "float-basic",
+    "title": "FloatWidget — basic",
+    "page": "guide/widgets/float.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/float-basic.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "float-overlap",
+    "title": "FloatWidget — overlap",
+    "page": "guide/widgets/float.md",
+    "codeKey": "overlapSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/float-overlap.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "float-fence-1",
+    "title": "FloatWidget — example 1",
+    "page": "guide/widgets/float.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "float-fence-2",
+    "title": "FloatWidget — example 2",
+    "page": "guide/widgets/float.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "float-fence-3",
+    "title": "FloatWidget — example 3",
+    "page": "guide/widgets/float.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "float-fence-4",
+    "title": "FloatWidget — example 4",
+    "page": "guide/widgets/float.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "float-fence-5",
+    "title": "FloatWidget — example 5",
+    "page": "guide/widgets/float.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "grid-basic",
+    "title": "Grid - Basic Layout",
+    "page": "guide/widgets/grid.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "grid-basic"
+  },
+  {
+    "id": "grid-basic",
+    "title": "GridWidget — basic",
+    "page": "guide/widgets/grid.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/grid-basic.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "grid-sidebar",
+    "title": "GridWidget — sidebar",
+    "page": "guide/widgets/grid.md",
+    "codeKey": "sidebarSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/grid-sidebar.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "grid-columns",
+    "title": "GridWidget — columns",
+    "page": "guide/widgets/grid.md",
+    "codeKey": "columnsSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/grid-columns.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "grid-fence-1",
+    "title": "GridWidget — example 1",
+    "page": "guide/widgets/grid.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "grid-fence-2",
+    "title": "GridWidget — example 2",
+    "page": "guide/widgets/grid.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "grid-fence-3",
+    "title": "GridWidget — example 3",
+    "page": "guide/widgets/grid.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "grid-fence-4",
+    "title": "GridWidget — example 4",
+    "page": "guide/widgets/grid.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "hstack-basic",
+    "title": "HStackWidget — basic",
+    "page": "guide/widgets/hstack.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone"
+  },
+  {
+    "id": "hstack-basic",
+    "title": "HStackWidget — basic",
+    "page": "guide/widgets/hstack.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/hstack-basic.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "hstack-fill",
+    "title": "HStackWidget — fill",
+    "page": "guide/widgets/hstack.md",
+    "codeKey": "fillSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/hstack-fill.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "hstack-fence-1",
+    "title": "HStackWidget — example 1",
+    "page": "guide/widgets/hstack.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "hstack-fence-2",
+    "title": "HStackWidget — example 2",
+    "page": "guide/widgets/hstack.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "hstack-fence-3",
+    "title": "HStackWidget — example 3",
+    "page": "guide/widgets/hstack.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "hstack-fence-4",
+    "title": "HStackWidget — example 4",
+    "page": "guide/widgets/hstack.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "hstack-fence-5",
+    "title": "HStackWidget — example 5",
+    "page": "guide/widgets/hstack.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "hstack-fence-6",
+    "title": "HStackWidget — example 6",
+    "page": "guide/widgets/hstack.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "hstack-fence-7",
+    "title": "HStackWidget — example 7",
+    "page": "guide/widgets/hstack.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "hstack-fence-8",
+    "title": "HStackWidget — example 8",
+    "page": "guide/widgets/hstack.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "hstack-fence-9",
+    "title": "HStackWidget — example 9",
+    "page": "guide/widgets/hstack.md",
+    "codeKey": "fence-9",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "hyperlink-basic",
+    "title": "Hyperlink Widget - Basic Usage",
+    "page": "guide/widgets/hyperlink.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "hyperlink-basic"
+  },
+  {
+    "id": "hyperlink-click",
+    "title": "Hyperlink Click Handler",
+    "page": "guide/widgets/hyperlink.md",
+    "codeKey": "clickHandlerCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "hyperlink-click"
+  },
+  {
+    "id": "hyperlink-overflow",
+    "title": "Hyperlink Overflow Modes",
+    "page": "guide/widgets/hyperlink.md",
+    "codeKey": "overflowCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "hyperlink-overflow"
+  },
+  {
+    "id": "hyperlink-basic",
+    "title": "HyperlinkWidget — basic",
+    "page": "guide/widgets/hyperlink.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/hyperlink-basic.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "hyperlink-wrap",
+    "title": "HyperlinkWidget — wrap",
+    "page": "guide/widgets/hyperlink.md",
+    "codeKey": "wrapSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/hyperlink-wrap.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "hyperlink-ellipsis",
+    "title": "HyperlinkWidget — ellipsis",
+    "page": "guide/widgets/hyperlink.md",
+    "codeKey": "ellipsisSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/hyperlink-ellipsis.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "hyperlink-onclick",
+    "title": "HyperlinkWidget — onclick",
+    "page": "guide/widgets/hyperlink.md",
+    "codeKey": "onclickSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/hyperlink-onclick.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "hyperlink-with-id",
+    "title": "HyperlinkWidget — withId",
+    "page": "guide/widgets/hyperlink.md",
+    "codeKey": "withIdSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/hyperlink-with-id.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "hyperlink-params",
+    "title": "HyperlinkWidget — params",
+    "page": "guide/widgets/hyperlink.md",
+    "codeKey": "paramsSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/hyperlink-params.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "icon-basic",
+    "title": "Icon Widget - Basic Usage",
+    "page": "guide/widgets/icon.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "icon-basic"
+  },
+  {
+    "id": "icon-click",
+    "title": "Icon Widget - Clickable Icons",
+    "page": "guide/widgets/icon.md",
+    "codeKey": "clickableCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "icon-click"
+  },
+  {
+    "id": "icon-fence-1",
+    "title": "Icon — example 1",
+    "page": "guide/widgets/icon.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "icon-fence-2",
+    "title": "Icon — example 2",
+    "page": "guide/widgets/icon.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "icon-fence-3",
+    "title": "Icon — example 3",
+    "page": "guide/widgets/icon.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "infobar-basic",
+    "title": "InfoBar - Basic Usage",
+    "page": "guide/widgets/infobar.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "infobar-basic"
+  },
+  {
+    "id": "infobar-spacer",
+    "title": "InfoBar - Spacer",
+    "page": "guide/widgets/infobar.md",
+    "codeKey": "spacerCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "infobar-spacer"
+  },
+  {
+    "id": "infobar-spinner",
+    "title": "InfoBar - Widget Content",
+    "page": "guide/widgets/infobar.md",
+    "codeKey": "spinnerCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "infobar-spinner"
+  },
+  {
+    "id": "infobar-divider",
+    "title": "InfoBar — divider",
+    "page": "guide/widgets/infobar.md",
+    "codeKey": "dividerSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/infobar-divider.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "infobar-width",
+    "title": "InfoBar — width",
+    "page": "guide/widgets/infobar.md",
+    "codeKey": "widthSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/infobar-width.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "infobar-theming",
+    "title": "InfoBar — theming",
+    "page": "guide/widgets/infobar.md",
+    "codeKey": "themingSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/infobar-theming.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "infobar-fence-1",
+    "title": "InfoBar — example 1",
+    "page": "guide/widgets/infobar.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "infobar-fence-2",
+    "title": "InfoBar — example 2",
+    "page": "guide/widgets/infobar.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "infobar-fence-3",
+    "title": "InfoBar — example 3",
+    "page": "guide/widgets/infobar.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "kgpimage-basic",
+    "title": "KGP Image - Basic Usage",
+    "page": "guide/widgets/kgpimage.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "kgpimage-basic"
+  },
+  {
+    "id": "kgpimage-stretch",
+    "title": "KgpImage — stretch",
+    "page": "guide/widgets/kgpimage.md",
+    "codeKey": "stretchSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/kgpimage-stretch.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "kgpimage-fallback",
+    "title": "KgpImage — fallback",
+    "page": "guide/widgets/kgpimage.md",
+    "codeKey": "fallbackSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/kgpimage-fallback.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "kgpimage-fence-1",
+    "title": "KgpImage — example 1",
+    "page": "guide/widgets/kgpimage.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "kgpimage-fence-2",
+    "title": "KgpImage — example 2",
+    "page": "guide/widgets/kgpimage.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "kgpimage-fence-3",
+    "title": "KgpImage — example 3",
+    "page": "guide/widgets/kgpimage.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "kgpimage-fence-4",
+    "title": "KgpImage — example 4",
+    "page": "guide/widgets/kgpimage.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "list-basic",
+    "title": "List Widget - Basic Usage",
+    "page": "guide/widgets/list.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "list-basic"
+  },
+  {
+    "id": "list-selection",
+    "title": "List Widget - Selection Changed",
+    "page": "guide/widgets/list.md",
+    "codeKey": "selectionCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "list-selection"
+  },
+  {
+    "id": "list-activate",
+    "title": "List Widget - Item Activation",
+    "page": "guide/widgets/list.md",
+    "codeKey": "activateCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "list-activate"
+  },
+  {
+    "id": "list-long",
+    "title": "List Widget - Long List with Scrolling",
+    "page": "guide/widgets/list.md",
+    "codeKey": "longListCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "list-long"
+  },
+  {
+    "id": "list-item-template",
+    "title": "List Widget - Item Template",
+    "page": "guide/widgets/list.md",
+    "codeKey": "templateCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "list-item-template"
+  },
+  {
+    "id": "list-focus",
+    "title": "ListWidget — focus",
+    "page": "guide/widgets/list.md",
+    "codeKey": "focusSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/list-focus.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "list-fence-1",
+    "title": "ListWidget — example 1",
+    "page": "guide/widgets/list.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "list-fence-2",
+    "title": "ListWidget — example 2",
+    "page": "guide/widgets/list.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "list-fence-3",
+    "title": "ListWidget — example 3",
+    "page": "guide/widgets/list.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "markdown-basic",
+    "title": "Markdown Widget - Basic Usage",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "markdown-basic"
+  },
+  {
+    "id": "markdown-links",
+    "title": "Markdown Widget - Focusable Links",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "linksCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "markdown-links"
+  },
+  {
+    "id": "markdown-headings",
+    "title": "MarkdownWidget — headings",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "headingsSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/markdown-headings.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "markdown-formatting",
+    "title": "MarkdownWidget — formatting",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "formattingSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/markdown-formatting.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "markdown-lists",
+    "title": "MarkdownWidget — lists",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "listsSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/markdown-lists.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "markdown-code-block",
+    "title": "MarkdownWidget — codeBlock",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "codeBlockSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/markdown-code-block.cs",
+    "status": "inline",
+    "reason": "Widget expression containing example code in a Markdown string, not an application."
+  },
+  {
+    "id": "markdown-table",
+    "title": "MarkdownWidget — table",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "tableSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/markdown-table.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "markdown-blockquote",
+    "title": "MarkdownWidget — blockquote",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "blockquoteSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/markdown-blockquote.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "markdown-document",
+    "title": "MarkdownWidget — document",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "documentSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/markdown-document.cs",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "markdown-fence-1",
+    "title": "MarkdownWidget — example 1",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "markdown-fence-2",
+    "title": "MarkdownWidget — example 2",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "navigator",
+    "title": "Navigator Demo",
+    "page": "guide/widgets/navigator.md",
+    "codeKey": "",
+    "kind": "TerminalDemo",
+    "status": "standalone",
+    "example": "navigator",
+    "reason": "Extract complete backend widget implementation into a normal console app."
+  },
+  {
+    "id": "navigator-fence-1",
+    "title": "Navigator Widget — example 1",
+    "page": "guide/widgets/navigator.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "navigator-fence-2",
+    "title": "Navigator Widget — example 2",
+    "page": "guide/widgets/navigator.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "navigator-fence-3",
+    "title": "Navigator Widget — example 3",
+    "page": "guide/widgets/navigator.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "navigator-fence-4",
+    "title": "Navigator Widget — example 4",
+    "page": "guide/widgets/navigator.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-basic",
+    "title": "Notifications - Basic Setup",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "notifications-basic"
+  },
+  {
+    "id": "notifications-actions",
+    "title": "Notifications - Action Buttons",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "actionsCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "notifications-actions"
+  },
+  {
+    "id": "notifications-lifecycle",
+    "title": "Notifications - Lifecycle Events",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "lifecycleCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "notifications-lifecycle"
+  },
+  {
+    "id": "notifications-fence-1",
+    "title": "Notifications — example 1",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-fence-2",
+    "title": "Notifications — example 2",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-fence-3",
+    "title": "Notifications — example 3",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-fence-4",
+    "title": "Notifications — example 4",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-fence-5",
+    "title": "Notifications — example 5",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-fence-6",
+    "title": "Notifications — example 6",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-fence-7",
+    "title": "Notifications — example 7",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-fence-8",
+    "title": "Notifications — example 8",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-fence-9",
+    "title": "Notifications — example 9",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-9",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-fence-10",
+    "title": "Notifications — example 10",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-10",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-fence-11",
+    "title": "Notifications — example 11",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-11",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-fence-12",
+    "title": "Notifications — example 12",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-12",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-fence-13",
+    "title": "Notifications — example 13",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-13",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "notifications-fence-14",
+    "title": "Notifications — example 14",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-14",
+    "kind": "fence",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "picker-basic",
+    "title": "Picker Widget - Basic Usage",
+    "page": "guide/widgets/picker.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "picker-basic"
+  },
+  {
+    "id": "picker-selection",
+    "title": "Picker Widget - Selection Changed",
+    "page": "guide/widgets/picker.md",
+    "codeKey": "selectionCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "picker-selection"
+  },
+  {
+    "id": "picker-initial",
+    "title": "Picker Widget - Initial Selection",
+    "page": "guide/widgets/picker.md",
+    "codeKey": "initialCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "picker-initial"
+  },
+  {
+    "id": "picker-fence-1",
+    "title": "Picker — example 1",
+    "page": "guide/widgets/picker.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "picker-theming-code",
+    "title": "Picker — themingCode",
+    "page": "guide/widgets/picker.md",
+    "codeKey": "themingCode",
+    "kind": "unused-constant",
+    "status": "not-displayed",
+    "reason": "Legacy script declaration is never rendered in the page; not a displayed demo."
+  },
+  {
+    "id": "progress-basic",
+    "title": "Progress Widget - Basic Usage",
+    "page": "guide/widgets/progress.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "progress-basic"
+  },
+  {
+    "id": "progress-indeterminate",
+    "title": "Progress Widget - Indeterminate",
+    "page": "guide/widgets/progress.md",
+    "codeKey": "indeterminateCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "progress-indeterminate"
+  },
+  {
+    "id": "progress-determinate",
+    "title": "Progress — determinate",
+    "page": "guide/widgets/progress.md",
+    "codeKey": "determinateSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/progress-determinate.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "progress-custom-range",
+    "title": "Progress — customRange",
+    "page": "guide/widgets/progress.md",
+    "codeKey": "customRangeSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/progress-custom-range.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "progress-indeterminate",
+    "title": "Progress — indeterminate",
+    "page": "guide/widgets/progress.md",
+    "codeKey": "indeterminateSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/progress-indeterminate.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "progress-theming",
+    "title": "Progress — theming",
+    "page": "guide/widgets/progress.md",
+    "codeKey": "themingSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/progress-theming.cs",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "progress-fence-1",
+    "title": "Progress — example 1",
+    "page": "guide/widgets/progress.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "qrcode-basic",
+    "title": "QR Code Widget - Basic Usage",
+    "page": "guide/widgets/qrcode.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "qrcode-basic"
+  },
+  {
+    "id": "qrcode-custom",
+    "title": "QR Code Widget - Interactive Demo",
+    "page": "guide/widgets/qrcode.md",
+    "codeKey": "customCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "qrcode-custom"
+  },
+  {
+    "id": "qrcode-basic",
+    "title": "QrCodeWidget — basic",
+    "page": "guide/widgets/qrcode.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/qrcode-basic.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "qrcode-quiet-zone",
+    "title": "QrCodeWidget — quietZone",
+    "page": "guide/widgets/qrcode.md",
+    "codeKey": "quietZoneSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/qrcode-quietzone.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "qrcode-fence-1",
+    "title": "QrCodeWidget — example 1",
+    "page": "guide/widgets/qrcode.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "qrcode-fence-2",
+    "title": "QrCodeWidget — example 2",
+    "page": "guide/widgets/qrcode.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "qrcode-fence-3",
+    "title": "QrCodeWidget — example 3",
+    "page": "guide/widgets/qrcode.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "qrcode-fence-4",
+    "title": "QrCodeWidget — example 4",
+    "page": "guide/widgets/qrcode.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "qrcode-fence-5",
+    "title": "QrCodeWidget — example 5",
+    "page": "guide/widgets/qrcode.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "qrcode-fence-6",
+    "title": "QrCodeWidget — example 6",
+    "page": "guide/widgets/qrcode.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-basic",
+    "title": "Rescue Widget - Basic Usage",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "rescue-basic"
+  },
+  {
+    "id": "rescue-event-handlers",
+    "title": "Rescue Widget - Event Handlers",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "eventHandlersCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "rescue-event-handlers"
+  },
+  {
+    "id": "rescue-custom-fallback",
+    "title": "Rescue Widget - Custom Fallback",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "customFallbackCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "rescue-custom-fallback"
+  },
+  {
+    "id": "rescue-basic",
+    "title": "RescueWidget — basic",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/rescue-basic.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "rescue-vstack",
+    "title": "RescueWidget — vstack",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "vstackSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/rescue-vstack.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "rescue-on-rescue",
+    "title": "RescueWidget — onRescue",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "onRescueSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/rescue-on-rescue.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "rescue-on-reset",
+    "title": "RescueWidget — onReset",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "onResetSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/rescue-on-reset.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "rescue-custom-fallback",
+    "title": "RescueWidget — customFallback",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "customFallbackSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/rescue-custom-fallback.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "rescue-friendly",
+    "title": "RescueWidget — friendly",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "friendlySnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/rescue-friendly.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-1",
+    "title": "RescueWidget — example 1",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-2",
+    "title": "RescueWidget — example 2",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-3",
+    "title": "RescueWidget — example 3",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-4",
+    "title": "RescueWidget — example 4",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-5",
+    "title": "RescueWidget — example 5",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-6",
+    "title": "RescueWidget — example 6",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-7",
+    "title": "RescueWidget — example 7",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-8",
+    "title": "RescueWidget — example 8",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-9",
+    "title": "RescueWidget — example 9",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-9",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-10",
+    "title": "RescueWidget — example 10",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-10",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-11",
+    "title": "RescueWidget — example 11",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-11",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-12",
+    "title": "RescueWidget — example 12",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-12",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-13",
+    "title": "RescueWidget — example 13",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-13",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "rescue-fence-14",
+    "title": "RescueWidget — example 14",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "fence-14",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "responsive-basic",
+    "title": "Responsive Layout Demo",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "responsive-basic"
+  },
+  {
+    "id": "responsive-basic-basic-snippet",
+    "title": "ResponsiveWidget — basic",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/responsive-basic.cs",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "responsive-layout",
+    "title": "ResponsiveWidget — layout",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "layoutSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/responsive-layout.cs",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "responsive-multiple",
+    "title": "ResponsiveWidget — multiple",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "multipleSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/responsive-multiple.cs",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "responsive-custom",
+    "title": "ResponsiveWidget — custom",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "customSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/responsive-custom.cs",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "responsive-fence-1",
+    "title": "ResponsiveWidget — example 1",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "responsive-fence-2",
+    "title": "ResponsiveWidget — example 2",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "responsive-fence-3",
+    "title": "ResponsiveWidget — example 3",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "responsive-fence-4",
+    "title": "ResponsiveWidget — example 4",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "responsive-fence-5",
+    "title": "ResponsiveWidget — example 5",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "responsive-fence-6",
+    "title": "ResponsiveWidget — example 6",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "responsive-fence-7",
+    "title": "ResponsiveWidget — example 7",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "responsive-fence-8",
+    "title": "ResponsiveWidget — example 8",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "responsive-fence-9",
+    "title": "ResponsiveWidget — example 9",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "fence-9",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "scroll-basic",
+    "title": "Scroll Widget - Basic Usage",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "scroll-basic"
+  },
+  {
+    "id": "scroll-horizontal",
+    "title": "Scroll Widget - Horizontal",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "horizontalCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "scroll-horizontal"
+  },
+  {
+    "id": "scroll-event",
+    "title": "Scroll Widget - Event Handling",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "eventCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "scroll-event"
+  },
+  {
+    "id": "scroll-tracking",
+    "title": "Scroll Widget - Position Tracking",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "trackingCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "scroll-tracking"
+  },
+  {
+    "id": "scroll-infinite",
+    "title": "Scroll Widget - Infinite Scroll",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "infiniteCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "scroll-infinite"
+  },
+  {
+    "id": "scroll-no-scrollbar",
+    "title": "Scroll — noScrollbar",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "noScrollbarSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/scroll-no-scrollbar.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "scroll-fence-1",
+    "title": "Scroll — example 1",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "scroll-fence-2",
+    "title": "Scroll — example 2",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "scroll-fence-3",
+    "title": "Scroll — example 3",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "scroll-fence-4",
+    "title": "Scroll — example 4",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "scroll-fence-5",
+    "title": "Scroll — example 5",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "scroll-fence-6",
+    "title": "Scroll — example 6",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "scroll-fence-7",
+    "title": "Scroll — example 7",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "scroll-fence-8",
+    "title": "Scroll — example 8",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "sixel",
+    "title": "Sixel Widget",
+    "page": "guide/widgets/sixel.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "sixel"
+  },
+  {
+    "id": "sixel-fence-1",
+    "title": "SixelWidget — example 1",
+    "page": "guide/widgets/sixel.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "slider-basic",
+    "title": "Slider Widget - Basic Usage",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "slider-basic"
+  },
+  {
+    "id": "slider-audio-mixer",
+    "title": "Slider Widget - Audio Mixer",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "audioMixerCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "slider-audio-mixer"
+  },
+  {
+    "id": "slider-basic",
+    "title": "Slider — basic",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/slider-basic.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "slider-custom-range",
+    "title": "Slider — customRange",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "customRangeSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/slider-custom-range.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "slider-step",
+    "title": "Slider — step",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "stepSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/slider-step.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "slider-audio-mixer",
+    "title": "Slider — audioMixer",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "audioMixerSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/slider-audio-mixer.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "slider-focus",
+    "title": "Slider — focus",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "focusSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/slider-focus.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "slider-fence-1",
+    "title": "Slider — example 1",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "slider-fence-2",
+    "title": "Slider — example 2",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "slider-fence-3",
+    "title": "Slider — example 3",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "slider-fence-4",
+    "title": "Slider — example 4",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "slider-fence-5",
+    "title": "Slider — example 5",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "spinner-basic",
+    "title": "Spinner Widget - Basic Usage",
+    "page": "guide/widgets/spinner.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "spinner-basic"
+  },
+  {
+    "id": "spinner-styles",
+    "title": "Spinner Widget - Styles",
+    "page": "guide/widgets/spinner.md",
+    "codeKey": "stylesCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "spinner-styles"
+  },
+  {
+    "id": "spinner-basic",
+    "title": "Spinner — basic",
+    "page": "guide/widgets/spinner.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/spinner-basic.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "spinner-styles",
+    "title": "Spinner — styles",
+    "page": "guide/widgets/spinner.md",
+    "codeKey": "stylesSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/spinner-styles.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "spinner-theming",
+    "title": "Spinner — theming",
+    "page": "guide/widgets/spinner.md",
+    "codeKey": "themingSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/spinner-theming.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "spinner-fence-1",
+    "title": "Spinner — example 1",
+    "page": "guide/widgets/spinner.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "spinner-fence-2",
+    "title": "Spinner — example 2",
+    "page": "guide/widgets/spinner.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "spinner-fence-3",
+    "title": "Spinner — example 3",
+    "page": "guide/widgets/spinner.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "spinner-fence-4",
+    "title": "Spinner — example 4",
+    "page": "guide/widgets/spinner.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "split-button-basic",
+    "title": "Split Button - Basic Usage",
+    "page": "guide/widgets/split-button.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "split-button-basic"
+  },
+  {
+    "id": "split-button-multiple",
+    "title": "Split Button - Multiple Buttons",
+    "page": "guide/widgets/split-button.md",
+    "codeKey": "multipleCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "split-button-multiple"
+  },
+  {
+    "id": "split-button-fence-1",
+    "title": "SplitButton — example 1",
+    "page": "guide/widgets/split-button.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "split-button-fence-2",
+    "title": "SplitButton — example 2",
+    "page": "guide/widgets/split-button.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "split-button-fence-3",
+    "title": "SplitButton — example 3",
+    "page": "guide/widgets/split-button.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "split-button-fence-4",
+    "title": "SplitButton — example 4",
+    "page": "guide/widgets/split-button.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "split-button-fence-5",
+    "title": "SplitButton — example 5",
+    "page": "guide/widgets/split-button.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "splitter-basic",
+    "title": "Splitter Widget - Horizontal Split",
+    "page": "guide/widgets/splitter.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "splitter-basic"
+  },
+  {
+    "id": "splitter-vertical",
+    "title": "Splitter Widget - Vertical Split",
+    "page": "guide/widgets/splitter.md",
+    "codeKey": "verticalCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "splitter-vertical"
+  },
+  {
+    "id": "splitter-nested",
+    "title": "Splitter Widget - Nested Splitters",
+    "page": "guide/widgets/splitter.md",
+    "codeKey": "nestedCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "splitter-nested"
+  },
+  {
+    "id": "splitter-fence-1",
+    "title": "SplitterWidget — example 1",
+    "page": "guide/widgets/splitter.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "splitter-fence-2",
+    "title": "SplitterWidget — example 2",
+    "page": "guide/widgets/splitter.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "splitter-fence-3",
+    "title": "SplitterWidget — example 3",
+    "page": "guide/widgets/splitter.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "splitter-fence-4",
+    "title": "SplitterWidget — example 4",
+    "page": "guide/widgets/splitter.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "splitter-fence-5",
+    "title": "SplitterWidget — example 5",
+    "page": "guide/widgets/splitter.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "splitter-fence-6",
+    "title": "SplitterWidget — example 6",
+    "page": "guide/widgets/splitter.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "splitter-fence-7",
+    "title": "SplitterWidget — example 7",
+    "page": "guide/widgets/splitter.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "statepanel-fence-1",
+    "title": "StatePanelWidget — example 1",
+    "page": "guide/widgets/statepanel.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "statepanel-fence-2",
+    "title": "StatePanelWidget — example 2",
+    "page": "guide/widgets/statepanel.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "statepanel-fence-3",
+    "title": "StatePanelWidget — example 3",
+    "page": "guide/widgets/statepanel.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "statepanel-fence-4",
+    "title": "StatePanelWidget — example 4",
+    "page": "guide/widgets/statepanel.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "statepanel-fence-5",
+    "title": "StatePanelWidget — example 5",
+    "page": "guide/widgets/statepanel.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "surface-basic",
+    "title": "Surface - Basic Usage",
+    "page": "guide/widgets/surface.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "surface-basic"
+  },
+  {
+    "id": "surface-layers",
+    "title": "Surface - Multiple Layers",
+    "page": "guide/widgets/surface.md",
+    "codeKey": "layersCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "surface-layers"
+  },
+  {
+    "id": "surface-mouse",
+    "title": "Surface - Mouse Interaction",
+    "page": "guide/widgets/surface.md",
+    "codeKey": "mouseCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "surface-mouse"
+  },
+  {
+    "id": "surface-fence-1",
+    "title": "Surface — example 1",
+    "page": "guide/widgets/surface.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "surface-fence-2",
+    "title": "Surface — example 2",
+    "page": "guide/widgets/surface.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "surface-fence-3",
+    "title": "Surface — example 3",
+    "page": "guide/widgets/surface.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "surface-fence-4",
+    "title": "Surface — example 4",
+    "page": "guide/widgets/surface.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "surface-fence-5",
+    "title": "Surface — example 5",
+    "page": "guide/widgets/surface.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "table-basic",
+    "title": "Table Widget - Basic Usage",
+    "page": "guide/widgets/table.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "table-basic"
+  },
+  {
+    "id": "table-focus",
+    "title": "Table Widget - Focus Tracking",
+    "page": "guide/widgets/table.md",
+    "codeKey": "focusCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "table-focus"
+  },
+  {
+    "id": "table-selection",
+    "title": "Table Widget - Selection Column",
+    "page": "guide/widgets/table.md",
+    "codeKey": "selectionCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "table-selection"
+  },
+  {
+    "id": "table-fence-1",
+    "title": "TableWidget — example 1",
+    "page": "guide/widgets/table.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "table-fence-2",
+    "title": "TableWidget — example 2",
+    "page": "guide/widgets/table.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "table-fence-3",
+    "title": "TableWidget — example 3",
+    "page": "guide/widgets/table.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "table-fence-4",
+    "title": "TableWidget — example 4",
+    "page": "guide/widgets/table.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "table-fence-5",
+    "title": "TableWidget — example 5",
+    "page": "guide/widgets/table.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "table-fence-6",
+    "title": "TableWidget — example 6",
+    "page": "guide/widgets/table.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "table-fence-7",
+    "title": "TableWidget — example 7",
+    "page": "guide/widgets/table.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "table-fence-8",
+    "title": "TableWidget — example 8",
+    "page": "guide/widgets/table.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "table-fence-9",
+    "title": "TableWidget — example 9",
+    "page": "guide/widgets/table.md",
+    "codeKey": "fence-9",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "table-render-modes-code",
+    "title": "TableWidget — renderModesCode",
+    "page": "guide/widgets/table.md",
+    "codeKey": "renderModesCode",
+    "kind": "unused-constant",
+    "status": "not-displayed",
+    "reason": "Legacy script declaration is never rendered in the page; not a displayed demo."
+  },
+  {
+    "id": "tabpanel-basic",
+    "title": "TabPanel - Basic Usage",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "tabpanel-basic"
+  },
+  {
+    "id": "tabpanel-selection",
+    "title": "TabPanel - Selection Tracking",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "selectionCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "tabpanel-selection"
+  },
+  {
+    "id": "tabpanel-dynamic",
+    "title": "TabPanel - Dynamic Tabs",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "dynamicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "tabpanel-dynamic"
+  },
+  {
+    "id": "tabpanel-compact",
+    "title": "TabPanel — compact",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "compactSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/tabpanel-compact.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "tabpanel-fence-1",
+    "title": "TabPanel — example 1",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tabpanel-fence-2",
+    "title": "TabPanel — example 2",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tabpanel-fence-3",
+    "title": "TabPanel — example 3",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tabpanel-fence-4",
+    "title": "TabPanel — example 4",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tabpanel-fence-5",
+    "title": "TabPanel — example 5",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tabpanel-fence-6",
+    "title": "TabPanel — example 6",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tabpanel-fence-7",
+    "title": "TabPanel — example 7",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tabpanel-fence-8",
+    "title": "TabPanel — example 8",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "terminal-basic",
+    "title": "Embedded Terminals Demo",
+    "page": "guide/widgets/terminal.md",
+    "codeKey": "demoCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "terminal-basic"
+  },
+  {
+    "id": "terminal-basic-basic-snippet",
+    "title": "TerminalWidget — basic",
+    "page": "guide/widgets/terminal.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/terminal-basic.cs",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "terminal-fallback",
+    "title": "TerminalWidget — fallback",
+    "page": "guide/widgets/terminal.md",
+    "codeKey": "fallbackSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/terminal-fallback.cs",
+    "status": "inline",
+    "reason": "Widget expression with undefined ctx and RestartTerminal; intentionally demonstrates fallback configuration."
+  },
+  {
+    "id": "terminal-lifecycle",
+    "title": "TerminalWidget — lifecycle",
+    "page": "guide/widgets/terminal.md",
+    "codeKey": "lifecycleSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/terminal-lifecycle.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "terminal-title",
+    "title": "TerminalWidget — title",
+    "page": "guide/widgets/terminal.md",
+    "codeKey": "titleSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/terminal-title.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "terminal-fence-1",
+    "title": "TerminalWidget — example 1",
+    "page": "guide/widgets/terminal.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "terminal-basic-code",
+    "title": "TerminalWidget — basicCode",
+    "page": "guide/widgets/terminal.md",
+    "codeKey": "basicCode",
+    "kind": "unused-constant",
+    "status": "not-displayed",
+    "reason": "Legacy script declaration is never rendered in the page; not a displayed demo."
+  },
+  {
+    "id": "terminal-multi-terminal-code",
+    "title": "TerminalWidget — multiTerminalCode",
+    "page": "guide/widgets/terminal.md",
+    "codeKey": "multiTerminalCode",
+    "kind": "unused-constant",
+    "status": "not-displayed",
+    "reason": "Legacy script declaration is never rendered in the page; not a displayed demo."
+  },
+  {
+    "id": "terminal-fallback-code",
+    "title": "TerminalWidget — fallbackCode",
+    "page": "guide/widgets/terminal.md",
+    "codeKey": "fallbackCode",
+    "kind": "unused-constant",
+    "status": "not-displayed",
+    "reason": "Legacy script declaration is never rendered in the page; not a displayed demo."
+  },
+  {
+    "id": "text-basic",
+    "title": "Text Widget - Basic Usage",
+    "page": "guide/widgets/text.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "text-basic"
+  },
+  {
+    "id": "text-overflow",
+    "title": "Text Overflow Modes",
+    "page": "guide/widgets/text.md",
+    "codeKey": "overflowCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "text-overflow"
+  },
+  {
+    "id": "text-truncate",
+    "title": "TextWidget — truncate",
+    "page": "guide/widgets/text.md",
+    "codeKey": "truncateSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/text-truncate.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "text-wrap",
+    "title": "TextWidget — wrap",
+    "page": "guide/widgets/text.md",
+    "codeKey": "wrapSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/text-wrap.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "text-ellipsis",
+    "title": "TextWidget — ellipsis",
+    "page": "guide/widgets/text.md",
+    "codeKey": "ellipsisSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/text-ellipsis.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "text-unicode",
+    "title": "TextWidget — unicode",
+    "page": "guide/widgets/text.md",
+    "codeKey": "unicodeSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/text-unicode.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "textbox-basic",
+    "title": "TextBox Widget - Basic Usage",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "textbox-basic"
+  },
+  {
+    "id": "textbox-submit",
+    "title": "TextBox Widget - Submit Handler",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "submitCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "textbox-submit"
+  },
+  {
+    "id": "textbox-form",
+    "title": "TextBox Widget - Form Example",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "formCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "textbox-form"
+  },
+  {
+    "id": "textbox-unicode",
+    "title": "TextBox Widget - Unicode Support",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "unicodeCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "textbox-unicode"
+  },
+  {
+    "id": "textbox-basic",
+    "title": "TextBoxWidget — basic",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/textbox-basic.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "textbox-focus",
+    "title": "TextBoxWidget — focus",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "focusSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/textbox-focus.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "textbox-selection",
+    "title": "TextBoxWidget — selection",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "selectionSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/textbox-selection.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "textbox-fence-1",
+    "title": "TextBoxWidget — example 1",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "textbox-fence-2",
+    "title": "TextBoxWidget — example 2",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "textbox-fence-3",
+    "title": "TextBoxWidget — example 3",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "themepanel-basic",
+    "title": "ThemePanel Widget - Basic Usage",
+    "page": "guide/widgets/themepanel.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "themepanel-basic"
+  },
+  {
+    "id": "themepanel-button",
+    "title": "ThemePanelWidget — button",
+    "page": "guide/widgets/themepanel.md",
+    "codeKey": "buttonSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/themepanel-button.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "themepanel-nested",
+    "title": "ThemePanelWidget — nested",
+    "page": "guide/widgets/themepanel.md",
+    "codeKey": "nestedSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/themepanel-nested.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "themepanel-button-themed",
+    "title": "ThemePanelWidget — buttonThemed",
+    "page": "guide/widgets/themepanel.md",
+    "codeKey": "buttonThemedSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/themepanel-button-themed.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "themepanel-nesting",
+    "title": "ThemePanelWidget — nesting",
+    "page": "guide/widgets/themepanel.md",
+    "codeKey": "nestingSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/themepanel-nesting.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "themepanel-danger",
+    "title": "ThemePanelWidget — danger",
+    "page": "guide/widgets/themepanel.md",
+    "codeKey": "dangerSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/themepanel-danger.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "themepanel-info",
+    "title": "ThemePanelWidget — info",
+    "page": "guide/widgets/themepanel.md",
+    "codeKey": "infoSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/themepanel-info.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "themepanel-success",
+    "title": "ThemePanelWidget — success",
+    "page": "guide/widgets/themepanel.md",
+    "codeKey": "successSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/themepanel-success.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "themepanel-border",
+    "title": "ThemePanelWidget — border",
+    "page": "guide/widgets/themepanel.md",
+    "codeKey": "borderSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/themepanel-border.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "themepanel-fence-1",
+    "title": "ThemePanelWidget — example 1",
+    "page": "guide/widgets/themepanel.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "themepanel-fence-2",
+    "title": "ThemePanelWidget — example 2",
+    "page": "guide/widgets/themepanel.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tilepanel-basic",
+    "title": "TilePanel Widget - Basic Usage",
+    "page": "guide/widgets/tilepanel.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "tilepanel-basic"
+  },
+  {
+    "id": "tilepanel-datasource",
+    "title": "TilePanelWidget — datasource",
+    "page": "guide/widgets/tilepanel.md",
+    "codeKey": "datasourceSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/tilepanel-datasource.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "tilepanel-fence-1",
+    "title": "TilePanelWidget — example 1",
+    "page": "guide/widgets/tilepanel.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tilepanel-fence-2",
+    "title": "TilePanelWidget — example 2",
+    "page": "guide/widgets/tilepanel.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tilepanel-fence-3",
+    "title": "TilePanelWidget — example 3",
+    "page": "guide/widgets/tilepanel.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tilepanel-fence-4",
+    "title": "TilePanelWidget — example 4",
+    "page": "guide/widgets/tilepanel.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tilepanel-fence-5",
+    "title": "TilePanelWidget — example 5",
+    "page": "guide/widgets/tilepanel.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tilepanel-fence-6",
+    "title": "TilePanelWidget — example 6",
+    "page": "guide/widgets/tilepanel.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tilepanel-poi-code",
+    "title": "TilePanelWidget — poiCode",
+    "page": "guide/widgets/tilepanel.md",
+    "codeKey": "poiCode",
+    "kind": "unused-constant",
+    "status": "not-displayed",
+    "reason": "Legacy script declaration is never rendered in the page; not a displayed demo."
+  },
+  {
+    "id": "toggle-switch-basic",
+    "title": "ToggleSwitch Widget - Basic Usage",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "toggle-switch-basic"
+  },
+  {
+    "id": "toggle-switch-multi",
+    "title": "ToggleSwitch Widget - Multiple Options",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "multiOptionCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "toggle-switch-multi"
+  },
+  {
+    "id": "toggle-switch-event",
+    "title": "ToggleSwitch Widget - Event Handling",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "eventCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "toggle-switch-event"
+  },
+  {
+    "id": "toggle-switch-focus",
+    "title": "ToggleSwitchWidget — focus",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "focusSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/toggle-switch-focus.cs",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "toggle-switch-multi-multi-snippet",
+    "title": "ToggleSwitchWidget — multi",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "multiSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/toggle-switch-multi.cs",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "toggle-switch-binary",
+    "title": "ToggleSwitchWidget — binary",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "binarySnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/toggle-switch-binary.cs",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "toggle-switch-modes",
+    "title": "ToggleSwitchWidget — modes",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "modesSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/toggle-switch-modes.cs",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "toggle-switch-settings",
+    "title": "ToggleSwitchWidget — settings",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "settingsSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/toggle-switch-settings.cs",
+    "status": "standalone",
+    "reason": ""
+  },
+  {
+    "id": "toggle-switch-fence-1",
+    "title": "ToggleSwitchWidget — example 1",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "tree-basic",
+    "title": "Tree Widget - Basic Usage",
+    "page": "guide/widgets/tree.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "tree-basic"
+  },
+  {
+    "id": "tree-lazy-load",
+    "title": "Tree Widget - Lazy Loading",
+    "page": "guide/widgets/tree.md",
+    "codeKey": "lazyLoadCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "tree-lazy-load"
+  },
+  {
+    "id": "tree-multi-select",
+    "title": "Tree Widget - Multi-Select",
+    "page": "guide/widgets/tree.md",
+    "codeKey": "multiSelectCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "tree-multi-select"
+  },
+  {
+    "id": "tree-data-binding",
+    "title": "Tree Widget - Data Binding",
+    "page": "guide/widgets/tree.md",
+    "codeKey": "dataBoundCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "tree-data-binding"
+  },
+  {
+    "id": "vstack-basic",
+    "title": "VStackWidget — basic",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone"
+  },
+  {
+    "id": "vstack-basic",
+    "title": "VStackWidget — basic",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/vstack-basic.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "vstack-fill",
+    "title": "VStackWidget — fill",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "fillSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/vstack-fill.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "vstack-fence-1",
+    "title": "VStackWidget — example 1",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "vstack-fence-2",
+    "title": "VStackWidget — example 2",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "vstack-fence-3",
+    "title": "VStackWidget — example 3",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "vstack-fence-4",
+    "title": "VStackWidget — example 4",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "vstack-fence-5",
+    "title": "VStackWidget — example 5",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "vstack-fence-6",
+    "title": "VStackWidget — example 6",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "vstack-fence-7",
+    "title": "VStackWidget — example 7",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "vstack-fence-8",
+    "title": "VStackWidget — example 8",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "vstack-fence-9",
+    "title": "VStackWidget — example 9",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "fence-9",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "vstack-fence-10",
+    "title": "VStackWidget — example 10",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "fence-10",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "window-basic",
+    "title": "Windows - Basic Usage",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "window-basic"
+  },
+  {
+    "id": "window-modal",
+    "title": "Modal Dialog with Result",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "modalCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "window-modal"
+  },
+  {
+    "id": "window-title-actions",
+    "title": "Custom Title Bar Actions",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "titleActionsCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "window-title-actions"
+  },
+  {
+    "id": "window-position",
+    "title": "Window Positioning",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "positionCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "window-position"
+  },
+  {
+    "id": "window-resizable",
+    "title": "Resizable Window",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "resizableCode",
+    "kind": "CodeBlock",
+    "status": "standalone",
+    "example": "window-resizable"
+  },
+  {
+    "id": "windows-fence-1",
+    "title": "Windows — example 1",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "windows-fence-2",
+    "title": "Windows — example 2",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "windows-fence-3",
+    "title": "Windows — example 3",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "windows-fence-4",
+    "title": "Windows — example 4",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "windows-fence-5",
+    "title": "Windows — example 5",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "windows-fence-6",
+    "title": "Windows — example 6",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "windows-fence-7",
+    "title": "Windows — example 7",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "windows-fence-8",
+    "title": "Windows — example 8",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "fence-8",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "windows-fence-9",
+    "title": "Windows — example 9",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "fence-9",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "windows-fence-10",
+    "title": "Windows — example 10",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "fence-10",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "wrap-panel-basic",
+    "title": "WrapPanelWidget — basic",
+    "page": "guide/widgets/wrap-panel.md",
+    "codeKey": "basicCode",
+    "kind": "CodeBlock",
+    "status": "standalone"
+  },
+  {
+    "id": "wrap-panel-basic",
+    "title": "WrapPanelWidget — basic",
+    "page": "guide/widgets/wrap-panel.md",
+    "codeKey": "basicSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/wrap-panel-basic.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "wrap-panel-vertical",
+    "title": "WrapPanelWidget — vertical",
+    "page": "guide/widgets/wrap-panel.md",
+    "codeKey": "verticalSnippet",
+    "kind": "raw-import",
+    "source": "guide/widgets/snippets/wrap-panel-vertical.cs",
+    "status": "inline",
+    "reason": "Partial API/widget snippet; remains inline."
+  },
+  {
+    "id": "wrap-panel-fence-1",
+    "title": "WrapPanelWidget — example 1",
+    "page": "guide/widgets/wrap-panel.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "wrap-panel-fence-2",
+    "title": "WrapPanelWidget — example 2",
+    "page": "guide/widgets/wrap-panel.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "wrap-panel-fence-3",
+    "title": "WrapPanelWidget — example 3",
+    "page": "guide/widgets/wrap-panel.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "wrap-panel-fence-4",
+    "title": "WrapPanelWidget — example 4",
+    "page": "guide/widgets/wrap-panel.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "wrap-panel-fence-5",
+    "title": "WrapPanelWidget — example 5",
+    "page": "guide/widgets/wrap-panel.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "wrap-panel-fence-6",
+    "title": "WrapPanelWidget — example 6",
+    "page": "guide/widgets/wrap-panel.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "widgets-and-nodes-fence-1",
+    "title": "Widgets & Nodes — example 1",
+    "page": "guide/widgets-and-nodes.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "widgets-and-nodes-fence-2",
+    "title": "Widgets & Nodes — example 2",
+    "page": "guide/widgets-and-nodes.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "widgets-and-nodes-fence-3",
+    "title": "Widgets & Nodes — example 3",
+    "page": "guide/widgets-and-nodes.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "widgets-and-nodes-fence-4",
+    "title": "Widgets & Nodes — example 4",
+    "page": "guide/widgets-and-nodes.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "widgets-and-nodes-fence-5",
+    "title": "Widgets & Nodes — example 5",
+    "page": "guide/widgets-and-nodes.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "widgets-and-nodes-fence-6",
+    "title": "Widgets & Nodes — example 6",
+    "page": "guide/widgets-and-nodes.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "widgets-and-nodes-fence-7",
+    "title": "Widgets & Nodes — example 7",
+    "page": "guide/widgets-and-nodes.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "workload-adapters-fence-1",
+    "title": "Workload Adapters — example 1",
+    "page": "guide/workload-adapters.md",
+    "codeKey": "fence-1",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "workload-adapters-fence-2",
+    "title": "Workload Adapters — example 2",
+    "page": "guide/workload-adapters.md",
+    "codeKey": "fence-2",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "workload-adapters-fence-3",
+    "title": "Workload Adapters — example 3",
+    "page": "guide/workload-adapters.md",
+    "codeKey": "fence-3",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "workload-adapters-fence-4",
+    "title": "Workload Adapters — example 4",
+    "page": "guide/workload-adapters.md",
+    "codeKey": "fence-4",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "workload-adapters-fence-5",
+    "title": "Workload Adapters — example 5",
+    "page": "guide/workload-adapters.md",
+    "codeKey": "fence-5",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "workload-adapters-fence-6",
+    "title": "Workload Adapters — example 6",
+    "page": "guide/workload-adapters.md",
+    "codeKey": "fence-6",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  },
+  {
+    "id": "workload-adapters-fence-7",
+    "title": "Workload Adapters — example 7",
+    "page": "guide/workload-adapters.md",
+    "codeKey": "fence-7",
+    "kind": "fence",
+    "status": "inline",
+    "reason": "Partial API, configuration, test, or conceptual snippet; remains inline."
+  }
+]

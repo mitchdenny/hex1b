@@ -406,6 +406,47 @@ does not claim universal or individually verified bundler support.
 
 ## Configuration and state
 
+### Experimental offline recording playback
+
+The recording spike adds a separate mounting path that fetches a static HWT
+recording rather than opening a WebSocket:
+
+```ts
+const recording = await WebTerminal.mountRecording(container, {
+  url: "/recordings/graphics.hwt.json",
+  onPlaybackChange(state) {
+    console.log(state.status, state.positionMs, state.durationMs);
+  },
+  onStatus(message, level) {
+    console.log(level, message);
+  }
+});
+
+recording.play();
+recording.pause();
+recording.restart(); // Restores the baseline and pauses.
+// On teardown:
+recording.dispose();
+```
+
+Mounting resolves after the initial frame is presented, paused. The handle exposes
+`playback`, `screenText`, `geometry`, `stats`, and `element`, but no live terminal
+input or history methods. Playback never creates a WebSocket. It uses the same
+renderer, worker, font deployment, and browser capabilities as the live terminal.
+Errors are reported through `onStatus`; loading/initialization errors reject mount.
+`onPlaybackChange` reports asynchronous control results after worker processing.
+Playback retains its last frame on completion; restart before playing an ended
+recording again.
+
+This is **same-build experimental content, not a supported archival format**.
+Keep the recording and player together. The spike loads the complete file before
+playback, with limits of 64 MiB, 10,000 frames, and ten minutes. Every captured
+delta is presented in order; seeking, speed adjustment, and interactive history
+are not implemented. See [`src/site`](../site/README.md) for the runnable sample,
+external capture driver, static HTML build, and recording envelope.
+
+### Live terminal configuration
+
 `WebTerminalOptions` includes:
 
 | Option | Meaning |

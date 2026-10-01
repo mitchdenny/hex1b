@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Tests/**/*.cs" />
+    <ProjectReference Include="../../src/Hex1b/Hex1b.csproj" />
+    <ProjectReference Include="../HwtRecordingSample/HwtRecordingSample.csproj"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="CopyBuiltRecordingSample" AfterTargets="Build">
+    <MSBuild Projects="../HwtRecordingSample/HwtRecordingSample.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework)">
+      <Output TaskParameter="TargetOutputs" PropertyName="_SampleAssemblyPath" />
+    </MSBuild>
+    <Error Condition="'$(_SampleAssemblyPath)' == '' or !Exists('$(_SampleAssemblyPath)')"
+           Text="The recording sample was not built. Build the driver with project references enabled." />
+    <PropertyGroup>
+      <_SampleOutputDirectory>$([System.IO.Path]::GetDirectoryName('$(_SampleAssemblyPath)'))/</_SampleOutputDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <_SampleFiles Include="$(_SampleOutputDirectory)**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_SampleFiles)"
+          DestinationFiles="@(_SampleFiles->'$(OutDir)sample/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>

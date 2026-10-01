@@ -366,3 +366,25 @@ export interface WebTerminalHandle {
   resync(): void;
   dispose(): void;
 }
+
+/** Experimental same-build recording playback; no live session or server-side interaction. */
+export interface WebTerminalRecordingOptions extends Pick<WebTerminalOptions,
+  "workerUrl" | "renderer" | "font" | "scale" | "signal" | "onStatus" | "onStats"> {
+  url: string | URL;
+  onPlaybackChange?: (state: TerminalPlaybackState) => void;
+}
+export interface TerminalPlaybackState {
+  status: "paused" | "playing" | "ended";
+  positionMs: number;
+  durationMs: number;
+  frameIndex: number;
+  frameCount: number;
+}
+/** Mounting presents the first frame paused. Restart restores that baseline and pauses. */
+export interface WebTerminalRecordingHandle extends Pick<WebTerminalHandle,
+  "element" | "geometry" | "stats" | "screenText" | "dispose"> {
+  readonly playback: TerminalPlaybackState;
+  play(): void;
+  pause(): void;
+  restart(): void;
+}

@@ -1,0 +1,2206 @@
+[
+  {
+    "id": "building-clis-flow-basic",
+    "title": "Your First Flow App — flowBasic",
+    "page": "guide/building-clis.md",
+    "codeKey": "flowBasicCode",
+    "project": "samples/building-clis-flow-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "actions": []
+  },
+  {
+    "id": "building-clis-flow-state",
+    "title": "Your First Flow App — flowState",
+    "page": "guide/building-clis.md",
+    "codeKey": "flowStateCode",
+    "project": "samples/building-clis-flow-state/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "readyText": "Enter your project name:",
+    "actions": []
+  },
+  {
+    "id": "building-clis-exit-code",
+    "title": "Your First Flow App — exitCode",
+    "page": "guide/building-clis.md",
+    "codeKey": "exitCodeCode",
+    "project": "samples/building-clis-exit-code/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "readyText": "Cancel",
+    "actions": []
+  },
+  {
+    "id": "building-clis-spinner",
+    "title": "Your First Flow App — spinner",
+    "page": "guide/building-clis.md",
+    "codeKey": "spinnerCode",
+    "project": "samples/building-clis-spinner/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "actions": [],
+    "capturePolicy": "until-exit"
+  },
+  {
+    "id": "cli-fence-1",
+    "title": "CLI Tool — example 1",
+    "page": "guide/cli.md",
+    "codeKey": "fence-1",
+    "project": "samples/cli-fence-1/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Hello from Hex1b!"
+  },
+  {
+    "id": "getting-started-step1",
+    "title": "Step 1: Hello World",
+    "page": "guide/getting-started.md",
+    "codeKey": "step1Code",
+    "example": "getting-started-step1",
+    "project": "samples/getting-started-step1/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "readyText": "Hello, Hex1b!"
+  },
+  {
+    "id": "getting-started-step2",
+    "title": "Step 2: Interactive Counter",
+    "page": "guide/getting-started.md",
+    "codeKey": "step2Code",
+    "example": "getting-started-step2",
+    "project": "samples/getting-started-step2/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Click me!",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "getting-started-step3",
+    "title": "Step 3: Simple Todo List",
+    "page": "guide/getting-started.md",
+    "codeKey": "step3Code",
+    "example": "getting-started-step3",
+    "project": "samples/getting-started-step3/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Navigate  Space: Toggle",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "getting-started-step4",
+    "title": "Step 4: Todo with Input",
+    "page": "guide/getting-started.md",
+    "codeKey": "step4Code",
+    "example": "getting-started-step4",
+    "project": "samples/getting-started-step4/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Tab: Focus next  Space: Toggle",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "getting-started-step5",
+    "title": "Step 5: Complete Todo App",
+    "page": "guide/getting-started.md",
+    "codeKey": "step5Code",
+    "example": "getting-started-step5",
+    "project": "samples/getting-started-step5/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Navigate  Space: Toggle  Tab: Focus  Del: Delete",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "layout",
+    "title": "Layout Demo",
+    "page": "guide/layout.md",
+    "codeKey": "",
+    "example": "layout",
+    "project": "samples/layout/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Complete logic from src/Hex1b.Website/Examples/LayoutExample.cs; removed ASP.NET/logger/base-class plumbing and used a normal console entry point.",
+    "readyText": "End of Demo",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "terminal-emulator-fence-1",
+    "title": "Terminal Emulator — example 1",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-1",
+    "project": "samples/terminal-emulator-fence-1/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Added the Hex1b namespace import omitted by the surrounding guide. Requires bash on PATH.",
+    "actions": []
+  },
+  {
+    "id": "terminal-emulator-fence-2",
+    "title": "Terminal Emulator — Headless Build Command",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-2",
+    "project": "samples/terminal-emulator-fence-2/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "sourceOnly": true,
+    "prerequisites": "Requires the .NET 10 SDK and a project or solution in the current working directory for the child dotnet build command. The workload uses a headless presentation, so there is no meaningful terminal playback. Running it from this sample directory builds this sample; running with --project from another project directory builds that directory instead.",
+    "actions": [],
+    "notes": "Added the namespace imports omitted by the surrounding guide; the application logic is unchanged."
+  },
+  {
+    "id": "terminal-emulator-fence-3",
+    "title": "Terminal Emulator — Default Docker Container",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-3",
+    "project": "samples/terminal-emulator-fence-3/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "sourceOnly": true,
+    "prerequisites": "Requires the Docker CLI, a running Docker daemon configured for Linux containers, permission to use it, and access to mcr.microsoft.com/dotnet/sdk:10.0 (or a previously pulled image). Running this example starts a container with an interactive shell; building this project never starts Docker.",
+    "actions": [],
+    "notes": "Added the namespace imports omitted by the surrounding guide; the application logic is unchanged."
+  },
+  {
+    "id": "terminal-emulator-fence-4",
+    "title": "Terminal Emulator — Configured Docker Container",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-4",
+    "project": "samples/terminal-emulator-fence-4/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "sourceOnly": true,
+    "prerequisites": "Requires the Docker CLI and a running Linux-container daemon, plus ubuntu:24.04 locally or access to pull it. Before running, replace /host/data with an existing absolute host directory that you explicitly want mounted read-only at /container/data, and review the /app container working directory. No host data or services are provisioned by the build.",
+    "actions": [],
+    "notes": "Added the namespace imports omitted by the surrounding guide; the application logic is unchanged."
+  },
+  {
+    "id": "terminal-emulator-fence-5",
+    "title": "Terminal Emulator — Dockerfile Workload",
+    "page": "guide/terminal-emulator.md",
+    "codeKey": "fence-5",
+    "project": "samples/terminal-emulator-fence-5/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "sourceOnly": true,
+    "prerequisites": "Requires the Docker CLI, a running Linux-container daemon, and a Dockerfile at ./test-env/Dockerfile relative to the working directory. Supply your own Dockerfile and build-context files; the SDK_VERSION=10.0 argument is passed to that Dockerfile. Running this application builds an image and starts a container; dotnet build only compiles the application.",
+    "actions": [],
+    "notes": "Added the namespace imports omitted by the surrounding guide; the application logic is unchanged."
+  },
+  {
+    "id": "theming",
+    "title": "Theming Demo",
+    "page": "guide/theming.md",
+    "codeKey": "",
+    "example": "theming",
+    "project": "samples/theming/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Complete logic from src/Hex1b.Website/Examples/ThemingExample.cs; removed ASP.NET/logger/base-class plumbing and used a normal console entry point. Replaced thread-local WebSocket session storage with ordinary instance state for this single standalone application.",
+    "readyText": "Change  Tab: Focus  Enter: Click",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "tui-fence-1",
+    "title": "Terminal User Interfaces — example 1",
+    "page": "guide/tui.md",
+    "codeKey": "fence-1",
+    "project": "samples/tui-fence-1/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...). Added the Hex1b namespace import omitted by the surrounding guide.",
+    "readyText": "Click me",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "using-the-emulator-fence-1",
+    "title": "Using the Emulator — Browser Terminal Host",
+    "page": "guide/using-the-emulator.md",
+    "codeKey": "fence-1",
+    "project": "samples/using-the-emulator-fence-1/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "sourceOnly": true,
+    "prerequisites": "Requires the .NET 10 SDK/ASP.NET Core runtime, bash on PATH, and a separately supplied browser terminal client compatible with WebSocketPresentationAdapter at /ws/terminal. Put client assets in wwwroot if serving them from this app. This unauthenticated demonstration executes a local shell: bind only to loopback and never expose it publicly. The site build compiles but never starts the host.",
+    "actions": [],
+    "notes": "Uses Microsoft.NET.Sdk.Web to supply ASP.NET Core framework references and implicit imports; the displayed program is copied unchanged. Hex1b remains pinned to 0.166.0."
+  },
+  {
+    "id": "using-the-emulator-fence-2",
+    "title": "Using the Emulator — Browser Terminal Workloads",
+    "page": "guide/using-the-emulator.md",
+    "codeKey": "fence-2",
+    "project": "samples/using-the-emulator-fence-2/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "sourceOnly": true,
+    "prerequisites": "Requires the .NET 10 SDK/ASP.NET Core runtime and a separately supplied compatible browser terminal client. The /ws/starwars endpoint needs ssh on PATH and access to starwarstel.net; the /ws/cmatrix, /ws/pipes and /ws/asciiquarium endpoints need the Docker CLI, a running daemon and the images named in Program.cs. Client assets may be placed in wwwroot. Bind this unauthenticated command-execution demo only to loopback; do not expose it publicly. Services and images are never started or provisioned during site builds.",
+    "actions": [],
+    "notes": "Uses Microsoft.NET.Sdk.Web to supply ASP.NET Core framework references and implicit imports; the displayed program is copied unchanged. Hex1b remains pinned to 0.166.0."
+  },
+  {
+    "id": "accordion-basic",
+    "title": "Accordion - Basic Usage",
+    "page": "guide/widgets/accordion.md",
+    "codeKey": "basicCode",
+    "example": "accordion-basic",
+    "project": "samples/accordion-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "TIMELINE",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "accordion-actions",
+    "title": "Accordion - Action Icons",
+    "page": "guide/widgets/accordion.md",
+    "codeKey": "actionsCode",
+    "example": "accordion-actions",
+    "project": "samples/accordion-actions/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Status: Ready",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "align-demo",
+    "title": "Align Widget - Interactive Demo",
+    "page": "guide/widgets/align.md",
+    "codeKey": "demoCode",
+    "example": "align-demo",
+    "project": "samples/align-demo/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...). Added the Hex1b.Widgets namespace import for Alignment.",
+    "readyText": "Content",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "align-basic",
+    "title": "AlignWidget — basic",
+    "page": "guide/widgets/align.md",
+    "codeKey": "basicCode",
+    "project": "samples/align-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...). Added the Hex1b.Widgets namespace import for Alignment.",
+    "readyText": "Hello, World!"
+  },
+  {
+    "id": "border-basic",
+    "title": "BorderWidget — basic",
+    "page": "guide/widgets/border.md",
+    "codeKey": "basicCode",
+    "project": "samples/border-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "in a border widget."
+  },
+  {
+    "id": "button-basic",
+    "title": "Button Widget - Basic Usage",
+    "page": "guide/widgets/button.md",
+    "codeKey": "basicCode",
+    "example": "button-basic",
+    "project": "samples/button-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Press Tab to focus, Enter or Space to activate",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "button-async",
+    "title": "Button Widget - Async Work Demo",
+    "page": "guide/widgets/button.md",
+    "codeKey": "asyncCode",
+    "example": "button-async",
+    "project": "samples/button-async/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Load Data",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "button-counter",
+    "title": "Button Widget - Counter Demo",
+    "page": "guide/widgets/button.md",
+    "codeKey": "counterCode",
+    "example": "button-counter",
+    "project": "samples/button-counter/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Reset",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "button-fence-3",
+    "title": "ButtonWidget — example 3",
+    "page": "guide/widgets/button.md",
+    "codeKey": "fence-3",
+    "project": "samples/button-fence-3/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Themed Button",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "chart-column-basic",
+    "title": "Column Chart - Basic Usage",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "columnBasicCode",
+    "example": "chart-column-basic",
+    "project": "samples/chart-column-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-column-multiseries",
+    "title": "Column Chart - Multi-Series",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "columnMultiSeriesCode",
+    "example": "chart-column-multiseries",
+    "project": "samples/chart-column-multiseries/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Decoded HTML entities in the displayed C# (for example &gt; to >). Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-bar-basic",
+    "title": "Bar Chart - Basic Usage",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "barBasicCode",
+    "example": "chart-bar-basic",
+    "project": "samples/chart-bar-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-breakdown",
+    "title": "Breakdown Chart",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "breakdownCode",
+    "example": "chart-breakdown",
+    "project": "samples/chart-breakdown/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-donut-basic",
+    "title": "Donut Chart - Basic Usage",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "donutBasicCode",
+    "example": "chart-donut-basic",
+    "project": "samples/chart-donut-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-donut-pie",
+    "title": "Pie Chart",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "donutPieCode",
+    "example": "chart-donut-pie",
+    "project": "samples/chart-donut-pie/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Decoded HTML entities in the displayed C# (for example &gt; to >). Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-legend",
+    "title": "Legend Widget",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "legendCode",
+    "example": "chart-legend",
+    "project": "samples/chart-legend/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Decoded HTML entities in the displayed C# (for example &gt; to >). Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-timeseries-basic",
+    "title": "Time Series - Basic",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "timeSeriesBasicCode",
+    "example": "chart-timeseries-basic",
+    "project": "samples/chart-timeseries-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-timeseries-multi",
+    "title": "Time Series - Multi-Series",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "timeSeriesMultiCode",
+    "example": "chart-timeseries-multi",
+    "project": "samples/chart-timeseries-multi/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Decoded HTML entities in the displayed C# (for example &gt; to >). Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-timeseries-fill",
+    "title": "Time Series - Area Fill",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "timeSeriesFillCode",
+    "example": "chart-timeseries-fill",
+    "project": "samples/chart-timeseries-fill/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-timeseries-stacked",
+    "title": "Time Series - Stacked Area",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "timeSeriesStackedCode",
+    "example": "chart-timeseries-stacked",
+    "project": "samples/chart-timeseries-stacked/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Decoded HTML entities in the displayed C# (for example &gt; to >). Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-scatter-basic",
+    "title": "Scatter Chart - Basic",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "scatterBasicCode",
+    "example": "chart-scatter-basic",
+    "project": "samples/chart-scatter-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Decoded HTML entities in the displayed C# (for example &gt; to >). Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-scatter-grouped",
+    "title": "Scatter Chart - Grouped",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "scatterGroupedCode",
+    "example": "chart-scatter-grouped",
+    "project": "samples/chart-scatter-grouped/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Decoded HTML entities in the displayed C# (for example &gt; to >). Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-formatting",
+    "title": "Charts - Custom Value Formatting",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "formattingCode",
+    "example": "chart-formatting",
+    "project": "samples/chart-formatting/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Decoded HTML entities in the displayed C# (for example &gt; to >). Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "chart-bar-grouped",
+    "title": "Bar Chart - Grouped with Generic Binding",
+    "page": "guide/widgets/charts.md",
+    "codeKey": "genericBindingCode",
+    "example": "chart-bar-grouped",
+    "project": "samples/chart-bar-grouped/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Decoded HTML entities in the displayed C# (for example &gt; to >). Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "checkbox-basic",
+    "title": "Checkbox Widget - Basic Usage",
+    "page": "guide/widgets/checkbox.md",
+    "codeKey": "basicCode",
+    "example": "checkbox-basic",
+    "project": "samples/checkbox-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Continue",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "checkbox-states",
+    "title": "Checkbox Widget - States",
+    "page": "guide/widgets/checkbox.md",
+    "codeKey": "statesCode",
+    "example": "checkbox-states",
+    "project": "samples/checkbox-states/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Indeterminate",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "drag-drop-basic",
+    "title": "Drag & Drop - Basic Usage",
+    "page": "guide/widgets/drag-drop.md",
+    "codeKey": "basicCode",
+    "example": "drag-drop-basic",
+    "project": "samples/drag-drop-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "drag-drop-ghost",
+    "title": "Drag & Drop - Ghost Overlay",
+    "page": "guide/widgets/drag-drop.md",
+    "codeKey": "ghostCode",
+    "example": "drag-drop-ghost",
+    "project": "samples/drag-drop-ghost/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "drag-drop-accept",
+    "title": "Drag & Drop - Accept Predicates",
+    "page": "guide/widgets/drag-drop.md",
+    "codeKey": "acceptCode",
+    "example": "drag-drop-accept",
+    "project": "samples/drag-drop-accept/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Moved record declarations below top-level statements, as required by C#."
+  },
+  {
+    "id": "drag-drop-target",
+    "title": "Drag & Drop - Drop Targets",
+    "page": "guide/widgets/drag-drop.md",
+    "codeKey": "dropTargetCode",
+    "example": "drag-drop-target",
+    "project": "samples/drag-drop-target/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "drag-drop-kanban",
+    "title": "Drag & Drop - Kanban Board",
+    "page": "guide/widgets/drag-drop.md",
+    "codeKey": "kanbanCode",
+    "example": "drag-drop-kanban",
+    "project": "samples/drag-drop-kanban/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Moved the KanbanTask record below top-level statements, as required by C#."
+  },
+  {
+    "id": "dragbar-basic",
+    "title": "DragBarPanel - Basic Usage",
+    "page": "guide/widgets/dragbar.md",
+    "codeKey": "basicCode",
+    "example": "dragbar-basic",
+    "project": "samples/dragbar-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "handle or using arrow keys.",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "dragbar-vertical",
+    "title": "DragBarPanel - Vertical Resizing",
+    "page": "guide/widgets/dragbar.md",
+    "codeKey": "verticalCode",
+    "example": "dragbar-vertical",
+    "project": "samples/dragbar-vertical/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "0 warnings, 0 errors",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "dragbar-multi-panel",
+    "title": "DragBarPanel - Multi-Panel Layout",
+    "page": "guide/widgets/dragbar.md",
+    "codeKey": "multiPanelCode",
+    "example": "dragbar-multi-panel",
+    "project": "samples/dragbar-multi-panel/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "0 Warning(s), 0 Error(s)",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "effectpanel-fence-1",
+    "title": "EffectPanelWidget — example 1",
+    "page": "guide/widgets/effectpanel.md",
+    "codeKey": "fence-1",
+    "project": "samples/effectpanel-fence-1/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "readyText": "This text is dimmed"
+  },
+  {
+    "id": "figlet-basic",
+    "title": "FigletText Widget - Basic Usage",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "basicCode",
+    "example": "figlet-basic",
+    "project": "samples/figlet-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Press Ctrl+C to exit."
+  },
+  {
+    "id": "figlet-fonts",
+    "title": "FigletText Widget - Bundled Fonts",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "fontsCode",
+    "example": "figlet-fonts",
+    "project": "samples/figlet-fonts/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "figlet-color",
+    "title": "FigletText Widget - Color via EffectPanel",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "colorCode",
+    "example": "figlet-color",
+    "project": "samples/figlet-color/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Added the Hex1b.Theming namespace import for Hex1bColor.",
+    "readyText": "FigletText is monochrome"
+  },
+  {
+    "id": "figlet-custom-font",
+    "title": "FigletText — Custom Font File",
+    "page": "guide/widgets/figlet.md",
+    "codeKey": "customFontSnippet",
+    "project": "samples/figlet-custom-font/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "sourceOnly": true,
+    "prerequisites": "Requires a valid FIGlet .flf font at fonts/colossal.flf relative to the working directory, or a changed path in Program.cs. Supply a font you are licensed to use; this sample does not include or download that external asset. The font is loaded only when you explicitly run the application, never during compilation.",
+    "actions": [],
+    "notes": "Added the namespace imports omitted by the surrounding guide; the application logic is unchanged."
+  },
+  {
+    "id": "float-basic",
+    "title": "Float - Basic Usage",
+    "page": "guide/widgets/float.md",
+    "codeKey": "basicCode",
+    "example": "float-basic",
+    "project": "samples/float-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "float-alignment",
+    "title": "Float - Alignment Explorer",
+    "page": "guide/widgets/float.md",
+    "codeKey": "alignmentCode",
+    "example": "float-alignment",
+    "project": "samples/float-alignment/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Corrected JavaScript-style backtick interpolation in the legacy C# sample to C# interpolated strings. Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "float-overlay",
+    "title": "Float - Interactive Overlay",
+    "page": "guide/widgets/float.md",
+    "codeKey": "overlayCode",
+    "example": "float-overlay",
+    "project": "samples/float-overlay/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Corrected JavaScript-style backtick interpolation in the legacy C# sample to C# interpolated strings. Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Reset",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "grid-basic",
+    "title": "Grid - Basic Layout",
+    "page": "guide/widgets/grid.md",
+    "codeKey": "basicCode",
+    "example": "grid-basic",
+    "project": "samples/grid-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Status: Ready"
+  },
+  {
+    "id": "hstack-basic",
+    "title": "HStackWidget — basic",
+    "page": "guide/widgets/hstack.md",
+    "codeKey": "basicCode",
+    "project": "samples/hstack-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Save",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "hyperlink-basic",
+    "title": "Hyperlink Widget - Basic Usage",
+    "page": "guide/widgets/hyperlink.md",
+    "codeKey": "basicCode",
+    "example": "hyperlink-basic",
+    "project": "samples/hyperlink-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Press Tab to navigate, Enter to activate",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "hyperlink-click",
+    "title": "Hyperlink Click Handler",
+    "page": "guide/widgets/hyperlink.md",
+    "codeKey": "clickHandlerCode",
+    "example": "hyperlink-click",
+    "project": "samples/hyperlink-click/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "hyperlink-overflow",
+    "title": "Hyperlink Overflow Modes",
+    "page": "guide/widgets/hyperlink.md",
+    "codeKey": "overflowCode",
+    "example": "hyperlink-overflow",
+    "project": "samples/hyperlink-overflow/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "icon-basic",
+    "title": "Icon Widget - Basic Usage",
+    "page": "guide/widgets/icon.md",
+    "codeKey": "basicCode",
+    "example": "icon-basic",
+    "project": "samples/icon-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "icon-click",
+    "title": "Icon Widget - Clickable Icons",
+    "page": "guide/widgets/icon.md",
+    "codeKey": "clickableCode",
+    "example": "icon-click",
+    "project": "samples/icon-click/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "infobar-basic",
+    "title": "InfoBar - Basic Usage",
+    "page": "guide/widgets/infobar.md",
+    "codeKey": "basicCode",
+    "example": "infobar-basic",
+    "project": "samples/infobar-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Ln 42, Col 8"
+  },
+  {
+    "id": "infobar-spacer",
+    "title": "InfoBar - Spacer",
+    "page": "guide/widgets/infobar.md",
+    "codeKey": "spacerCode",
+    "example": "infobar-spacer",
+    "project": "samples/infobar-spacer/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "UTF-8"
+  },
+  {
+    "id": "infobar-spinner",
+    "title": "InfoBar - Widget Content",
+    "page": "guide/widgets/infobar.md",
+    "codeKey": "spinnerCode",
+    "example": "infobar-spinner",
+    "project": "samples/infobar-spinner/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Ready"
+  },
+  {
+    "id": "kgpimage-basic",
+    "title": "KGP Image - Basic Usage",
+    "page": "guide/widgets/kgpimage.md",
+    "codeKey": "basicCode",
+    "example": "kgpimage-basic",
+    "project": "samples/kgpimage-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "list-basic",
+    "title": "List Widget - Basic Usage",
+    "page": "guide/widgets/list.md",
+    "codeKey": "basicCode",
+    "example": "list-basic",
+    "project": "samples/list-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Elderberry",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "list-selection",
+    "title": "List Widget - Selection Changed",
+    "page": "guide/widgets/list.md",
+    "codeKey": "selectionCode",
+    "example": "list-selection",
+    "project": "samples/list-selection/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "list-activate",
+    "title": "List Widget - Item Activation",
+    "page": "guide/widgets/list.md",
+    "codeKey": "activateCode",
+    "example": "list-activate",
+    "project": "samples/list-activate/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Deploy to production",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "list-long",
+    "title": "List Widget - Long List with Scrolling",
+    "page": "guide/widgets/list.md",
+    "codeKey": "longListCode",
+    "example": "list-long",
+    "project": "samples/list-long/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "list-item-template",
+    "title": "List Widget - Item Template",
+    "page": "guide/widgets/list.md",
+    "codeKey": "templateCode",
+    "example": "list-item-template",
+    "project": "samples/list-item-template/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...). Renamed TypedList to the generic List API in Hex1b 0.166.0.",
+    "readyText": "Lisbon",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "markdown-basic",
+    "title": "Markdown Widget - Basic Usage",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "basicCode",
+    "example": "markdown-basic",
+    "project": "samples/markdown-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "markdown-links",
+    "title": "Markdown Widget - Focusable Links",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "linksCode",
+    "example": "markdown-links",
+    "project": "samples/markdown-links/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Press Tab to focus a link, Enter to activate",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "markdown-document",
+    "title": "MarkdownWidget — document",
+    "page": "guide/widgets/markdown.md",
+    "codeKey": "documentSnippet",
+    "project": "samples/markdown-document/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Added the Hex1b.Widgets namespace import for EditorState.",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "navigator",
+    "title": "Navigator Demo",
+    "page": "guide/widgets/navigator.md",
+    "codeKey": "",
+    "example": "navigator",
+    "project": "samples/navigator/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Complete logic from src/Hex1b.Website/Examples/NavigatorExample.cs; removed ASP.NET/logger/base-class plumbing and used a normal console entry point. Preserved the documentation navigator ID although the backend calls it navigation.",
+    "readyText": "Tab: Navigate  Enter: Select  Esc: Back",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "notifications-basic",
+    "title": "Notifications - Basic Setup",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "basicCode",
+    "example": "notifications-basic",
+    "project": "samples/notifications-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Press Alt+N to toggle the notification drawer",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "notifications-actions",
+    "title": "Notifications - Action Buttons",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "actionsCode",
+    "example": "notifications-actions",
+    "project": "samples/notifications-actions/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Save File",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "notifications-lifecycle",
+    "title": "Notifications - Lifecycle Events",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "lifecycleCode",
+    "example": "notifications-lifecycle",
+    "project": "samples/notifications-lifecycle/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Start Download",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "notifications-fence-14",
+    "title": "Notifications — example 14",
+    "page": "guide/widgets/notifications.md",
+    "codeKey": "fence-14",
+    "project": "samples/notifications-fence-14/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Error",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "picker-basic",
+    "title": "Picker Widget - Basic Usage",
+    "page": "guide/widgets/picker.md",
+    "codeKey": "basicCode",
+    "example": "picker-basic",
+    "project": "samples/picker-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Apple",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "picker-selection",
+    "title": "Picker Widget - Selection Changed",
+    "page": "guide/widgets/picker.md",
+    "codeKey": "selectionCode",
+    "example": "picker-selection",
+    "project": "samples/picker-selection/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "picker-initial",
+    "title": "Picker Widget - Initial Selection",
+    "page": "guide/widgets/picker.md",
+    "codeKey": "initialCode",
+    "example": "picker-initial",
+    "project": "samples/picker-initial/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Order: Medium priority High",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "progress-basic",
+    "title": "Progress Widget - Basic Usage",
+    "page": "guide/widgets/progress.md",
+    "codeKey": "basicCode",
+    "example": "progress-basic",
+    "project": "samples/progress-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "progress-indeterminate",
+    "title": "Progress Widget - Indeterminate",
+    "page": "guide/widgets/progress.md",
+    "codeKey": "indeterminateCode",
+    "example": "progress-indeterminate",
+    "project": "samples/progress-indeterminate/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "progress-theming",
+    "title": "Progress — theming",
+    "page": "guide/widgets/progress.md",
+    "codeKey": "themingSnippet",
+    "project": "samples/progress-theming/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Added Hex1b and Hex1b.Theming imports and replaced the removed Hex1bThemeBuilder with new Hex1bTheme(\"Custom\")."
+  },
+  {
+    "id": "qrcode-basic",
+    "title": "QR Code Widget - Basic Usage",
+    "page": "guide/widgets/qrcode.md",
+    "codeKey": "basicCode",
+    "example": "qrcode-basic",
+    "project": "samples/qrcode-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 45,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "The QR code encodes: https://hex1b.dev"
+  },
+  {
+    "id": "qrcode-custom",
+    "title": "QR Code Widget - Interactive Demo",
+    "page": "guide/widgets/qrcode.md",
+    "codeKey": "customCode",
+    "example": "qrcode-custom",
+    "project": "samples/qrcode-custom/Sample.csproj",
+    "columns": 100,
+    "rows": 60,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Quiet Zone:",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "qrcode-fence-3",
+    "title": "QrCodeWidget — example 3",
+    "page": "guide/widgets/qrcode.md",
+    "codeKey": "fence-3",
+    "project": "samples/qrcode-fence-3/Sample.csproj",
+    "columns": 100,
+    "rows": 45,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced ThemeElement with GlobalTheme and the removed ThemePanel convenience API with VStack; the same green foreground and black background are applied by the configured global theme."
+  },
+  {
+    "id": "rescue-basic",
+    "title": "Rescue Widget - Basic Usage",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "basicCode",
+    "example": "rescue-basic",
+    "project": "samples/rescue-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Click me",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "rescue-event-handlers",
+    "title": "Rescue Widget - Event Handlers",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "eventHandlersCode",
+    "example": "rescue-event-handlers",
+    "project": "samples/rescue-event-handlers/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Trigger Error",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "rescue-custom-fallback",
+    "title": "Rescue Widget - Custom Fallback",
+    "page": "guide/widgets/rescue.md",
+    "codeKey": "customFallbackCode",
+    "example": "rescue-custom-fallback",
+    "project": "samples/rescue-custom-fallback/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Corrected JavaScript-style backtick interpolation in the legacy C# sample to C# interpolated strings. Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Trigger Error",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "responsive-basic",
+    "title": "Responsive Layout Demo",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "basicCode",
+    "example": "responsive-basic",
+    "project": "samples/responsive-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Breakpoint: >= 120",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "responsive-basic-basic-snippet",
+    "title": "ResponsiveWidget — basic",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "basicSnippet",
+    "project": "samples/responsive-basic-basic-snippet/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "readyText": "Wide layout - Terminal width >= 80 columns"
+  },
+  {
+    "id": "responsive-layout",
+    "title": "ResponsiveWidget — layout",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "layoutSnippet",
+    "project": "samples/responsive-layout/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "readyText": "Additional info"
+  },
+  {
+    "id": "responsive-multiple",
+    "title": "ResponsiveWidget — multiple",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "multipleSnippet",
+    "project": "samples/responsive-multiple/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "readyText": "Column 2"
+  },
+  {
+    "id": "responsive-custom",
+    "title": "ResponsiveWidget — custom",
+    "page": "guide/widgets/responsive.md",
+    "codeKey": "customSnippet",
+    "project": "samples/responsive-custom/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "readyText": "Plenty of space for content"
+  },
+  {
+    "id": "scroll-basic",
+    "title": "Scroll Widget - Basic Usage",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "basicCode",
+    "example": "scroll-basic",
+    "project": "samples/scroll-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...). Renamed VScroll/HScroll to VScrollPanel/HScrollPanel in Hex1b 0.166.0.",
+    "readyText": "End of Content"
+  },
+  {
+    "id": "scroll-horizontal",
+    "title": "Scroll Widget - Horizontal",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "horizontalCode",
+    "example": "scroll-horizontal",
+    "project": "samples/scroll-horizontal/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...). Renamed VScroll/HScroll to VScrollPanel/HScrollPanel in Hex1b 0.166.0.",
+    "readyText": "Column 8"
+  },
+  {
+    "id": "scroll-event",
+    "title": "Scroll Widget - Event Handling",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "eventCode",
+    "example": "scroll-event",
+    "project": "samples/scroll-event/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...). Renamed VScroll/HScroll to VScrollPanel/HScrollPanel in Hex1b 0.166.0.",
+    "readyText": "Line 12 - End"
+  },
+  {
+    "id": "scroll-tracking",
+    "title": "Scroll Widget - Position Tracking",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "trackingCode",
+    "example": "scroll-tracking",
+    "project": "samples/scroll-tracking/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...). Renamed VScroll/HScroll to VScrollPanel/HScrollPanel in Hex1b 0.166.0."
+  },
+  {
+    "id": "scroll-infinite",
+    "title": "Scroll Widget - Infinite Scroll",
+    "page": "guide/widgets/scroll.md",
+    "codeKey": "infiniteCode",
+    "example": "scroll-infinite",
+    "project": "samples/scroll-infinite/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...). Renamed VScroll/HScroll to VScrollPanel/HScrollPanel in Hex1b 0.166.0."
+  },
+  {
+    "id": "sixel",
+    "title": "Sixel Widget",
+    "page": "guide/widgets/sixel.md",
+    "codeKey": "basicCode",
+    "example": "sixel",
+    "project": "samples/sixel/Sample.csproj",
+    "columns": 100,
+    "rows": 30
+  },
+  {
+    "id": "slider-basic",
+    "title": "Slider Widget - Basic Usage",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "basicCode",
+    "example": "slider-basic",
+    "project": "samples/slider-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Use ← → or Home/End to adjust",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "slider-audio-mixer",
+    "title": "Slider Widget - Audio Mixer",
+    "page": "guide/widgets/slider.md",
+    "codeKey": "audioMixerCode",
+    "example": "slider-audio-mixer",
+    "project": "samples/slider-audio-mixer/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Tab to switch, arrows to adjust",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "spinner-basic",
+    "title": "Spinner Widget - Basic Usage",
+    "page": "guide/widgets/spinner.md",
+    "codeKey": "basicCode",
+    "example": "spinner-basic",
+    "project": "samples/spinner-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Loading..."
+  },
+  {
+    "id": "spinner-styles",
+    "title": "Spinner Widget - Styles",
+    "page": "guide/widgets/spinner.md",
+    "codeKey": "stylesCode",
+    "example": "spinner-styles",
+    "project": "samples/spinner-styles/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "LoadingBar"
+  },
+  {
+    "id": "split-button-basic",
+    "title": "Split Button - Basic Usage",
+    "page": "guide/widgets/split-button.md",
+    "codeKey": "basicCode",
+    "example": "split-button-basic",
+    "project": "samples/split-button-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "for more options",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "split-button-multiple",
+    "title": "Split Button - Multiple Buttons",
+    "page": "guide/widgets/split-button.md",
+    "codeKey": "multipleCode",
+    "example": "split-button-multiple",
+    "project": "samples/split-button-multiple/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Set Priority",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "splitter-basic",
+    "title": "Splitter Widget - Horizontal Split",
+    "page": "guide/widgets/splitter.md",
+    "codeKey": "basicCode",
+    "example": "splitter-basic",
+    "project": "samples/splitter-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced the removed Panel builder with VStack, preserving the same vertical child layout.",
+    "readyText": "full height.",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "splitter-vertical",
+    "title": "Splitter Widget - Vertical Split",
+    "page": "guide/widgets/splitter.md",
+    "codeKey": "verticalCode",
+    "example": "splitter-vertical",
+    "project": "samples/splitter-vertical/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced the removed Panel builder with VStack, preserving the same vertical child layout.",
+    "readyText": "Great for editor + terminal layouts.",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "splitter-nested",
+    "title": "Splitter Widget - Nested Splitters",
+    "page": "guide/widgets/splitter.md",
+    "codeKey": "nestedCode",
+    "example": "splitter-nested",
+    "project": "samples/splitter-nested/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced the removed Panel builder with VStack, preserving the same vertical child layout.",
+    "readyText": "Great for IDE-style layouts!",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "surface-basic",
+    "title": "Surface - Basic Usage",
+    "page": "guide/widgets/surface.md",
+    "codeKey": "basicCode",
+    "example": "surface-basic",
+    "project": "samples/surface-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "surface-layers",
+    "title": "Surface - Multiple Layers",
+    "page": "guide/widgets/surface.md",
+    "codeKey": "layersCode",
+    "example": "surface-layers",
+    "project": "samples/surface-layers/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "surface-mouse",
+    "title": "Surface - Mouse Interaction",
+    "page": "guide/widgets/surface.md",
+    "codeKey": "mouseCode",
+    "example": "surface-mouse",
+    "project": "samples/surface-mouse/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "table-basic",
+    "title": "Table Widget - Basic Usage",
+    "page": "guide/widgets/table.md",
+    "codeKey": "basicCode",
+    "example": "table-basic",
+    "project": "samples/table-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...). Added Hex1b.Layout and Hex1b.Widgets namespace imports for SizeHint and Alignment.",
+    "readyText": "Power Bank",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "table-focus",
+    "title": "Table Widget - Focus Tracking",
+    "page": "guide/widgets/table.md",
+    "codeKey": "focusCode",
+    "example": "table-focus",
+    "project": "samples/table-focus/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...). Added Hex1b.Layout and Hex1b.Widgets namespace imports for SizeHint and Alignment.",
+    "readyText": "Details",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "table-selection",
+    "title": "Table Widget - Selection Column",
+    "page": "guide/widgets/table.md",
+    "codeKey": "selectionCode",
+    "example": "table-selection",
+    "project": "samples/table-selection/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...). Added Hex1b.Layout and Hex1b.Widgets namespace imports for SizeHint and Alignment.",
+    "readyText": "Completed: 2 / 5",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "tabpanel-basic",
+    "title": "TabPanel - Basic Usage",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "basicCode",
+    "example": "tabpanel-basic",
+    "project": "samples/tabpanel-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "This is the Overview tab content.",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "tabpanel-selection",
+    "title": "TabPanel - Selection Tracking",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "selectionCode",
+    "example": "tabpanel-selection",
+    "project": "samples/tabpanel-selection/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Your documents appear here",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "tabpanel-dynamic",
+    "title": "TabPanel - Dynamic Tabs",
+    "page": "guide/widgets/tabpanel.md",
+    "codeKey": "dynamicCode",
+    "example": "tabpanel-dynamic",
+    "project": "samples/tabpanel-dynamic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "terminal-basic",
+    "title": "Embedded Terminals Demo",
+    "page": "guide/widgets/terminal.md",
+    "codeKey": "demoCode",
+    "example": "terminal-basic",
+    "project": "samples/terminal-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Complete logic from src/Hex1b.Website/Examples/TerminalBasicExample.cs; removed ASP.NET/logger/base-class plumbing and used a normal console entry point. The displayed snippet omits RestartTerminal; the full backend supplies restart, cleanup, and keyboard shortcuts. Embedded terminal dimensions default to 96×22.",
+    "readyText": "Terminal 1 created",
+    "actions": []
+  },
+  {
+    "id": "terminal-basic-basic-snippet",
+    "title": "TerminalWidget — basic",
+    "page": "guide/widgets/terminal.md",
+    "codeKey": "basicSnippet",
+    "project": "samples/terminal-basic-basic-snippet/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Requires bash on PATH; the embedded shell runs locally.",
+    "actions": []
+  },
+  {
+    "id": "text-basic",
+    "title": "Text Widget - Basic Usage",
+    "page": "guide/widgets/text.md",
+    "codeKey": "basicCode",
+    "example": "text-basic",
+    "project": "samples/text-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Build beautiful terminal UIs"
+  },
+  {
+    "id": "text-overflow",
+    "title": "Text Overflow Modes",
+    "page": "guide/widgets/text.md",
+    "codeKey": "overflowCode",
+    "example": "text-overflow",
+    "project": "samples/text-overflow/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "will be clipped by the parent container"
+  },
+  {
+    "id": "textbox-basic",
+    "title": "TextBox Widget - Basic Usage",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "basicCode",
+    "example": "textbox-basic",
+    "project": "samples/textbox-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Try typing, using arrow keys, Home/End, etc.",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "textbox-submit",
+    "title": "TextBox Widget - Submit Handler",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "submitCode",
+    "example": "textbox-submit",
+    "project": "samples/textbox-submit/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Messages:",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "textbox-form",
+    "title": "TextBox Widget - Form Example",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "formCode",
+    "example": "textbox-form",
+    "project": "samples/textbox-form/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Use Tab to navigate between fields",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "textbox-unicode",
+    "title": "TextBox Widget - Unicode Support",
+    "page": "guide/widgets/textbox.md",
+    "codeKey": "unicodeCode",
+    "example": "textbox-unicode",
+    "project": "samples/textbox-unicode/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Initialized UnicodeState.Input from the top-level constant instead of referencing a top-level local from inside a class.",
+    "readyText": "Reset to Default",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "themepanel-basic",
+    "title": "ThemePanel Widget - Basic Usage",
+    "page": "guide/widgets/themepanel.md",
+    "codeKey": "basicCode",
+    "example": "themepanel-basic",
+    "project": "samples/themepanel-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Wipe Everything",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "tilepanel-basic",
+    "title": "TilePanel Widget - Basic Usage",
+    "page": "guide/widgets/tilepanel.md",
+    "codeKey": "basicCode",
+    "example": "tilepanel-basic",
+    "project": "samples/tilepanel-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0."
+  },
+  {
+    "id": "toggle-switch-basic",
+    "title": "ToggleSwitch Widget - Basic Usage",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "basicCode",
+    "example": "toggle-switch-basic",
+    "project": "samples/toggle-switch-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Use Left/Right arrows or click to toggle",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "toggle-switch-multi",
+    "title": "ToggleSwitch Widget - Multiple Options",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "multiOptionCode",
+    "example": "toggle-switch-multi",
+    "project": "samples/toggle-switch-multi/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Use arrow keys to cycle through options",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "toggle-switch-event",
+    "title": "ToggleSwitch Widget - Event Handling",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "eventCode",
+    "example": "toggle-switch-event",
+    "project": "samples/toggle-switch-event/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Replaced Border's removed title argument with fluent .Title(...).",
+    "readyText": "Event Log:",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "toggle-switch-focus",
+    "title": "ToggleSwitchWidget — focus",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "focusSnippet",
+    "project": "samples/toggle-switch-focus/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "readyText": "Dark",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "toggle-switch-multi-multi-snippet",
+    "title": "ToggleSwitchWidget — multi",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "multiSnippet",
+    "project": "samples/toggle-switch-multi-multi-snippet/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "readyText": "Fast",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "toggle-switch-binary",
+    "title": "ToggleSwitchWidget — binary",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "binarySnippet",
+    "project": "samples/toggle-switch-binary/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "readyText": "Current: Off",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "toggle-switch-modes",
+    "title": "ToggleSwitchWidget — modes",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "modesSnippet",
+    "project": "samples/toggle-switch-modes/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "readyText": "Selected: Auto",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "toggle-switch-settings",
+    "title": "ToggleSwitchWidget — settings",
+    "page": "guide/widgets/toggle-switch.md",
+    "codeKey": "settingsSnippet",
+    "project": "samples/toggle-switch-settings/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "readyText": "Sound:",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "tree-basic",
+    "title": "Tree Widget - Basic Usage",
+    "page": "guide/widgets/tree.md",
+    "codeKey": "basicCode",
+    "example": "tree-basic",
+    "project": "samples/tree-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "README.md",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "tree-lazy-load",
+    "title": "Tree Widget - Lazy Loading",
+    "page": "guide/widgets/tree.md",
+    "codeKey": "lazyLoadCode",
+    "example": "tree-lazy-load",
+    "project": "samples/tree-lazy-load/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Server 2",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "tree-multi-select",
+    "title": "Tree Widget - Multi-Select",
+    "page": "guide/widgets/tree.md",
+    "codeKey": "multiSelectCode",
+    "example": "tree-multi-select",
+    "project": "samples/tree-multi-select/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Go",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "tree-data-binding",
+    "title": "Tree Widget - Data Binding",
+    "page": "guide/widgets/tree.md",
+    "codeKey": "dataBoundCode",
+    "example": "tree-data-binding",
+    "project": "samples/tree-data-binding/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0. Moved the FileNode record below top-level statements, as required by C#.",
+    "readyText": "README.md",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "vstack-basic",
+    "title": "VStackWidget — basic",
+    "page": "guide/widgets/vstack.md",
+    "codeKey": "basicCode",
+    "project": "samples/vstack-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Quit",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "window-basic",
+    "title": "Windows - Basic Usage",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "basicCode",
+    "example": "window-basic",
+    "project": "samples/window-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Press the button to open a window...",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "window-modal",
+    "title": "Modal Dialog with Result",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "modalCode",
+    "example": "window-modal",
+    "project": "samples/window-modal/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Confirm Delete",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "window-title-actions",
+    "title": "Custom Title Bar Actions",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "titleActionsCode",
+    "example": "window-title-actions",
+    "project": "samples/window-title-actions/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Open Window with Actions",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "window-position",
+    "title": "Window Positioning",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "positionCode",
+    "example": "window-position",
+    "project": "samples/window-position/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Close All",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "window-resizable",
+    "title": "Resizable Window",
+    "page": "guide/widgets/windows.md",
+    "codeKey": "resizableCode",
+    "example": "window-resizable",
+    "project": "samples/window-resizable/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Drag window edges to resize",
+    "actions": [
+      {
+        "key": "Tab"
+      }
+    ]
+  },
+  {
+    "id": "wrap-panel-basic",
+    "title": "WrapPanelWidget — basic",
+    "page": "guide/widgets/wrap-panel.md",
+    "codeKey": "basicCode",
+    "project": "samples/wrap-panel-basic/Sample.csproj",
+    "columns": 100,
+    "rows": 30,
+    "notes": "Updated WithHex1bApp to the separate eager options/configure-app callbacks in Hex1b 0.166.0.",
+    "readyText": "Item 6"
+  }
+]

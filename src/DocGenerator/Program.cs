@@ -14,7 +14,11 @@ public partial class Program
     public static async Task Main(string[] args)
     {
         var projectRoot = FindProjectRoot();
-        var outputDir = Path.Combine(projectRoot, "src", "content", "reference");
+        if (args.Length != 0 && (args.Length != 2 || args[0] != "--output"))
+            throw new ArgumentException("Usage: DocGenerator [--output <directory>]");
+        var outputDir = args.Length == 2
+            ? Path.GetFullPath(args[1])
+            : Path.Combine(projectRoot, "src", "content", "reference");
         var docGeneratorDir = Path.Combine(projectRoot, "src", "DocGenerator");
         var yamlOutputDir = Path.Combine(docGeneratorDir, "_metadata");
         var docfxJsonPath = Path.Combine(docGeneratorDir, "docfx.json");

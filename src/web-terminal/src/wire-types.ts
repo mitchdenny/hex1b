@@ -1,7 +1,7 @@
 import type { InputModifiers, PointerButton, SelectionMode, SelectionRange, TerminalLinkUnderlineStyle,
   TerminalBuffer, TerminalFont, TerminalGeometry, TerminalPeer, TerminalSize, TerminalStats,
   TerminalRendererPreference, TerminalStatusLevel, TerminalProgress, TerminalShellIntegration,
-  TerminalWorkingDirectory, TerminalCommandMark, TerminalTransportCloseDetails } from "./types.js";
+  TerminalWorkingDirectory, TerminalCommandMark, TerminalTransportCloseDetails, TerminalPlaybackState } from "./types.js";
 import type { LinkDetectionSnapshot } from "./link-detection.js";
 import type { TerminalPalette } from "./terminal-palette.js";
 import type { MarkerResult, TerminalMarker } from "./scrollbar-types.js";
@@ -81,8 +81,10 @@ export type TerminalCommand = InputCommand
   | { type: "ack"; revision: number };
 export type WorkerInputMessage =
   | { type: "init"; canvas: OffscreenCanvas;
-      transport: { type: "websocket"; url: string } | { type: "custom" }; scale: number; font: TerminalFont;
+      transport: { type: "websocket"; url: string } | { type: "recording"; url: string } | { type: "custom" };
+      scale: number; font: TerminalFont;
       renderer: TerminalRendererPreference; palette?: TerminalPalette }
+  | { type: "playback"; action: "play" | "pause" | "restart" }
   | { type: "transportConnected" }
   | { type: "transportFrame"; buffer: ArrayBuffer }
   | { type: "transportSent" }
@@ -108,6 +110,7 @@ export interface WorkerStats extends TerminalStats {
 }
 export type WorkerOutputMessage =
   | { type: "connected" }
+  | { type: "playback"; state: TerminalPlaybackState }
   | { type: "transportConnect" }
   | { type: "transportSend"; control: string }
   | { type: "transportReceived" }

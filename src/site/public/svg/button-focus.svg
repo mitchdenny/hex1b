@@ -1,0 +1,1121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="450" height="126" viewBox="0 0 450 126">
+  <defs>
+    <style>
+      .terminal-text { font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace; font-size: 14px; }
+      .cursor { fill: #ffffff; opacity: 0.7; }
+      @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.3; } }
+      .blink { animation: blink 1s infinite; }
+      .cell-grid { stroke: rgba(128, 128, 128, 0.5); stroke-width: 0.5; vector-effect: non-scaling-stroke; }
+      .pixel-grid { stroke: rgba(64, 64, 64, 0.3); stroke-width: 0.25; vector-effect: non-scaling-stroke; }
+      /* Cell group highlighting for related cells (hyperlinks, etc.) */
+      .cell { pointer-events: bounding-box; }
+      .cell.highlight > rect.cell-bg { stroke: #ff6b6b; stroke-width: 2; }
+      .cell.highlight > text { fill: #ff6b6b !important; }
+    </style>
+  </defs>
+  <rect width="450" height="126" fill="#0f0f1a"/>
+  <g class="terminal-text">
+    <g class="cell" data-x="24" data-y="3">
+      <rect class="cell-bg" x="216" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="40" data-y="4">
+      <rect class="cell-bg" x="360" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="39" data-y="4">
+      <rect class="cell-bg" x="351" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="38" data-y="4">
+      <rect class="cell-bg" x="342" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="37" data-y="4">
+      <rect class="cell-bg" x="333" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="36" data-y="4">
+      <rect class="cell-bg" x="324" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="35" data-y="4">
+      <rect class="cell-bg" x="315" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="34" data-y="4">
+      <rect class="cell-bg" x="306" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="33" data-y="4">
+      <rect class="cell-bg" x="297" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="32" data-y="4">
+      <rect class="cell-bg" x="288" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="31" data-y="4">
+      <rect class="cell-bg" x="279" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="30" data-y="4">
+      <rect class="cell-bg" x="270" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="29" data-y="4">
+      <rect class="cell-bg" x="261" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="28" data-y="4">
+      <rect class="cell-bg" x="252" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="27" data-y="4">
+      <rect class="cell-bg" x="243" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="26" data-y="4">
+      <rect class="cell-bg" x="234" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="25" data-y="4">
+      <rect class="cell-bg" x="225" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="24" data-y="4">
+      <rect class="cell-bg" x="216" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="41" data-y="4">
+      <rect class="cell-bg" x="369" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="23" data-y="4">
+      <rect class="cell-bg" x="207" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="42" data-y="4">
+      <rect class="cell-bg" x="378" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="44" data-y="4">
+      <rect class="cell-bg" x="396" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="11" data-y="5">
+      <rect class="cell-bg" x="99" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="10" data-y="5">
+      <rect class="cell-bg" x="90" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="9" data-y="5">
+      <rect class="cell-bg" x="81" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="8" data-y="5">
+      <rect class="cell-bg" x="72" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="7" data-y="5">
+      <rect class="cell-bg" x="63" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="6" data-y="5">
+      <rect class="cell-bg" x="54" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="5" data-y="5">
+      <rect class="cell-bg" x="45" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="4" data-y="5">
+      <rect class="cell-bg" x="36" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="3" data-y="5">
+      <rect class="cell-bg" x="27" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="2" data-y="5">
+      <rect class="cell-bg" x="18" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="1" data-y="5">
+      <rect class="cell-bg" x="9" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="0" data-y="5">
+      <rect class="cell-bg" x="0" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="49" data-y="4">
+      <rect class="cell-bg" x="441" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="48" data-y="4">
+      <rect class="cell-bg" x="432" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="47" data-y="4">
+      <rect class="cell-bg" x="423" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="46" data-y="4">
+      <rect class="cell-bg" x="414" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="45" data-y="4">
+      <rect class="cell-bg" x="405" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="43" data-y="4">
+      <rect class="cell-bg" x="387" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="22" data-y="4">
+      <rect class="cell-bg" x="198" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="21" data-y="4">
+      <rect class="cell-bg" x="189" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="20" data-y="4">
+      <rect class="cell-bg" x="180" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="38" data-y="3">
+      <rect class="cell-bg" x="342" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="37" data-y="3">
+      <rect class="cell-bg" x="333" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="36" data-y="3">
+      <rect class="cell-bg" x="324" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="35" data-y="3">
+      <rect class="cell-bg" x="315" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="34" data-y="3">
+      <rect class="cell-bg" x="306" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="33" data-y="3">
+      <rect class="cell-bg" x="297" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="32" data-y="3">
+      <rect class="cell-bg" x="288" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="31" data-y="3">
+      <rect class="cell-bg" x="279" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="30" data-y="3">
+      <rect class="cell-bg" x="270" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="29" data-y="3">
+      <rect class="cell-bg" x="261" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="28" data-y="3">
+      <rect class="cell-bg" x="252" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="27" data-y="3">
+      <rect class="cell-bg" x="243" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="26" data-y="3">
+      <rect class="cell-bg" x="234" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="25" data-y="3">
+      <rect class="cell-bg" x="225" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="48" data-y="6">
+      <rect class="cell-bg" x="432" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="23" data-y="3">
+      <rect class="cell-bg" x="207" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="22" data-y="3">
+      <rect class="cell-bg" x="198" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="39" data-y="3">
+      <rect class="cell-bg" x="351" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="40" data-y="3">
+      <rect class="cell-bg" x="360" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="41" data-y="3">
+      <rect class="cell-bg" x="369" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="42" data-y="3">
+      <rect class="cell-bg" x="378" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="19" data-y="4">
+      <rect class="cell-bg" x="171" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="18" data-y="4">
+      <rect class="cell-bg" x="162" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="17" data-y="4">
+      <rect class="cell-bg" x="153" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="16" data-y="4">
+      <rect class="cell-bg" x="144" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="15" data-y="4">
+      <rect class="cell-bg" x="135" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="14" data-y="4">
+      <rect class="cell-bg" x="126" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="13" data-y="4">
+      <rect class="cell-bg" x="117" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="12" data-y="4">
+      <rect class="cell-bg" x="108" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="12" data-y="5">
+      <rect class="cell-bg" x="108" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="11" data-y="4">
+      <rect class="cell-bg" x="99" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="9" data-y="4">
+      <rect class="cell-bg" x="81" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="49" data-y="3">
+      <rect class="cell-bg" x="441" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="48" data-y="3">
+      <rect class="cell-bg" x="432" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="47" data-y="3">
+      <rect class="cell-bg" x="423" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="46" data-y="3">
+      <rect class="cell-bg" x="414" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="45" data-y="3">
+      <rect class="cell-bg" x="405" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="44" data-y="3">
+      <rect class="cell-bg" x="396" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="43" data-y="3">
+      <rect class="cell-bg" x="387" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="10" data-y="4">
+      <rect class="cell-bg" x="90" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="13" data-y="5">
+      <rect class="cell-bg" x="117" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="14" data-y="5">
+      <rect class="cell-bg" x="126" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="15" data-y="5">
+      <rect class="cell-bg" x="135" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="25" data-y="6">
+      <rect class="cell-bg" x="225" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="24" data-y="6">
+      <rect class="cell-bg" x="216" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="23" data-y="6">
+      <rect class="cell-bg" x="207" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="22" data-y="6">
+      <rect class="cell-bg" x="198" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="21" data-y="6">
+      <rect class="cell-bg" x="189" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="20" data-y="6">
+      <rect class="cell-bg" x="180" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="19" data-y="6">
+      <rect class="cell-bg" x="171" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="18" data-y="6">
+      <rect class="cell-bg" x="162" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="17" data-y="6">
+      <rect class="cell-bg" x="153" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="16" data-y="6">
+      <rect class="cell-bg" x="144" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="15" data-y="6">
+      <rect class="cell-bg" x="135" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="14" data-y="6">
+      <rect class="cell-bg" x="126" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="13" data-y="6">
+      <rect class="cell-bg" x="117" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="12" data-y="6">
+      <rect class="cell-bg" x="108" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="11" data-y="6">
+      <rect class="cell-bg" x="99" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="10" data-y="6">
+      <rect class="cell-bg" x="90" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="9" data-y="6">
+      <rect class="cell-bg" x="81" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="26" data-y="6">
+      <rect class="cell-bg" x="234" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="27" data-y="6">
+      <rect class="cell-bg" x="243" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="28" data-y="6">
+      <rect class="cell-bg" x="252" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="29" data-y="6">
+      <rect class="cell-bg" x="261" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="47" data-y="6">
+      <rect class="cell-bg" x="423" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="46" data-y="6">
+      <rect class="cell-bg" x="414" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="45" data-y="6">
+      <rect class="cell-bg" x="405" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="44" data-y="6">
+      <rect class="cell-bg" x="396" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="43" data-y="6">
+      <rect class="cell-bg" x="387" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="42" data-y="6">
+      <rect class="cell-bg" x="378" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="41" data-y="6">
+      <rect class="cell-bg" x="369" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="40" data-y="6">
+      <rect class="cell-bg" x="360" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="8" data-y="6">
+      <rect class="cell-bg" x="72" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="39" data-y="6">
+      <rect class="cell-bg" x="351" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="37" data-y="6">
+      <rect class="cell-bg" x="333" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="36" data-y="6">
+      <rect class="cell-bg" x="324" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="35" data-y="6">
+      <rect class="cell-bg" x="315" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="34" data-y="6">
+      <rect class="cell-bg" x="306" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="33" data-y="6">
+      <rect class="cell-bg" x="297" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="32" data-y="6">
+      <rect class="cell-bg" x="288" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="31" data-y="6">
+      <rect class="cell-bg" x="279" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="30" data-y="6">
+      <rect class="cell-bg" x="270" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="38" data-y="6">
+      <rect class="cell-bg" x="342" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="21" data-y="3">
+      <rect class="cell-bg" x="189" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="7" data-y="6">
+      <rect class="cell-bg" x="63" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="5" data-y="6">
+      <rect class="cell-bg" x="45" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="32" data-y="5">
+      <rect class="cell-bg" x="288" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="31" data-y="5">
+      <rect class="cell-bg" x="279" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="30" data-y="5">
+      <rect class="cell-bg" x="270" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="29" data-y="5">
+      <rect class="cell-bg" x="261" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="28" data-y="5">
+      <rect class="cell-bg" x="252" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="27" data-y="5">
+      <rect class="cell-bg" x="243" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="26" data-y="5">
+      <rect class="cell-bg" x="234" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="25" data-y="5">
+      <rect class="cell-bg" x="225" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="24" data-y="5">
+      <rect class="cell-bg" x="216" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="23" data-y="5">
+      <rect class="cell-bg" x="207" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="22" data-y="5">
+      <rect class="cell-bg" x="198" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="21" data-y="5">
+      <rect class="cell-bg" x="189" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="20" data-y="5">
+      <rect class="cell-bg" x="180" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="19" data-y="5">
+      <rect class="cell-bg" x="171" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="18" data-y="5">
+      <rect class="cell-bg" x="162" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="17" data-y="5">
+      <rect class="cell-bg" x="153" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="16" data-y="5">
+      <rect class="cell-bg" x="144" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="33" data-y="5">
+      <rect class="cell-bg" x="297" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="34" data-y="5">
+      <rect class="cell-bg" x="306" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="35" data-y="5">
+      <rect class="cell-bg" x="315" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="36" data-y="5">
+      <rect class="cell-bg" x="324" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="4" data-y="6">
+      <rect class="cell-bg" x="36" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="3" data-y="6">
+      <rect class="cell-bg" x="27" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="2" data-y="6">
+      <rect class="cell-bg" x="18" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="1" data-y="6">
+      <rect class="cell-bg" x="9" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="0" data-y="6">
+      <rect class="cell-bg" x="0" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="49" data-y="5">
+      <rect class="cell-bg" x="441" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="48" data-y="5">
+      <rect class="cell-bg" x="432" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="47" data-y="5">
+      <rect class="cell-bg" x="423" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="6" data-y="6">
+      <rect class="cell-bg" x="54" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="46" data-y="5">
+      <rect class="cell-bg" x="414" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="44" data-y="5">
+      <rect class="cell-bg" x="396" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="43" data-y="5">
+      <rect class="cell-bg" x="387" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="42" data-y="5">
+      <rect class="cell-bg" x="378" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="41" data-y="5">
+      <rect class="cell-bg" x="369" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="40" data-y="5">
+      <rect class="cell-bg" x="360" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="39" data-y="5">
+      <rect class="cell-bg" x="351" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="38" data-y="5">
+      <rect class="cell-bg" x="342" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="37" data-y="5">
+      <rect class="cell-bg" x="333" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="45" data-y="5">
+      <rect class="cell-bg" x="405" y="90" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="20" data-y="3">
+      <rect class="cell-bg" x="180" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="49" data-y="6">
+      <rect class="cell-bg" x="441" y="108" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="18" data-y="3">
+      <rect class="cell-bg" x="162" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="17" data-y="1">
+      <rect class="cell-bg" x="153" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="18" data-y="1">
+      <rect class="cell-bg" x="162" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="19" data-y="1">
+      <rect class="cell-bg" x="171" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="20" data-y="1">
+      <rect class="cell-bg" x="180" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="21" data-y="1">
+      <rect class="cell-bg" x="189" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="22" data-y="1">
+      <rect class="cell-bg" x="198" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="23" data-y="1">
+      <rect class="cell-bg" x="207" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="24" data-y="1">
+      <rect class="cell-bg" x="216" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="25" data-y="1">
+      <rect class="cell-bg" x="225" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="26" data-y="1">
+      <rect class="cell-bg" x="234" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="27" data-y="1">
+      <rect class="cell-bg" x="243" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="28" data-y="1">
+      <rect class="cell-bg" x="252" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="29" data-y="1">
+      <rect class="cell-bg" x="261" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="30" data-y="1">
+      <rect class="cell-bg" x="270" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="31" data-y="1">
+      <rect class="cell-bg" x="279" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="32" data-y="1">
+      <rect class="cell-bg" x="288" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="33" data-y="1">
+      <rect class="cell-bg" x="297" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="47" data-y="1">
+      <rect class="cell-bg" x="423" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="46" data-y="1">
+      <rect class="cell-bg" x="414" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="45" data-y="1">
+      <rect class="cell-bg" x="405" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="44" data-y="1">
+      <rect class="cell-bg" x="396" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="43" data-y="1">
+      <rect class="cell-bg" x="387" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="42" data-y="1">
+      <rect class="cell-bg" x="378" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="16" data-y="1">
+      <rect class="cell-bg" x="144" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="41" data-y="1">
+      <rect class="cell-bg" x="369" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="39" data-y="1">
+      <rect class="cell-bg" x="351" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="19" data-y="3">
+      <rect class="cell-bg" x="171" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="37" data-y="1">
+      <rect class="cell-bg" x="333" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="36" data-y="1">
+      <rect class="cell-bg" x="324" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="35" data-y="1">
+      <rect class="cell-bg" x="315" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="34" data-y="1">
+      <rect class="cell-bg" x="306" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="40" data-y="1">
+      <rect class="cell-bg" x="360" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="48" data-y="1">
+      <rect class="cell-bg" x="432" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="15" data-y="1">
+      <rect class="cell-bg" x="135" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="13" data-y="1">
+      <rect class="cell-bg" x="117" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="32" data-y="0">
+      <rect class="cell-bg" x="288" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="33" data-y="0">
+      <rect class="cell-bg" x="297" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="34" data-y="0">
+      <rect class="cell-bg" x="306" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="35" data-y="0">
+      <rect class="cell-bg" x="315" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="36" data-y="0">
+      <rect class="cell-bg" x="324" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="37" data-y="0">
+      <rect class="cell-bg" x="333" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="38" data-y="0">
+      <rect class="cell-bg" x="342" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="39" data-y="0">
+      <rect class="cell-bg" x="351" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="40" data-y="0">
+      <rect class="cell-bg" x="360" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="41" data-y="0">
+      <rect class="cell-bg" x="369" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="42" data-y="0">
+      <rect class="cell-bg" x="378" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="43" data-y="0">
+      <rect class="cell-bg" x="387" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="44" data-y="0">
+      <rect class="cell-bg" x="396" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="45" data-y="0">
+      <rect class="cell-bg" x="405" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="46" data-y="0">
+      <rect class="cell-bg" x="414" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="47" data-y="0">
+      <rect class="cell-bg" x="423" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="48" data-y="0">
+      <rect class="cell-bg" x="432" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="12" data-y="1">
+      <rect class="cell-bg" x="108" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="11" data-y="1">
+      <rect class="cell-bg" x="99" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="10" data-y="1">
+      <rect class="cell-bg" x="90" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="9" data-y="1">
+      <rect class="cell-bg" x="81" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="8" data-y="1">
+      <rect class="cell-bg" x="72" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="7" data-y="1">
+      <rect class="cell-bg" x="63" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="14" data-y="1">
+      <rect class="cell-bg" x="126" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="6" data-y="1">
+      <rect class="cell-bg" x="54" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="4" data-y="1">
+      <rect class="cell-bg" x="36" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="3" data-y="1">
+      <rect class="cell-bg" x="27" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="2" data-y="1">
+      <rect class="cell-bg" x="18" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="1" data-y="1">
+      <rect class="cell-bg" x="9" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="0" data-y="1">
+      <rect class="cell-bg" x="0" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="49" data-y="0">
+      <rect class="cell-bg" x="441" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="5" data-y="1">
+      <rect class="cell-bg" x="45" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="49" data-y="1">
+      <rect class="cell-bg" x="441" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="38" data-y="1">
+      <rect class="cell-bg" x="342" y="18" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="46" data-y="2">
+      <rect class="cell-bg" x="414" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="27" data-y="2">
+      <rect class="cell-bg" x="243" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="28" data-y="2">
+      <rect class="cell-bg" x="252" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="29" data-y="2">
+      <rect class="cell-bg" x="261" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="30" data-y="2">
+      <rect class="cell-bg" x="270" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="31" data-y="2">
+      <rect class="cell-bg" x="279" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="32" data-y="2">
+      <rect class="cell-bg" x="288" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="33" data-y="2">
+      <rect class="cell-bg" x="297" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="34" data-y="2">
+      <rect class="cell-bg" x="306" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="35" data-y="2">
+      <rect class="cell-bg" x="315" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="36" data-y="2">
+      <rect class="cell-bg" x="324" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="37" data-y="2">
+      <rect class="cell-bg" x="333" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="38" data-y="2">
+      <rect class="cell-bg" x="342" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="39" data-y="2">
+      <rect class="cell-bg" x="351" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="10" data-y="3">
+      <rect class="cell-bg" x="90" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="49" data-y="2">
+      <rect class="cell-bg" x="441" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="48" data-y="2">
+      <rect class="cell-bg" x="432" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="47" data-y="2">
+      <rect class="cell-bg" x="423" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="45" data-y="2">
+      <rect class="cell-bg" x="405" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="44" data-y="2">
+      <rect class="cell-bg" x="396" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="43" data-y="2">
+      <rect class="cell-bg" x="387" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="42" data-y="2">
+      <rect class="cell-bg" x="378" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="26" data-y="2">
+      <rect class="cell-bg" x="234" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="41" data-y="2">
+      <rect class="cell-bg" x="369" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="25" data-y="2">
+      <rect class="cell-bg" x="225" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="23" data-y="2">
+      <rect class="cell-bg" x="207" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="17" data-y="3">
+      <rect class="cell-bg" x="153" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="16" data-y="3">
+      <rect class="cell-bg" x="144" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="15" data-y="3">
+      <rect class="cell-bg" x="135" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="14" data-y="3">
+      <rect class="cell-bg" x="126" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="13" data-y="3">
+      <rect class="cell-bg" x="117" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="12" data-y="3">
+      <rect class="cell-bg" x="108" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="11" data-y="3">
+      <rect class="cell-bg" x="99" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="9" data-y="2">
+      <rect class="cell-bg" x="81" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="10" data-y="2">
+      <rect class="cell-bg" x="90" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="11" data-y="2">
+      <rect class="cell-bg" x="99" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="12" data-y="2">
+      <rect class="cell-bg" x="108" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="13" data-y="2">
+      <rect class="cell-bg" x="117" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="14" data-y="2">
+      <rect class="cell-bg" x="126" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="15" data-y="2">
+      <rect class="cell-bg" x="135" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="16" data-y="2">
+      <rect class="cell-bg" x="144" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="17" data-y="2">
+      <rect class="cell-bg" x="153" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="18" data-y="2">
+      <rect class="cell-bg" x="162" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="19" data-y="2">
+      <rect class="cell-bg" x="171" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="20" data-y="2">
+      <rect class="cell-bg" x="180" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="21" data-y="2">
+      <rect class="cell-bg" x="189" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="22" data-y="2">
+      <rect class="cell-bg" x="198" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="24" data-y="2">
+      <rect class="cell-bg" x="216" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="40" data-y="2">
+      <rect class="cell-bg" x="360" y="36" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="0" data-y="0">
+      <rect class="cell-bg" x="0" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="0.0" y="13.5" fill="#e0e0e0" text-anchor="start">T</text>
+    </g>
+    <g class="cell" data-x="1" data-y="0">
+      <rect class="cell-bg" x="9" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="9.0" y="13.5" fill="#e0e0e0" text-anchor="start">a</text>
+    </g>
+    <g class="cell" data-x="2" data-y="0">
+      <rect class="cell-bg" x="18" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="18.0" y="13.5" fill="#e0e0e0" text-anchor="start">b</text>
+    </g>
+    <g class="cell" data-x="3" data-y="0">
+      <rect class="cell-bg" x="27" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="4" data-y="0">
+      <rect class="cell-bg" x="36" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="36.0" y="13.5" fill="#e0e0e0" text-anchor="start">t</text>
+    </g>
+    <g class="cell" data-x="5" data-y="0">
+      <rect class="cell-bg" x="45" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="45.0" y="13.5" fill="#e0e0e0" text-anchor="start">o</text>
+    </g>
+    <g class="cell" data-x="6" data-y="0">
+      <rect class="cell-bg" x="54" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="7" data-y="0">
+      <rect class="cell-bg" x="63" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="63.0" y="13.5" fill="#e0e0e0" text-anchor="start">n</text>
+    </g>
+    <g class="cell" data-x="8" data-y="0">
+      <rect class="cell-bg" x="72" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="72.0" y="13.5" fill="#e0e0e0" text-anchor="start">a</text>
+    </g>
+    <g class="cell" data-x="9" data-y="0">
+      <rect class="cell-bg" x="81" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="81.0" y="13.5" fill="#e0e0e0" text-anchor="start">v</text>
+    </g>
+    <g class="cell" data-x="10" data-y="0">
+      <rect class="cell-bg" x="90" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="90.0" y="13.5" fill="#e0e0e0" text-anchor="start">i</text>
+    </g>
+    <g class="cell" data-x="11" data-y="0">
+      <rect class="cell-bg" x="99" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="99.0" y="13.5" fill="#e0e0e0" text-anchor="start">g</text>
+    </g>
+    <g class="cell" data-x="12" data-y="0">
+      <rect class="cell-bg" x="108" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="108.0" y="13.5" fill="#e0e0e0" text-anchor="start">a</text>
+    </g>
+    <g class="cell" data-x="13" data-y="0">
+      <rect class="cell-bg" x="117" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="117.0" y="13.5" fill="#e0e0e0" text-anchor="start">t</text>
+    </g>
+    <g class="cell" data-x="14" data-y="0">
+      <rect class="cell-bg" x="126" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="126.0" y="13.5" fill="#e0e0e0" text-anchor="start">e</text>
+    </g>
+    <g class="cell" data-x="15" data-y="0">
+      <rect class="cell-bg" x="135" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="16" data-y="0">
+      <rect class="cell-bg" x="144" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="144.0" y="13.5" fill="#e0e0e0" text-anchor="start">b</text>
+    </g>
+    <g class="cell" data-x="17" data-y="0">
+      <rect class="cell-bg" x="153" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="153.0" y="13.5" fill="#e0e0e0" text-anchor="start">e</text>
+    </g>
+    <g class="cell" data-x="18" data-y="0">
+      <rect class="cell-bg" x="162" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="162.0" y="13.5" fill="#e0e0e0" text-anchor="start">t</text>
+    </g>
+    <g class="cell" data-x="19" data-y="0">
+      <rect class="cell-bg" x="171" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="171.0" y="13.5" fill="#e0e0e0" text-anchor="start">w</text>
+    </g>
+    <g class="cell" data-x="20" data-y="0">
+      <rect class="cell-bg" x="180" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="180.0" y="13.5" fill="#e0e0e0" text-anchor="start">e</text>
+    </g>
+    <g class="cell" data-x="21" data-y="0">
+      <rect class="cell-bg" x="189" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="189.0" y="13.5" fill="#e0e0e0" text-anchor="start">e</text>
+    </g>
+    <g class="cell" data-x="22" data-y="0">
+      <rect class="cell-bg" x="198" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="198.0" y="13.5" fill="#e0e0e0" text-anchor="start">n</text>
+    </g>
+    <g class="cell" data-x="23" data-y="0">
+      <rect class="cell-bg" x="207" y="0" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="24" data-y="0">
+      <rect class="cell-bg" x="216" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="216.0" y="13.5" fill="#e0e0e0" text-anchor="start">b</text>
+    </g>
+    <g class="cell" data-x="25" data-y="0">
+      <rect class="cell-bg" x="225" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="225.0" y="13.5" fill="#e0e0e0" text-anchor="start">u</text>
+    </g>
+    <g class="cell" data-x="26" data-y="0">
+      <rect class="cell-bg" x="234" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="234.0" y="13.5" fill="#e0e0e0" text-anchor="start">t</text>
+    </g>
+    <g class="cell" data-x="27" data-y="0">
+      <rect class="cell-bg" x="243" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="243.0" y="13.5" fill="#e0e0e0" text-anchor="start">t</text>
+    </g>
+    <g class="cell" data-x="28" data-y="0">
+      <rect class="cell-bg" x="252" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="252.0" y="13.5" fill="#e0e0e0" text-anchor="start">o</text>
+    </g>
+    <g class="cell" data-x="29" data-y="0">
+      <rect class="cell-bg" x="261" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="261.0" y="13.5" fill="#e0e0e0" text-anchor="start">n</text>
+    </g>
+    <g class="cell" data-x="30" data-y="0">
+      <rect class="cell-bg" x="270" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="270.0" y="13.5" fill="#e0e0e0" text-anchor="start">s</text>
+    </g>
+    <g class="cell" data-x="31" data-y="0">
+      <rect class="cell-bg" x="279" y="0" width="9" height="18" fill="#0f0f1a"/>
+      <text x="279.0" y="13.5" fill="#e0e0e0" text-anchor="start">:</text>
+    </g>
+    <g class="cell" data-x="0" data-y="2">
+      <rect class="cell-bg" x="0" y="36" width="9" height="18" fill="rgb(255,255,255)"/>
+      <text x="0.0" y="49.5" fill="rgb(0,0,0)" text-anchor="start">[</text>
+    </g>
+    <g class="cell" data-x="1" data-y="2">
+      <rect class="cell-bg" x="9" y="36" width="9" height="18" fill="rgb(255,255,255)"/>
+      <text x="9.0" y="49.5" fill="rgb(0,0,0)" text-anchor="start"> </text>
+    </g>
+    <g class="cell" data-x="2" data-y="2">
+      <rect class="cell-bg" x="18" y="36" width="9" height="18" fill="rgb(255,255,255)"/>
+      <text x="18.0" y="49.5" fill="rgb(0,0,0)" text-anchor="start">F</text>
+    </g>
+    <g class="cell" data-x="3" data-y="2">
+      <rect class="cell-bg" x="27" y="36" width="9" height="18" fill="rgb(255,255,255)"/>
+      <text x="27.0" y="49.5" fill="rgb(0,0,0)" text-anchor="start">i</text>
+    </g>
+    <g class="cell" data-x="4" data-y="2">
+      <rect class="cell-bg" x="36" y="36" width="9" height="18" fill="rgb(255,255,255)"/>
+      <text x="36.0" y="49.5" fill="rgb(0,0,0)" text-anchor="start">r</text>
+    </g>
+    <g class="cell" data-x="5" data-y="2">
+      <rect class="cell-bg" x="45" y="36" width="9" height="18" fill="rgb(255,255,255)"/>
+      <text x="45.0" y="49.5" fill="rgb(0,0,0)" text-anchor="start">s</text>
+    </g>
+    <g class="cell" data-x="6" data-y="2">
+      <rect class="cell-bg" x="54" y="36" width="9" height="18" fill="rgb(255,255,255)"/>
+      <text x="54.0" y="49.5" fill="rgb(0,0,0)" text-anchor="start">t</text>
+    </g>
+    <g class="cell" data-x="7" data-y="2">
+      <rect class="cell-bg" x="63" y="36" width="9" height="18" fill="rgb(255,255,255)"/>
+      <text x="63.0" y="49.5" fill="rgb(0,0,0)" text-anchor="start"> </text>
+    </g>
+    <g class="cell" data-x="8" data-y="2">
+      <rect class="cell-bg" x="72" y="36" width="9" height="18" fill="rgb(255,255,255)"/>
+      <text x="72.0" y="49.5" fill="rgb(0,0,0)" text-anchor="start">]</text>
+    </g>
+    <g class="cell" data-x="0" data-y="3">
+      <rect class="cell-bg" x="0" y="54" width="9" height="18" fill="#0f0f1a"/>
+      <text x="0.0" y="67.5" fill="#e0e0e0" text-anchor="start">[</text>
+    </g>
+    <g class="cell" data-x="1" data-y="3">
+      <rect class="cell-bg" x="9" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="2" data-y="3">
+      <rect class="cell-bg" x="18" y="54" width="9" height="18" fill="#0f0f1a"/>
+      <text x="18.0" y="67.5" fill="#e0e0e0" text-anchor="start">S</text>
+    </g>
+    <g class="cell" data-x="3" data-y="3">
+      <rect class="cell-bg" x="27" y="54" width="9" height="18" fill="#0f0f1a"/>
+      <text x="27.0" y="67.5" fill="#e0e0e0" text-anchor="start">e</text>
+    </g>
+    <g class="cell" data-x="4" data-y="3">
+      <rect class="cell-bg" x="36" y="54" width="9" height="18" fill="#0f0f1a"/>
+      <text x="36.0" y="67.5" fill="#e0e0e0" text-anchor="start">c</text>
+    </g>
+    <g class="cell" data-x="5" data-y="3">
+      <rect class="cell-bg" x="45" y="54" width="9" height="18" fill="#0f0f1a"/>
+      <text x="45.0" y="67.5" fill="#e0e0e0" text-anchor="start">o</text>
+    </g>
+    <g class="cell" data-x="6" data-y="3">
+      <rect class="cell-bg" x="54" y="54" width="9" height="18" fill="#0f0f1a"/>
+      <text x="54.0" y="67.5" fill="#e0e0e0" text-anchor="start">n</text>
+    </g>
+    <g class="cell" data-x="7" data-y="3">
+      <rect class="cell-bg" x="63" y="54" width="9" height="18" fill="#0f0f1a"/>
+      <text x="63.0" y="67.5" fill="#e0e0e0" text-anchor="start">d</text>
+    </g>
+    <g class="cell" data-x="8" data-y="3">
+      <rect class="cell-bg" x="72" y="54" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="9" data-y="3">
+      <rect class="cell-bg" x="81" y="54" width="9" height="18" fill="#0f0f1a"/>
+      <text x="81.0" y="67.5" fill="#e0e0e0" text-anchor="start">]</text>
+    </g>
+    <g class="cell" data-x="0" data-y="4">
+      <rect class="cell-bg" x="0" y="72" width="9" height="18" fill="#0f0f1a"/>
+      <text x="0.0" y="85.5" fill="#e0e0e0" text-anchor="start">[</text>
+    </g>
+    <g class="cell" data-x="1" data-y="4">
+      <rect class="cell-bg" x="9" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="2" data-y="4">
+      <rect class="cell-bg" x="18" y="72" width="9" height="18" fill="#0f0f1a"/>
+      <text x="18.0" y="85.5" fill="#e0e0e0" text-anchor="start">T</text>
+    </g>
+    <g class="cell" data-x="3" data-y="4">
+      <rect class="cell-bg" x="27" y="72" width="9" height="18" fill="#0f0f1a"/>
+      <text x="27.0" y="85.5" fill="#e0e0e0" text-anchor="start">h</text>
+    </g>
+    <g class="cell" data-x="4" data-y="4">
+      <rect class="cell-bg" x="36" y="72" width="9" height="18" fill="#0f0f1a"/>
+      <text x="36.0" y="85.5" fill="#e0e0e0" text-anchor="start">i</text>
+    </g>
+    <g class="cell" data-x="5" data-y="4">
+      <rect class="cell-bg" x="45" y="72" width="9" height="18" fill="#0f0f1a"/>
+      <text x="45.0" y="85.5" fill="#e0e0e0" text-anchor="start">r</text>
+    </g>
+    <g class="cell" data-x="6" data-y="4">
+      <rect class="cell-bg" x="54" y="72" width="9" height="18" fill="#0f0f1a"/>
+      <text x="54.0" y="85.5" fill="#e0e0e0" text-anchor="start">d</text>
+    </g>
+    <g class="cell" data-x="7" data-y="4">
+      <rect class="cell-bg" x="63" y="72" width="9" height="18" fill="#0f0f1a"/>
+    </g>
+    <g class="cell" data-x="8" data-y="4">
+      <rect class="cell-bg" x="72" y="72" width="9" height="18" fill="#0f0f1a"/>
+      <text x="72.0" y="85.5" fill="#e0e0e0" text-anchor="start">]</text>
+    </g>
+  </g>
+</svg>

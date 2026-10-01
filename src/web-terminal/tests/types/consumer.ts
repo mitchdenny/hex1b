@@ -58,6 +58,22 @@ const tooltip: TerminalScrollbarTooltipRenderer = context => {
 const asyncTooltip: TerminalScrollbarTooltipRenderer = async context => renderDefaultScrollbarTooltip(context);
 
 const container = document.createElement("div");
+const recording = await WebTerminal.mountRecording(container, {
+  url: "/recordings/sample.hwt.json",
+  renderer: "auto",
+  onPlaybackChange(state) { console.log(state.status, state.positionMs, state.frameCount); },
+});
+recording.play();
+recording.pause();
+recording.restart();
+console.log(recording.screenText, recording.stats, recording.playback);
+// @ts-expect-error Offline recordings cannot send input to a terminal.
+recording.paste("no live session");
+recording.dispose();
+// @ts-expect-error A recording always needs its static HTTP resource.
+WebTerminal.mountRecording(container, {});
+// @ts-expect-error Offline recordings do not accept a live transport.
+WebTerminal.mountRecording(container, { transport: { connect() { return { send() {}, dispose() {} }; } } });
 const minimumFontSize: 8 = MIN_FONT_SIZE;
 const maximumFontSize: 32 = MAX_FONT_SIZE;
 console.log(minimumFontSize, maximumFontSize);

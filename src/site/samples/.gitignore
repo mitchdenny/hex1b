@@ -1,0 +1,4 @@
+.validation/
+**/bin/
+**/obj/
+__pycache__/

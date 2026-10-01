@@ -11,6 +11,11 @@ let nextInterval = 0;
 let socket;
 let holdPresentation = false;
 let presentation;
+const recordingResponse = Promise.withResolvers();
+globalThis.fetch = async url => {
+  parentPort.postMessage({ type: "requested", url: String(url) });
+  return recordingResponse.promise;
+};
 let renderedForeground;
 globalThis.self = {
   addEventListener(type, handler) { listeners.set(type, handler); },
@@ -27,7 +32,7 @@ globalThis.WebSocket = class {
   static OPEN = 1;
   readyState = 0;
   listeners = new Map();
-  constructor() { socket = this; }
+  constructor(url) { socket = this; parentPort.postMessage({ type: "socket", url: String(url) }); }
   addEventListener(type, handler) { this.listeners.set(type, handler); }
   send(data) { parentPort.postMessage({ type: "sent", command: JSON.parse(data) }); }
   close() { this.readyState = 3; }
@@ -55,6 +60,7 @@ parentPort.on("message", ({ id, action, message, buffer, details }) => {
   sequence = sequence.then(async () => {
     switch (action) {
       case "input": listeners.get("message")({ data: message }); break;
+      case "recording": recordingResponse.resolve(new Response(details.body, { status: details.status ?? 200 })); break;
       case "open":
         socket.readyState = WebSocket.OPEN;
         socket.listeners.get("open")();

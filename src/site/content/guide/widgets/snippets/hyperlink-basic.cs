@@ -1,0 +1,1 @@
+v.Hyperlink("Visit Hex1b Docs", "https://hex1b.dev")

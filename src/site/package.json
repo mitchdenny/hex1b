@@ -1,0 +1,33 @@
+{
+  "name": "hex1b-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare:assets": "npm run build --prefix ../web-terminal && node scripts/copy-terminal.mjs",
+    "record": "node scripts/record.mjs && npm run repositories",
+    "repositories": "node --experimental-strip-types scripts/generate-repositories.mjs",
+    "reference": "node scripts/reference.mjs",
+    "previews": "dotnet run --project previews/StaticPreviews.csproj -- public/svg",
+    "samples": "node --experimental-strip-types scripts/build-samples.mjs",
+    "dev": "npm run build && vite preview",
+    "build": "npm run prepare:assets && npm run reference && npm run previews && npm run samples && npm run build:pages",
+    "build:pages": "tsc --noEmit && vite build && node --experimental-strip-types scripts/assemble.mjs",
+    "preview": "vite preview",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "monaco-editor": "0.56.0"
+  },
+  "overrides": {
+    "monaco-editor": {
+      "dompurify": "3.4.15"
+    }
+  },
+  "devDependencies": {
+    "gray-matter": "4.0.3",
+    "markdown-it": "15.0.2",
+    "markdown-it-container": "4.0.0",
+    "typescript": "5.9.3",
+    "vite": "^7.1.12"
+  }
+}

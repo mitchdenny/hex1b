@@ -1,0 +1,14 @@
+<Project Sdk="MSTest.Sdk/4.2.3">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Hex1b/Hex1b.csproj" />
+    <Compile Include="../HwtFrameInspector.cs;../HwtRecorder.cs" Link="Driver/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

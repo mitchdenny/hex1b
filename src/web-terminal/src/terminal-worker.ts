@@ -5,6 +5,7 @@ import { MarkerPages } from "./marker-pages.js";
 import type { TerminalSize, TerminalStatusLevel } from "./types.js";
 import type { FrameMetadata, TerminalCell, TerminalCommand, WorkerInputMessage, WorkerOutputMessage, WorkerStats } from "./wire-types.js";
 import { errorMessage } from "./validation.js";
+import { fetchRecording, RecordingPlayer } from "./recording.js";
 import { compilePalette, defaultDarkPalette, normalizePalette } from "./terminal-palette.js";
 import { createWebSocketTransport } from "./websocket-transport.js";
 import { TransportSession } from "./transport-session.js";
@@ -43,6 +44,11 @@ let renderPromise = Promise.resolve();
 let metricsTimer: ReturnType<typeof setInterval> | undefined;
 let blinkTimer: ReturnType<typeof setInterval> | undefined;
 let viewport: TerminalSize | undefined;
+let recordingMode = false;
+let playback: RecordingPlayer | undefined;
+let playbackCommands = Promise.resolve();
+let recordingPresentation: ReturnType<typeof Promise.withResolvers<void>> | undefined;
+const lifetime = new AbortController();
 const links = new LinkPresentation();
 const markerPages = new MarkerPages();
 let awaitingFull = false;
@@ -81,10 +87,18 @@ function fail(error: unknown): void {
   stats.connected = false;
   clearInterval(metricsTimer);
   clearInterval(blinkTimer);
+  lifetime.abort();
+  playback?.dispose();
+  recordingPresentation?.reject(new Error(message));
+  recordingPresentation = undefined;
   transport?.dispose();
   emitStats();
   postStatus(message, "error");
   renderer?.dispose();
+}
+
+function blinkVisible(): boolean {
+  return Math.floor((recordingMode ? playback?.state.positionMs ?? 0 : performance.now()) / 600) % 2 === 0;
 }
 
 self.addEventListener("error", event => {
@@ -117,7 +131,7 @@ async function drawFrame() {
     if (frame) links.prepare(cells, metadata);
     const linkSubmission = links.submission();
     renderer.resize(metadata.columns, metadata.rows, viewport);
-    const blink = Math.floor(performance.now() / 600) % 2 === 0;
+    const blink = blinkVisible();
     const result = renderer.render(cells, metadata, blink, linkSubmission.mask, palette);
     // This is bounded completion/backpressure, not GPU readback or a GPU timing measurement.
     await renderer.idle();
@@ -152,13 +166,15 @@ async function drawFrame() {
         type: "geometry", columns: metadata.columns, rows: metadata.rows,
         cellWidth: metadata.cellWidth, cellHeight: metadata.cellHeight,
         mouseTracking: metadata.mouseTracking, peer: metadata.peer,
-        history: metadata.history, revision: frame.revision, title: metadata.title,
+        history: recordingMode ? null : metadata.history, revision: frame.revision, title: metadata.title,
         progress: metadata.progress, shellIntegration: metadata.shellIntegration,
         workingDirectory: metadata.workingDirectory, commandMark: metadata.commandMark,
         text, hyperlinks: metadata.hyperlinks, ...links.present(cells, metadata)
       });
       send({ type: "ack", revision: frame.revision });
       emitStats(text);
+      recordingPresentation?.resolve();
+      recordingPresentation = undefined;
     } else {
       const snapshot = links.snapshot();
       if (snapshot) self.postMessage({ type: "linkSnapshot", generation: links.generation, snapshot });
@@ -182,13 +198,14 @@ async function receiveFrame(buffer: ArrayBuffer): Promise<void> {
   try {
     const frame = decodeFrame(buffer);
     const next = frame.metadata;
-    if (!requestedColorEncoding && next.colorEncodings?.includes("indexed-v1")) {
+    if (!recordingMode && !requestedColorEncoding && next.colorEncodings?.includes("indexed-v1")) {
       requestedColorEncoding = true;
       send({ type: "colorEncoding", value: "indexed-v1" });
     }
     if (!next.full && (awaitingFull || next.baseRevision !== localRevision || next.revision <= localRevision ||
         !metadata || next.columns !== metadata.columns || next.rows !== metadata.rows ||
         (next.colorEncoding ?? null) !== (metadata.colorEncoding ?? null))) {
+      if (recordingMode) throw new Error("Recording delta chain is invalid; cannot resynchronize without a server");
       stats.discardedFrames++;
       frameInFlight = false;
       markerPages.reset();
@@ -216,7 +233,8 @@ async function receiveFrame(buffer: ArrayBuffer): Promise<void> {
     metadata = next;
     localRevision = next.revision;
     const wasPaging = markerPages.pending && !next.full;
-    const history = markerPages.accept(next.history);
+    // Offline playback has no history UI or producer to finish paged inventories.
+    const history = markerPages.accept(recordingMode ? null : next.history);
     awaitingFull = false;
     pendingFrame = { revision: next.revision,
       full: next.full || (wasPaging && !!pendingFrame?.full),
@@ -241,6 +259,7 @@ async function receiveFrame(buffer: ArrayBuffer): Promise<void> {
 
 async function initialize(message: Extract<WorkerInputMessage, { type: "init" }>): Promise<void> {
   if (renderer || transport) throw new Error("Worker is already initialized");
+  recordingMode = message.transport.type === "recording";
   palette = compilePalette(normalizePalette(message.palette === undefined ? defaultDarkPalette : message.palette));
   if (typeof self.requestAnimationFrame !== "function") {
     throw new Error("This browser does not support requestAnimationFrame in a dedicated OffscreenCanvas worker");
@@ -256,6 +275,39 @@ async function initialize(message: Extract<WorkerInputMessage, { type: "init" }>
   emitStats();
   const rendererName = renderer.backend.kind === "webgpu" ? "WebGPU" : "WebGL2";
   if (renderer.fallbackReason) postStatus(`Using WebGL2: ${renderer.fallbackReason}`);
+  if (message.transport.type === "recording") {
+    postStatus(`${rendererName} ready. Loading recording...`);
+    const recording = await fetchRecording(new URL(message.transport.url), lifetime.signal);
+    if (failed || stopped) return;
+    playback = new RecordingPlayer(recording, async frame => {
+      recordingPresentation = Promise.withResolvers<void>();
+      await Promise.all([recordingPresentation.promise, receiveFrame(frame.data)]);
+    }, state => {
+      self.postMessage({ type: "playback", state });
+      if (blinkVisible() !== lastBlink) scheduleRender();
+    }, fail);
+    await playback.initialize();
+    if (failed || stopped) return;
+    postStatus(`Recording ready · ${rendererName} · no terminal server`, "ready");
+  } else {
+    connect(message.transport, rendererName);
+  }
+  if (failed || stopped) return;
+  metricsTimer = setInterval(() => {
+    const now = performance.now();
+    const seconds = (now - sample.time) / 1000;
+    stats.fps = (stats.presentations - sample.presentations) / seconds;
+    stats.receivedKBps = (stats.bytesReceived - sample.bytes) / seconds / 1000;
+    stats.workloadMBps = Math.max(0, stats.workloadBytes - sample.workload) / seconds / 1000000;
+    sample = { time: now, presentations: stats.presentations, bytes: stats.bytesReceived, workload: stats.workloadBytes };
+    emitStats();
+  }, 1000);
+  blinkTimer = setInterval(() => {
+    if (hasBlink && blinkVisible() !== lastBlink) scheduleRender();
+  }, 100);
+}
+
+function connect(source: { type: "websocket"; url: string } | { type: "custom" }, rendererName: string): void {
   postStatus(`${rendererName} ready. Attaching terminal view...`);
   transport = new TransportSession({
     onReady() {
@@ -282,20 +334,7 @@ async function initialize(message: Extract<WorkerInputMessage, { type: "init" }>
       emitStats();
     }
   });
-  metricsTimer = setInterval(() => {
-    const now = performance.now();
-    const seconds = (now - sample.time) / 1000;
-    stats.fps = (stats.presentations - sample.presentations) / seconds;
-    stats.receivedKBps = (stats.bytesReceived - sample.bytes) / seconds / 1000;
-    stats.workloadMBps = Math.max(0, stats.workloadBytes - sample.workload) / seconds / 1000000;
-    sample = { time: now, presentations: stats.presentations, bytes: stats.bytesReceived, workload: stats.workloadBytes };
-    emitStats();
-  }, 1000);
-  blinkTimer = setInterval(() => {
-    const blinkOn = Math.floor(performance.now() / 600) % 2 === 0;
-    if (hasBlink && blinkOn !== lastBlink) scheduleRender();
-  }, 100);
-  transport.start(message.transport.type === "websocket" ? createWebSocketTransport(message.transport.url) : {
+  transport.start(source.type === "websocket" ? createWebSocketTransport(source.url) : {
     connect(context) {
       bridge = context;
       bridgeReady = Promise.withResolvers<TerminalTransportConnection>();
@@ -335,11 +374,23 @@ self.addEventListener("message", event => {
     bridge?.onError(new Error(message.message));
   } else if (message.type === "stop") {
     stopped = true;
+    lifetime.abort();
+    playback?.dispose();
+    recordingPresentation?.reject(new Error("Recording view disposed"));
+    recordingPresentation = undefined;
     clearInterval(metricsTimer);
     clearInterval(blinkTimer);
     transport?.dispose();
     renderer?.dispose();
     self.close();
+  } else if (message.type === "playback" && !failed && !stopped) {
+    playbackCommands = playbackCommands.then(async () => {
+      if (failed || stopped) return;
+      if (!playback) throw new Error("This view has no recording");
+      if (message.action === "restart") await playback.restart();
+      else if (message.action === "play") playback.play();
+      else playback.pause();
+    }).catch(fail);
   } else if (message.type === "viewport" && !failed && !stopped) {
     if (!Number.isFinite(message.width) || !Number.isFinite(message.height) || message.width < 0 || message.height < 0) {
       fail(new Error("Invalid mounted viewport dimensions"));
@@ -349,6 +400,10 @@ self.addEventListener("message", event => {
     viewport = { width: message.width, height: message.height };
     scheduleRender();
   } else if (message.type === "command" && !failed && !stopped) {
+    if (recordingMode) {
+      fail(new Error("Recording playback does not accept live terminal commands"));
+      return;
+    }
     send(message.command);
   } else if (message.type === "palette" && !failed && !stopped) {
     try {
