@@ -107,7 +107,7 @@ async page => {
       const bounds = await test.locator("canvas").boundingBox();
       await test.mouse.click(bounds.x + 44 * scale, bounds.y + 8 * scale);
       await test.mouse.move(bounds.x + 44 * scale, bounds.y + 28 * scale);
-      if (!(await test.locator("canvas").getAttribute("title")).includes("example.com"))
+      if (await test.locator("canvas").getAttribute("title") !== "https://example.com\nClick to activate link")
         throw new Error(`Scaled hyperlink hit test failed at ${scale}`);
       await test.mouse.click(bounds.x + 44 * scale, bounds.y + 28 * scale);
       await test.evaluate(() => {
@@ -117,7 +117,7 @@ async page => {
         f.modes = [0, 0, 0, 0];
         f.capture.refresh();
       });
-      if ((await test.locator("canvas").getAttribute("title")).includes("example.com"))
+      if (await test.locator("canvas").getAttribute("title") !== "")
         throw new Error("Changing rendition left a stale hovered hyperlink");
       await test.evaluate(() => { window.renditionInput.historical = false; });
       await test.mouse.click(bounds.x + 44 * scale, bounds.y + 8 * scale);
