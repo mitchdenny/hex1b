@@ -883,8 +883,10 @@ public class WindowsPtyDisposeTests
         timeout.CancelAfter(TimeSpan.FromSeconds(20));
         Assert.AreEqual(exitCode, await terminal.RunAsync(timeout.Token).WaitAsync(timeout.Token));
         using var snapshot = terminal.CreateSnapshot();
+        var finalScreen = string.Join("\n", Enumerable.Range(0, 24).Select(row =>
+            string.Concat(Enumerable.Range(0, 80).Select(column => snapshot.GetCell(column, row).Character)).TrimEnd()));
         foreach (var line in expected)
-            Assert.IsTrue(snapshot.ContainsText(line), $"Final output missing: {line} ({mode})");
+            Assert.IsTrue(snapshot.ContainsText(line), $"Final output missing: {line} ({mode})\n{finalScreen}");
         Assert.IsTrue(snapshot.ContainsText("FINAL-STDERR"), $"Final stderr missing ({mode})");
         Assert.IsTrue(snapshot.ContainsText("FINAL-UNTERMINATED"), $"Unterminated final output missing ({mode})");
     }

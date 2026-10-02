@@ -99,6 +99,9 @@ internal sealed class WindowsPtyHandle : IPtyHandle
     
     [DllImport("conpty.dll", EntryPoint = "ConptyClosePseudoConsole", SetLastError = true)]
     private static extern void ClosePseudoConsole(IntPtr hPC);
+
+    [DllImport("conpty.dll", EntryPoint = "ConptyReleasePseudoConsole")]
+    private static extern int ReleasePseudoConsole(IntPtr hPC);
     
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CreatePipe(
@@ -362,6 +365,9 @@ internal sealed class WindowsPtyHandle : IPtyHandle
                 Name = "ConPTY Write Thread"
             };
             _writeThread.Start();
+
+            // Let ConPTY flush and reach EOF when its last client exits, without closing its signal pipe early.
+            Marshal.ThrowExceptionForHR(ReleasePseudoConsole(_hPC));
             
             return Task.CompletedTask;
         }
@@ -453,12 +459,9 @@ internal sealed class WindowsPtyHandle : IPtyHandle
                 uint waitResult = WaitForSingleObject(_hProcess, 100);
                 if (waitResult == WAIT_OBJECT_0)
                 {
-                    var exitCode = GetExitCodeProcess(_hProcess, out uint code) ? (int)code : -1;
-                    // Keep the reader alive while ConPTY flushes its final screen and closes the output pipe.
-                    var console = Interlocked.Exchange(ref _hPC, IntPtr.Zero);
-                    if (console != IntPtr.Zero)
-                        ClosePseudoConsole(console);
-                    return exitCode;
+                    if (GetExitCodeProcess(_hProcess, out uint exitCode))
+                        return (int)exitCode;
+                    return -1;
                 }
             }
             
