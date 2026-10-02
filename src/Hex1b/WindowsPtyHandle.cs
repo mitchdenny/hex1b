@@ -23,6 +23,7 @@ internal sealed class WindowsPtyHandle : IPtyHandle
     
     private const uint EXTENDED_STARTUPINFO_PRESENT = 0x00080000;
     private const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
+    private const int STARTF_USESTDHANDLES = 0x00000100;
     private const int PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016;
     private const uint INFINITE = 0xFFFFFFFF;
     private const uint WAIT_OBJECT_0 = 0;
@@ -292,7 +293,9 @@ internal sealed class WindowsPtyHandle : IPtyHandle
                     {
                         StartupInfo = new STARTUPINFOW
                         {
-                            cb = Marshal.SizeOf<STARTUPINFOEXW>()
+                            cb = Marshal.SizeOf<STARTUPINFOEXW>(),
+                            // Null standard handles let ConPTY supply its own instead of inheriting the host's redirections.
+                            dwFlags = STARTF_USESTDHANDLES
                         },
                         lpAttributeList = attrList
                     };
