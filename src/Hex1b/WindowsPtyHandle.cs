@@ -370,11 +370,9 @@ internal sealed class WindowsPtyHandle : IPtyHandle
             // Cleanup on failure
             _pipeOurInputWrite?.Dispose();
             _pipePtyOutputRead?.Dispose();
-            if (_hPC != IntPtr.Zero)
-            {
-                ClosePseudoConsole(_hPC);
-                _hPC = IntPtr.Zero;
-            }
+            var console = Interlocked.Exchange(ref _hPC, IntPtr.Zero);
+            if (console != IntPtr.Zero)
+                ClosePseudoConsole(console);
             throw;
         }
     }
@@ -455,9 +453,12 @@ internal sealed class WindowsPtyHandle : IPtyHandle
                 uint waitResult = WaitForSingleObject(_hProcess, 100);
                 if (waitResult == WAIT_OBJECT_0)
                 {
-                    if (GetExitCodeProcess(_hProcess, out uint exitCode))
-                        return (int)exitCode;
-                    return -1;
+                    var exitCode = GetExitCodeProcess(_hProcess, out uint code) ? (int)code : -1;
+                    // Keep the reader alive while ConPTY flushes its final screen and closes the output pipe.
+                    var console = Interlocked.Exchange(ref _hPC, IntPtr.Zero);
+                    if (console != IntPtr.Zero)
+                        ClosePseudoConsole(console);
+                    return exitCode;
                 }
             }
             
@@ -508,11 +509,9 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         _cts?.Dispose();
         
         // Close pseudo console
-        if (_hPC != IntPtr.Zero)
-        {
-            ClosePseudoConsole(_hPC);
-            _hPC = IntPtr.Zero;
-        }
+        var console = Interlocked.Exchange(ref _hPC, IntPtr.Zero);
+        if (console != IntPtr.Zero)
+            ClosePseudoConsole(console);
         
         // Close process handles
         if (_hThread != IntPtr.Zero)

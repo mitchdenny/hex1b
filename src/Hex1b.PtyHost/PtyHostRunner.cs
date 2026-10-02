@@ -95,6 +95,7 @@ internal sealed class PtyHostRunner(ILogger<PtyHostRunner> logger)
             var exitCode = await exitTask.ConfigureAwait(false);
             _logger.LogInformation("PTY child exited with code {ExitCode}.", exitCode);
 
+            await outputPumpTask.ConfigureAwait(false);
             await TryWriteExitAsync(stream, exitCode).ConfigureAwait(false);
 
             cts.Cancel();

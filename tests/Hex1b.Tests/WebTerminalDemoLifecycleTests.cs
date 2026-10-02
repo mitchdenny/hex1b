@@ -305,7 +305,7 @@ public class WebTerminalDemoLifecycleTests
         Assert.AreEqual($"Workload exited with code {exitCode}", result.CloseStatusDescription);
         var lines = Enumerable.Range(0, 24)
             .Select(row => string.Concat(received.Skip(row * 80).Take(80)).TrimEnd()).ToArray();
-        TestSeq.AreEqual(expected, lines.Take(8));
+        TestSeq.AreEqual(expected, lines.Take(8), $"Final received screen: {JsonSerializer.Serialize(lines)}");
         Assert.AreEqual("FINAL-STDERR", lines[8]);
         Assert.AreEqual("FINAL-UNTERMINATED", lines[9], "The last bytes have no newline and must still reach the browser.");
         await target.Client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", ct);

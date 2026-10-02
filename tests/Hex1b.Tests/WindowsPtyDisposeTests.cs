@@ -854,6 +854,43 @@ public class WindowsPtyDisposeTests
 
     [TestMethod]
     [TestCategory("Windows")]
+    [DataRow(WindowsPtyMode.Direct, 0)]
+    [DataRow(WindowsPtyMode.Direct, 7)]
+    [DataRow(WindowsPtyMode.RequireProxy, 0)]
+    [DataRow(WindowsPtyMode.RequireProxy, 7)]
+    public async Task WithPtyProcess_NormalExit_DrainsEveryFinalLineAndUnterminatedOutput(WindowsPtyMode mode, int exitCode)
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var expected = Enumerable.Range(0, 16).Select(row => $"FINAL-ROW-{row:D2}:abcdefghij0123456789").ToArray();
+        var command = $"{string.Join(" & ", expected.Select(line => $"echo {line}"))} & " +
+            $"echo FINAL-STDERR>&2 & <nul set /p =FINAL-UNTERMINATED & exit /b {exitCode}";
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithPtyProcess(options =>
+            {
+                options.FileName = "cmd.exe";
+                options.Arguments = ["/d", "/c", command];
+                options.WindowsPtyMode = mode;
+                if (mode == WindowsPtyMode.RequireProxy)
+                    options.WindowsPtyHostPath = ResolveShimPath();
+            })
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(20));
+        Assert.AreEqual(exitCode, await terminal.RunAsync(timeout.Token).WaitAsync(timeout.Token));
+        using var snapshot = terminal.CreateSnapshot();
+        foreach (var line in expected)
+            Assert.IsTrue(snapshot.ContainsText(line), $"Final output missing: {line} ({mode})");
+        Assert.IsTrue(snapshot.ContainsText("FINAL-STDERR"), $"Final stderr missing ({mode})");
+        Assert.IsTrue(snapshot.ContainsText("FINAL-UNTERMINATED"), $"Unterminated final output missing ({mode})");
+    }
+
+    [TestMethod]
+    [TestCategory("Windows")]
     public async Task WithPtyProcess_MissingRequiredShim_ThrowsInsteadOfFallingBack()
     {
         if (!OperatingSystem.IsWindows())
