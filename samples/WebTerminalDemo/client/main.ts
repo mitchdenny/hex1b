@@ -1,5 +1,6 @@
 import { WebTerminal, MIN_FONT_SIZE, MAX_FONT_SIZE, getCmdlineUrl, linkAction, type TerminalCloseDetails, type TerminalScrollbar, type TerminalPadding, type TerminalScrollbarTooltipRenderer } from "@hex1b/web-terminal";
 import { NativeScrollbar } from "./native-scrollbar.js";
+import { workloadExitCode, exitMessage } from "./exit-presentation.js";
 import { createTerminalPreviewTooltip } from "./terminal-preview.js";
 import { followTerminalAppearance, forgetTerminalAppearance, initializeAppearanceControls, terminalAppearance } from "./appearance.js";
 import {
@@ -50,6 +51,8 @@ interface TerminalView {
   stats: Partial<WebTerminal["stats"]>;
   text: string;
   transport: "direct" | "hmp1";
+  preserveOnDisconnect: boolean;
+  showExitOverlay: boolean;
   viewport?: WebTerminal["viewport"];
   selection?: WebTerminal["selection"];
   nativeScrollbar?: NativeScrollbar;
@@ -64,6 +67,7 @@ interface ViewClosure {
   detail: string;
   reconnect: boolean;
   close?: TerminalCloseDetails;
+  exitCode?: number;
 }
 
 declare global {
@@ -448,6 +452,8 @@ function updateViewControls(view: TerminalView) {
   elementAt(view.element, ".thumbnail", HTMLButtonElement).disabled = !!view.closure && !view.closure.reconnect;
   elementAt(view.element, ".reconnect-view", HTMLButtonElement).disabled =
     view.phase !== "closed" || !view.closure?.reconnect;
+  elementAt(view.element, ".show-exit-details", HTMLButtonElement).disabled = view.phase !== "closed";
+  elementAt(view.element, ".view-final-output", HTMLButtonElement).disabled = !view.terminal;
   updateSizingControls(view);
 }
 
@@ -504,23 +510,37 @@ function showClosure(view: TerminalView, closure: ViewClosure) {
   view.element.dataset.connected = "false";
   view.element.dataset.primary = "false";
   mount.inert = true;
+  if (!view.preserveOnDisconnect) {
+    if (view.terminal) forgetTerminalAppearance(view.terminal);
+    view.terminal?.dispose();
+    view.terminal = undefined;
+    view.text = "";
+  }
+  view.element.dataset.preserved = String(!!view.terminal);
+  if (closure.exitCode === undefined) delete view.element.dataset.exitCode;
+  else view.element.dataset.exitCode = String(closure.exitCode);
   elementAt(view.element, ".closed-title", HTMLElement).textContent = closure.title;
   elementAt(view.element, ".closed-summary", HTMLElement).textContent = closure.summary;
   elementAt(view.element, ".closed-detail", HTMLElement).textContent = closure.detail;
-  elementAt(view.element, ".closed-overlay", HTMLElement).hidden = false;
+  elementAt(view.element, ".closed-exit-code", HTMLElement).textContent =
+    closure.exitCode === undefined ? "Process exit code: unavailable" : `Process exit code: ${closure.exitCode}`;
+  const overlay = elementAt(view.element, ".closed-overlay", HTMLElement);
+  overlay.classList.toggle("retained", !!view.terminal);
+  overlay.dataset.outcome = closure.exitCode === undefined ? "unknown" : closure.exitCode === 0 ? "success" : "error";
+  overlay.hidden = !view.showExitOverlay;
   elementAt(view.element, ".view-role", HTMLElement).textContent = closure.reconnect ? "Disconnected" : "Ended";
   elementAt(view.element, ".view-role", HTMLElement).title = closure.detail;
   const status = elementAt(view.element, ".view-status", HTMLElement);
-  status.textContent = closure.title;
+  status.textContent = closure.title + (closure.exitCode === undefined ? "" : ` (exit ${closure.exitCode})`);
   status.title = closure.summary;
-  status.dataset.level = closure.close?.code === 1000 || closure.close?.code === 4000 ? "info" : "error";
+  status.dataset.level = closure.exitCode === 0 ? "ready" : closure.exitCode !== undefined ? "error"
+    : closure.close?.code === 1000 || closure.close?.code === 4000 ? "info" : "error";
   updateViewControls(view);
   view.nativeScrollbar?.dispose();
   view.nativeScrollbar = undefined;
-  forgetTerminalAppearance(view.terminal);
-  view.terminal?.dispose();
   if (hadTerminalFocus) {
-    elementAt(view.element, closure.reconnect ? ".reconnect-view" : ".dismiss-view", HTMLButtonElement)
+    elementAt(view.element, overlay.hidden ? ".show-exit-details"
+      : closure.reconnect ? ".reconnect-view" : ".dismiss-view", HTMLButtonElement)
       .focus({ preventScroll: true });
   }
   return closure;
@@ -585,6 +605,7 @@ async function changeBookmark(view: TerminalView, remove: boolean) {
 }
 
 function connectionClosed(view: TerminalView, close: TerminalCloseDetails) {
+  const exitCode = workloadExitCode(close);
   const stage = view.phase === "connected" ? "After mounting" : "Before mounting completed";
   const summary = close.code === 4000 ? "The producer has ended. This terminal cannot be reconnected."
     : close.code === 1006 ? "The connection ended without a WebSocket close frame. This does not prove the producer ended."
@@ -599,7 +620,8 @@ function connectionClosed(view: TerminalView, close: TerminalCloseDetails) {
     detail: `${stage} · WebSocket ${close.code} · ${close.wasClean ? "Clean" : "Incomplete"} closing handshake\n` +
       (close.reason || "The browser did not receive a close reason."),
     reconnect: close.code !== 4000,
-    close
+    close, exitCode,
+    ...(exitCode === undefined ? {} : exitMessage(exitCode, view.preserveOnDisconnect))
   });
 }
 
@@ -799,11 +821,13 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
       <div class="closed-overlay" hidden>
         <div class="closed-card">
           <div role="status" aria-live="polite">
-            <h2 class="closed-title"></h2>
+            <h2 class="closed-title" tabindex="-1"></h2>
             <p class="closed-summary"></p>
+            <p class="closed-exit-code"></p>
             <p class="closed-detail"></p>
           </div>
           <div class="closed-actions">
+            <button class="view-final-output">View final output</button>
             <button class="reconnect-view">Reconnect view</button>
             <button class="dismiss-view">Close view</button>
           </div>
@@ -812,6 +836,7 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
     </div>
     <footer class="view-footer">
       <span class="view-status">Initializing renderer...</span>
+      <button class="show-exit-details" disabled title="Show the app-owned exit message">Exit details</button>
       <button class="font-smaller" disabled title="Smaller text; more cells (Auto mode)" aria-label="Decrease terminal font size">-</button>
       <span class="font-size" title="Requested font size in Auto mode; fixed grids scale to fit">Fit</span>
       <button class="font-larger" disabled title="Larger text; fewer cells (Auto mode)" aria-label="Increase terminal font size">+</button>
@@ -836,7 +861,9 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
   workspace.append(element);
   workspace.classList.remove("empty");
   const view: TerminalView = {
-    id, instance, element, controller: new AbortController(), phase: "connecting", stats: {}, text: "", transport
+    id, instance, element, controller: new AbortController(), phase: "connecting", stats: {}, text: "", transport,
+    preserveOnDisconnect: input("preserve-on-disconnect").checked,
+    showExitOverlay: input("show-exit-overlay").checked
   };
   views.set(id, view);
   selectView(view);
@@ -867,6 +894,14 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
   elementAt(element, ".close-view", HTMLButtonElement).addEventListener("click", () => closeView(view), { signal: view.controller.signal });
   elementAt(element, ".minimal-chrome-toggle", HTMLButtonElement).addEventListener("click", () => setMinimalChrome(view), { signal: view.controller.signal });
   elementAt(element, ".dismiss-view", HTMLButtonElement).addEventListener("click", () => closeView(view), { signal: view.controller.signal });
+  elementAt(element, ".view-final-output", HTMLButtonElement).addEventListener("click", () => {
+    elementAt(element, ".closed-overlay", HTMLElement).hidden = true;
+    elementAt(element, ".show-exit-details", HTMLButtonElement).focus({ preventScroll: true });
+  }, { signal: view.controller.signal });
+  elementAt(element, ".show-exit-details", HTMLButtonElement).addEventListener("click", () => {
+    elementAt(element, ".closed-overlay", HTMLElement).hidden = false;
+    elementAt(element, ".closed-title", HTMLElement).focus({ preventScroll: true });
+  }, { signal: view.controller.signal });
   action(elementAt(element, ".thumbnail", HTMLButtonElement), () => openView(instance, { thumbnail: true }),
     () => updateViewControls(view));
   action(elementAt(element, ".take-primary", HTMLButtonElement), () => mounted(view).requestPrimary(), () => updateViewControls(view));
@@ -942,6 +977,8 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
   const current = () => !controller.signal.aborted && !view.controller.signal.aborted;
   element.dataset.phase = "connecting";
   element.dataset.connected = "false";
+  delete element.dataset.preserved;
+  delete element.dataset.exitCode;
   elementAt(element, ".closed-overlay", HTMLElement).hidden = true;
   elementAt(element, ".terminal-mount", HTMLElement).inert = false;
   elementAt(element, ".view-role", HTMLElement).textContent = "Joining";
@@ -962,6 +999,7 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
     const terminal = await WebTerminal.mount(elementAt(element, ".terminal-mount", HTMLElement), {
       ...terminalAppearance(),
       url, signal: controller.signal,
+      preserveOnDisconnect: view.preserveOnDisconnect,
       renderer,
       scrollbar: viewScrollbar(view),
       padding: viewPadding(view),
@@ -1073,7 +1111,7 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
         if (!current()) return;
         view.stats = stats;
         if (view.phase !== "closed") element.dataset.connected = String(stats.connected ?? false);
-        if (text !== undefined) view.text = text;
+        if (text !== undefined && (view.phase !== "closed" || view.preserveOnDisconnect)) view.text = text;
         metrics(view);
       }
     });
@@ -1083,7 +1121,7 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
     }
     view.terminal = terminal;
     if (view.closure) {
-      terminal.dispose();
+      showClosure(view, view.closure);
       return;
     }
     view.phase = "connected";
@@ -1180,6 +1218,12 @@ window.addEventListener("pagehide", () => {
 
 try {
   const parameters = new URLSearchParams(location.search);
+  for (const [key, id] of [["preserve", "preserve-on-disconnect"], ["overlay", "show-exit-overlay"]]) {
+    const value = parameters.get(key);
+    if (value === null) continue;
+    if (value !== "0" && value !== "1") throw new Error(`Invalid ${key} query parameter; use 0 or 1`);
+    input(id).checked = value === "1";
+  }
   setControlsOpen(parameters.get("empty") === "1");
   const transport = parameters.get("transport");
   if (transport !== null) {

@@ -77,6 +77,8 @@
     .controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end; }
     .controls > label { min-width: 0; }
     .controls select { min-width: 0; max-width: 100%; }
+    .controls .choice { display: flex; align-items: center; gap: 8px; }
+    .controls .choice input { min-height: 0; width: 18px; height: 18px; accent-color: var(--cp-accent); }
     .controls > #create, .controls > .instance-controls, .controls > .tape-controls { grid-column: 1 / -1; }
     .appearance-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
     .appearance-controls select { max-width: 100%; }
@@ -170,16 +172,22 @@
     .native-marker:focus-visible, .native-marker:hover { z-index: 1; height: 8px; }
     .closed-overlay { position: absolute; inset: 0; z-index: 1; display: flex; overflow: auto; padding: 12px; background: var(--cp-overlay); }
     .closed-overlay[hidden] { display: none; }
+    .closed-overlay.retained { background: none; pointer-events: none; }
+    .closed-overlay.retained .closed-card { pointer-events: auto; }
+    .closed-overlay[data-outcome=success] .closed-card { border-color: var(--cp-success); }
+    .closed-overlay[data-outcome=error] .closed-card { border-color: var(--cp-danger); }
     .closed-card { margin: auto; width: 100%; max-width: 480px; padding: 16px; border: 1px solid var(--cp-border-strong); border-radius: 12px; background: var(--cp-surface); box-shadow: var(--cp-shadow); overflow-wrap: anywhere; }
     .closed-title { margin: 0 0 8px; font-size: 20px; line-height: 1.2; }
     .closed-summary { margin: 0 0 12px; color: var(--cp-text-muted); font-size: 13px; }
     .closed-detail { margin: 0 0 16px; white-space: pre-wrap; font: 11px/1.6 Consolas, "Courier New", Courier, monospace; color: var(--cp-text-soft); }
+    .closed-exit-code { margin: 0 0 12px; font: 13px Consolas, "Courier New", Courier, monospace; }
     .closed-actions { display: flex; flex-wrap: wrap; gap: 8px; }
     .closed-actions .reconnect-view { background: var(--cp-accent); border-color: var(--cp-accent); color: var(--cp-accent-fg); }
     .view-footer { display: flex; flex: 0 0 24px; min-width: 0; align-items: center; gap: 4px; padding: 0 24px 0 8px; border-top: 1px solid var(--cp-border); }
     .view-status { flex: 1; min-width: 0; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cp-text-muted); }
     .view-footer button, .view-footer select { flex: none; height: 20px; min-height: 20px; padding: 0 2px; border-radius: 4px; font-size: 10px; }
     .view-footer button { width: 20px; }
+    .view-footer .show-exit-details { width: auto; padding: 0 4px; }
     .view-resolution { width: 96px; }
     .font-size { flex: none; min-width: 28px; text-align: center; font: 10px Consolas, "Courier New", Courier, monospace; color: var(--cp-text-muted); }
     .view-status[data-level=error] { color: var(--cp-danger); }
@@ -327,6 +335,12 @@
           <option value="before-frame-abort">Drop before first frame</option>
           <option value="reject-upgrade">Reject WebSocket upgrade</option>
         </select>
+      </label>
+      <label class="choice" title="Captured when opening a view; changing this does not reconnect existing views.">
+        <input id="preserve-on-disconnect" type="checkbox" checked>Preserve final state (new views)
+      </label>
+      <label class="choice" title="The app's onClose callback displays a dismissible message over the terminal.">
+        <input id="show-exit-overlay" type="checkbox" checked>Show exit message (new views)
       </label>
       <button id="create" class="primary">New terminal</button>
       <div class="instance-controls">

@@ -10,6 +10,164 @@ const closures = [
   { code: 4000, reason: "<host-defined result>", wasClean: true }
 ];
 
+for (const stage of ["decoding", "scheduled", "drawing"]) {
+  test(`Preserved close at ${stage} presents every final cell before notifying the host`, async t => {
+    const workers = browser(t);
+    const finalText = "Final output: e\u0301\u754c!";
+    const cells = Array.from(finalText).map((text, index) => ({ index, text, width: 1 }));
+    const notices = [];
+    const view = await mounting(t, workers, {
+      preserveOnDisconnect: true,
+      onClose(details) {
+        assert.equal(view.handle.connected, false);
+        assert.equal(view.handle.screenText, finalText);
+        assert.equal(view.handle.title, "final title");
+        notices.push(details);
+      }
+    });
+    await view.worker.request("open");
+    await present(view, { columns: cells.length });
+    await view.promise;
+    if (stage === "decoding") await view.worker.request("holdImages");
+    if (stage === "drawing") await view.worker.request("hold");
+    await view.worker.request("frame", { buffer: frame({
+      columns: cells.length, revision: 2, title: "final title", cells
+    }) });
+    if (stage === "drawing") await view.worker.request("draw");
+    await view.worker.request("disconnect", { details: closures[0] });
+    await view.worker.request("input", { message: {
+      type: "command", command: { type: "input", text: "input racing disconnect" }
+    } });
+    if (stage !== "scheduled") {
+      assert.deepEqual(notices, [], "close must wait for accepted content to finish presenting");
+      await view.worker.request(stage === "decoding" ? "releaseImages" : "release");
+    }
+    await view.worker.request("flush");
+    assert.deepEqual(notices, [closures[0]]);
+    assert.equal(view.handle.screenText, finalText);
+    assert.deepEqual(await view.worker.request("rendererState"), { disposed: false, text: finalText });
+    assert.equal(view.handle.element.shadowRoot.querySelector("textarea").disabled, true);
+    assert.throws(() => view.handle.paste("no input"), /does not accept input/);
+    await view.worker.request("input", { message: { type: "viewport", width: 200, height: 100 } });
+    await view.worker.request("draw");
+    assert.deepEqual(await view.worker.request("rendererState"), { disposed: false, text: finalText });
+    assert.equal(view.worker.commands.filter(command => command.type === "ack" && command.revision === 2).length, 0,
+      "never send an acknowledgement on a closed transport");
+    view.handle.dispose();
+    assert.equal(view.container.children.length, 0);
+  });
+}
+
+for (const stage of ["idle", "drawing"]) {
+  test(`Preserved close with blinking text ${stage} freezes its visible phase`, async t => {
+    const workers = browser(t);
+    const notices = [];
+    const view = await mounting(t, workers, { preserveOnDisconnect: true, onClose: details => notices.push(details) });
+    await view.worker.request("clock", { message: { now: 0 } });
+    await view.worker.request("open");
+    await present(view, { cells: [{ index: 0, text: "X", width: 1, attributes: 16 }] });
+    await view.promise;
+    await view.worker.request("clock", { message: { now: 600 } });
+    await view.worker.request("pulse");
+    if (stage === "drawing") await view.worker.request("hold");
+    await view.worker.request("draw");
+    assert.equal(await view.worker.request("renderedBlink"), false);
+    await view.worker.request("disconnect");
+    if (stage === "drawing") {
+      assert.deepEqual(notices, []);
+      await view.worker.request("release");
+    }
+    await view.worker.request("flush");
+    assert.equal(notices.length, 1);
+    assert.equal(await view.worker.request("renderedBlink"), true);
+    assert.deepEqual(await view.worker.request("rendererState"), { disposed: false, text: "X" });
+  });
+}
+
+test("Default close releases the renderer; preservation is opt-in", async t => {
+  const workers = browser(t);
+  const view = await mounting(t, workers);
+  await view.worker.request("resourceMetrics", { message: {
+    imageCount: 2, textureBytes: 32, atlasGlyphs: 3, atlasBytes: 64, instanceBufferBytes: 128,
+    imageUploadBytes: 32
+  } });
+  await view.worker.request("open");
+  await present(view, {});
+  await view.promise;
+  assert.equal(view.handle.stats.imageCount, 2);
+  assert.equal(view.handle.stats.textureBytes, 32);
+  await view.worker.request("disconnect");
+  await view.worker.request("flush");
+  assert.equal((await view.worker.request("rendererState")).disposed, true);
+  for (const resource of ["imageCount", "textureBytes", "atlasGlyphs", "atlasBytes", "instanceBufferBytes"])
+    assert.equal(view.handle.stats[resource], 0, `${resource} must describe released resources`);
+  assert.equal(view.handle.stats.imageUploadBytes, 32, "cumulative counters survive disposal");
+});
+
+test("Preserved final DEC row modes survive disconnect and local redraw", async t => {
+  const workers = browser(t);
+  const closed = Promise.withResolvers();
+  const view = await mounting(t, workers, { preserveOnDisconnect: true, onClose: closed.resolve });
+  await view.worker.request("open");
+  await present(view, { columns: 8, rows: 4 });
+  await view.promise;
+  const lineRenditions = [0, 1, 2, 3];
+  await view.worker.request("frame", { buffer: frame({
+    columns: 8, rows: 4, revision: 2, lineRenditions,
+    cells: [
+      { index: 0, text: "N", width: 1 },
+      { index: 8, text: "W", width: 1 },
+      { index: 16, text: "\u754c", width: 2 },
+      { index: 17, text: "", width: 0 },
+      { index: 24, text: "\u754c", width: 2 },
+      { index: 25, text: "", width: 0 }
+    ]
+  }) });
+  await view.worker.request("disconnect");
+  await closed.promise;
+  assert.deepEqual(await view.worker.request("renderedRenditions"), lineRenditions);
+  await view.worker.request("input", { message: { type: "viewport", width: 320, height: 160 } });
+  await view.worker.request("draw");
+  assert.deepEqual(await view.worker.request("renderedRenditions"), lineRenditions);
+  assert.equal((await view.worker.request("rendererState")).disposed, false);
+  assert.equal(view.handle.screenText.split("\n").filter(line => line.includes("\u754c")).length, 2);
+});
+
+for (const lateMessage of [
+  { type: "linkDetection", enabled: false, generation: 2 },
+  { type: "linkDecorations", revision: 1, generation: 1, serial: 2, ranges: [] }
+]) {
+  test(`Preserved close freezes link decorations despite late ${lateMessage.type}`, async t => {
+    const workers = browser(t);
+    const view = await mounting(t, workers, { preserveOnDisconnect: true });
+    await view.worker.request("open");
+    await present(view, { cells: [{ index: 0, text: "X", width: 1 }] });
+    await view.promise;
+    await view.worker.request("input", { message: { type: "linkDetection", enabled: true, generation: 1 } });
+    await view.worker.request("draw");
+    await view.worker.request("input", { message: {
+      type: "linkDecorations", revision: 1, generation: 1, serial: 1,
+      ranges: [{ row: 0, startColumn: 0, endColumn: 1 }]
+    } });
+    await view.worker.request("draw");
+    assert.deepEqual(await view.worker.request("renderedDecorations"), [1]);
+    await view.worker.request("disconnect");
+    await view.worker.request("flush");
+    await view.worker.request("input", { message: lateMessage });
+    await view.worker.request("input", { message: { type: "viewport", width: 200, height: 100 } });
+    await view.worker.request("draw");
+    assert.deepEqual(await view.worker.request("renderedDecorations"), [1]);
+  });
+}
+
+test("Invalid preservation option fails before opening a transport", async t => {
+  const workers = browser(t);
+  await assert.rejects(WebTerminal.mount(new Element(), {
+    url: "/ws", preserveOnDisconnect: "yes"
+  }), /preserveOnDisconnect must be a boolean/);
+  assert.equal(workers.length, 0);
+});
+
 for (const details of closures) {
   for (const stage of ["connecting", "socket-open", "awaiting-peer", "mounted"]) {
     test(`Native close ${details.code} at ${stage} notifies once without inferring completion or retrying`, async t => {

@@ -63,6 +63,7 @@ const maximumFontSize: 32 = MAX_FONT_SIZE;
 console.log(minimumFontSize, maximumFontSize);
 const bindings: InputBinding[] = defaultInputBindings();
 const options: WebTerminalOptions = {
+  preserveOnDisconnect: true,
   colorMode: "system",
   lightModePalette: defaultLightPalette,
   darkModePalette: { ...defaultDarkPalette, selectionForeground: "#ffffff", selectionBackground: "#334455" },

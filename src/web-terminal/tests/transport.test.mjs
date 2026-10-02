@@ -67,6 +67,34 @@ async function customView(t, options = {}, connect) {
   };
 }
 
+test("Preserved custom transport close presents its accepted final frame before onClose", async t => {
+  const closed = Promise.withResolvers();
+  const live = await customView(t, {
+    preserveOnDisconnect: true,
+    onClose: closed.resolve
+  });
+  await live.context.onFrame(frame({ title: "initial" }));
+  await live.worker.request("draw");
+  const terminal = await live.promise;
+  await live.waitControl("ack");
+  await live.worker.request("holdImages");
+  const final = live.context.onFrame(frame({ revision: 2, title: "final custom frame",
+    cells: [{ index: 0, text: "\u754c", width: 1 }] }));
+  await live.worker.request("flush");
+  live.context.onClose({ reason: "producer exited" });
+  terminal.paste("input racing disconnect");
+  await live.worker.request("flush");
+  await live.worker.request("releaseImages");
+  await final;
+  assert.deepEqual(await closed.promise, { reason: "producer exited" });
+  assert.equal(terminal.connected, false);
+  assert.equal(terminal.title, "final custom frame");
+  assert.equal(terminal.screenText, "\u754c");
+  assert.deepEqual(await live.worker.request("rendererState"), { disposed: false, text: "\u754c" });
+  assert.equal(live.commands.some(command => command.text === "input racing disconnect"), false);
+  assert.equal(live.disposals, 1);
+});
+
 test("Custom live transport bridges controls and frames without a WebSocket; ACK waits for presentation", async t => {
   const live = await customView(t);
   await live.worker.request("hold");

@@ -1257,9 +1257,11 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         }
         try
         {
-            // Enqueue a sentinel, then write exit directly
+            // Exit must follow every queued output/replay write on the same pump.
+            await session.OutputChannel.Writer.WriteAsync(new Hmp1OutboundWork(default,
+                stream => Hmp1Protocol.WriteExitAsync(stream, exitCode, session.Cts.Token).AsTask()),
+                session.Cts.Token).ConfigureAwait(false);
             session.OutputChannel.Writer.TryComplete();
-            await Hmp1Protocol.WriteExitAsync(session.Stream, exitCode).ConfigureAwait(false);
         }
         catch { }
     }

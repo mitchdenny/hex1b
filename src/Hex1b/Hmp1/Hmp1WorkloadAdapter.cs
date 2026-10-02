@@ -249,6 +249,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     /// properties.
     /// </remarks>
     public Task DisconnectedTask => _disconnectedTcs.Task;
+    internal bool OutputCompleted => _outputChannel.Reader.Completion.IsCompleted;
 
     /// <summary>
     /// Completes when the HMP1 handshake (ClientHello → Hello → StateSync → ActivityState)

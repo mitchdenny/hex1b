@@ -526,7 +526,7 @@ Create an **Interactive shell** terminal, or select one under **Existing termina
 At an idle shell prompt, choose a **Scenario tape** and click **Play tape**. The
 picker follows the existing terminal's scene, not the **Scene** selector used to
 create new terminals. The initial catalog includes command typing, line editing
-and history, and (on Unix) ANSI colors using `printf`. Generated text/graphics
+and history, success/error exit scenarios, and (on Unix) ANSI colors using `printf`. Generated text/graphics
 scenes do not currently have tapes.
 
 Playback uses [`TapePlayer`](../../docs/tape.md) against the existing server-side
@@ -641,6 +641,9 @@ origin:
 | `proteinview-live.browser.js` | An explicitly supplied ProteinView binary/model through this sample's actual shell scene, socket, mounted client and worker. Checks changing image presentations, viewport pixels and bounded browser image ownership. |
 | `relay.browser.js` | Direct/relay transport selection, mixed peers, input and resize authority, primary closure, fresh reconnect/navigation-return replicas, retained KGP movement, and silent animation. |
 | `titles.browser.js` | Real POSIX shell title output through direct HWT1 and HMP1 relay, initial/late/reconnect notifications, safe header text and fallback, reset retention, duplicate/resync suppression, and disposal. |
+| `final-output.browser.js` | Real POSIX process exit through direct and HMP1 relay views: exact final stdout/stderr and unterminated text, DEC double-width/double-height rows with Unicode, final content before close notification, disabled input, stable WebGL2 framebuffer across a blinking period, and explicit disposal. |
+| `preserved-features.browser.js` | 52 live direct/HMP1 and WebGPU/WebGL2 cases: natural process exit, graceful close, and abrupt loss retain raw RGBA/RGB, PNG/zlib KGP, crop/relative/Unicode-placeholder placements, Sixel, frozen animation, styled/enlarged Unicode text, activity/link metadata, history selection, and custom markers. Checks actual colored pixels, stable screenshots, palette/resize redraw without image re-upload or network controls, inactive links, rejected producer operations, opt-out resource release, and explicit disposal. |
+| `exit-experience.browser.js` | The actual playground UI across direct/HMP1, preservation on/off, callback overlay on/off, and exit 0/7; numeric process codes, final output, message dismissal/reopening, stable retained canvas, resource disposal, and unknown codes after view disconnection. |
 | `activity.browser.js` | Host-owned progress/severity and shell-phase chrome, direct and relayed current state, paused late attachment, resync, and fresh reconnect. No shell hooks required. |
 | `cloud-flicker.browser.js` | Real shell-launched Sixel/KGP cloud animations, sampling visible canvas pixels over at least 180 browser frames and ten received updates; twenty fresh KGP views (including thumbnails) must retain sprites and keep animating without pixel re-uploads or stray command text. Build `samples/SixelCloudDemo` and `samples/KgpCloudDemo` in Release first. |
 | `nested-flicker.browser.js` | WindowingDemo's Bash terminal running KittySearch: hover animation must keep painting through unrelated parent redraws, with at least 180 sampled browser frames and five distinct image states. Build `samples/WindowingDemo` and `samples/KittySearch` in Release first. Requires Bash. |
@@ -880,15 +883,90 @@ the normal controls remain available.
 
 ### Closed views and failure demonstrations
 
-A closed view stays in its floating window with an overlay covering the terminal.
-It summarizes the outcome and displays the native WebSocket code, reason, and
+A closed view stays in its floating window with an app-owned, dismissible message
+over its final received screen when preservation is enabled. It summarizes the outcome and displays the native WebSocket code, reason, and
 closing-handshake status supplied by `WebTerminalOptions.onClose`, including
 closure before mounting finishes. Local initialization failures have an overlay
 too, but no invented WebSocket status. Reasons are displayed as text, never HTML.
 The terminal and its input/resize/takeover controls are disabled; the window can
-still be moved, resized, or closed. The worker and renderer are disposed rather
-than retained behind the overlay; final-screen preservation is not part of this
-demonstration.
+still be moved, resized, or closed. **Preserve final state (new views)** opts into `preserveOnDisconnect`:
+the worker and renderer retain the received frame, without blinking, until the
+view is dismissed or reconnected. Pre-mount failures still use a full overlay
+because no mounted screen exists. Natural workload completion drains process
+output, then waits for the final HWT1 presentation acknowledgement before closing;
+HMP1 relay views also drain the replica's ordered output. Abnormal connection loss
+can preserve only the last received complete frame, not recover unsent output.
+
+### Verify retained graphics and other terminal features
+
+With the demo running, execute the actual worker/GPU preservation matrix:
+
+```sh
+playwright-cli -s=retained open 'http://localhost:5290/?empty=1' --browser=chromium
+playwright-cli -s=retained run-code --filename samples/WebTerminalDemo/tests/preserved-features.browser.js
+playwright-cli -s=retained close
+```
+
+This fixture requires both WebGPU and WebGL2; neither renderer silently falls
+back or skips coverage. It emits rich final output from a real POSIX shell, and
+disconnects the existing KGP, Sixel, and silent-animation scenes through both
+transports. Colored-pixel assertions establish that graphics actually rendered;
+byte-identical screenshots after closure, palette restoration, and container
+resize establish that the retained view can repaint without losing textures.
+Resource/upload counters and outgoing controls distinguish local redraw from
+reconnection or fresh graphics delivery. A separate opt-out case checks texture
+release; retained views are explicitly disposed at the end.
+
+The retained animation is a frozen received frame, not an offline playback
+timeline. Existing selection text/highlights, marker labels/colors, OSC activity,
+and the currently displayed history viewport survive, but producer-backed copy
+and marker navigation reject while disconnected. Link decoration remains visual;
+links cannot activate. This is not an offline scrollback archive, and historical
+HWT1 viewports currently omit graphics. Abrupt loss cannot preserve an update
+that never reached the client.
+
+### Demonstrate process exit, retention, and a callback overlay
+
+Open **Terminal controls**, choose **Interactive shell**, and configure
+**Preserve final state (new views)** and **Show exit message (new views)**.
+Both default to enabled and are captured when a view opens; changing them does
+not reconnect existing views. Create a terminal, then choose **Exit successfully
+(0)** or **Exit with an error (7)** under **Scenario tape** and click **Play tape**
+at an idle prompt. These tapes print `FINAL-OUTPUT-EXIT-0` or
+`FINAL-OUTPUT-EXIT-7` and terminate the real shell, affecting every attached view.
+Unlike **End terminal**, they produce a real process exit code.
+
+The application's `onClose` callback builds a friendly success/error message,
+sets the numeric `view.closure.exitCode`, and shows **Process exit code: 0** or
+**7**. With preservation enabled, **View final output** hides the message without
+disposing the terminal; **Exit details** reopens it. With preservation disabled,
+the app disposes the view and clears its content. Turn off **Show exit message**
+to retain the screen without an automatic overlay; exit details remain available
+from the footer. The overlay belongs to the demo, not the WebTerminal library.
+
+**Process exit code is not the WebSocket close code.** This demo uses close code
+4000 and the reason `Workload exited with code N`; `client/exit-presentation.ts`
+interprets that sample-specific contract. It is not a general WebSocket/HMP1 API.
+Owner termination, ordinary view closure, and network loss report the process
+code as unavailable rather than inventing zero. The HMP1 wire format is unchanged.
+
+For reproducible starting settings, use
+`?scene=shell&renderer=webgl2&preserve=1&overlay=1`; substitute `0` to disable either
+option, or add `&transport=hmp1` to exercise the relay.
+
+```sh
+npm run test:exit --prefix samples/WebTerminalDemo
+playwright-cli -s=exit-demo open 'http://localhost:5290/?empty=1&renderer=webgl2'
+playwright-cli -s=exit-demo run-code --filename samples/WebTerminalDemo/tests/exit-experience.browser.js
+playwright-cli -s=exit-demo close
+```
+
+The acceptance script runs all 16 combinations of transport, preservation,
+automatic overlay, and exit code, plus four graceful/abrupt view-disconnection
+cases. It exercises the actual demo controls and real exit tapes, not a mocked
+callback.
+
+### Inject a view-only failure
 
 Each window has a **Failure** picker and **Trigger** button. These affect only
 that connection, not its producer, other viewers, or scenario tapes:

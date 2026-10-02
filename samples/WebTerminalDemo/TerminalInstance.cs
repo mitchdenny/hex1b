@@ -21,6 +21,7 @@ internal sealed class TerminalInstance
     private readonly DateTimeOffset _createdAt = DateTimeOffset.UtcNow;
     private Task _completion = Task.CompletedTask;
     private bool _stopping;
+    private bool _outputCompleted;
     private BrowserCloseRequest? _closeReason;
 
     public TerminalInstance(CreateTerminalRequest request, DemoTapeCatalog tapeCatalog, ILogger logger,
@@ -71,6 +72,7 @@ internal sealed class TerminalInstance
     public string Id { get; }
     public Hmp1PresentationAdapter Presentation { get; }
     public CancellationToken Stopping { get; }
+    internal bool OutputCompleted => Volatile.Read(ref _outputCompleted);
     public bool IsStopping { get { lock (_gate) return _stopping || Stopping.IsCancellationRequested; } }
     public BrowserCloseRequest? CloseReason { get { lock (_gate) return _closeReason; } }
 
@@ -160,6 +162,7 @@ internal sealed class TerminalInstance
         try
         {
             var exitCode = await _terminal.RunAsync(Stopping);
+            Volatile.Write(ref _outputCompleted, true);
             _logger.LogInformation("Terminal {Instance} ({Scene}) exited with code {ExitCode}", Id, _scene, exitCode);
             RequestStop(new((System.Net.WebSockets.WebSocketCloseStatus)4000, $"Workload exited with code {exitCode}"));
         }

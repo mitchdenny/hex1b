@@ -12,10 +12,10 @@ internal sealed class BrowserSession(WebSocket socket, TerminalView view, string
 
     public async Task RunAsync(CancellationToken requestAborted)
     {
-        using var operations = CancellationTokenSource.CreateLinkedTokenSource(requestAborted, Instance.Stopping);
+        using var operations = CancellationTokenSource.CreateLinkedTokenSource(requestAborted);
         using var transport = CancellationTokenSource.CreateLinkedTokenSource(requestAborted);
         var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var stopRegistration = operations.Token.Register(() => stopped.TrySetResult());
+        using var stopRegistration = Instance.Stopping.Register(() => stopped.TrySetResult());
         Hwt1PresentationAdapter? presentation = null;
         Hmp1BrowserView? relayView = null;
         Task setup = Task.CompletedTask, sender = Task.CompletedTask, receiver = Task.CompletedTask;
@@ -43,6 +43,31 @@ internal sealed class BrowserSession(WebSocket socket, TerminalView view, string
             var finished = await Task.WhenAny(sender, receiver, view.Failure, stopped.Task);
             if (finished == view.Failure)
                 close = await view.Failure;
+            else if (finished == stopped.Task && Instance.OutputCompleted)
+            {
+                using var drainTimeout = CancellationTokenSource.CreateLinkedTokenSource(requestAborted);
+                drainTimeout.CancelAfter(TimeSpan.FromSeconds(2));
+                var drain = relayView is not null
+                    ? relayView.DrainAsync(drainTimeout.Token)
+                    : presentation!.DrainAsync(drainTimeout.Token);
+                try
+                {
+                    var drained = await Task.WhenAny(drain, sender, receiver, view.Failure);
+                    if (drained == view.Failure)
+                        close = await view.Failure;
+                    else
+                        await drained;
+                }
+                catch (OperationCanceledException) when (!requestAborted.IsCancellationRequested)
+                {
+                    throw new TimeoutException("Browser did not acknowledge the final terminal state within two seconds.");
+                }
+                finally
+                {
+                    await drainTimeout.CancelAsync();
+                    await ObserveAsync(drain);
+                }
+            }
             else
                 await finished;
         }

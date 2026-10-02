@@ -189,6 +189,31 @@ public class WebTerminalDemoLifecycleTests
     }
 
     [TestMethod]
+    [DataRow(0, "exit-success")]
+    [DataRow(7, "exit-error")]
+    public async Task StartTape_ExitScenario_PublishesRealProcessExitToBothTransports(int exitCode, string tapeId)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var ct = timeout.Token;
+        await using var registry = CreateRegistry();
+        var instance = registry.Create(new("shell", 80, 24))!;
+        Assert.IsTrue(instance.Tapes.Any(tape => tape.Id == tapeId));
+        await using var direct = await Connection.CreateAsync(registry, instance.Id, false, ct);
+        await using var relay = await Connection.CreateAsync(registry, instance.Id, true, ct);
+        await ReadFrameAsync(direct.Client, ct);
+        await ReadFrameAsync(relay.Client, ct);
+        Assert.AreEqual(202, registry.StartTape(instance.Id, tapeId));
+        var closed = await Task.WhenAll(ReadCloseAsync(direct.Client, ct), ReadCloseAsync(relay.Client, ct));
+        foreach (var result in closed)
+        {
+            Assert.AreEqual(4000, (int)result.CloseStatus!);
+            Assert.AreEqual($"Workload exited with code {exitCode}", result.CloseStatusDescription);
+        }
+        await direct.View.Instance.StopAsync().WaitAsync(ct);
+        Assert.IsEmpty(registry.List());
+    }
+
+    [TestMethod]
     public async Task WorkloadExit_ShellExitsNaturally_PublishesExitCodeToBothViews()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
@@ -214,6 +239,77 @@ public class WebTerminalDemoLifecycleTests
         Assert.AreEqual("Workload exited with code 7", observed?.Reason);
         await direct.View.Instance.StopAsync().WaitAsync(ct);
         Assert.IsEmpty(registry.List());
+    }
+
+    [TestMethod]
+    [DataRow(false, 0)]
+    [DataRow(false, 7)]
+    [DataRow(true, 0)]
+    [DataRow(true, 7)]
+    public async Task WorkloadExit_FinalOutputBeforeClose_ReconstructsEveryFinalLine(bool relay, int exitCode)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var ct = timeout.Token;
+        await using var registry = CreateRegistry();
+        var instance = registry.Create(new("shell", 80, 24, ReflowStrategy: DemoReflowStrategy.None))!;
+        await using var target = await Connection.CreateAsync(registry, instance.Id, relay, ct);
+        await ReadFrameAsync(target.Client, ct);
+        var exited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = target.View.Instance.Stopping.Register(() => exited.TrySetResult());
+        var expected = Enumerable.Range(0, 8).Select(row => $"FINAL-ROW-{row:D2}:abcdefghij0123456789").ToArray();
+        var output = string.Join("\\n", expected);
+        var command = OperatingSystem.IsWindows()
+            ? $"cls & {string.Join(" & ", expected.Select(line => $"echo {line}"))} & echo FINAL-STDERR>&2 & <nul set /p =FINAL-UNTERMINATED & exit /b {exitCode}\r"
+            : $"exec /bin/sh -c \"printf '\\033[2J\\033[H{output}\\n'; printf 'FINAL-STDERR\\n' >&2; printf 'FINAL-UNTERMINATED'; exit {exitCode}\"\r";
+        await target.Client.SendAsync(JsonSerializer.SerializeToUtf8Bytes(new { type = "input", text = command }),
+            WebSocketMessageType.Text, true, ct);
+        // The browser deliberately withholds ACKs until the producer has exited.
+        await exited.Task.WaitAsync(ct);
+        var received = new string[80 * 24];
+        var buffer = new byte[4096];
+        WebSocketReceiveResult result;
+        while (true)
+        {
+            using var message = new MemoryStream();
+            do
+            {
+                result = await target.Client.ReceiveAsync(buffer, ct);
+                if (result.MessageType == WebSocketMessageType.Close)
+                    break;
+                Assert.AreEqual(WebSocketMessageType.Binary, result.MessageType);
+                message.Write(buffer, 0, result.Count);
+            } while (!result.EndOfMessage);
+            if (result.MessageType == WebSocketMessageType.Close)
+                break;
+            var frame = message.ToArray();
+            var length = BinaryPrimitives.ReadInt32LittleEndian(frame.AsSpan(4));
+            using var metadata = JsonDocument.Parse(frame.AsMemory(8, length));
+            if (metadata.RootElement.GetProperty("full").GetBoolean())
+                Array.Fill(received, " ");
+            var offset = 8 + length;
+            var count = BinaryPrimitives.ReadInt32LittleEndian(frame.AsSpan(offset));
+            offset += 4;
+            for (var index = 0; index < count; index++)
+            {
+                var cell = BinaryPrimitives.ReadInt32LittleEndian(frame.AsSpan(offset));
+                var textLength = BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(offset + 20));
+                received[cell] = Encoding.UTF8.GetString(frame.AsSpan(offset + 22, textLength));
+                offset += 22 + textLength;
+            }
+            await target.Client.SendAsync(JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                type = "ack", revision = metadata.RootElement.GetProperty("revision").GetUInt32()
+            }), WebSocketMessageType.Text, true, ct);
+        }
+        Assert.AreEqual(4000, (int)result.CloseStatus!);
+        Assert.AreEqual($"Workload exited with code {exitCode}", result.CloseStatusDescription);
+        var lines = Enumerable.Range(0, 24)
+            .Select(row => string.Concat(received.Skip(row * 80).Take(80)).TrimEnd()).ToArray();
+        TestSeq.AreEqual(expected, lines.Take(8));
+        Assert.AreEqual("FINAL-STDERR", lines[8]);
+        Assert.AreEqual("FINAL-UNTERMINATED", lines[9], "The last bytes have no newline and must still reach the browser.");
+        await target.Client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", ct);
+        await target.Completion.WaitAsync(ct);
     }
 
     [TestMethod]

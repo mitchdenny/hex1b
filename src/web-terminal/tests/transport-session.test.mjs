@@ -14,6 +14,34 @@ function session(t, connect, onFrame = async () => {}) {
   return { value, errors, ready: ready.promise };
 }
 
+test("Transport close waits for the last accepted frame, without aborting its delivery", async t => {
+  const release = Promise.withResolvers();
+  const closed = Promise.withResolvers();
+  const order = [];
+  let context;
+  const value = new TransportSession({
+    onReady() {},
+    async onFrame(buffer) {
+      await release.promise;
+      assert.equal(context.signal.aborted, false);
+      assert.deepEqual([...new Uint8Array(buffer)], [1, 2, 3, 255]);
+      order.push("frame");
+    },
+    onClose(details) { order.push("close"); closed.resolve(details); },
+    onError(error) { closed.reject(error); }
+  });
+  t.after(() => value.dispose());
+  value.start({ connect(ctx) { context = ctx; return { send() {}, dispose() {} }; } });
+  await nextTurn();
+  const received = context.onFrame(new Uint8Array([1, 2, 3, 255]));
+  context.onClose({ reason: "producer exited" });
+  assert.deepEqual(order, []);
+  release.resolve();
+  await received;
+  assert.deepEqual(await closed.promise, { reason: "producer exited" });
+  assert.deepEqual(order, ["frame", "close"]);
+});
+
 test("Controls wait for async completion, preserve order, and propagate send failure", async t => {
   const first = Promise.withResolvers();
   const controls = [];
@@ -37,6 +65,45 @@ test("Controls wait for async completion, preserve order, and propagate send fai
   await rejected;
   assert.deepEqual(controls, ["one", "two"]);
   assert.equal(s.errors[0].message, "send failed");
+});
+
+test("Closing cancels outbound controls without failing the accepted final frame", async t => {
+  const releaseFrame = Promise.withResolvers();
+  const activeSend = Promise.withResolvers();
+  const closed = Promise.withResolvers();
+  const controls = [];
+  const errors = [];
+  let context;
+  const value = new TransportSession({
+    onReady() {},
+    async onFrame() {
+      await releaseFrame.promise;
+      assert.equal(context.signal.aborted, false);
+    },
+    onClose: closed.resolve,
+    onError: error => { errors.push(error); closed.reject(error); }
+  });
+  t.after(() => { releaseFrame.resolve(); value.dispose(); });
+  value.start({ connect(ctx) {
+    context = ctx;
+    return { send(control) { controls.push(control); return activeSend.promise; }, dispose() {} };
+  } });
+  await nextTurn();
+  const active = assert.rejects(value.send("active"), { name: "AbortError" });
+  const queued = assert.rejects(value.send("queued"), { name: "AbortError" });
+  await nextTurn();
+  const received = context.onFrame(new ArrayBuffer(1));
+  context.onClose({ reason: "producer exited" });
+  const late = assert.rejects(value.send("late"), { name: "AbortError" });
+  activeSend.reject(new Error("transport closed during send"));
+  await late;
+  await nextTurn();
+  assert.deepEqual(errors, []);
+  releaseFrame.resolve();
+  await received;
+  assert.deepEqual(await closed.promise, { reason: "producer exited" });
+  await Promise.all([active, queued]);
+  assert.deepEqual(controls, ["active"]);
 });
 
 test("Control queue is bounded while a send stalls", async t => {

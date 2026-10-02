@@ -11,6 +11,56 @@ namespace Hex1b.Tests;
 public class Hwt1PresentationAdapterTests
 {
     [TestMethod]
+    public async Task DrainAsync_PagedFinalState_WaitsForTheLastInventoryAcknowledgement()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var ct = timeout.Token;
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(new RecordingWorkload()).WithPresentation(presentation)
+            .WithDimensions(20, 10).WithScrollback(3000).Build();
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(string.Concat(
+            Enumerable.Range(0, 2050).Select(row => $"\x1b]133;C\aROW-{row:D4}\r\n")) + "FINAL"));
+        var drain = presentation.DrainAsync(ct);
+        var markerCount = 0;
+        for (var page = 0; page < 2; page++)
+        {
+            var frame = await presentation.ReadFrameAsync(ct);
+            using var metadata = ReadMetadata(frame);
+            markerCount += metadata.RootElement.GetProperty("history").GetProperty("markers").GetArrayLength();
+            Assert.IsFalse(drain.IsCompleted);
+            await presentation.HandleMessageAsync(JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                type = "ack", revision = metadata.RootElement.GetProperty("revision").GetUInt32()
+            }), ct);
+            if (page == 0)
+                Assert.IsFalse(drain.IsCompleted, "The first inventory fragment is not the final view.");
+        }
+        await drain.WaitAsync(ct);
+        Assert.AreEqual(2050, markerCount);
+    }
+
+    [TestMethod]
+    public async Task DrainAsync_UnacknowledgedFinalState_TimesOutAndCanRetry()
+    {
+        var clock = new FakeTimeProvider();
+        await using var presentation = new Hwt1PresentationAdapter(20, 10, clock)
+        {
+            AcknowledgementTimeout = TimeSpan.FromSeconds(1)
+        };
+        await using var terminal = CreateTerminal(presentation, new RecordingWorkload());
+        var drain = presentation.DrainAsync();
+        await presentation.ReadFrameAsync();
+        clock.Advance(TimeSpan.FromSeconds(1));
+        await Assert.ThrowsExactlyAsync<TimeoutException>(() => drain);
+        await presentation.HandleMessageAsync("""{"type":"ack","revision":1}"""u8.ToArray());
+        var retry = presentation.DrainAsync();
+        await presentation.ReadFrameAsync();
+        await presentation.HandleMessageAsync("""{"type":"ack","revision":2}"""u8.ToArray());
+        await retry;
+    }
+
+    [TestMethod]
     [DataRow(1, 1)]
     [DataRow(1, 24)]
     [DataRow(80, 1)]

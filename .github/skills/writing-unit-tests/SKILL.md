@@ -358,6 +358,24 @@ For echo/transport tests, use an already-available executable (`cmd /d /c echo` 
 Windows, `/bin/echo` on Unix). Runtime-compiling a temporary C# program with
 `dotnet run` puts SDK startup and compilation inside the output deadline.
 
+## HMP1 Shutdown Compatibility
+
+Test each endpoint against a scripted peer with pinned numeric frame types,
+little-endian headers, and literal JSON from the pre-change protocol. Do not use
+the production codec on the simulated legacy side: otherwise both endpoints can
+change together and conceal a wire regression. Preserve the existing mandatory
+ActivityState handshake baseline; these fixtures model the build immediately
+before the shutdown change, not every historical HMP1 implementation.
+
+See `Hmp1ShutdownCompatibilityTests`: the server fixture sends a literal
+ClientHello and Input, gates a large Output write, then independently decodes
+Output, Output, Exit and EOF without sending acknowledgements. The client fixture
+feeds Hello, StateSync, ActivityState, split-UTF-8 Output and Exit or EOF, gates
+presentation, and checks exact final bytes and the snapshot at lifecycle
+completion. Include premature Exit and truncated final frames to establish that
+missing content cannot be recovered. Confirm the relevant tests fail when server
+ordering or client draining is temporarily removed, then restore both safeguards.
+
 ## Widget Test Dimensions
 
 When writing tests for widgets, consider all the **dimensions** that affect behavior. Each widget should have tests covering these scenarios:

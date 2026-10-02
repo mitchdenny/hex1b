@@ -223,6 +223,8 @@ export type WebTerminalOptions = WebTerminalCommonOptions & (
       onClose?: (details: TerminalTransportCloseDetails) => void }
 );
 interface WebTerminalCommonOptions extends InputPolicyOptions {
+  /** Keep the final received frame visible after transport close, until dispose. Defaults to false. */
+  preserveOnDisconnect?: boolean;
   /** Local terminal palette selection. Defaults to dark; system follows prefers-color-scheme. */
   colorMode?: TerminalColorMode;
   lightModePalette?: TerminalPalette;

@@ -28,6 +28,8 @@ let bridgeReady: ReturnType<typeof Promise.withResolvers<TerminalTransportConnec
 let bridgeSent: ReturnType<typeof Promise.withResolvers<void>> | undefined;
 let failed = false;
 let stopped = false;
+let disconnected = false;
+let preserveOnDisconnect = false;
 let processing = false;
 let drawing = false;
 let frameInFlight = false;
@@ -65,11 +67,18 @@ function postStatus(message: string, level: TerminalStatusLevel = "info"): void 
 }
 
 function send(message: TerminalCommand): void {
-  if (stats.connected && !failed && !stopped) void transport?.send(JSON.stringify(message)).catch(fail);
+  if (stats.connected && !disconnected && !transport?.closing && !failed && !stopped) {
+    void transport?.send(JSON.stringify(message)).catch(error => {
+      if (!transport?.closing) fail(error);
+    });
+  }
 }
 
 function emitStats(text?: string): void {
   if (renderer && !renderer.disposed) Object.assign(stats, renderer.metrics());
+  else if (renderer?.disposed) Object.assign(stats, {
+    imageCount: 0, textureBytes: 0, atlasGlyphs: 0, atlasBytes: 0, instanceBufferBytes: 0,
+  });
   self.postMessage({ type: "stats", stats: { ...stats }, ...(text === undefined ? {} : { text }) });
 }
 
@@ -99,11 +108,13 @@ self.addEventListener("unhandledrejection", event => {
 /** At most one state frame, one decode, and one GPU submission are outstanding. */
 function scheduleRender() {
   needsRender = true;
-  if (scheduled || drawing || processing || failed || stopped || !metadata || markerPages.pending || awaitingFull) return;
+  if (scheduled || drawing || processing || failed || stopped || (disconnected && stats.connected) ||
+      !metadata || markerPages.pending || awaitingFull) return;
   scheduled = true;
   self.requestAnimationFrame(() => {
     scheduled = false;
-    if (processing || drawing || failed || stopped || markerPages.pending || awaitingFull) return;
+    if (processing || drawing || failed || stopped || (disconnected && stats.connected) ||
+        markerPages.pending || awaitingFull) return;
     renderPromise = drawFrame();
   });
 }
@@ -117,7 +128,7 @@ async function drawFrame() {
     if (frame) links.prepare(cells, metadata);
     const linkSubmission = links.submission();
     renderer.resize(metadata.columns, metadata.rows, viewport);
-    const blink = Math.floor(performance.now() / 600) % 2 === 0;
+    const blink = disconnected || Math.floor(performance.now() / 600) % 2 === 0;
     const result = renderer.render(cells, metadata, blink, linkSubmission.mask, palette);
     // This is bounded completion/backpressure, not GPU readback or a GPU timing measurement.
     await renderer.idle();
@@ -174,7 +185,7 @@ async function drawFrame() {
 }
 
 async function receiveFrame(buffer: ArrayBuffer): Promise<void> {
-  if (failed || stopped || !renderer) return;
+  if (failed || stopped || disconnected || !renderer) return;
   if (frameInFlight) throw new Error("Server sent a second state frame before acknowledgement");
   frameInFlight = true;
   processing = true;
@@ -241,6 +252,7 @@ async function receiveFrame(buffer: ArrayBuffer): Promise<void> {
 
 async function initialize(message: Extract<WorkerInputMessage, { type: "init" }>): Promise<void> {
   if (renderer || transport) throw new Error("Worker is already initialized");
+  preserveOnDisconnect = message.preserveOnDisconnect ?? false;
   palette = compilePalette(normalizePalette(message.palette === undefined ? defaultDarkPalette : message.palette));
   if (typeof self.requestAnimationFrame !== "function") {
     throw new Error("This browser does not support requestAnimationFrame in a dedicated OffscreenCanvas worker");
@@ -268,18 +280,34 @@ async function initialize(message: Extract<WorkerInputMessage, { type: "init" }>
     onFrame: receiveFrame,
     onError: fail,
     onClose(details) {
-      if (failed || stopped) return;
-      stats.connected = false;
-      stats.gpu = "stopped";
-      stats.fps = 0;
-      stopped = true;
+      if (failed || stopped || disconnected) return;
+      disconnected = true;
       clearInterval(metricsTimer);
       clearInterval(blinkTimer);
-      renderer?.dispose();
-      self.postMessage({ type: "closed", details });
-      postStatus(`View disconnected (${details.code === undefined ? details.reason :
-        `${details.code}${details.reason ? `: ${details.reason}` : ""}`}). Attach another view to reconnect.`, "error");
-      emitStats();
+      void finishClose().catch(fail);
+
+      async function finishClose() {
+        if (preserveOnDisconnect) {
+          await renderPromise;
+          if (failed || stopped) return;
+          // A transport close can overtake the worker's scheduled animation frame.
+          if ((needsRender || (hasBlink && !lastBlink)) && !markerPages.pending && !awaitingFull) {
+            needsRender = true;
+            await drawFrame();
+          }
+          if (failed || stopped) return;
+        } else {
+          stopped = true;
+          renderer?.dispose();
+        }
+        stats.connected = false;
+        stats.gpu = "stopped";
+        stats.fps = 0;
+        self.postMessage({ type: "closed", details });
+        postStatus(`View disconnected (${details.code === undefined ? details.reason :
+          `${details.code}${details.reason ? `: ${details.reason}` : ""}`}). Attach another view to reconnect.`, "error");
+        emitStats();
+      }
     }
   });
   metricsTimer = setInterval(() => {
@@ -355,7 +383,7 @@ self.addEventListener("message", event => {
       palette = compilePalette(normalizePalette(message.palette));
       scheduleRender();
     } catch (error) { fail(error); }
-  } else if (message.type === "linkDetection" && !failed && !stopped) {
+  } else if (message.type === "linkDetection" && !failed && !stopped && !disconnected) {
     try {
       if (!links.configure(message.enabled, message.generation)) return;
       if (!processing && !drawing && !pendingFrame) {
@@ -364,7 +392,7 @@ self.addEventListener("message", event => {
       }
       scheduleRender();
     } catch (error) { fail(error); }
-  } else if (message.type === "linkDecorations" && !failed && !stopped) {
+  } else if (message.type === "linkDecorations" && !failed && !stopped && !disconnected) {
     try {
       if (links.accept(message.revision, message.generation, message.serial, message.ranges,
         processing || frameInFlight || !!pendingFrame, message.underlineStyle)) scheduleRender();

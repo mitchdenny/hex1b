@@ -574,8 +574,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// workload lifecycle.
     /// </para>
     /// <para>
-    /// For <see cref="StandardProcessWorkloadAdapter"/> workloads, normal completion
-    /// also waits for redirected output to be applied to the terminal and sent to
+    /// For process and HMP1 workloads, normal completion
+    /// also waits for remaining output to be applied to the terminal and sent to
     /// the presentation adapter. Cancellation can interrupt this drain.
     /// </para>
     /// <para>
@@ -678,7 +678,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         // Process exit drains stdout/stderr into the adapter's channel, not into
         // the terminal. Finish applying and presenting those bytes before shutdown.
-        if (_workload is StandardProcessWorkloadAdapter && _outputProcessingTask is not null)
+        if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess or Hmp1WorkloadAdapter &&
+            _outputProcessingTask is not null)
             await _outputProcessingTask.WaitAsync(ct);
 
         return exitCode;
@@ -689,6 +690,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     private async Task WaitForWorkloadDisconnectAsync(CancellationToken ct)
     {
+        if (_workload is Hmp1WorkloadAdapter remote)
+        {
+            await remote.DisconnectedTask.WaitAsync(ct);
+            return;
+        }
         var tcs = new TaskCompletionSource();
         
         void OnDisconnect() => tcs.TrySetResult();
@@ -1331,9 +1337,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Channel empty - this is a frame boundary
                     await NotifyWorkloadFiltersFrameCompleteAsync();
 
-                    // Standard process reads return empty only at EOF (or cancellation).
+                    // Process reads return empty only at EOF (or cancellation).
                     // Other workloads can return empty between frames and must keep pumping.
-                    if (_workload is StandardProcessWorkloadAdapter)
+                    if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess ||
+                        _workload is Hmp1WorkloadAdapter { OutputCompleted: true })
                         break;
                     
                     // Small delay to prevent busy-waiting in headless mode

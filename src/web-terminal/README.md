@@ -169,6 +169,7 @@ const container = document.getElementById("terminal");
 if (!container) throw new Error("Missing terminal container");
 const terminal = await WebTerminal.mount(container, {
   url: "/ws/terminal",
+  preserveOnDisconnect: true,
   colorMode: "system", // "light", "dark", or the browser's prefers-color-scheme.
   lightModePalette: { ...defaultLightPalette, background: "#fafafa" },
   darkModePalette: { ...defaultDarkPalette, background: "#202020" },
@@ -297,7 +298,41 @@ view after transport loss or leave an ended tab/dialog visible. Abort, explicit
 disposal, mount timeout, and local initialization/renderer failures do not
 synthesize `onClose`; no callback runs after disposal. Callback exceptions are
 reported to the host, not swallowed or retried, and do not leave mounting pending.
-The API does not retain the producer after exit or promise a final rendered frame.
+Set `preserveOnDisconnect: true` to finish presenting the last accepted complete
+frame before `onClose` and keep it visible until `dispose()`. The retained view
+can repaint when its container or palette changes, but input and producer-backed
+history, selection, and copying are disconnected. Cursor/text blinking stops.
+The default is `false`, preserving the existing renderer-release behavior.
+Explicit disposal or abort still removes the view and releases its GPU resources.
+Local rendering failures cannot guarantee preservation.
+
+Preservation retains the received KGP and Sixel textures and placements, including
+PNG/compressed KGP, cropped and relative placements, Unicode placeholders, and
+the current server-driven animation frame. Animation freezes rather than replaying
+locally. Styled/wide/combining text, DEC enlarged rows, the current alternate
+screen, link decorations already presented, selection highlights, viewport text,
+markers, and activity metadata remain available for display and local redraw.
+Link activation and producer-backed navigation/copy operations stop. Only the
+current received history viewport is retained, not a browsable offline scrollback
+archive; historical HWT1 viewports do not currently include graphics.
+
+Preservation alone cannot recover bytes the server never sent. On the server,
+await `Hex1bTerminal.RunAsync()` to finish consuming process output, then await
+`Hwt1PresentationAdapter.DrainAsync(cancellationToken)` **while the frame sender
+and client-message receiver remain running**. Only after the drain completes
+should the host cancel those loops, close the transport, and dispose the
+producer. The drain requests a fresh snapshot and waits for the final
+presentation acknowledgement, including all marker inventory pages; its total
+wait is bounded by `AcknowledgementTimeout`, and cancellation or timeout reports
+failure rather than claiming delivery. An HMP1 replica must also finish consuming
+its ordered output before its HWT1 drain. The demo does this for direct and relay
+views on normal workload exit.
+
+HWT1 transfers coalesced terminal state, not every intermediate output event.
+The guarantee is the final retained terminal view, not an unlimited output log.
+Abrupt network loss can retain only the last complete frame actually received;
+it cannot promise the producer's final state. The API does not retain the producer
+after exit.
 
 ### Browser and deployment requirements
 
@@ -425,6 +460,7 @@ does not claim universal or individually verified bundler support.
 | `label` | Accessible label for the terminal's hidden keyboard input. |
 | `onTitleChange` | Initial authoritative workload title, then distinct presented changes; see below. |
 | `onClose` | Native WebSocket close details, including pre-mount transport failure; not workload completion. |
+| `preserveOnDisconnect` | Opt-in final-frame presentation and retained display after transport close, until disposal; defaults to `false`. |
 | `onProgressChange`, `onShellIntegrationChange` | Initial authoritative activity, then distinct presented changes for host-owned chrome. |
 | `onWorkingDirectoryChange`, `onCommandMarkChange` | Initial authoritative OSC 7 directory and latest OSC 133 marker, then distinct presented changes; see below. |
 | `inputBindings`, `onInput`, `actions` | Per-view input policy and custom actions. |

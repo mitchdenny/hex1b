@@ -74,6 +74,7 @@ export class WebTerminal implements WebTerminalHandle {
   #connected = false;
   #closed = false;
   #readOnly: boolean;
+  #preserveOnDisconnect: boolean;
   #disposed = false;
   #hasGeometry = false;
   #resizeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -156,6 +157,9 @@ export class WebTerminal implements WebTerminalHandle {
     if (options.readOnly !== undefined && typeof options.readOnly !== "boolean")
       throw new TypeError("readOnly must be a boolean");
     this.#readOnly = options.readOnly ?? false;
+    if (options.preserveOnDisconnect !== undefined && typeof options.preserveOnDisconnect !== "boolean")
+      throw new TypeError("preserveOnDisconnect must be a boolean");
+    this.#preserveOnDisconnect = options.preserveOnDisconnect ?? false;
     this.#renderer = normalizeRenderer(options.renderer);
     this.#colorMode = normalizeColorMode(options.colorMode);
     this.#palettes = {
@@ -404,7 +408,8 @@ export class WebTerminal implements WebTerminalHandle {
     this.#colorScheme = window.matchMedia?.("(prefers-color-scheme: dark)");
     this.#colorScheme?.addEventListener("change", this.#systemColorChanged);
     this.#post({ type: "init", canvas, transport: url === undefined ? { type: "custom" } : { type: "websocket", url }, scale, font,
-      renderer: this.#renderer, palette: this.#palettes[this.resolvedColorMode] }, [canvas]);
+      renderer: this.#renderer, palette: this.#palettes[this.resolvedColorMode],
+      preserveOnDisconnect: this.#preserveOnDisconnect }, [canvas]);
     this.#applyPalette();
     this.#postLinkConfiguration();
   }
@@ -431,7 +436,8 @@ export class WebTerminal implements WebTerminalHandle {
         .then(() => this.#transportSession?.send(message.control))
         .then(() => this.#post({ type: "transportSent" }))
         .catch(error => {
-          if (!this.#disposed) this.#post({ type: "transportError", message: errorMessage(error) });
+          if (!this.#disposed && !this.#transportSession?.closing)
+            this.#post({ type: "transportError", message: errorMessage(error) });
         });
     } else if (message.type === "transportReceived") {
       this.#transportFrame?.resolve();

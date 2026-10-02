@@ -12,6 +12,12 @@ let socket;
 let holdPresentation = false;
 let presentation;
 let renderedForeground;
+let renderedText;
+let renderedBlink;
+let renderedRenditions;
+let renderedDecorations;
+let imageUpdate;
+let resourceMetrics = {};
 globalThis.self = {
   addEventListener(type, handler) { listeners.set(type, handler); },
   postMessage(message) { parentPort.postMessage({ type: "output", message }); },
@@ -29,22 +35,29 @@ globalThis.WebSocket = class {
   listeners = new Map();
   constructor() { socket = this; }
   addEventListener(type, handler) { this.listeners.set(type, handler); }
-  send(data) { parentPort.postMessage({ type: "sent", command: JSON.parse(data) }); }
+  send(data) {
+    if (this.readyState !== WebSocket.OPEN) throw new Error("WebSocket is not open");
+    parentPort.postMessage({ type: "sent", command: JSON.parse(data) });
+  }
   close() { this.readyState = 3; }
 };
 const renderer = {
   backend: { kind: "webgl2" },
   disposed: false,
   resize() {},
-  updateImages() {},
+  async updateImages() { await imageUpdate?.promise; },
   prepareGlyphs() {},
-  render(cells, metadata, _blink, _links, palette) {
+  render(cells, metadata, blink, _links, palette) {
+    renderedText = cells.map(cell => cell?.text ?? " ").join("");
+    renderedBlink = blink;
+    renderedRenditions = metadata.lineRenditions?.slice();
+    renderedDecorations = _links ? Array.from(_links) : undefined;
     renderedForeground = cells[0] ? foregroundColor(cells[0], metadata, palette) : undefined;
     if (holdPresentation) presentation = Promise.withResolvers();
     return { cpuMs: 0, quads: 1, drawCalls: 1 };
   },
   async idle() { await presentation?.promise; },
-  metrics() { return {}; },
+  metrics() { return resourceMetrics; },
   dispose() { this.disposed = true; }
 };
 TerminalRenderer.create = async () => renderer;
@@ -64,6 +77,8 @@ parentPort.on("message", ({ id, action, message, buffer, details }) => {
         for (const callback of animations.splice(0)) callback(performance.now());
         break;
       case "hold": holdPresentation = true; break;
+      case "holdImages": imageUpdate = Promise.withResolvers(); break;
+      case "releaseImages": imageUpdate?.resolve(); imageUpdate = undefined; break;
       case "release":
         holdPresentation = false;
         presentation?.resolve();
@@ -72,6 +87,10 @@ parentPort.on("message", ({ id, action, message, buffer, details }) => {
       case "pulse":
         for (const callback of intervals.values()) callback();
         break;
+      case "clock":
+        Object.defineProperty(performance, "now", { configurable: true, value: () => message.now });
+        break;
+      case "resourceMetrics": resourceMetrics = message; break;
       case "disconnect":
         socket.readyState = 3;
         socket.listeners.get("close")({ code: 1000, reason: "test disconnect", wasClean: true, ...details });
@@ -82,6 +101,10 @@ parentPort.on("message", ({ id, action, message, buffer, details }) => {
     }
     await nextTurn();
     parentPort.postMessage({ type: "done", id,
-      ...(action === "renderedForeground" ? { result: renderedForeground } : {}) });
+      ...(action === "renderedForeground" ? { result: renderedForeground } : {}),
+      ...(action === "renderedBlink" ? { result: renderedBlink } : {}),
+      ...(action === "renderedRenditions" ? { result: renderedRenditions } : {}),
+      ...(action === "renderedDecorations" ? { result: renderedDecorations } : {}),
+      ...(action === "rendererState" ? { result: { disposed: renderer.disposed, text: renderedText } } : {}) });
   }).catch(error => parentPort.postMessage({ type: "failure", id, error: error.stack }));
 });

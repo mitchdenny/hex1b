@@ -96,6 +96,9 @@ public sealed class Hwt1PresentationAdapter :
     private Hmp1PresentationAdapter.Hmp1ClientSession? _session;
     private readonly Hwt1ViewState _view = new();
     private TaskCompletionSource? _ack;
+    private TaskCompletionSource? _drain;
+    private TaskCompletionSource? _drainAcknowledgement;
+    private uint _drainRevision;
     private uint _awaitedRevision;
     private int _forceFull = 1;
     private bool _indexedColors;
@@ -241,7 +244,8 @@ public sealed class Hwt1PresentationAdapter :
     /// Only one reader is permitted. A read waits for the previous frame's acknowledgement
     /// and a state invalidation before capturing a snapshot. Output processing continues
     /// while the reader waits. Send every returned frame or dispose this connection; do not
-    /// discard frames locally. The host must cancel its read loop when the terminal ends.
+    /// discard frames locally. After terminal output completes, the host can await
+    /// <see cref="DrainAsync"/> before cancelling its read loop and closing the transport.
     /// DEC mode 2026 defers capture until synchronized output ends or its one-second
     /// watchdog expires. The browser keeps its previous frame while capture is deferred.
     /// Projection and transport failures are fatal to the connection; they are not retried.
@@ -258,6 +262,7 @@ public sealed class Hwt1PresentationAdapter :
         if (Interlocked.CompareExchange(ref _reading, 1, 0) != 0)
             throw new InvalidOperationException("Only one HWT1 frame reader is supported.");
         var consumedInvalidation = false;
+        TaskCompletionSource? drain = null;
         try
         {
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposedCancellation.Token);
@@ -290,6 +295,7 @@ public sealed class Hwt1PresentationAdapter :
                 linked.Token.ThrowIfCancellationRequested();
                 while (_dirty.Reader.TryRead(out _)) { }
                 snapshotStarted = Stopwatch.GetTimestamp();
+                drain = Volatile.Read(ref _drain);
                 if (outputLock is not null)
                     await outputLock.WaitAsync(linked.Token).ConfigureAwait(false);
                 Task? pendingUpdate;
@@ -345,6 +351,14 @@ public sealed class Hwt1PresentationAdapter :
                         full, snapshotMs, peer, history, _indexedColors);
                     PrepareAcknowledgement(_projection.Revision);
                 }
+                if (drain is not null && ReferenceEquals(drain, _drain))
+                {
+                    lock (_ackLock)
+                    {
+                        _drainAcknowledgement = drain;
+                        _drainRevision = _projection.Revision;
+                    }
+                }
             }
             return bytes;
         }
@@ -365,6 +379,54 @@ public sealed class Hwt1PresentationAdapter :
         {
             _awaitedRevision = revision;
             _ack = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+    }
+
+    /// <summary>Waits until a newly captured terminal state has been presented and acknowledged by the client.</summary>
+    /// <param name="cancellationToken">Cancels this drain without disposing the adapter.</param>
+    /// <returns>A task that completes after the client acknowledges the entire captured state.</returns>
+    /// <remarks>
+    /// Call after the producer has finished processing output, such as after
+    /// <see cref="Hex1bTerminal.RunAsync"/> completes, and before closing the connection.
+    /// Keep reading and sending every frame and processing client messages concurrently.
+    /// The drain includes outstanding frames and all marker inventory pages. It does not
+    /// stop the producer, close the transport, or make frames a lossless output stream.
+    /// The entire wait is bounded by <see cref="AcknowledgementTimeout"/>.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The adapter is unattached or another drain is active.</exception>
+    /// <exception cref="ObjectDisposedException">The adapter is disposed.</exception>
+    /// <exception cref="TimeoutException">The captured state was not acknowledged in time.</exception>
+    /// <exception cref="OperationCanceledException">The drain was cancelled or the adapter was disposed.</exception>
+    public async Task DrainAsync(CancellationToken cancellationToken = default)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposedCancellation.Token);
+        linked.Token.ThrowIfCancellationRequested();
+        var drain = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_projectionLock)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            if (_terminal is null)
+                throw new InvalidOperationException("Attach the adapter to a terminal before draining frames.");
+            if (_drain is not null)
+                throw new InvalidOperationException("Only one HWT1 drain is supported.");
+            Volatile.Write(ref _drain, drain);
+            InvalidatePresentation();
+        }
+        try
+        {
+            await drain.Task.WaitAsync(AcknowledgementTimeout, _timeProvider, linked.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_projectionLock)
+            {
+                Volatile.Write(ref _drain, null);
+                lock (_ackLock)
+                {
+                    if (ReferenceEquals(_drainAcknowledgement, drain))
+                        _drainAcknowledgement = null;
+                }
+            }
         }
     }
 
@@ -418,7 +480,11 @@ public sealed class Hwt1PresentationAdapter :
                     if (revision > _awaitedRevision)
                         throw new InvalidDataException("Acknowledgement is ahead of the server.");
                     if (revision == _awaitedRevision)
+                    {
                         _ack?.TrySetResult();
+                        if (revision == _drainRevision)
+                            _drainAcknowledgement?.TrySetResult();
+                    }
                 }
                 break;
             case "resync":

@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Buffers.Binary;
 using System.Text;
+using System.Text.Json;
 using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
@@ -7,6 +9,80 @@ namespace Hex1b.Tests;
 [TestClass]
 public class StandardProcessOutputTests
 {
+    [TestMethod]
+    [DataRow(0, false)]
+    [DataRow(7, false)]
+    [DataRow(0, true)]
+    [DataRow(7, true)]
+    public async Task DrainAsync_ProcessAlreadyExited_TransmitsEveryOutputCellAndByteBeforeFinalAck(int exitCode, bool filtered)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var ct = timeout.Token;
+        await using var workload = new StandardProcessWorkloadAdapter(CreateStartInfo(exitCode));
+        await workload.StartAsync(ct);
+        Assert.AreEqual(exitCode, await workload.WaitForExitAsync(ct));
+        await using var presentation = new Hwt1PresentationAdapter(80, 10);
+        var options = new Hex1bTerminalOptions
+        {
+            Width = 80, Height = 10, WorkloadAdapter = workload, PresentationAdapter = presentation,
+            RunCallback = _ => Task.FromResult(workload.ExitCode)
+        };
+        if (filtered)
+            options.PresentationFilters.Add(new PassthroughPresentationFilter());
+        await using var terminal = new Hex1bTerminal(options);
+
+        // Hold an empty initial frame while the already-exited child is drained.
+        var initial = await presentation.ReadFrameAsync(ct);
+        Assert.AreEqual(exitCode, await terminal.RunAsync(ct));
+        var drain = presentation.DrainAsync(ct);
+        var finalRead = presentation.ReadFrameAsync(ct).AsTask();
+        Assert.IsFalse(finalRead.IsCompleted);
+        Assert.IsFalse(drain.IsCompleted);
+        await presentation.HandleMessageAsync("""{"type":"ack","revision":1}"""u8.ToArray(), ct);
+        var final = await finalRead.WaitAsync(ct);
+        Assert.IsFalse(drain.IsCompleted, "Sending bytes is not proof that the final view was presented.");
+
+        var received = new string[800];
+        ApplyFrame(initial, received);
+        ApplyFrame(final, received);
+        using var snapshot = terminal.CreateSnapshot();
+        for (var row = 0; row < 10; row++)
+        {
+            for (var column = 0; column < 80; column++)
+                Assert.AreEqual(snapshot.GetCell(column, row).Character, received[row * 80 + column],
+                    $"Transmitted cell {column},{row}");
+        }
+        var text = string.Concat(received);
+        Assert.Contains("FirstOutput", text);
+        Assert.Contains("FinalOutput", text);
+        Assert.Contains("ErrorOutput", text);
+        var length = BinaryPrimitives.ReadInt32LittleEndian(final.Span[4..]);
+        using var metadata = JsonDocument.Parse(final.Slice(8, length));
+        var expectedBytes = Encoding.UTF8.GetByteCount("FirstOutput\nFinalOutput\nErrorOutput\n");
+        Assert.AreEqual((long)expectedBytes,
+            metadata.RootElement.GetProperty("stats").GetProperty("workloadBytes").GetInt64());
+        await presentation.HandleMessageAsync(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            type = "ack", revision = metadata.RootElement.GetProperty("revision").GetUInt32()
+        }), ct);
+        await drain.WaitAsync(ct);
+    }
+
+    private static void ApplyFrame(ReadOnlyMemory<byte> frame, string[] cells)
+    {
+        var span = frame.Span;
+        var offset = 8 + BinaryPrimitives.ReadInt32LittleEndian(span[4..]);
+        var count = BinaryPrimitives.ReadInt32LittleEndian(span[offset..]);
+        offset += 4;
+        for (var index = 0; index < count; index++)
+        {
+            var cellIndex = BinaryPrimitives.ReadInt32LittleEndian(span[offset..]);
+            var length = BinaryPrimitives.ReadUInt16LittleEndian(span[(offset + 20)..]);
+            cells[cellIndex] = Encoding.UTF8.GetString(span.Slice(offset + 22, length));
+            offset += 22 + length;
+        }
+    }
+
     [TestMethod]
     [DataRow(0, false)]
     [DataRow(7, false)]

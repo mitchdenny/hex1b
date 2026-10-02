@@ -15,6 +15,8 @@ export class TransportSession {
   #ready = Promise.withResolvers<void>();
   #connection: TerminalTransportConnection | undefined;
   #frame = false;
+  #receiving: Promise<void> | undefined;
+  #closing = false;
   #sending = false;
   #queue: { control: string; bytes: number; resolve(): void; reject(error: unknown): void }[] = [];
   #bytes = 0;
@@ -24,6 +26,8 @@ export class TransportSession {
     void this.#ready.promise.catch(() => {});
   }
 
+  get closing(): boolean { return this.#closing; }
+
   start(transport: TerminalTransport): void {
     void this.#connect(transport);
   }
@@ -32,9 +36,13 @@ export class TransportSession {
     try {
       const connection = await transport.connect({
         signal: this.#abort.signal,
-        onFrame: frame => this.#receive(frame),
+        onFrame: frame => {
+          const receiving = this.#receive(frame);
+          this.#receiving = receiving;
+          return receiving;
+        },
         onClose: details => {
-          if (this.#abort.signal.aborted) return;
+          if (this.#abort.signal.aborted || this.#closing) return;
           if (!details || typeof details.reason !== "string" ||
               (details.code !== undefined && (!Number.isInteger(details.code) || typeof details.wasClean !== "boolean"))) {
             this.#fail(new TypeError("Invalid terminal transport close details"));
@@ -42,8 +50,8 @@ export class TransportSession {
           }
           const snapshot = details.code === undefined ? { reason: details.reason }
             : { code: details.code, reason: details.reason, wasClean: details.wasClean };
-          this.dispose();
-          this.callbacks.onClose(snapshot);
+          this.#closing = true;
+          void this.#close(snapshot);
         },
         onError: error => this.#fail(error)
       });
@@ -59,6 +67,7 @@ export class TransportSession {
   async #receive(frame: ArrayBuffer | Uint8Array<ArrayBuffer>): Promise<void> {
     try {
       this.#abort.signal.throwIfAborted();
+      if (this.#closing) throw new Error("Terminal transport is closing");
       if (this.#frame) throw new Error("Concurrent terminal transport frames are not allowed");
       if (!(frame instanceof ArrayBuffer) &&
           !(frame instanceof Uint8Array && frame.buffer instanceof ArrayBuffer))
@@ -78,8 +87,21 @@ export class TransportSession {
     }
   }
 
+  async #close(details: TerminalTransportCloseDetails): Promise<void> {
+    try {
+      await this.#receiving;
+    } catch {
+      // Frame failures already notify onError and stop the session.
+      return;
+    }
+    if (this.#abort.signal.aborted) return;
+    this.dispose();
+    this.callbacks.onClose(details);
+  }
+
   send(control: string): Promise<void> {
     if (this.#abort.signal.aborted) return Promise.reject(this.#abort.signal.reason);
+    if (this.#closing) return Promise.reject(new DOMException("Terminal transport is closing", "AbortError"));
     const bytes = new TextEncoder().encode(control).byteLength;
     if (this.#queue.length >= 256 || this.#bytes + bytes > 1024 * 1024) {
       const error = new Error("Terminal transport control queue exceeded its bounded capacity");
@@ -98,7 +120,7 @@ export class TransportSession {
     this.#sending = true;
     try {
       await this.#ready.promise;
-      while (!this.#abort.signal.aborted && this.#queue.length) {
+      while (!this.#abort.signal.aborted && !this.#closing && this.#queue.length) {
         const item = this.#queue[0];
         await this.#connection!.send(item.control);
         if (this.#abort.signal.aborted) return;
@@ -106,7 +128,10 @@ export class TransportSession {
         this.#bytes -= item.bytes;
         item.resolve();
       }
-    } catch (error) { this.#fail(error); }
+    } catch (error) {
+      // Closing cancels outbound delivery, but must not abort the accepted final frame.
+      if (!this.#closing) this.#fail(error);
+    }
     finally { this.#sending = false; }
   }
 

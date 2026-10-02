@@ -10,6 +10,7 @@ internal sealed class Hmp1BrowserView : IAsyncDisposable
     private readonly Hmp1WorkloadAdapter _client;
     private Hmp1ClientHandle? _peer;
     private Hex1bTerminal? _replica;
+    private Task<int>? _completion;
     private int _disposed;
 
     private Hmp1BrowserView(string? name, CancellationToken ct)
@@ -45,6 +46,7 @@ internal sealed class Hmp1BrowserView : IAsyncDisposable
                 .WithPresentation(view.Presentation)
                 .WithScrollback(1000)
                 .Build();
+            view._completion = view._replica.RunAsync(view._stop.Token);
             connected = true;
             return view;
         }
@@ -70,6 +72,12 @@ internal sealed class Hmp1BrowserView : IAsyncDisposable
         }
     }
 
+    internal async Task DrainAsync(CancellationToken ct)
+    {
+        await _completion!.WaitAsync(ct);
+        await Presentation.DrainAsync(ct);
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -82,5 +90,10 @@ internal sealed class Hmp1BrowserView : IAsyncDisposable
         await using var peer = _peer;
         await using var replica = _replica;
         await stop.CancelAsync();
+        if (_completion is not null)
+        {
+            try { await _completion; }
+            catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+        }
     }
 }

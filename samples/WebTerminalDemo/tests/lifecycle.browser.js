@@ -75,10 +75,10 @@ async page => {
           const mount = view.element.querySelector(".terminal-mount");
           const overlay = view.element.querySelector(".closed-overlay");
           const a = mount.getBoundingClientRect(), b = overlay.getBoundingClientRect();
-          return mount.inert && mount.childElementCount === 0 && !view.terminal.connected &&
-            Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1 &&
-            Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1;
-        }), "Closed overlay did not cover, disable, and dispose the terminal");
+          return mount.inert && mount.childElementCount === 1 && !view.terminal.connected &&
+            overlay.classList.contains("retained") && a.width > 0 && a.height > 0 &&
+            b.x >= a.x - 1 && b.right <= a.right + 1 && b.y >= a.y - 1 && b.bottom <= a.bottom + 1;
+        }), "Closed details did not preserve the terminal beneath the app-owned overlay");
         await test.waitForFunction(frames => {
           const peer = webTerminalViews.get("1");
           return peer.terminal.connected && peer.stats.frames > frames;
@@ -185,7 +185,7 @@ async page => {
     await test.evaluate(id => {
       const terminal = webTerminalViews.get(id).terminal;
       terminal.focus();
-      terminal.paste("exit 7");
+      terminal.paste("echo __FINAL_OUTPUT__; printf __FINAL_UNTERMINATED__; exit 7");
     }, shellView);
     await test.keyboard.press("Enter");
     for (const id of [shellView, shellPeer]) {
@@ -193,6 +193,12 @@ async page => {
       const state = await closure(id);
       check(state.close.code === 4000 && state.close.wasClean && /code 7/.test(state.close.reason) && !state.reconnect,
         `Natural workload exit was misreported: ${JSON.stringify(state)}`);
+      check(await test.evaluate(id => {
+        const terminal = webTerminalViews.get(id).terminal;
+        return terminal.screenText.split("\n").some(line => line.trim() === "__FINAL_OUTPUT__") &&
+          terminal.screenText.split("\n").some(line => line.trim().startsWith("__FINAL_UNTERMINATED__")) &&
+          terminal.element.shadowRoot.querySelector("canvas") instanceof HTMLCanvasElement && terminal.element.isConnected;
+      }, id), "Natural exit lost final output or removed the retained canvas");
       results.push({ mode: "workload-exit", ...state.close });
       await tile(id).locator(".view-title").click();
       await tile(id).locator(".dismiss-view").click();

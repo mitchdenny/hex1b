@@ -83,7 +83,7 @@ export type TerminalCommand = InputCommand
 export type WorkerInputMessage =
   | { type: "init"; canvas: OffscreenCanvas;
       transport: { type: "websocket"; url: string } | { type: "custom" }; scale: number; font: TerminalFont;
-      renderer: TerminalRendererPreference; palette?: TerminalPalette }
+      renderer: TerminalRendererPreference; palette?: TerminalPalette; preserveOnDisconnect?: boolean }
   | { type: "transportConnected" }
   | { type: "transportFrame"; buffer: ArrayBuffer }
   | { type: "transportSent" }

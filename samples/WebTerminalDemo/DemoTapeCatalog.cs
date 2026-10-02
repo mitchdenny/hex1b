@@ -11,7 +11,9 @@ internal sealed class DemoTapeCatalog
         List<DemoTapeInfo> entries =
         [
             new("hello", "shell", "Hello, Tape", "Type a command in the existing shell and display its output."),
-            new("line-editing", "shell", "Editing and history", "Correct a command with Backspace, then replay it with Up.")
+            new("line-editing", "shell", "Editing and history", "Correct a command with Backspace, then replay it with Up."),
+            new("exit-success", "shell", "Exit successfully (0)", "Print final output and exit the real shell with code 0. Ends every attached view."),
+            new("exit-error", "shell", "Exit with an error (7)", "Print final output and exit the real shell with code 7. Ends every attached view.")
         ];
         if (!OperatingSystem.IsWindows())
         {
