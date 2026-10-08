@@ -30,12 +30,22 @@ jobs:
           dotnet tool install dotnet-dump --tool-path "$tools/dotnet"
           if ($LASTEXITCODE -ne 0) { throw "dotnet-dump installation failed." }
 
+      - name: Verify watchdog capture using a diagnostic-only pause
+        shell: pwsh
+        run: |
+          ./.github/scripts/windows-pty-disposal-diagnostic.ps1 `
+            -TestExecutable tests/Hex1b.Tests/bin/Debug/net10.0/Hex1b.Tests.exe `
+            -OutputDirectory "$env:GITHUB_WORKSPACE/TestResults/pty-disposal/watchdog-check" `
+            -ProcDump "$env:RUNNER_TEMP/pty-diagnostic-tools/procdump/procdump64.exe" `
+            -DotnetDump "$env:RUNNER_TEMP/pty-diagnostic-tools/dotnet/dotnet-dump.exe" `
+            -Repetitions 1 -TimeoutSeconds 3 -VerifyWatchdog
+
       - name: Run selected probe with external watchdog
         shell: pwsh
         run: |
           ./.github/scripts/windows-pty-disposal-diagnostic.ps1 `
             -TestExecutable tests/Hex1b.Tests/bin/Debug/net10.0/Hex1b.Tests.exe `
-            -OutputDirectory "$env:GITHUB_WORKSPACE/TestResults/pty-disposal" `
+            -OutputDirectory "$env:GITHUB_WORKSPACE/TestResults/pty-disposal/reproduction" `
             -ProcDump "$env:RUNNER_TEMP/pty-diagnostic-tools/procdump/procdump64.exe" `
             -DotnetDump "$env:RUNNER_TEMP/pty-diagnostic-tools/dotnet/dotnet-dump.exe"
 

@@ -561,6 +561,12 @@ public class WindowsPtyDisposeTests
                 // filling the channel and exercising the retry loops
                 await Task.Delay(200);
                 log?.Invoke($"iteration={i} delay200.after");
+                if (log is not null &&
+                    Environment.GetEnvironmentVariable("HEX1B_PTY_DISPOSE_WATCHDOG_SELF_TEST") == "1")
+                {
+                    log($"iteration={i} watchdog.selftest.wait");
+                    await Task.Delay(Timeout.InfiniteTimeSpan);
+                }
 
                 // Dispose immediately while the process is still running —
                 // this triggers the race: DisposeAsync cancels CTS, closes

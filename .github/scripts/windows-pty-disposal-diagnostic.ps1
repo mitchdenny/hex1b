@@ -4,7 +4,8 @@ param(
     [Parameter(Mandatory)][string]$ProcDump,
     [Parameter(Mandatory)][string]$DotnetDump,
     [ValidateRange(1, 100)][int]$Repetitions = 10,
-    [ValidateRange(10, 600)][int]$TimeoutSeconds = 120
+    [ValidateRange(1, 600)][int]$TimeoutSeconds = 120,
+    [switch]$VerifyWatchdog
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,6 +34,7 @@ for ($attempt = 1; $attempt -le $Repetitions; $attempt++) {
     $directory = Join-Path $OutputDirectory "attempt-$attempt"
     New-Item -ItemType Directory $directory | Out-Null
     $env:HEX1B_PTY_DISPOSE_DIAGNOSTIC = '1'
+    $env:HEX1B_PTY_DISPOSE_WATCHDOG_SELF_TEST = if ($VerifyWatchdog) { '1' } else { '0' }
     $env:HEX1B_PTY_DISPOSE_LIFECYCLE_FILE = Join-Path $directory lifecycle.log
     $env:HEX1B_PTY_SHIM_LOGFILE = Join-Path $directory helper.log
     $env:HEX1B_PTY_SHIM_CLIENT_TRACE_FILE = Join-Path $directory client.log
@@ -69,7 +71,8 @@ for ($attempt = 1; $attempt -le $Repetitions; $attempt++) {
         if (-not $process.HasExited) {
             "Watchdog expired after $TimeoutSeconds seconds." | Set-Content "$directory/watchdog.txt"
             $dumps = @()
-            foreach ($target in $known.Values | Sort-Object @{ Expression = { $_.ProcessId -ne $process.Id } }, ProcessId) {
+            foreach ($target in $known.Values | Sort-Object @{ Expression = { $_.ProcessId -ne $process.Id } },
+                @{ Expression = { $_.Name -ne 'hex1bpty.exe' } }, ProcessId) {
                 $current = Get-CimInstance Win32_Process -Filter "ProcessId=$($target.ProcessId)"
                 if (-not $current -or $current.CreationDate -ne $target.CreationDate) { continue }
                 $dump = Join-Path $directory "$($target.Name)-$($target.ProcessId).dmp"
@@ -94,6 +97,24 @@ for ($attempt = 1; $attempt -le $Repetitions; $attempt++) {
                     $_ | Out-String | Add-Content "$directory/capture-errors.txt"
                     Write-Warning $_
                 }
+            }
+            if ($VerifyWatchdog) {
+                $parentDump = $dumps | Where-Object ProcessId -EQ $process.Id
+                $helperDumps = $dumps | Where-Object { (Split-Path $_.Path -Leaf) -like 'hex1bpty.exe-*' }
+                if (-not $parentDump -or -not $helperDumps) {
+                    throw 'Watchdog self-test did not capture both parent and helper dumps.'
+                }
+                foreach ($dump in @($parentDump) + @($helperDumps)) {
+                    $stackLog = "$directory/stacks-$($dump.ProcessId).stdout.txt"
+                    if (-not (Test-Path $stackLog) -or (Get-Item $stackLog).Length -eq 0) {
+                        throw "Watchdog self-test is missing managed stack output: $stackLog"
+                    }
+                }
+                if (Test-Path "$directory/capture-errors.txt") {
+                    throw 'Watchdog self-test had capture errors; see capture-errors.txt.'
+                }
+                Write-Host 'Watchdog self-test captured parent/helper dumps and managed stacks.'
+                return
             }
             throw "PTY diagnostic timed out on attempt $attempt. Dumps and lifecycle logs: $directory"
         }

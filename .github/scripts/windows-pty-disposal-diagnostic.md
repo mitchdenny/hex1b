@@ -18,6 +18,12 @@ then invokes the exact diagnostic test filter with a child-only environment
 marker. Neither setting alone enables the scenario in a normal full-suite run.
 The original regression remains ignored.
 
+Before the real probe, the workflow verifies dump/stack collection using an
+explicit diagnostic-only pause while the PTY helper is alive and a three-second
+watchdog. These artifacts are under `watchdog-check`; they demonstrate the
+capture mechanism, not the original hang. The normal probes are under
+`reproduction`, and never enable the deliberate pause.
+
 The PowerShell watchdog runs ten separate probe processes. Each process has
 120 seconds to finish. On a stall it records the process tree, captures full
 ProcDump dumps of the parent and live descendants, and extracts managed stacks
