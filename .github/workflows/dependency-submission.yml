@@ -26,7 +26,7 @@ jobs:
 
 
       - name: Submit NuGet dependencies
-        uses: advanced-security/component-detection-dependency-submission-action@v0.1.6
+        uses: advanced-security/component-detection-dependency-submission-action@v0.2.0
         with:
           detectorsCategories: NuGet
           directoryExclusionList: samples/BlazorDemo;samples/BlazorPerfStressDemo;samples/WasmDemo
