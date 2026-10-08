@@ -23,6 +23,10 @@ explicit diagnostic-only pause while the PTY helper is alive and a three-second
 watchdog. These artifacts are under `watchdog-check`; they demonstrate the
 capture mechanism, not the original hang. The normal probes are under
 `reproduction`, and never enable the deliberate pause.
+The self-test keeps its child alive with a longer ping command solely for dump
+collection; the reproduction retains the original command. The short self-test
+deadline is armed after its pause marker and helper discovery, with a separate
+60-second startup bound.
 
 The PowerShell watchdog runs ten separate probe processes. Each process has
 120 seconds to finish. On a stall it records the process tree, captures full

@@ -17,7 +17,7 @@ New-Item -ItemType Directory -Force $OutputDirectory | Out-Null
 $OutputDirectory = (Resolve-Path $OutputDirectory).Path
 $filter = 'FullyQualifiedName=Hex1b.Tests.WindowsPtyDisposeTests.DisposeAsync_OptInDiagnostic_RecordsLifecycle'
 
-function Invoke-BoundedTool($executable, $arguments, $logPath) {
+function Invoke-BoundedTool($executable, $arguments, $logPath, $expectedDump = $null) {
     $tool = Start-Process $executable -ArgumentList $arguments -PassThru `
         -RedirectStandardOutput "$logPath.stdout.txt" -RedirectStandardError "$logPath.stderr.txt"
     try {
@@ -25,7 +25,17 @@ function Invoke-BoundedTool($executable, $arguments, $logPath) {
             Stop-Process -Id $tool.Id -Force
             throw "Diagnostic tool $executable timed out; see $logPath."
         }
-        if ($tool.ExitCode -ne 0) { throw "Diagnostic tool $executable exited $($tool.ExitCode); see $logPath." }
+        if ($expectedDump) {
+            $bytes = [IO.File]::ReadAllBytes("$logPath.stdout.txt")
+            $output = [Text.Encoding]::UTF8.GetString($bytes)
+            if ($output.Contains([char]0)) { $output = [Text.Encoding]::Unicode.GetString($bytes) }
+            # ProcDump returns 1 when the requested dump count is reached.
+            if ($tool.ExitCode -notin @(0, 1) -or -not (Test-Path $expectedDump) -or
+                (Get-Item $expectedDump).Length -eq 0 -or $output -notmatch 'Dump 1 complete:') {
+                throw "ProcDump did not complete $expectedDump (exit $($tool.ExitCode)); see $logPath."
+            }
+        }
+        elseif ($tool.ExitCode -ne 0) { throw "Diagnostic tool $executable exited $($tool.ExitCode); see $logPath." }
     }
     finally { $tool.Dispose() }
 }
@@ -45,6 +55,7 @@ for ($attempt = 1; $attempt -le $Repetitions; $attempt++) {
         '--diagnostic', '--diagnostic-output-directory', "`"$directory`""
     ) -RedirectStandardOutput "$directory/test.stdout.txt" -RedirectStandardError "$directory/test.stderr.txt"
     $timer = [Diagnostics.Stopwatch]::StartNew()
+    $watchdogArmed = -not $VerifyWatchdog
 
     try {
         do {
@@ -66,7 +77,14 @@ for ($attempt = 1; $attempt -le $Repetitions; $attempt++) {
             } while ($added)
             $known.Values | Select-Object ProcessId, ParentProcessId, Name, CreationDate |
                 ConvertTo-Json | Set-Content "$directory/process-tree.json"
-        } while (-not $process.WaitForExit(1000) -and $timer.Elapsed.TotalSeconds -lt $TimeoutSeconds)
+            if (-not $watchdogArmed -and (Test-Path $env:HEX1B_PTY_DISPOSE_LIFECYCLE_FILE) -and
+                (Get-Content $env:HEX1B_PTY_DISPOSE_LIFECYCLE_FILE -Raw) -match 'watchdog.selftest.wait' -and
+                ($known.Values | Where-Object Name -EQ 'hex1bpty.exe')) {
+                $watchdogArmed = $true
+                $timer.Restart()
+            }
+            $deadline = if ($watchdogArmed) { $TimeoutSeconds } else { 60 }
+        } while (-not $process.WaitForExit(1000) -and $timer.Elapsed.TotalSeconds -lt $deadline)
 
         if (-not $process.HasExited) {
             "Watchdog expired after $TimeoutSeconds seconds." | Set-Content "$directory/watchdog.txt"
@@ -78,7 +96,7 @@ for ($attempt = 1; $attempt -le $Repetitions; $attempt++) {
                 $dump = Join-Path $directory "$($target.Name)-$($target.ProcessId).dmp"
                 try {
                     Invoke-BoundedTool $ProcDump @('-accepteula', '-ma', "$($target.ProcessId)", "`"$dump`"") `
-                        "$directory/dump-$($target.ProcessId)"
+                        "$directory/dump-$($target.ProcessId)" $dump
                     if ($target.Name -in @('Hex1b.Tests.exe', 'hex1bpty.exe')) {
                         $dumps += @{ Path = $dump; ProcessId = $target.ProcessId }
                     }

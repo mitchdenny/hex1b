@@ -532,13 +532,17 @@ public class WindowsPtyDisposeTests
         AppDomain.CurrentDomain.UnhandledException += Handler;
         try
         {
+            var verifyWatchdog = log is not null &&
+                Environment.GetEnvironmentVariable("HEX1B_PTY_DISPOSE_WATCHDOG_SELF_TEST") == "1";
             // Run multiple iterations to increase the chance of hitting the race
             for (var i = 0; i < 5; i++)
             {
                 log?.Invoke($"iteration={i} build.before");
                 // Launch a long-running process (ping runs for several seconds)
                 var terminal = Hex1bTerminal.CreateBuilder()
-                    .WithPtyProcess("cmd.exe", "/c", "ping -n 10 127.0.0.1")
+                    .WithPtyProcess("cmd.exe", "/c", verifyWatchdog
+                        ? "ping -n 600 127.0.0.1"
+                        : "ping -n 10 127.0.0.1")
                     .WithTerminalWidget(out _)
                     .WithHeadless()
                     .WithDimensions(80, 24)
@@ -561,10 +565,9 @@ public class WindowsPtyDisposeTests
                 // filling the channel and exercising the retry loops
                 await Task.Delay(200);
                 log?.Invoke($"iteration={i} delay200.after");
-                if (log is not null &&
-                    Environment.GetEnvironmentVariable("HEX1B_PTY_DISPOSE_WATCHDOG_SELF_TEST") == "1")
+                if (verifyWatchdog)
                 {
-                    log($"iteration={i} watchdog.selftest.wait");
+                    log?.Invoke($"iteration={i} watchdog.selftest.wait");
                     await Task.Delay(Timeout.InfiniteTimeSpan);
                 }
 
