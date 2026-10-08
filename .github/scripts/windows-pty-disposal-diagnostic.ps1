@@ -80,15 +80,15 @@ for ($attempt = 1; $attempt -le $Repetitions; $attempt++) {
                         $dumps += @{ Path = $dump; ProcessId = $target.ProcessId }
                     }
                 }
-                foreach ($dump in $dumps) {
-                    try {
-                        Invoke-BoundedTool $DotnetDump @('analyze', "`"$($dump.Path)`"", '-c', '"threads"', '-c', '"clrstack -all"', '-c', '"exit"') `
-                            "$directory/stacks-$($dump.ProcessId)"
-                    }
-                    catch {
-                        $_ | Out-String | Add-Content "$directory/capture-errors.txt"
-                        Write-Warning $_
-                    }
+                catch {
+                    $_ | Out-String | Add-Content "$directory/capture-errors.txt"
+                    Write-Warning $_
+                }
+            }
+            foreach ($dump in $dumps) {
+                try {
+                    Invoke-BoundedTool $DotnetDump @('analyze', "`"$($dump.Path)`"", '-c', '"threads"', '-c', '"clrstack -all"', '-c', '"exit"') `
+                        "$directory/stacks-$($dump.ProcessId)"
                 }
                 catch {
                     $_ | Out-String | Add-Content "$directory/capture-errors.txt"
