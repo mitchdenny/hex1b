@@ -1,0 +1,49 @@
+name: Windows PTY disposal diagnostics
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build existing test executable and PTY helper
+        run: dotnet build tests/Hex1b.Tests/Hex1b.Tests.csproj
+
+      - name: Install diagnostic tools
+        shell: pwsh
+        run: |
+          $tools = Join-Path $env:RUNNER_TEMP pty-diagnostic-tools
+          New-Item -ItemType Directory -Force $tools | Out-Null
+          Invoke-WebRequest https://download.sysinternals.com/files/Procdump.zip -OutFile "$tools/procdump.zip"
+          Expand-Archive "$tools/procdump.zip" "$tools/procdump"
+          dotnet tool install dotnet-dump --tool-path "$tools/dotnet"
+          if ($LASTEXITCODE -ne 0) { throw "dotnet-dump installation failed." }
+
+      - name: Run selected probe with external watchdog
+        shell: pwsh
+        run: |
+          ./.github/scripts/windows-pty-disposal-diagnostic.ps1 `
+            -TestExecutable tests/Hex1b.Tests/bin/Debug/net10.0/Hex1b.Tests.exe `
+            -OutputDirectory "$env:GITHUB_WORKSPACE/TestResults/pty-disposal" `
+            -ProcDump "$env:RUNNER_TEMP/pty-diagnostic-tools/procdump/procdump64.exe" `
+            -DotnetDump "$env:RUNNER_TEMP/pty-diagnostic-tools/dotnet/dotnet-dump.exe"
+
+      - name: Upload lifecycle logs and process dumps
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-pty-disposal-diagnostics
+          path: TestResults/pty-disposal/
+          if-no-files-found: warn
+          retention-days: 7
