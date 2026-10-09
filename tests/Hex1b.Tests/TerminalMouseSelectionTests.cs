@@ -195,4 +195,80 @@ public class TerminalMouseSelectionTests
         Assert.IsTrue(pos.Column < handle.Width);
         Assert.IsTrue(pos.Row < handle.VirtualBufferHeight);
     }
+
+    [TestMethod]
+    [DoNotParallelize]
+    public void DragScrollStep_AfterExitCopyMode_DoesNothing()
+    {
+        var handle = CreateHandle(20, 5);
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(new Hex1bAppWorkloadAdapter())
+            .WithHeadless()
+            .WithDimensions(20, 5)
+            .WithScrollback(100)
+            .Build();
+        ((ITerminalLifecycleAwarePresentationAdapter)handle).TerminalCreated(terminal);
+        var tokens = new List<AnsiToken>();
+        for (int i = 0; i < 30; i++)
+        {
+            tokens.Add(new TextToken($"Line {i}"));
+            tokens.Add(ControlCharacterToken.LineFeed);
+        }
+        terminal.ApplyTokens(tokens);
+        Assert.IsTrue(handle.ScrollbackCount > 2);
+
+        handle.MouseSelect(2, 2, MouseAction.Down, SelectionMode.Character);
+        handle.MouseSelect(2, -1, MouseAction.Drag, SelectionMode.Character);
+        var staleSelection = TestSeq.IsType<TerminalSelection>(handle.Selection);
+
+        // A tick that passed its guard before copy mode ended runs after the exit.
+        handle.ExitCopyMode();
+        var staleCursor = staleSelection.Cursor;
+        handle.ApplyDragScrollStep(staleSelection, -1);
+
+        Assert.IsFalse(handle.IsInCopyMode);
+        Assert.IsNull(handle.Selection);
+        Assert.AreEqual(0, handle.CurrentScrollbackOffset);
+        Assert.AreEqual(staleCursor, staleSelection.Cursor);
+    }
+
+    [TestMethod]
+    [DoNotParallelize]
+    public void DragScrollStep_AfterReset_DoesNothing()
+    {
+        var handle = CreateHandle(20, 5);
+        handle.MouseSelect(2, 2, MouseAction.Down, SelectionMode.Character);
+        handle.MouseSelect(2, -1, MouseAction.Drag, SelectionMode.Character);
+        var staleSelection = TestSeq.IsType<TerminalSelection>(handle.Selection);
+
+        handle.Reset();
+        var staleCursor = staleSelection.Cursor;
+        handle.ApplyDragScrollStep(staleSelection, 1);
+
+        Assert.IsFalse(handle.IsInCopyMode);
+        Assert.IsNull(handle.Selection);
+        Assert.AreEqual(staleCursor, staleSelection.Cursor);
+    }
+
+    [TestMethod]
+    [DoNotParallelize]
+    public void DragScrollStep_AfterCopyModeReentered_DoesNotMoveNewSelection()
+    {
+        var handle = CreateHandle(20, 5);
+        handle.MouseSelect(2, 2, MouseAction.Down, SelectionMode.Character);
+        handle.MouseSelect(2, -1, MouseAction.Drag, SelectionMode.Character);
+        var staleSelection = TestSeq.IsType<TerminalSelection>(handle.Selection);
+
+        handle.ExitCopyMode();
+        var staleCursor = staleSelection.Cursor;
+        handle.EnterCopyMode();
+        var newSelection = TestSeq.IsType<TerminalSelection>(handle.Selection);
+        var newCursor = newSelection.Cursor;
+
+        handle.ApplyDragScrollStep(staleSelection, 1);
+
+        Assert.AreSame(newSelection, handle.Selection);
+        Assert.AreEqual(newCursor, newSelection.Cursor);
+        Assert.AreEqual(staleCursor, staleSelection.Cursor);
+    }
 }
