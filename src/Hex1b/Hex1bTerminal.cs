@@ -797,6 +797,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 if (item.IsTimeout)
                 {
+                    // A paste owns its pending prefix until more data arrives. Flushing
+                    // here would emit a key or destroy a split paste-end/protocol marker.
+                    if (_inBracketedPaste)
+                        continue;
+
                     // Timer fired — flush the incomplete buffer as a bare Escape key
                     // (or whatever partial sequence was pending).  Guard against a
                     // spurious timeout that arrives after data already cleared the buffer.

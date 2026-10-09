@@ -294,6 +294,19 @@ var result = await TestHelpers.CreateTerminalAndRunScenario(
 
 ---
 
+## Presentation Escape Timeout Tests
+
+Use queued in-memory presentation reads with `Hex1bAppWorkloadAdapter`. Observe
+the escape timer's finite `ITimer.Change` before firing its callback; observing
+`CreateTimer` alone is insufficient because it is initially disabled. Keep other
+timers (such as synchronized output) independent in the controlled provider.
+For example, `Hex1bTerminalTests.PresentationInput_PasteEscapeAcrossTimeout_PreservesLiteralContent`
+queues `"\x1b[200~a\x1b"`, waits for arming, fires expiry, then queues
+`"\rb\x1b[201~z"`. Read through the post-paste `z` sentinel before asserting
+exact completed paste text and no surplus events. This avoids sleeps and makes
+read-boundary/timeout bugs reproducible. At app level, bind on the focused widget
+and prove the same Escape binding fires for an ordinary Escape after the paste.
+
 ## Network Test Fixtures
 
 Let the server reserve its listening port atomically. Random port selection and
