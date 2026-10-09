@@ -23,10 +23,20 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
-
+      # NuGet detection reads restored assets; this repository has no root solution.
+      - name: Restore NuGet dependencies
+        shell: bash
+        run: |
+          while IFS= read -r -d '' project; do
+            dotnet restore "$project"
+          done < <(git ls-files -z -- '*.csproj' '*.fsproj' \
+            ':(exclude)samples/BlazorDemo/**' \
+            ':(exclude)samples/BlazorPerfStressDemo/**' \
+            ':(exclude)samples/WasmDemo/**')
 
       - name: Submit NuGet dependencies
-        uses: advanced-security/component-detection-dependency-submission-action@v0.1.6
+        uses: advanced-security/component-detection-dependency-submission-action@v0.2.0
         with:
+          fail-on-empty: 'true'
           detectorsCategories: NuGet
           directoryExclusionList: samples/BlazorDemo;samples/BlazorPerfStressDemo;samples/WasmDemo
