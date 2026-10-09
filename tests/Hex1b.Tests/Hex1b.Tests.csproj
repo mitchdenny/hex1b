@@ -19,7 +19,18 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Hex1b\Hex1b.csproj" />
+    <ProjectReference Include="../Fixtures/LegacyWorkloadAdapter/LegacyWorkloadAdapter.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" />
   </ItemGroup>
+
+  <Target Name="CopyLegacyWorkloadFixture" AfterTargets="Build">
+    <ItemGroup>
+      <LegacyWorkloadFixtureFiles Include="../Fixtures/LegacyWorkloadAdapter/bin/$(Configuration)/net8.0/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(LegacyWorkloadFixtureFiles)"
+          DestinationFiles="@(LegacyWorkloadFixtureFiles->'$(TargetDir)Fixtures/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
 
   <ItemGroup>
     <Compile Include="../../samples/CloudDemo.Shared/CloudPalette.cs" Link="Samples/CloudPalette.cs" />

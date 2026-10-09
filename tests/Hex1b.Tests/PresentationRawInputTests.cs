@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using System.Threading.Channels;
 using Hex1b.Input;
@@ -488,16 +490,184 @@ public class PresentationRawInputTests
         Assert.IsFalse(workload.Input.TryRead(out _));
     }
 
+    [TestMethod]
+    public async Task InputMode_PrecompiledLegacyAdapter_LoadsAndRetainsRawInput()
+    {
+        var assembly = Assembly.LoadFrom(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Hex1b.LegacyWorkloadAdapter.dll"));
+        var type = assembly.GetType("Hex1b.LegacyWorkloadAdapter.LegacyAdapter", throwOnError: true)!;
+        Assert.IsNull(type.GetProperty(nameof(IHex1bTerminalWorkloadAdapter.InputMode)));
+        Assert.IsNull(type.GetMethod(nameof(IHex1bTerminalWorkloadAdapter.WriteInputEventAsync)));
+        Assert.IsNull(type.GetMethod(nameof(IHex1bTerminalWorkloadAdapter.TryWriteInputEvent)));
+        var workload = TestSeq.IsType<IHex1bTerminalWorkloadAdapter>(Activator.CreateInstance(type));
+        Assert.AreSame(typeof(IHex1bTerminalWorkloadAdapter), TestSeq.Single(type.GetInterfaces(),
+            t => t.FullName == typeof(IHex1bTerminalWorkloadAdapter).FullName));
+        Assert.AreEqual(Hex1bTerminalInputMode.RawBytes, workload.InputMode);
+        var input = TestSeq.IsType<ChannelReader<byte[]>>(type.GetProperty("Input")!.GetValue(workload));
+        await using var presentation = new QueuedPresentation();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        var bytes = "\u001ba\r\né😀界"u8.ToArray();
+        foreach (var value in bytes)
+            presentation.Enqueue([value]);
+        presentation.Enqueue("z"u8.ToArray());
+
+        TestSeq.AreEqual(bytes.Concat("z"u8.ToArray()), await ReadThroughSentinelAsync(input));
+        await terminal.SendEventAsync(new Hex1bKeyEvent(Hex1bKey.Enter, "\r", Hex1bModifiers.Alt),
+            TestContext.Current.CancellationToken);
+        TestSeq.AreEqual(new byte[] { 0x1b, 0x0d }, await ReadAsync(input));
+        Assert.IsFalse(input.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow("C3A9F09F9880E7958C", false)]
+    [DataRow("C3A9F09F9880E7958C", true)]
+    [DataRow("FF80C3281B0D", false)]
+    [DataRow("FF80C3281B0D", true)]
+    public async Task PresentationInput_StandardProcess_PreservesExactStdinBytes(string hex, bool split)
+    {
+        var bytes = Convert.FromHexString(hex);
+        var startInfo = new ProcessStartInfo("dotnet");
+        startInfo.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Hex1b.LegacyWorkloadAdapter.dll"));
+        startInfo.ArgumentList.Add("stdin-probe");
+        startInfo.ArgumentList.Add(bytes.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        await using var workload = new StandardProcessWorkloadAdapter(startInfo);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        await workload.StartAsync(timeout.Token);
+        await using var presentation = new QueuedPresentation();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        using var ready = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("STDIN_PROBE_READY"), TimeSpan.FromSeconds(5), "stdin probe ready")
+            .Build().ApplyAsync(terminal, timeout.Token);
+        if (split)
+        {
+            foreach (var value in bytes)
+                presentation.Enqueue([value]);
+        }
+        else
+        {
+            presentation.Enqueue(bytes);
+        }
+
+        Assert.AreEqual(0, await workload.WaitForExitAsync(timeout.Token));
+        using var result = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("STDIN_PROBE_DONE"), TimeSpan.FromSeconds(5), "stdin probe completed")
+            .Build().ApplyAsync(terminal, timeout.Token);
+        Assert.AreEqual("STDIN_BYTES=" + hex, result.GetLineTrimmed(1).Trim());
+    }
+
+#pragma warning disable HEX1B002
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task PresentationInput_AppBackedPlaceholder_PreservesUtf8Text(bool split)
+    {
+        var primary = new PendingConnectableWorkload();
+        var app = new Hex1bAppWorkloadAdapter();
+        var wrapper = new PlaceholderWorkloadAdapter(primary, app, PlaceholderResumePolicy.OnDisconnect);
+        await using var presentation = new QueuedPresentation();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = wrapper,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        Assert.AreSame(app, wrapper.ActiveChild);
+        var bytes = "é😀界"u8.ToArray();
+        if (split)
+        {
+            foreach (var value in bytes)
+                presentation.Enqueue([value]);
+        }
+        else
+        {
+            presentation.Enqueue(bytes);
+        }
+        presentation.Enqueue("z"u8.ToArray());
+
+        var text = new StringBuilder();
+        while (true)
+        {
+            var input = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(app.InputEvents));
+            if (input.Text == "z")
+                break;
+            text.Append(input.Text);
+        }
+        Assert.AreEqual("é😀界", text.ToString());
+        Assert.IsFalse(app.InputEvents.TryRead(out _));
+        Assert.IsFalse(primary.Input.TryRead(out _));
+    }
+#pragma warning restore HEX1B002
+
+    [TestMethod]
+    [DataRow("C3A9", "é")]
+    [DataRow("F09F9880", "😀")]
+    [DataRow("E7958C", "界")]
+    [DataRow("C328", "\ufffd(")]
+    [DataRow("C280", "")]
+    [DataRow("C29F", "")]
+    public async Task WriteInputAsync_AppFallback_BuffersIncompleteScalars(string hex, string expected)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        var bytes = Convert.FromHexString(hex);
+        for (var index = 0; index < bytes.Length - 1; index++)
+        {
+            await workload.WriteInputAsync(new byte[] { bytes[index] }, TestContext.Current.CancellationToken);
+            Assert.IsFalse(workload.InputEvents.TryRead(out _), "An incomplete scalar must not produce replacement input.");
+        }
+        await workload.WriteInputAsync(new byte[] { bytes[^1] }, TestContext.Current.CancellationToken);
+        await workload.WriteInputAsync("z"u8.ToArray(), TestContext.Current.CancellationToken);
+
+        var text = new StringBuilder();
+        while (true)
+        {
+            var input = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents));
+            if (input.Text == "z")
+                break;
+            Assert.IsFalse(input.Text.Length == 1 && char.IsSurrogate(input.Text[0]),
+                "Supplementary characters must not become separate surrogate events.");
+            text.Append(input.Text);
+        }
+        Assert.AreEqual(expected, text.ToString());
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task WriteInputAsync_AppFallback_CompletePrefixAndPartialSuffixEmitOnce()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await workload.WriteInputAsync(new byte[] { 0x61, 0xf0, 0x9f }, TestContext.Current.CancellationToken);
+        Assert.AreEqual("a", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+
+        await workload.WriteInputAsync(new byte[] { 0x98, 0x80, 0x62 }, TestContext.Current.CancellationToken);
+        Assert.AreEqual("😀", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+        Assert.AreEqual("b", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
     private static async Task<T> ReadAsync<T>(ChannelReader<T> reader)
         => await reader.ReadAsync(TestContext.Current.CancellationToken).AsTask()
             .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
     private static async Task<byte[]> ReadThroughSentinelAsync(RecordingWorkload workload)
+        => await ReadThroughSentinelAsync(workload.Input);
+
+    private static async Task<byte[]> ReadThroughSentinelAsync(ChannelReader<byte[]> input)
     {
         var bytes = new List<byte>();
         while (true)
         {
-            var chunk = await ReadAsync(workload.Input);
+            var chunk = await ReadAsync(input);
             bytes.AddRange(chunk);
             if (chunk.AsSpan().SequenceEqual("z"u8))
                 return bytes.ToArray();
@@ -547,6 +717,13 @@ public class PresentationRawInputTests
     private sealed class ModeOnlyWorkload(Hex1bTerminalInputMode mode) : RecordingWorkload, IHex1bTerminalWorkloadAdapter
     {
         public Hex1bTerminalInputMode InputMode { get; set; } = mode;
+    }
+
+    private sealed class PendingConnectableWorkload : RecordingWorkload, IConnectableWorkloadAdapter
+    {
+        public Task ConnectedTask { get; } = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task;
+        public Task DisconnectedTask { get; } = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task;
+        public bool IsConnected => false;
     }
 
     private sealed class RecordingEventWorkload(int? capacity = null) : IHex1bTerminalWorkloadAdapter

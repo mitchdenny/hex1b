@@ -578,6 +578,17 @@ reset, overlap, ordering, and replay after mode changes; constructing a sequence
 must not freeze its wire encoding. Keep physical layout, AltGr/IME, and negotiated
 keyboard protocols distinct from this logical-key encoding contract.
 
+### Workload Binary Compatibility
+
+Compile a separate fixture against a pinned published Hex1b package, not the
+current project, and load that unchanged adapter assembly against the current
+library. Assert that its implemented interface resolves to the current assembly
+and that newly added default members preserve raw input delivery. Recompiling a
+test adapter against the new interface proves source compatibility, not binary
+compatibility. `tests/Fixtures/LegacyWorkloadAdapter` also provides a build-time
+stdin probe: it reports exact bytes read by a child process, without runtime
+compilation or depending on the child's text encoding.
+
 ### Native Windows Console Probes
 
 Run native console tests in a child process under `WindowsProxyPtyHandle`, not

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text;
 using System.Threading.Channels;
 using Hex1b.Input;
@@ -38,6 +39,8 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
 {
     private readonly Channel<WorkloadOutputItem> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;
+    private readonly SemaphoreSlim _rawInputWriteLock = new(1, 1);
+    private byte[] _pendingRawInput = [];
     private readonly IHex1bTerminalPresentationAdapter? _presentationAdapter;
     private readonly TerminalCapabilities? _staticCapabilities;
     private int _width;
@@ -555,21 +558,50 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     {
         if (_disposed) return;
 
-        // Parse raw bytes into events and write to input channel
-        // For now, we assume the terminal has already parsed bytes into events
-        // and calls WriteInputEventAsync instead
-        
-        // If we receive raw bytes, we need to parse them
-        // This is a simplified version - full parsing is in Hex1bTerminal
-        var text = Encoding.UTF8.GetString(data.Span);
-        foreach (var c in text)
+        // Wrappers can deliver raw input even though this adapter requests events.
+        // Serialize decoding and delivery so split UTF-8 survives concurrent writes.
+        await _rawInputWriteLock.WaitAsync(ct);
+        try
         {
-            var evt = ParseKeyInput(c);
-            if (evt != null)
-            {
+            if (_disposed) return;
+            foreach (var evt in DecodeRawInput(data))
                 await _inputChannel.Writer.WriteAsync(evt, ct);
-            }
         }
+        finally
+        {
+            _rawInputWriteLock.Release();
+        }
+    }
+
+    private List<Hex1bKeyEvent> DecodeRawInput(ReadOnlyMemory<byte> data)
+    {
+        var input = data;
+        if (_pendingRawInput.Length > 0)
+        {
+            var combined = new byte[_pendingRawInput.Length + data.Length];
+            _pendingRawInput.CopyTo(combined, 0);
+            data.CopyTo(combined.AsMemory(_pendingRawInput.Length));
+            input = combined;
+        }
+
+        var events = new List<Hex1bKeyEvent>();
+        var offset = 0;
+        while (offset < input.Length)
+        {
+            var status = Rune.DecodeFromUtf8(input.Span[offset..], out var rune, out var consumed);
+            if (status == OperationStatus.NeedMoreData)
+                break;
+            if (status == OperationStatus.InvalidData)
+                rune = Rune.ReplacementChar;
+            offset += consumed;
+            var evt = rune.IsBmp
+                ? ParseKeyInput((char)rune.Value)
+                : Hex1bKeyEvent.FromText(rune.ToString());
+            if (evt != null)
+                events.Add(evt);
+        }
+        _pendingRawInput = input.Span[offset..].ToArray();
+        return events;
     }
 
     /// <inheritdoc />
