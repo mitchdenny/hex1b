@@ -804,7 +804,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     {
                         var flushed = _incompleteInputSequenceBuffer;
                         _incompleteInputSequenceBuffer = "";
-                        await DispatchCompleteInputTextAsync(flushed, ReadOnlyMemory<byte>.Empty, ct);
+                        await DispatchCompleteInputTextAsync(flushed, ct);
                     }
                     continue;
                 }
@@ -848,7 +848,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 if (!string.IsNullOrEmpty(completeText))
                 {
-                    await DispatchCompleteInputTextAsync(completeText, data, ct);
+                    await DispatchCompleteInputTextAsync(completeText, ct);
+                }
+
+                // Token buffering belongs to event decoding and filter notifications,
+                // not the raw transport. Forward each original read exactly once;
+                // timeout dispatch must not replay bytes already sent to the workload.
+                if (_workload is not Hex1bAppWorkloadAdapter)
+                {
+                    await WriteWorkloadInputAsync(data, ct);
                 }
 
                 // If there is an incomplete escape sequence and the timeout is enabled,
@@ -873,9 +881,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
     
     /// <summary>
-    /// Tokenizes complete input text and dispatches it to the appropriate workload.
+    /// Tokenizes complete input text, notifies filters, and dispatches app events.
     /// </summary>
-    private async Task DispatchCompleteInputTextAsync(string completeText, ReadOnlyMemory<byte> rawData, CancellationToken ct)
+    private async Task DispatchCompleteInputTextAsync(string completeText, CancellationToken ct)
     {
         var tokens = AnsiTokenizer.Tokenize(completeText);
 
@@ -891,20 +899,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_workload is Hex1bAppWorkloadAdapter appWorkload)
         {
             await DispatchTokensAsEventsAsync(tokens, appWorkload, ct);
-        }
-        else
-        {
-            // For other workloads, forward raw bytes
-            if (!rawData.IsEmpty)
-            {
-                await WriteWorkloadInputAsync(rawData, ct);
-            }
-            else
-            {
-                // Flushed from incomplete buffer — re-encode to bytes
-                var bytes = Encoding.UTF8.GetBytes(completeText);
-                await WriteWorkloadInputAsync(bytes, ct);
-            }
         }
     }
     
