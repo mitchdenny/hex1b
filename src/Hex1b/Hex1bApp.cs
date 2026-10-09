@@ -1293,6 +1293,18 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             return true;
         }
 
+        // A first frame is compared against an empty surface, which skips every unwritten
+        // cell. That is only correct on a cleared screen. needNewSurfaces already sent the
+        // clear; a requested full repaint or a resize that ended at the same size did not,
+        // so a glyph from the previous frame would survive in a cell that is blank now.
+        // ED 2 also removes the visible KGP placements and frees their image data, so the
+        // tracker has to forget both and this frame sends them again.
+        if (_isFirstFrame && !needNewSurfaces)
+        {
+            _adapter.Write("\x1b[0m\x1b[2J");
+            _kgpTracker.Reset();
+        }
+
         // Diff current vs previous and emit changes. _frameDiff is a pooled
         // SurfaceDiff reused every frame to avoid the List<ChangedCell> growth cost.
         var diffStart = Stopwatch.GetTimestamp();
