@@ -992,6 +992,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 '\t' => "\t",
                 _ => ctrl.Character.ToString()
             },
+            // ESC CR / ESC LF decode to Alt+Enter outside a paste; inside a paste they are content.
+            UnrecognizedSequenceToken { Sequence: "\x1b\r" or "\x1b\n" } unrec => unrec.Sequence,
             _ => null
         };
     }
@@ -1222,6 +1224,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 return new Hex1bKeyEvent(
                     KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.D0 + (c - '0'))), c, Hex1bModifiers.Alt);
+            }
+
+            // Alt+Enter: terminals send ESC CR (or ESC LF) for Alt/Option+Enter
+            if (c is '\r' or '\n')
+            {
+                return new Hex1bKeyEvent(Hex1bKey.Enter, c, Hex1bModifiers.Alt);
             }
         }
         

@@ -500,6 +500,57 @@ public class Hex1bTerminalTests
     }
 
     [TestMethod]
+    [DataRow("\x1b\r")]
+    [DataRow("\x1b\n")]
+    public async Task PresentationInput_EscapeThenLineBreak_EmitsAltEnterKeyEvent(string input)
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        presentation.EnqueueInput(input);
+
+        var evt = await workload.InputEvents.ReadAsync(TestContext.Current.CancellationToken).AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+
+        var keyEvent = TestSeq.IsType<Hex1bKeyEvent>(evt);
+        Assert.AreEqual(Hex1bKey.Enter, keyEvent.Key);
+        Assert.AreEqual(Hex1bModifiers.Alt, keyEvent.Modifiers);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task PresentationInput_EscapeThenCarriageReturnInsideBracketedPaste_DoesNotEmitAltEnter()
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        presentation.EnqueueInput("\x1b[200~a\x1b\rb\x1b[201~");
+
+        var evt = await workload.InputEvents.ReadAsync(TestContext.Current.CancellationToken).AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(evt);
+        var text = await paste.Paste.ReadToEndAsync(ct: TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        Assert.AreEqual("a\x1b\rb", text);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
     public async Task RunAsync_WhenPresentationInputPumpThrows_SurfacesTheFailure()
     {
         await using var presentation = new ThrowingInputPresentationAdapter(
