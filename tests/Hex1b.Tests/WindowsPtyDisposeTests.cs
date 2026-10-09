@@ -489,6 +489,34 @@ public class WindowsPtyDisposeTests
     [Ignore("Hangs in Windows CI; investigate and re-enable in https://github.com/mitchdenny/hex1b/issues/655.")]
     [TestCategory("Windows")]
     public async Task DisposeAsync_WhileProcessRunning_DoesNotThrowObjectDisposedException()
+        => await RunActiveProcessDisposalAsync();
+
+    [TestMethod]
+    [TestCategory("WindowsPtyDiagnostic")]
+    public async Task DisposeAsync_OptInDiagnostic_RecordsLifecycle()
+    {
+        const string filter = "FullyQualifiedName=Hex1b.Tests.WindowsPtyDisposeTests.DisposeAsync_OptInDiagnostic_RecordsLifecycle";
+        if (!OperatingSystem.IsWindows() ||
+            Environment.GetEnvironmentVariable("HEX1B_PTY_DISPOSE_DIAGNOSTIC") != "1" ||
+            !Environment.GetCommandLineArgs().Contains(filter, StringComparer.Ordinal))
+            return;
+
+        var logPath = Environment.GetEnvironmentVariable("HEX1B_PTY_DISPOSE_LIFECYCLE_FILE");
+        Assert.IsFalse(string.IsNullOrWhiteSpace(logPath), "The diagnostic requires a lifecycle log file.");
+        var logLock = new object();
+        void Log(string message)
+        {
+            lock (logLock)
+                File.AppendAllText(logPath,
+                    $"{DateTime.UtcNow:O} pid={Environment.ProcessId} thread={Environment.CurrentManagedThreadId} {message}{Environment.NewLine}");
+        }
+
+        Log("diagnostic.begin backend=RequireProxy presentation=Headless");
+        await RunActiveProcessDisposalAsync(Log);
+        Log("diagnostic.end");
+    }
+
+    private static async Task RunActiveProcessDisposalAsync(Action<string>? log = null)
     {
         if (!OperatingSystem.IsWindows())
             return; // WindowsPtyHandle is Windows-only
@@ -504,32 +532,58 @@ public class WindowsPtyDisposeTests
         AppDomain.CurrentDomain.UnhandledException += Handler;
         try
         {
+            var verifyWatchdog = log is not null &&
+                Environment.GetEnvironmentVariable("HEX1B_PTY_DISPOSE_WATCHDOG_SELF_TEST") == "1";
             // Run multiple iterations to increase the chance of hitting the race
             for (var i = 0; i < 5; i++)
             {
+                log?.Invoke($"iteration={i} build.before");
                 // Launch a long-running process (ping runs for several seconds)
                 var terminal = Hex1bTerminal.CreateBuilder()
-                    .WithPtyProcess("cmd.exe", "/c", "ping -n 10 127.0.0.1")
+                    .WithPtyProcess("cmd.exe", "/c", verifyWatchdog
+                        ? "ping -n 600 127.0.0.1"
+                        : "ping -n 10 127.0.0.1")
                     .WithTerminalWidget(out _)
                     .WithHeadless()
                     .WithDimensions(80, 24)
                     .Build();
+                log?.Invoke($"iteration={i} build.after");
 
                 // Start RunAsync — this kicks off the PTY read/write threads
+                log?.Invoke($"iteration={i} run.invoke.before");
                 var runTask = terminal.RunAsync(CancellationToken.None);
+                log?.Invoke($"iteration={i} run.invoke.after status={runTask.Status}");
+                if (log is not null)
+                {
+                    var iteration = i;
+                    _ = runTask.ContinueWith(task =>
+                        log($"iteration={iteration} run.completed status={task.Status} error={task.Exception}"),
+                        CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+                }
 
                 // Brief delay to let the process start producing output,
                 // filling the channel and exercising the retry loops
                 await Task.Delay(200);
+                log?.Invoke($"iteration={i} delay200.after");
+                if (verifyWatchdog)
+                {
+                    log?.Invoke($"iteration={i} watchdog.selftest.wait");
+                    await Task.Delay(Timeout.InfiniteTimeSpan);
+                }
 
                 // Dispose immediately while the process is still running —
                 // this triggers the race: DisposeAsync cancels CTS, closes
                 // streams, joins threads for 2s, then disposes CTS. If
                 // threads are still alive, they must not access _cts.Token.
-                await terminal.DisposeAsync();
+                log?.Invoke($"iteration={i} dispose.invoke.before");
+                var disposeTask = terminal.DisposeAsync();
+                log?.Invoke($"iteration={i} dispose.invoke.after completed={disposeTask.IsCompleted}");
+                await disposeTask;
+                log?.Invoke($"iteration={i} dispose.await.after");
 
                 // Give background threads a moment to surface any exceptions
                 await Task.Delay(100);
+                log?.Invoke($"iteration={i} end");
             }
 
             // Verify no ObjectDisposedException escaped to AppDomain handler

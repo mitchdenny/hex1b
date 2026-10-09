@@ -11,6 +11,10 @@ on:
       - 'release/**'
   workflow_dispatch:
     inputs:
+      windows-pty-diagnostics:
+        description: 'Run only the opt-in Windows PTY disposal diagnostic (no publishing).'
+        type: boolean
+        default: false
       release:
         description: 'Publish as a final release (only honored from a release/X.Y branch).'
         type: boolean
@@ -31,10 +35,15 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  windows-pty-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.windows-pty-diagnostics
+    uses: ./.github/workflows/windows-pty-diagnostics.yml
+
   # Compute the build version exactly once and fan it out to every downstream
   # job. Computing per-job is unsafe: a tag created mid-run would desync the
   # build, publish and GitHub-release steps.
   version:
+    if: ${{ !inputs.windows-pty-diagnostics }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -238,6 +247,7 @@ jobs:
 
   # Build native libraries on each platform
   build-native-linux-x64:
+    if: ${{ !inputs.windows-pty-diagnostics }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -262,6 +272,7 @@ jobs:
           path: src/Hex1b/runtimes/linux-x64/native/libhex1binterop.so
 
   build-native-linux-arm64:
+    if: ${{ !inputs.windows-pty-diagnostics }}
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout code
@@ -286,6 +297,7 @@ jobs:
           path: src/Hex1b/runtimes/linux-arm64/native/libhex1binterop.so
 
   build-native-osx-x64:
+    if: ${{ !inputs.windows-pty-diagnostics }}
     runs-on: macos-15
     steps:
       - name: Checkout code
@@ -308,6 +320,7 @@ jobs:
           path: src/Hex1b/runtimes/osx-x64/native/libhex1binterop.dylib
 
   build-native-osx-arm64:
+    if: ${{ !inputs.windows-pty-diagnostics }}
     runs-on: macos-15
     steps:
       - name: Checkout code
@@ -332,6 +345,7 @@ jobs:
           path: src/Hex1b/runtimes/osx-arm64/native/libhex1binterop.dylib
 
   build-pty-host-windows-x64:
+    if: ${{ !inputs.windows-pty-diagnostics }}
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -353,6 +367,7 @@ jobs:
           path: artifacts/pty-host/win-x64/
 
   build-pty-host-windows-arm64:
+    if: ${{ !inputs.windows-pty-diagnostics }}
     runs-on: windows-11-arm
     steps:
       - name: Checkout code
