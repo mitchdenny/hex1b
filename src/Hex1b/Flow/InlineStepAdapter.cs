@@ -10,7 +10,7 @@ namespace Hex1b.Flow;
 /// without entering the alternate screen. All cursor positioning is offset by the
 /// step's row origin in the terminal.
 /// </summary>
-internal sealed partial class InlineStepAdapter : IHex1bAppTerminalWorkloadAdapter, IHex1bTerminalEventWorkloadAdapter, IDisposable
+internal sealed partial class InlineStepAdapter : IHex1bAppTerminalWorkloadAdapter, IDisposable
 {
     private readonly Channel<byte[]> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;
@@ -197,6 +197,8 @@ internal sealed partial class InlineStepAdapter : IHex1bAppTerminalWorkloadAdapt
         // Raw byte input is not used for flow steps — events arrive via WriteInputEventAsync
         return ValueTask.CompletedTask;
     }
+
+    public Hex1bTerminalInputMode InputMode => Hex1bTerminalInputMode.ParsedEvents;
 
     public ValueTask WriteInputEventAsync(Hex1bEvent evt, CancellationToken ct = default)
     {

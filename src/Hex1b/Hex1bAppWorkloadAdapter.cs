@@ -34,7 +34,7 @@ namespace Hex1b;
 /// await app.RunAsync();
 /// </code>
 /// </example>
-public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IHex1bTerminalEventWorkloadAdapter, IHex1bTerminalTokenWorkloadAdapter, IRepaintableWorkloadAdapter, IDisposable
+public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IHex1bTerminalTokenWorkloadAdapter, IRepaintableWorkloadAdapter, IDisposable
 {
     private readonly Channel<WorkloadOutputItem> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;
@@ -571,6 +571,9 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             }
         }
     }
+
+    /// <inheritdoc />
+    public Hex1bTerminalInputMode InputMode => Hex1bTerminalInputMode.ParsedEvents;
 
     /// <summary>
     /// Write a parsed input event directly (used by Hex1bTerminal after parsing).

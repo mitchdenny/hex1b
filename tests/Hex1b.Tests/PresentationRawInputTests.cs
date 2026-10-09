@@ -412,6 +412,82 @@ public class PresentationRawInputTests
         Assert.IsFalse(workload.RawInput.TryRead(out _));
     }
 
+    [TestMethod]
+    public async Task InputMode_DefaultImplementation_PreservesRawDelivery()
+    {
+        var workload = new RecordingWorkload();
+        Assert.AreEqual(Hex1bTerminalInputMode.RawBytes, ((IHex1bTerminalWorkloadAdapter)workload).InputMode);
+        await using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().Build();
+
+        await terminal.SendEventAsync(new Hex1bKeyEvent(Hex1bKey.Enter, "\r", Hex1bModifiers.Alt),
+            TestContext.Current.CancellationToken);
+
+        TestSeq.AreEqual(new byte[] { 0x1b, 0x0d }, await ReadAsync(workload.Input));
+        Assert.IsFalse(workload.Input.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task InputMode_ParsedEventsWithoutEventMethods_ThrowsForInjection()
+    {
+        var workload = new ModeOnlyWorkload(Hex1bTerminalInputMode.ParsedEvents);
+        await using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().Build();
+        var input = Hex1bKeyEvent.FromText("a");
+
+        Assert.ThrowsExactly<NotSupportedException>(() => terminal.SendEvent(input));
+        await Assert.ThrowsExactlyAsync<NotSupportedException>(() => terminal.SendEventAsync(input));
+        Assert.IsFalse(workload.Input.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task InputMode_ParsedEventsWithoutEventMethods_SurfacesPresentationPumpFailure()
+    {
+        await using var presentation = new QueuedPresentation();
+        var workload = new ModeOnlyWorkload(Hex1bTerminalInputMode.ParsedEvents);
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload
+        });
+        presentation.Enqueue("a"u8.ToArray());
+
+        var error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+            terminal.RunAsync(TestContext.Current.CancellationToken)
+                .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+
+        TestSeq.IsType<NotSupportedException>(error.InnerException);
+        Assert.IsFalse(workload.Input.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task InputMode_InvalidValue_IsRejectedAtConstruction()
+    {
+        await using var workload = new ModeOnlyWorkload((Hex1bTerminalInputMode)42);
+
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            WorkloadAdapter = workload
+        }));
+    }
+
+    [TestMethod]
+    public async Task InputMode_IsCapturedAtConstruction()
+    {
+        var workload = new ModeOnlyWorkload(Hex1bTerminalInputMode.RawBytes);
+        await using var presentation = new QueuedPresentation();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload
+        });
+        workload.InputMode = Hex1bTerminalInputMode.ParsedEvents;
+        presentation.Enqueue("a"u8.ToArray());
+
+        TestSeq.AreEqual("a"u8.ToArray(), await ReadAsync(workload.Input));
+        await terminal.SendEventAsync(Hex1bKeyEvent.FromText("b"), TestContext.Current.CancellationToken);
+        TestSeq.AreEqual("b"u8.ToArray(), await ReadAsync(workload.Input));
+        Assert.IsFalse(workload.Input.TryRead(out _));
+    }
+
     private static async Task<T> ReadAsync<T>(ChannelReader<T> reader)
         => await reader.ReadAsync(TestContext.Current.CancellationToken).AsTask()
             .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
@@ -451,7 +527,7 @@ public class PresentationRawInputTests
         }
     }
 
-    private sealed class RecordingWorkload : IHex1bTerminalWorkloadAdapter
+    private class RecordingWorkload : IHex1bTerminalWorkloadAdapter
     {
         private readonly Channel<byte[]> _input = Channel.CreateUnbounded<byte[]>();
         public ChannelReader<byte[]> Input => _input.Reader;
@@ -468,8 +544,14 @@ public class PresentationRawInputTests
         }
     }
 
-    private sealed class RecordingEventWorkload(int? capacity = null) : IHex1bTerminalEventWorkloadAdapter
+    private sealed class ModeOnlyWorkload(Hex1bTerminalInputMode mode) : RecordingWorkload, IHex1bTerminalWorkloadAdapter
     {
+        public Hex1bTerminalInputMode InputMode { get; set; } = mode;
+    }
+
+    private sealed class RecordingEventWorkload(int? capacity = null) : IHex1bTerminalWorkloadAdapter
+    {
+        public Hex1bTerminalInputMode InputMode => Hex1bTerminalInputMode.ParsedEvents;
         private readonly Channel<Hex1bEvent> _events = capacity is int size
             ? Channel.CreateBounded<Hex1bEvent>(size)
             : Channel.CreateUnbounded<Hex1bEvent>();
