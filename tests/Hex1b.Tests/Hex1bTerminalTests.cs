@@ -2,6 +2,7 @@ using System.Text;
 using System.Threading.Channels;
 using Hex1b.Input;
 using Hex1b.Widgets;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Hex1b.Tests;
 
@@ -11,6 +12,38 @@ namespace Hex1b.Tests;
 [TestClass]
 public class Hex1bTerminalTests
 {
+    private sealed class EscapeTimeProvider : FakeTimeProvider
+    {
+        public Channel<EscapeTimer> Armed { get; } = Channel.CreateUnbounded<EscapeTimer>();
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new EscapeTimer(this, callback, state,
+                base.CreateTimer(callback, state, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan));
+            timer.Change(dueTime, period);
+            return timer;
+        }
+
+        public sealed class EscapeTimer(
+            EscapeTimeProvider clock, TimerCallback callback, object? state, ITimer inner) : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                var changed = inner.Change(dueTime, period);
+                if (dueTime == TimeSpan.FromMilliseconds(50))
+                {
+                    Assert.AreEqual(Timeout.InfiniteTimeSpan, period);
+                    clock.Armed.Writer.TryWrite(this);
+                }
+                return changed;
+            }
+
+            public void Fire() => callback(state);
+            public void Dispose() => inner.Dispose();
+            public ValueTask DisposeAsync() => inner.DisposeAsync();
+        }
+    }
+
     private sealed class QueuedInputPresentationAdapter : IHex1bTerminalPresentationAdapter
     {
         private readonly Channel<ReadOnlyMemory<byte>> _input = Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
@@ -547,6 +580,230 @@ public class Hex1bTerminalTests
         var text = await paste.Paste.ReadToEndAsync(ct: TestContext.Current.CancellationToken)
             .WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         Assert.AreEqual("a\x1b\rb", text);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow("\r", false)]
+    [DataRow("\n", false)]
+    [DataRow("\r", true)]
+    [DataRow("\n", true)]
+    public async Task PresentationInput_PasteEscapeAcrossTimeout_PreservesLiteralContent(string lineBreak, bool expire)
+    {
+        var clock = new EscapeTimeProvider();
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            TimeProvider = clock
+        });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+
+        presentation.EnqueueInput("\x1b[200~a\x1b");
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(await workload.InputEvents.ReadAsync(ct));
+        var timer = await clock.Armed.Reader.ReadAsync(ct);
+        if (expire)
+            timer.Fire();
+        presentation.EnqueueInput(lineBreak + "b\x1b[201~z");
+
+        var events = new List<Hex1bEvent>();
+        Hex1bEvent next;
+        do
+        {
+            next = await workload.InputEvents.ReadAsync(ct);
+            events.Add(next);
+        }
+        while (next is not Hex1bKeyEvent { Text: "z" });
+
+        Assert.AreEqual("a\x1b" + lineBreak + "b", await paste.Paste.ReadToEndAsync(ct: ct));
+        var sentinel = TestSeq.IsType<Hex1bKeyEvent>(TestSeq.Single(events));
+        Assert.AreEqual("z", sentinel.Text);
+        Assert.AreEqual(Hex1bModifiers.None, sentinel.Modifiers);
+        Assert.IsTrue(paste.Paste.IsCompleted);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow("\r", false)]
+    [DataRow("\n", false)]
+    [DataRow("\r", true)]
+    [DataRow("\n", true)]
+    public async Task PresentationInput_EscapeLineBreakOutsidePasteAcrossTimeout_PreservesKeySemantics(
+        string lineBreak, bool expire)
+    {
+        var clock = new EscapeTimeProvider();
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            TimeProvider = clock
+        });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+
+        presentation.EnqueueInput("\x1b");
+        var timer = await clock.Armed.Reader.ReadAsync(ct);
+        if (expire)
+        {
+            timer.Fire();
+            var escape = TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct));
+            Assert.AreEqual(Hex1bKey.Escape, escape.Key);
+            Assert.AreEqual(Hex1bModifiers.None, escape.Modifiers);
+        }
+        presentation.EnqueueInput(lineBreak + "z");
+
+        var enter = TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct));
+        Assert.AreEqual(Hex1bKey.Enter, enter.Key);
+        Assert.AreEqual(expire ? Hex1bModifiers.None : Hex1bModifiers.Alt, enter.Modifiers);
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Text);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow(1)]
+    [DataRow(2)]
+    [DataRow(3)]
+    [DataRow(4)]
+    [DataRow(5)]
+    public async Task PresentationInput_SplitPasteMarkersAcrossTimeout_CompletesPaste(int split)
+    {
+        const string start = "\x1b[200~";
+        const string end = "\x1b[201~";
+        var clock = new EscapeTimeProvider();
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            TimeProvider = clock
+        });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+
+        presentation.EnqueueInput(start[..split]);
+        await clock.Armed.Reader.ReadAsync(ct);
+        presentation.EnqueueInput(start[split..] + "a\r\nb" + end[..split]);
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(await workload.InputEvents.ReadAsync(ct));
+        var timer = await clock.Armed.Reader.ReadAsync(ct);
+        timer.Fire();
+        presentation.EnqueueInput(end[split..] + "z");
+
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Text);
+        Assert.AreEqual("a\r\nb", await paste.Paste.ReadToEndAsync(ct: ct));
+        Assert.IsTrue(paste.Paste.IsCompleted);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+
+        // Paste ownership must end at its marker, not disable subsequent Escape expiry.
+        presentation.EnqueueInput("\x1b");
+        timer = await clock.Armed.Reader.ReadAsync(ct);
+        timer.Fire();
+        var escape = TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct));
+        Assert.AreEqual(Hex1bKey.Escape, escape.Key);
+        Assert.AreEqual(Hex1bModifiers.None, escape.Modifiers);
+        presentation.EnqueueInput("z");
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Text);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow("")]
+    [DataRow("a\x1b\rb")]
+    [DataRow("a\x1b\nb")]
+    public async Task PresentationInput_OneBytePasteReads_PreservesContent(string content)
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+
+        foreach (var character in "\x1b[200~" + content + "\x1b[201~z")
+            presentation.EnqueueInput(character.ToString());
+
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(await workload.InputEvents.ReadAsync(ct));
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Text);
+        Assert.AreEqual(content, await paste.Paste.ReadToEndAsync(ct: ct));
+        Assert.IsTrue(paste.Paste.IsCompleted);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow("\r")]
+    [DataRow("\n")]
+    public async Task PresentationInput_CancelledPasteAcrossTimeout_DrainsUntilEndMarker(string lineBreak)
+    {
+        var clock = new EscapeTimeProvider();
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            TimeProvider = clock
+        });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+
+        presentation.EnqueueInput("\x1b[200~a\x1b");
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(await workload.InputEvents.ReadAsync(ct));
+        paste.Paste.Cancel();
+        var timer = await clock.Armed.Reader.ReadAsync(ct);
+        timer.Fire();
+        presentation.EnqueueInput(lineBreak + "b\x1b[201~z");
+
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Text);
+        Assert.IsTrue(paste.Paste.IsCancelled);
+        Assert.IsTrue(paste.Paste.IsCompleted);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task PresentationInput_SplitProtocolDuringPasteAcrossTimeout_PreservesNonTextDispatch()
+    {
+        var clock = new EscapeTimeProvider();
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            TimeProvider = clock
+        });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+
+        presentation.EnqueueInput("\x1b[200~a\x1b_Gi=123");
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(await workload.InputEvents.ReadAsync(ct));
+        var timer = await clock.Armed.Reader.ReadAsync(ct);
+        timer.Fire();
+        presentation.EnqueueInput(";OK\x1b\\\x1b[<0;5;10");
+        timer = await clock.Armed.Reader.ReadAsync(ct);
+        timer.Fire();
+        presentation.EnqueueInput("Mb\x1b[201~z");
+
+        var mouse = TestSeq.IsType<Hex1bMouseEvent>(await workload.InputEvents.ReadAsync(ct));
+        Assert.AreEqual(MouseButton.Left, mouse.Button);
+        Assert.AreEqual(MouseAction.Down, mouse.Action);
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Text);
+        Assert.AreEqual("ab", await paste.Paste.ReadToEndAsync(ct: ct));
+        Assert.IsTrue(paste.Paste.IsCompleted);
         Assert.IsFalse(workload.InputEvents.TryRead(out _));
     }
 
@@ -1202,6 +1459,167 @@ public class Hex1bTerminalTests
         var keyEvent = TestSeq.IsType<Hex1bKeyEvent>(evt);
         Assert.AreEqual(Hex1bKey.A, keyEvent.Key);
         Assert.AreEqual(Hex1bModifiers.Alt, keyEvent.Modifiers);
+    }
+
+    [TestMethod]
+    [DataRow("\r")]
+    [DataRow("\n")]
+    public async Task AppInput_PasteEscapeTimeout_DoesNotTriggerEscapeBinding(string lineBreak)
+    {
+        var clock = new EscapeTimeProvider();
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            TimeProvider = clock
+        });
+        var pasted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sentinel = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var escaped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var status = "Ready";
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                new VStackWidget([
+                    new TextBlockWidget(status),
+                    new TextBoxWidget("").OnPaste(async e =>
+                        pasted.TrySetResult(await e.Paste.ReadToEndAsync()))
+                    .InputBindings(bindings =>
+                    {
+                        bindings.Key(Hex1bKey.Escape).Action(_ =>
+                        {
+                            status = "Escape handled";
+                            escaped.TrySetResult();
+                        }, "Escape binding");
+                        bindings.Key(Hex1bKey.Z).Action(_ => sentinel.TrySetResult(), "Post-paste sentinel");
+                    })
+                ])),
+            new Hex1bAppOptions
+            {
+                WorkloadAdapter = workload,
+                EnableDefaultCtrlCExit = false
+            });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+        var runTask = app.RunAsync(ct);
+        try
+        {
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(2), "initial render")
+                .Build().ApplyAsync(terminal, ct);
+
+            presentation.EnqueueInput("\x1b[200~a\x1b");
+            var timer = await clock.Armed.Reader.ReadAsync(ct);
+            timer.Fire();
+            presentation.EnqueueInput(lineBreak + "b\x1b[201~z");
+
+            await sentinel.Task.WaitAsync(ct);
+            Assert.AreEqual("a\x1b" + lineBreak + "b", await pasted.Task.WaitAsync(ct));
+            Assert.AreEqual("Ready", status);
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("Ready") && !s.ContainsText("Escape handled"),
+                    TimeSpan.FromSeconds(2), "paste did not change Escape-bound state")
+                .Build().ApplyAsync(terminal, ct);
+
+            presentation.EnqueueInput("\x1b");
+            timer = await clock.Armed.Reader.ReadAsync(ct);
+            timer.Fire();
+            await escaped.Task.WaitAsync(ct);
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("Escape handled"), TimeSpan.FromSeconds(2),
+                    "ordinary Escape still invokes the binding")
+                .Build().ApplyAsync(terminal, ct);
+        }
+        finally
+        {
+            deadline.Cancel();
+            await runTask;
+        }
+    }
+
+    [TestMethod]
+    [DataRow("\r", false, false)]
+    [DataRow("\n", false, false)]
+    [DataRow("\r", true, false)]
+    [DataRow("\n", true, false)]
+    [DataRow("\r", false, true)]
+    [DataRow("\n", false, true)]
+    [DataRow("\r", true, true)]
+    [DataRow("\n", true, true)]
+    public async Task AppInput_DefaultBracketedPasteAcrossTimeout_InsertsTextAndResumesTyping(
+        string lineBreak, bool expire, bool multiline)
+    {
+        var clock = new EscapeTimeProvider();
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            TimeProvider = clock
+        });
+        var sentinel = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var text = "";
+        var changes = new List<string>();
+        var escapes = 0;
+        var submits = 0;
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v =>
+            {
+                var textBox = v.TextBox(text)
+                    .OnTextChanged(e =>
+                    {
+                        text = e.NewText;
+                        changes.Add(text);
+                        if (text.EndsWith('z'))
+                            sentinel.TrySetResult();
+                    })
+                    .OnSubmit(_ => submits++)
+                    .InputBindings(bindings =>
+                        bindings.Key(Hex1bKey.Escape).Action(_ => escapes++, "Escape binding"));
+                if (multiline)
+                    textBox = textBox.Multiline();
+                return [v.Text($"Changes: {changes.Count}"), textBox];
+            })),
+            new Hex1bAppOptions
+            {
+                WorkloadAdapter = workload,
+                EnableDefaultCtrlCExit = false
+            });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+        var runTask = app.RunAsync(ct);
+        try
+        {
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("Changes: 0"), TimeSpan.FromSeconds(2), "initial render")
+                .Build().ApplyAsync(terminal, ct);
+
+            presentation.EnqueueInput("\x1b[200~a\x1b");
+            var timer = await clock.Armed.Reader.ReadAsync(ct);
+            if (expire)
+                timer.Fire();
+            presentation.EnqueueInput(lineBreak + "b\x1b[201~z");
+
+            await sentinel.Task.WaitAsync(ct);
+            var expectedPaste = multiline ? "a\x1b\nb" : "a\x1b b";
+            TestSeq.AreEqual(new[] { expectedPaste, expectedPaste + "z" }, changes);
+            Assert.AreEqual(expectedPaste + "z", text);
+            Assert.AreEqual(0, escapes);
+            Assert.AreEqual(0, submits);
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("Changes: 2"), TimeSpan.FromSeconds(2),
+                    "default paste and subsequent typing rendered")
+                .Build().ApplyAsync(terminal, ct);
+        }
+        finally
+        {
+            deadline.Cancel();
+            await runTask;
+        }
     }
 
     [TestMethod]
