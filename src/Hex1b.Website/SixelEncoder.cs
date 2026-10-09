@@ -192,7 +192,7 @@ public static class SixelEncoder
             IsAntialias = true
         };
         var destRect = new SKRect(0, 0, newWidth, newHeight);
-        canvas.DrawBitmap(source, destRect, paint);
+        canvas.DrawBitmap(source, destRect, SKSamplingOptions.Default, paint);
         return resized;
     }
 
