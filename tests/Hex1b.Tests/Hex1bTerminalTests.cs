@@ -1540,6 +1540,89 @@ public class Hex1bTerminalTests
     }
 
     [TestMethod]
+    [DataRow("\r", false, false)]
+    [DataRow("\n", false, false)]
+    [DataRow("\r", true, false)]
+    [DataRow("\n", true, false)]
+    [DataRow("\r", false, true)]
+    [DataRow("\n", false, true)]
+    [DataRow("\r", true, true)]
+    [DataRow("\n", true, true)]
+    public async Task AppInput_DefaultBracketedPasteAcrossTimeout_InsertsTextAndResumesTyping(
+        string lineBreak, bool expire, bool multiline)
+    {
+        var clock = new EscapeTimeProvider();
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            TimeProvider = clock
+        });
+        var sentinel = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var text = "";
+        var changes = new List<string>();
+        var escapes = 0;
+        var submits = 0;
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.VStack(v =>
+            {
+                var textBox = v.TextBox(text)
+                    .OnTextChanged(e =>
+                    {
+                        text = e.NewText;
+                        changes.Add(text);
+                        if (text.EndsWith('z'))
+                            sentinel.TrySetResult();
+                    })
+                    .OnSubmit(_ => submits++)
+                    .InputBindings(bindings =>
+                        bindings.Key(Hex1bKey.Escape).Action(_ => escapes++, "Escape binding"));
+                if (multiline)
+                    textBox = textBox.Multiline();
+                return [v.Text($"Changes: {changes.Count}"), textBox];
+            })),
+            new Hex1bAppOptions
+            {
+                WorkloadAdapter = workload,
+                EnableDefaultCtrlCExit = false
+            });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+        var runTask = app.RunAsync(ct);
+        try
+        {
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("Changes: 0"), TimeSpan.FromSeconds(2), "initial render")
+                .Build().ApplyAsync(terminal, ct);
+
+            presentation.EnqueueInput("\x1b[200~a\x1b");
+            var timer = await clock.Armed.Reader.ReadAsync(ct);
+            if (expire)
+                timer.Fire();
+            presentation.EnqueueInput(lineBreak + "b\x1b[201~z");
+
+            await sentinel.Task.WaitAsync(ct);
+            var expectedPaste = multiline ? "a\x1b\nb" : "a\x1b b";
+            TestSeq.AreEqual(new[] { expectedPaste, expectedPaste + "z" }, changes);
+            Assert.AreEqual(expectedPaste + "z", text);
+            Assert.AreEqual(0, escapes);
+            Assert.AreEqual(0, submits);
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("Changes: 2"), TimeSpan.FromSeconds(2),
+                    "default paste and subsequent typing rendered")
+                .Build().ApplyAsync(terminal, ct);
+        }
+        finally
+        {
+            deadline.Cancel();
+            await runTask;
+        }
+    }
+
+    [TestMethod]
     public async Task AppInput_BareEscape_TriggersEscapeBinding()
     {
         await using var presentation = new QueuedInputPresentationAdapter();
