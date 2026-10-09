@@ -22,7 +22,7 @@ namespace Hex1b;
 /// Data flow:
 /// <list type="bullet">
 ///   <item>App calls Write() → bytes queued → Terminal calls ReadOutputAsync()</item>
-///   <item>Terminal calls WriteInputAsync() → parsed to events → App reads InputEvents</item>
+///   <item>Terminal calls WriteInputEventAsync() → App reads InputEvents</item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -34,7 +34,7 @@ namespace Hex1b;
 /// await app.RunAsync();
 /// </code>
 /// </example>
-public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IHex1bTerminalTokenWorkloadAdapter, IRepaintableWorkloadAdapter, IDisposable
+public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IHex1bTerminalEventWorkloadAdapter, IHex1bTerminalTokenWorkloadAdapter, IRepaintableWorkloadAdapter, IDisposable
 {
     private readonly Channel<WorkloadOutputItem> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;

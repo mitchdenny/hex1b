@@ -10,7 +10,7 @@ namespace Hex1b.Flow;
 /// without entering the alternate screen. All cursor positioning is offset by the
 /// step's row origin in the terminal.
 /// </summary>
-internal sealed partial class InlineStepAdapter : IHex1bAppTerminalWorkloadAdapter, IDisposable
+internal sealed partial class InlineStepAdapter : IHex1bAppTerminalWorkloadAdapter, IHex1bTerminalEventWorkloadAdapter, IDisposable
 {
     private readonly Channel<byte[]> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;

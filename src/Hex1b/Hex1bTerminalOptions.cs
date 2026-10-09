@@ -155,7 +155,8 @@ public sealed class Hex1bTerminalOptions
     /// unambiguous CSI u sequences for every key including Escape.
     /// </para>
     /// <para>
-    /// This timeout applies to input tokenization for filters and app events.
+    /// This timeout applies to input tokenization for filters and workloads implementing
+    /// <see cref="IHex1bTerminalEventWorkloadAdapter"/>.
     /// Raw-byte workloads receive each original presentation read without waiting
     /// for an escape sequence or UTF-8 character to complete.
     /// </para>

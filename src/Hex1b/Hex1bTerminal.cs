@@ -854,7 +854,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Token buffering belongs to event decoding and filter notifications,
                 // not the raw transport. Forward each original read exactly once;
                 // timeout dispatch must not replay bytes already sent to the workload.
-                if (_workload is not Hex1bAppWorkloadAdapter)
+                if (_workload is not IHex1bTerminalEventWorkloadAdapter)
                 {
                     await WriteWorkloadInputAsync(data, ct);
                 }
@@ -895,19 +895,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Notify workload filters of input going TO workload
         await NotifyWorkloadFiltersInputAsync(tokens);
 
-        // For Hex1bAppWorkloadAdapter, convert tokens to events and dispatch
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
+        if (_workload is IHex1bTerminalEventWorkloadAdapter eventWorkload)
         {
-            await DispatchTokensAsEventsAsync(tokens, appWorkload, ct);
+            await DispatchTokensAsEventsAsync(tokens, eventWorkload, ct);
         }
     }
     
     /// <summary>
-    /// Dispatches tokenized input as high-level events to the Hex1bApp workload.
+    /// Dispatches tokenized input as high-level events to an event-capable workload.
     /// Handles bracketed paste accumulation: detects ESC[200~ (start) and ESC[201~ (end)
     /// markers, streaming paste data through a PasteContext instead of individual key events.
     /// </summary>
-    private async Task DispatchTokensAsEventsAsync(IReadOnlyList<AnsiToken> tokens, Hex1bAppWorkloadAdapter workload, CancellationToken ct)
+    private async Task DispatchTokensAsEventsAsync(IReadOnlyList<AnsiToken> tokens, IHex1bTerminalEventWorkloadAdapter workload, CancellationToken ct)
     {
         foreach (var token in tokens)
         {
@@ -1876,7 +1875,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         return true;
     }
 
-    private async Task ParseAndDispatchInputAsync(ReadOnlyMemory<byte> data, Hex1bAppWorkloadAdapter workload, CancellationToken ct)
+    private async Task ParseAndDispatchInputAsync(ReadOnlyMemory<byte> data, IHex1bTerminalEventWorkloadAdapter workload, CancellationToken ct)
     {
         var message = Encoding.UTF8.GetString(data.Span);
         var i = 0;
@@ -2361,15 +2360,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <summary>
     /// Sends any input event to the terminal (for testing).
     /// This is the unified API for injecting keyboard, mouse, and other events.
-    /// Only works with Hex1bAppWorkloadAdapter.
+    /// Event-capable workloads receive the original event; raw workloads receive encoded bytes.
     /// </summary>
     /// <param name="evt">The event to send.</param>
     internal void SendEvent(Hex1bEvent evt)
     {
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
+        if (_workload is IHex1bTerminalEventWorkloadAdapter eventWorkload)
         {
-            // Direct event dispatch for Hex1bApp workloads
-            appWorkload.TryWriteInputEvent(evt);
+            if (!eventWorkload.TryWriteInputEvent(evt))
+                throw new InvalidOperationException("The workload did not accept the input event. Use asynchronous input injection to wait for capacity.");
         }
         else
         {
@@ -2384,17 +2383,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     
     /// <summary>
     /// Sends an input event to the workload asynchronously.
-    /// For Hex1bApp workloads, this dispatches the event directly.
-    /// For child process workloads, this serializes the event to ANSI bytes.
+    /// Event-capable workloads receive the original event; raw workloads receive encoded bytes.
     /// </summary>
     /// <param name="evt">The event to send.</param>
     /// <param name="ct">Cancellation token.</param>
     internal async Task SendEventAsync(Hex1bEvent evt, CancellationToken ct = default)
     {
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
+        if (_workload is IHex1bTerminalEventWorkloadAdapter eventWorkload)
         {
-            // Direct event dispatch for Hex1bApp workloads
-            await appWorkload.WriteInputEventAsync(evt, ct);
+            await eventWorkload.WriteInputEventAsync(evt, ct);
         }
         else
         {

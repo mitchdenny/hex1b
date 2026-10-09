@@ -250,6 +250,168 @@ public class PresentationRawInputTests
         Assert.IsFalse(workload.InputEvents.TryRead(out _));
     }
 
+    [TestMethod]
+    [DataRow("a", Hex1bKey.A, false)]
+    [DataRow("\r", Hex1bKey.Enter, false)]
+    [DataRow("\n", Hex1bKey.Enter, false)]
+    [DataRow("a", Hex1bKey.A, true)]
+    [DataRow("\r", Hex1bKey.Enter, true)]
+    [DataRow("\n", Hex1bKey.Enter, true)]
+    public async Task PresentationInput_CustomEventWorkload_UsesParsedInputAndTimeouts(
+        string continuation, Hex1bKey key, bool expire)
+    {
+        await using var presentation = new QueuedPresentation();
+        var workload = new RecordingEventWorkload();
+        var clock = new ControlledTimeProvider();
+        var presentationFilter = new RecordingFilter();
+        var workloadFilter = new RecordingFilter();
+        var options = new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            TimeProvider = clock
+        };
+        options.PresentationFilters.Add(presentationFilter);
+        options.WorkloadFilters.Add(workloadFilter);
+        await using var terminal = new Hex1bTerminal(options);
+
+        presentation.Enqueue([0x1b]);
+        await ReadAsync(clock.Armed);
+        if (expire)
+        {
+            clock.Fire();
+            var escape = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.Events));
+            Assert.AreEqual(Hex1bKey.Escape, escape.Key);
+            Assert.AreEqual(Hex1bModifiers.None, escape.Modifiers);
+            Assert.AreEqual("\x1b", await ReadAsync(presentationFilter.Input));
+            Assert.AreEqual("\x1b", await ReadAsync(workloadFilter.Input));
+        }
+        presentation.Enqueue(Encoding.UTF8.GetBytes(continuation));
+        presentation.Enqueue("z"u8.ToArray());
+
+        var input = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.Events));
+        Assert.AreEqual(key, input.Key);
+        Assert.AreEqual(expire ? Hex1bModifiers.None : Hex1bModifiers.Alt, input.Modifiers);
+        Assert.AreEqual(Hex1bKey.Z, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.Events)).Key);
+        var expectedTokens = (expire ? "" : "\x1b") + continuation;
+        Assert.AreEqual(expectedTokens, await ReadAsync(presentationFilter.Input));
+        Assert.AreEqual("z", await ReadAsync(presentationFilter.Input));
+        Assert.AreEqual(expectedTokens, await ReadAsync(workloadFilter.Input));
+        Assert.AreEqual("z", await ReadAsync(workloadFilter.Input));
+        Assert.IsFalse(workload.Events.TryRead(out _));
+        Assert.IsFalse(workload.RawInput.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task PresentationInput_CustomEventWorkload_DecodesUtf8SpecialKeysMouseAndStreamingPaste()
+    {
+        await using var presentation = new QueuedPresentation();
+        var workload = new RecordingEventWorkload();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+
+        foreach (var value in "é😀界\x1b[A\x1bOP\x1b[<0;3;4M\x1b[200~a\r\né\x1b[201~z"u8.ToArray())
+            presentation.Enqueue([value]);
+
+        foreach (var text in new[] { "é", "😀", "界" })
+            Assert.AreEqual(text, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.Events)).Text);
+        Assert.AreEqual(Hex1bKey.UpArrow, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.Events)).Key);
+        Assert.AreEqual(Hex1bKey.F1, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.Events)).Key);
+        Assert.AreEqual(new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 2, 3, Hex1bModifiers.None),
+            TestSeq.IsType<Hex1bMouseEvent>(await ReadAsync(workload.Events)));
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(await ReadAsync(workload.Events));
+        Assert.AreEqual(Hex1bKey.Z, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.Events)).Key);
+        Assert.AreEqual("a\r\né", await paste.Paste.ReadToEndAsync(ct: TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        Assert.IsFalse(workload.Events.TryRead(out _));
+        Assert.IsFalse(workload.RawInput.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task SendEvent_CustomEventWorkload_DeliversOriginalEventsWithoutRawEncoding(bool asynchronous)
+    {
+        var workload = new RecordingEventWorkload();
+        await using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().Build();
+        Hex1bEvent[] events =
+        [
+            new Hex1bKeyEvent(Hex1bKey.Enter, "\r", Hex1bModifiers.Alt),
+            new Hex1bMouseEvent(MouseButton.Right, MouseAction.Up, 4, 2, Hex1bModifiers.Control),
+            new Hex1bResizeEvent(100, 30)
+        ];
+
+        foreach (var input in events)
+        {
+            if (asynchronous)
+                await terminal.SendEventAsync(input, TestContext.Current.CancellationToken);
+            else
+                terminal.SendEvent(input);
+            Assert.AreSame(input, await ReadAsync(workload.Events));
+        }
+        Assert.IsFalse(workload.Events.TryRead(out _));
+        Assert.IsFalse(workload.RawInput.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task SendInputAsync_CustomEventWorkload_PreservesExplicitRawInput()
+    {
+        var workload = new RecordingEventWorkload();
+        await using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().Build();
+        byte[] bytes = [0xff, 0x1b, 0x0d];
+
+        await terminal.SendInputAsync(bytes, TestContext.Current.CancellationToken);
+
+        TestSeq.AreEqual(bytes, await ReadAsync(workload.RawInput));
+        Assert.IsFalse(workload.Events.TryRead(out _));
+        Assert.IsFalse(workload.RawInput.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task SendEvent_CustomEventWorkload_ReportsRejectedSynchronousInput()
+    {
+        var workload = new RecordingEventWorkload(1);
+        await using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().Build();
+        var first = Hex1bKeyEvent.FromText("a");
+        terminal.SendEvent(first);
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => terminal.SendEvent(Hex1bKeyEvent.FromText("b")));
+
+        Assert.AreSame(first, await ReadAsync(workload.Events));
+        Assert.IsFalse(workload.Events.TryRead(out _));
+        Assert.IsFalse(workload.RawInput.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task SendEventAsync_CustomEventWorkload_WaitsForCapacityAndSupportsCancellation()
+    {
+        var workload = new RecordingEventWorkload(1);
+        await using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().Build();
+        var first = Hex1bKeyEvent.FromText("a");
+        var second = Hex1bKeyEvent.FromText("b");
+        await terminal.SendEventAsync(first, TestContext.Current.CancellationToken);
+
+        var pending = terminal.SendEventAsync(second, TestContext.Current.CancellationToken);
+        Assert.IsFalse(pending.IsCompleted);
+        Assert.AreSame(first, await ReadAsync(workload.Events));
+        await pending.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.AreSame(second, await ReadAsync(workload.Events));
+
+        await terminal.SendEventAsync(first, TestContext.Current.CancellationToken);
+        using var cts = new CancellationTokenSource();
+        var cancelled = terminal.SendEventAsync(second, cts.Token);
+        Assert.IsFalse(cancelled.IsCompleted);
+        cts.Cancel();
+        await Assert.ThrowsAsync<OperationCanceledException>(() => cancelled);
+        Assert.AreSame(first, await ReadAsync(workload.Events));
+        Assert.IsFalse(workload.Events.TryRead(out _));
+        Assert.IsFalse(workload.RawInput.TryRead(out _));
+    }
+
     private static async Task<T> ReadAsync<T>(ChannelReader<T> reader)
         => await reader.ReadAsync(TestContext.Current.CancellationToken).AsTask()
             .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
@@ -302,6 +464,31 @@ public class PresentationRawInputTests
         public ValueTask DisposeAsync()
         {
             _input.Writer.TryComplete();
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingEventWorkload(int? capacity = null) : IHex1bTerminalEventWorkloadAdapter
+    {
+        private readonly Channel<Hex1bEvent> _events = capacity is int size
+            ? Channel.CreateBounded<Hex1bEvent>(size)
+            : Channel.CreateUnbounded<Hex1bEvent>();
+        private readonly Channel<byte[]> _rawInput = Channel.CreateUnbounded<byte[]>();
+        public ChannelReader<Hex1bEvent> Events => _events.Reader;
+        public ChannelReader<byte[]> RawInput => _rawInput.Reader;
+        public event Action? Disconnected { add { } remove { } }
+        public ValueTask WriteInputEventAsync(Hex1bEvent evt, CancellationToken ct = default)
+            => _events.Writer.WriteAsync(evt, ct);
+        public bool TryWriteInputEvent(Hex1bEvent evt) => _events.Writer.TryWrite(evt);
+        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => _rawInput.Writer.WriteAsync(data.ToArray(), ct);
+        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+            => ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+        public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync()
+        {
+            _events.Writer.TryComplete();
+            _rawInput.Writer.TryComplete();
             return ValueTask.CompletedTask;
         }
     }

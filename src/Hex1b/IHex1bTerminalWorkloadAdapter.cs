@@ -10,6 +10,10 @@ namespace Hex1b;
 /// or application connected to the terminal. It deals with raw bytes only.
 /// </para>
 /// <para>
+/// Implement <see cref="IHex1bTerminalEventWorkloadAdapter"/> as an additional capability
+/// to receive parsed presentation input events instead of raw input bytes.
+/// </para>
+/// <para>
 /// Data flow:
 /// <list type="bullet">
 ///   <item><see cref="ReadOutputAsync"/> - Terminal reads output FROM the workload (ANSI to display)</item>
@@ -48,7 +52,8 @@ public interface IHex1bTerminalWorkloadAdapter : IAsyncDisposable
     
     /// <summary>
     /// Write input TO the workload (raw bytes from keyboard/mouse).
-    /// The terminal calls this when it receives input from the presentation layer.
+    /// The terminal calls this for presentation input unless the workload implements
+    /// <see cref="IHex1bTerminalEventWorkloadAdapter"/>. Explicit raw input still uses this method.
     /// </summary>
     ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default);
     
