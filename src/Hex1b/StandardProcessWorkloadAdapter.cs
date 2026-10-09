@@ -28,6 +28,10 @@ namespace Hex1b;
 /// <para>
 /// For full terminal emulation with PTY support, use <see cref="Hex1bTerminalChildProcess"/> instead.
 /// </para>
+/// <para>
+/// Input bytes are written directly to redirected stdin without transcoding.
+/// The caller determines the input encoding.
+/// </para>
 /// </remarks>
 public sealed class StandardProcessWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 {
@@ -254,9 +258,8 @@ public sealed class StandardProcessWorkloadAdapter : IHex1bTerminalWorkloadAdapt
 
         try
         {
-            var text = System.Text.Encoding.UTF8.GetString(data.Span);
-            await _process.StandardInput.WriteAsync(text.AsMemory(), ct);
-            await _process.StandardInput.FlushAsync(ct);
+            await _process.StandardInput.BaseStream.WriteAsync(data, ct);
+            await _process.StandardInput.BaseStream.FlushAsync(ct);
         }
         catch
         {

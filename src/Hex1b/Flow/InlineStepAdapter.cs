@@ -198,6 +198,8 @@ internal sealed partial class InlineStepAdapter : IHex1bAppTerminalWorkloadAdapt
         return ValueTask.CompletedTask;
     }
 
+    public Hex1bTerminalInputMode InputMode => Hex1bTerminalInputMode.ParsedEvents;
+
     public ValueTask WriteInputEventAsync(Hex1bEvent evt, CancellationToken ct = default)
     {
         if (_disposed) return ValueTask.CompletedTask;
