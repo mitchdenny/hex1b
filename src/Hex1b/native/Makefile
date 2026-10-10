@@ -3,6 +3,7 @@
 # Builds for the current platform:
 #   make                    - Build for current platform
 #   make TARGET_ARCH=x86_64 - Cross-compile for x86_64 (on macOS ARM64)
+#   make TARGET_LIBC=musl   - Build with a musl compiler on Linux
 #   make clean              - Remove build artifacts
 #
 
@@ -12,6 +13,7 @@ LDFLAGS = -shared
 
 # Allow overriding the target architecture for cross-compilation
 TARGET_ARCH ?= $(shell uname -m)
+TARGET_LIBC ?= $(if $(wildcard /lib/ld-musl-*.so.1),musl,gnu)
 
 # Detect platform and set library extension and flags
 UNAME_S := $(shell uname -s)
@@ -37,10 +39,17 @@ ifeq ($(UNAME_S),Darwin)
         RID = osx-x64
     endif
 else
-    ifeq ($(TARGET_ARCH),aarch64)
-        RID = linux-arm64
+    ifeq ($(TARGET_LIBC),musl)
+        RID = linux-musl-x64
+        ifneq ($(TARGET_ARCH),x86_64)
+            $(error The musl native asset currently supports only x86_64)
+        endif
     else
-        RID = linux-x64
+        ifeq ($(TARGET_ARCH),aarch64)
+            RID = linux-arm64
+        else
+            RID = linux-x64
+        endif
     endif
 endif
 

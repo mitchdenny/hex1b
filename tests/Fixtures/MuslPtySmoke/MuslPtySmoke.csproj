@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <UseHex1bPackageReference Condition="'$(UseHex1bPackageReference)' == ''">false</UseHex1bPackageReference>
+    <Hex1bPackageVersion Condition="'$(Hex1bPackageVersion)' == ''">0.0.0-musl-smoke</Hex1bPackageVersion>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(UseHex1bPackageReference)' == 'true'">
+    <PackageReference Include="Hex1b" Version="$(Hex1bPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseHex1bPackageReference)' != 'true'">
+    <ProjectReference Include="../../../src/Hex1b/Hex1b.csproj" />
+  </ItemGroup>
+</Project>

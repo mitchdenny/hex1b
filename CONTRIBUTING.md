@@ -11,6 +11,7 @@ Thank you for your interest in contributing to Hex1b! This document provides gui
 - A code editor (VS Code recommended)
 - A terminal emulator with good ANSI escape sequence support
 - Native build tools on Unix: `sudo apt install build-essential` on Ubuntu/Debian,
+  `apk add build-base` on Alpine Linux (x64),
   or `xcode-select --install` on macOS.
 
 ### Setting Up Your Development Environment
@@ -53,6 +54,28 @@ KgpCloudDemo also needs a terminal that supports kitty graphics.
 An explicit `--runtime` selects the matching native library. Cross-publishing
 requires that runtime's library in `src/Hex1b/runtimes/<rid>/native/` when the host
 cannot compile it; macOS supports building both macOS architectures locally.
+
+Alpine x64 builds select `linux-musl-x64` automatically, keeping their native
+library separate from the glibc `linux-x64` asset. To build just the native
+library on Alpine, run `make -C src/Hex1b/native`. When using a musl
+cross-compiler on a glibc host, specify both the compiler and libc:
+`make -C src/Hex1b/native CC=musl-gcc TARGET_ARCH=x86_64 TARGET_LIBC=musl`.
+Changing the output RID alone does not make a glibc binary musl-compatible.
+Musl ARM64 is not currently packaged.
+
+The musl CI job builds and tests in an x64 Alpine .NET SDK container without
+`gcompat` or `libc6-compat`. It checks the ELF dependencies and exports, runs
+the native startup suite, and verifies both a project-reference automatic build
+and a locally packed NuGet consumer. The package consumer publishes for
+`linux-musl-x64`, checks that NuGet selected the musl asset instead of the glibc
+fallback, then starts `/bin/sh` in a real PTY and exchanges input and output.
+Run the same checks locally with Docker:
+
+```bash
+docker run --rm --platform linux/amd64 \
+  -v "$PWD:/repo" -w /repo mcr.microsoft.com/dotnet/sdk:10.0-alpine \
+  sh -c 'apk add --no-cache build-base bash binutils unzip && bash .github/scripts/test-musl-native.sh'
+```
 
 The native CI jobs use a file-based C# app pinned to a released Hex1b package to
 launch the repository's KgpCloudDemo in a PTY with `dotnet run`. The smoke test
