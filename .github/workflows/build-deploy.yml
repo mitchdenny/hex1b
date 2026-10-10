@@ -263,15 +263,52 @@ jobs:
 
   build-native-linux-musl-x64:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
 
       - name: Build and validate musl native library on Alpine
+        timeout-minutes: 45
         run: |
           docker run --rm --platform linux/amd64 \
             -v "$PWD:/repo" -w /repo mcr.microsoft.com/dotnet/sdk:10.0-alpine \
-            sh -c 'apk add --no-cache build-base bash binutils unzip && bash .github/scripts/test-musl-native.sh'
+            sh -ec '
+              apk add --no-cache build-base bash binutils
+              for package in gcompat libc6-compat; do
+                if apk info -e "$package"; then
+                  echo "Musl tests must not use glibc compatibility packages: $package" >&2
+                  exit 1
+                fi
+              done
+              make -C src/Hex1b/native all test-startup check-exports
+              library=src/Hex1b/runtimes/linux-musl-x64/native/libhex1binterop.so
+              readelf -d "$library" | grep -F "[libc.musl-x86_64.so.1]"
+              if readelf --version-info --dyn-syms "$library" | grep GLIBC_; then
+                echo "Found GLIBC symbols in the musl native library" >&2
+                exit 1
+              fi
+              dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
+                -- --report-trx --report-trx-filename musl-test-results.trx \
+                   --timeout 10m --results-directory ./TestResults
+            '
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v3
+        if: success() || failure()
+        with:
+          name: Test Results (linux-musl-x64)
+          path: ./TestResults/musl-test-results.trx
+          reporter: dotnet-trx
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        if: success() || failure()
+        with:
+          name: test-results-linux-musl-x64
+          path: ./TestResults/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
