@@ -40,9 +40,12 @@ ifeq ($(UNAME_S),Darwin)
     endif
 else
     ifeq ($(TARGET_LIBC),musl)
-        RID = linux-musl-x64
-        ifneq ($(TARGET_ARCH),x86_64)
-            $(error The musl native asset currently supports only x86_64)
+        ifeq ($(TARGET_ARCH),aarch64)
+            RID = linux-musl-arm64
+        else ifeq ($(TARGET_ARCH),x86_64)
+            RID = linux-musl-x64
+        else
+            $(error Unsupported musl architecture: $(TARGET_ARCH))
         endif
     else
         ifeq ($(TARGET_ARCH),aarch64)

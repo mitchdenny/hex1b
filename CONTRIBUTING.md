@@ -11,7 +11,7 @@ Thank you for your interest in contributing to Hex1b! This document provides gui
 - A code editor (VS Code recommended)
 - A terminal emulator with good ANSI escape sequence support
 - Native build tools on Unix: `sudo apt install build-essential` on Ubuntu/Debian,
-  `apk add build-base` on Alpine Linux (x64),
+  `apk add build-base` on Alpine Linux (x64/ARM64),
   or `xcode-select --install` on macOS.
 
 ### Setting Up Your Development Environment
@@ -55,15 +55,15 @@ An explicit `--runtime` selects the matching native library. Cross-publishing
 requires that runtime's library in `src/Hex1b/runtimes/<rid>/native/` when the host
 cannot compile it; macOS supports building both macOS architectures locally.
 
-Alpine x64 builds select `linux-musl-x64` automatically, keeping their native
-library separate from the glibc `linux-x64` asset. To build just the native
+Alpine x64 and ARM64 builds select `linux-musl-x64` and `linux-musl-arm64`
+automatically, keeping their native libraries separate from the glibc assets.
+To build just the native
 library on Alpine, run `make -C src/Hex1b/native`. When using a musl
 cross-compiler on a glibc host, specify both the compiler and libc:
 `make -C src/Hex1b/native CC=musl-gcc TARGET_ARCH=x86_64 TARGET_LIBC=musl`.
 Changing the output RID alone does not make a glibc binary musl-compatible.
-Musl ARM64 is not currently packaged.
 
-The musl CI job builds and tests in an x64 Alpine .NET SDK container without
+The musl CI matrix builds and tests in native x64 and ARM64 Alpine .NET SDK containers without
 `gcompat` or `libc6-compat`. It checks the ELF dependencies and exports, then runs
 the native startup suite and the regular `Hex1b.Tests` suite, including real PTY
 startup and interaction tests. Both packaging jobs consume its native artifact,

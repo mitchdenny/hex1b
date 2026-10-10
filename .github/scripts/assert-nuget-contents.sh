@@ -83,6 +83,7 @@ hex1b_native_assets=(
   "runtimes/linux-x64/native/libhex1binterop.so"
   "runtimes/linux-arm64/native/libhex1binterop.so"
   "runtimes/linux-musl-x64/native/libhex1binterop.so"
+  "runtimes/linux-musl-arm64/native/libhex1binterop.so"
   "runtimes/osx-x64/native/libhex1binterop.dylib"
   "runtimes/osx-arm64/native/libhex1binterop.dylib"
   "runtimes/win-x64/native/hex1bpty.exe"
