@@ -371,6 +371,31 @@ For echo/transport tests, use an already-available executable (`cmd /d /c echo` 
 Windows, `/bin/echo` on Unix). Runtime-compiling a temporary C# program with
 `dotnet run` puts SDK startup and compilation inside the output deadline.
 
+## Unix PTY Read Reliability
+
+Use `/bin/sh` with `stty -echo`, a newline-free readiness marker, and input-gated
+output to test the real PTY without interactive shell startup or echo ambiguity.
+Accumulate reads until the exact expected marker or EOF: one child write need not
+equal one parent read. Drain large output concurrently with the child writing;
+also exercise `WaitForExitAsync` concurrently with draining to cover reaping.
+See `UnixPtyReadTests` for exact 64 KB payloads and repeated idle handshakes.
+
+Cancellation is not a native-hang watchdog. Bound reads and teardown independently
+with `WaitAsync`; run potentially synchronous native writes/disposal on a worker:
+
+```csharp
+await Task.Run(async () => await process.DisposeAsync())
+    .WaitAsync(TimeSpan.FromSeconds(10));
+```
+
+Cancel outstanding reads and dispose the child in `finally`. For disposal tests,
+leave the pending read uncanceled so disposal itself must unblock it. An explicit
+idle interval spanning poll timeouts may assert that a read remains pending; do
+not use a sleep to guess when output arrived. High-descriptor tests must measure
+the actual PTY descriptor and release every dummy handle even on failure. Only
+the native descriptor-limit error is grounds for an explicit inconclusive result;
+other open/start/read failures must fail the test.
+
 ## HMP1 Shutdown Compatibility
 
 Test each endpoint against a scripted peer with pinned numeric frame types,
