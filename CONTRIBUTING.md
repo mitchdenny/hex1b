@@ -74,6 +74,9 @@ docker run --rm --platform linux/amd64 \
   sh -ec 'apk add --no-cache build-base bash binutils; make -C src/Hex1b/native all check-exports'
 ```
 
+For an interactive .NET environment where you can run samples manually, see
+the [musl sandbox](samples/MuslSandbox/README.md). It is not part of CI.
+
 The glibc Linux and macOS ARM64 CI jobs use a file-based C# app pinned to a
 released Hex1b package to launch the repository's KgpCloudDemo in a PTY with
 `dotnet run`. The smoke test
