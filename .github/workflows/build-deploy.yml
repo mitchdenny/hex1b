@@ -128,7 +128,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-15]
     permissions:
       contents: read
       checks: write
@@ -367,22 +367,6 @@ jobs:
       - name: Build native library
         working-directory: src/Hex1b/native
         run: make all test-startup check-exports
-
-      - name: Run managed Unix PTY regression tests
-        timeout-minutes: 10
-        run: |
-          dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
-            --filter 'FullyQualifiedName~UnixPty|FullyQualifiedName~ChildProcessStartupTests|FullyQualifiedName~Hex1bTerminalChildProcessTests' \
-            -- --report-trx --report-trx-filename unix-pty-results.trx \
-               --timeout 5m --results-directory ./TestResults
-
-      - name: Upload managed PTY test results
-        uses: actions/upload-artifact@v7
-        if: success() || failure()
-        with:
-          name: unix-pty-results-macos-arm64
-          path: ./TestResults/
-          if-no-files-found: ignore
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
