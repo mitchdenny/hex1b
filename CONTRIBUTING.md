@@ -11,6 +11,7 @@ Thank you for your interest in contributing to Hex1b! This document provides gui
 - A code editor (VS Code recommended)
 - A terminal emulator with good ANSI escape sequence support
 - Native build tools on Unix: `sudo apt install build-essential` on Ubuntu/Debian,
+  `apk add build-base` on Alpine Linux (x64/ARM64),
   or `xcode-select --install` on macOS.
 
 ### Setting Up Your Development Environment
@@ -54,8 +55,31 @@ An explicit `--runtime` selects the matching native library. Cross-publishing
 requires that runtime's library in `src/Hex1b/runtimes/<rid>/native/` when the host
 cannot compile it; macOS supports building both macOS architectures locally.
 
-The native CI jobs use a file-based C# app pinned to a released Hex1b package to
-launch the repository's KgpCloudDemo in a PTY with `dotnet run`. The smoke test
+Alpine x64 and ARM64 builds select `linux-musl-x64` and `linux-musl-arm64`
+automatically, keeping their native libraries separate from the glibc assets.
+To build just the native library on Alpine, run `make -C src/Hex1b/native`.
+When using a musl cross-compiler on a glibc host, specify both the compiler and libc:
+`make -C src/Hex1b/native CC=musl-gcc TARGET_ARCH=x86_64 TARGET_LIBC=musl`.
+Changing the output RID alone does not make a glibc binary musl-compatible.
+
+The musl CI matrix builds the native library in architecture-matched x64 and
+ARM64 Alpine containers and checks the ELF dependencies and exports. These legs
+do not run the native or managed test suites. Both packaging jobs consume the
+native artifacts, and the existing package-content checks require both musl
+assets. Build locally on Alpine with Docker (use `linux/arm64` for ARM64):
+
+```bash
+docker run --rm --platform linux/amd64 \
+  -v "$PWD:/repo" -w /repo alpine:3 \
+  sh -ec 'apk add --no-cache build-base bash binutils; make -C src/Hex1b/native all check-exports'
+```
+
+For an interactive .NET environment where you can run samples manually, see
+the [musl sandbox](samples/MuslSandbox/README.md). It is not part of CI.
+
+The glibc Linux and macOS ARM64 CI jobs use a file-based C# app pinned to a
+released Hex1b package to launch the repository's KgpCloudDemo in a PTY with
+`dotnet run`. The smoke test
 waits for a snapshot containing kitty graphics placements, then checks the exit
 code after the demo reaches its frame limit:
 

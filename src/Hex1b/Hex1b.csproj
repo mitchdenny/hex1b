@@ -122,6 +122,7 @@
   <!-- Select by runtime, never by which native artifacts happen to exist. -->
   <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
     <NativeHostRid>linux-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</NativeHostRid>
+    <NativeHostRid Condition="$([System.Runtime.InteropServices.RuntimeInformation]::RuntimeIdentifier.StartsWith('linux-musl-'))">linux-musl-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</NativeHostRid>
   </PropertyGroup>
   <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
     <NativeHostRid>osx-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</NativeHostRid>
@@ -129,14 +130,16 @@
   <PropertyGroup>
     <NativeLibraryRid Condition="'$(RuntimeIdentifier)' == ''">$(NativeHostRid)</NativeLibraryRid>
     <NativeLibraryRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</NativeLibraryRid>
-    <NativeLibraryName Condition="'$(NativeLibraryRid)' == 'linux-x64' or '$(NativeLibraryRid)' == 'linux-arm64'">libhex1binterop.so</NativeLibraryName>
+    <NativeLibraryName Condition="'$(NativeLibraryRid)' == 'linux-x64' or '$(NativeLibraryRid)' == 'linux-arm64' or '$(NativeLibraryRid)' == 'linux-musl-x64' or '$(NativeLibraryRid)' == 'linux-musl-arm64'">libhex1binterop.so</NativeLibraryName>
     <NativeLibraryName Condition="'$(NativeLibraryRid)' == 'osx-x64' or '$(NativeLibraryRid)' == 'osx-arm64'">libhex1binterop.dylib</NativeLibraryName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(NativeLibraryName)' != ''">
     <NativeLibraryPath>$(MSBuildThisFileDirectory)runtimes/$(NativeLibraryRid)/native/$(NativeLibraryName)</NativeLibraryPath>
     <NativeLibraryTargetArch Condition="$(NativeLibraryRid.EndsWith('-x64'))">x86_64</NativeLibraryTargetArch>
-    <NativeLibraryTargetArch Condition="'$(NativeLibraryRid)' == 'linux-arm64'">aarch64</NativeLibraryTargetArch>
+    <NativeLibraryTargetArch Condition="'$(NativeLibraryRid)' == 'linux-arm64' or '$(NativeLibraryRid)' == 'linux-musl-arm64'">aarch64</NativeLibraryTargetArch>
     <NativeLibraryTargetArch Condition="'$(NativeLibraryRid)' == 'osx-arm64'">arm64</NativeLibraryTargetArch>
+    <NativeLibraryTargetLibc Condition="$(NativeLibraryRid.StartsWith('linux-musl-'))">musl</NativeLibraryTargetLibc>
+    <NativeLibraryTargetLibc Condition="'$(NativeLibraryTargetLibc)' == ''">gnu</NativeLibraryTargetLibc>
     <NativeLibraryCanBuild Condition="'$(NativeLibraryRid)' == '$(NativeHostRid)' or ($([MSBuild]::IsOSPlatform('OSX')) and $(NativeLibraryRid.StartsWith('osx-')))">true</NativeLibraryCanBuild>
     <NativeLibraryBuildOutputs>$(NativeLibraryPath)</NativeLibraryBuildOutputs>
     <!-- A checked-in or downloaded binary must not hide a missing local native build. -->
@@ -161,9 +164,9 @@
     <Error Condition="'$(NativeLibraryCanBuild)' != 'true' and !Exists('$(NativeLibraryPath)')"
            Text="Native interop for $(NativeLibraryRid) cannot be built on this host. Build it on a matching host and place it at $(NativeLibraryPath) before cross-publishing." />
     <Message Importance="High" Condition="'$(NativeLibraryCanBuild)' == 'true'"
-             Text="Building native interop for $(NativeLibraryRid). Requires make and a C compiler (Ubuntu/Debian: sudo apt install build-essential; macOS: xcode-select --install)." />
+             Text="Building native interop for $(NativeLibraryRid). Requires make and a C compiler (Ubuntu/Debian: sudo apt install build-essential; Alpine: apk add build-base; macOS: xcode-select --install)." />
     <Exec Condition="'$(NativeLibraryCanBuild)' == 'true'"
-          Command="make TARGET_ARCH=$(NativeLibraryTargetArch)"
+          Command="make TARGET_ARCH=$(NativeLibraryTargetArch) TARGET_LIBC=$(NativeLibraryTargetLibc)"
           WorkingDirectory="$(MSBuildThisFileDirectory)native" />
   </Target>
 
@@ -252,6 +255,14 @@
           Condition="'$(NativeLibraryRid)' != 'linux-arm64' and Exists('runtimes/linux-arm64/native/libhex1binterop.so')"
           Pack="true"
           PackagePath="runtimes/linux-arm64/native" />
+    <None Include="runtimes/linux-musl-x64/native/libhex1binterop.so"
+          Condition="'$(NativeLibraryRid)' != 'linux-musl-x64' and Exists('runtimes/linux-musl-x64/native/libhex1binterop.so')"
+          Pack="true"
+          PackagePath="runtimes/linux-musl-x64/native" />
+    <None Include="runtimes/linux-musl-arm64/native/libhex1binterop.so"
+          Condition="'$(NativeLibraryRid)' != 'linux-musl-arm64' and Exists('runtimes/linux-musl-arm64/native/libhex1binterop.so')"
+          Pack="true"
+          PackagePath="runtimes/linux-musl-arm64/native" />
     <None Include="runtimes/osx-x64/native/libhex1binterop.dylib"
           Condition="'$(NativeLibraryRid)' != 'osx-x64' and Exists('runtimes/osx-x64/native/libhex1binterop.dylib')"
           Pack="true"

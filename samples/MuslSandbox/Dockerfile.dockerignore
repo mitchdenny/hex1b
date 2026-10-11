@@ -1,0 +1,7 @@
+.git
+**/bin
+**/obj
+**/node_modules
+**/TestResults
+artifacts
+src/Hex1b/runtimes

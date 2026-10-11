@@ -261,6 +261,49 @@ jobs:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native/libhex1binterop.so
 
+  build-native-linux-musl:
+    name: build-native (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux/amd64
+            rid: linux-musl-x64
+            libc: libc.musl-x86_64.so.1
+          - os: ubuntu-24.04-arm
+            platform: linux/arm64
+            rid: linux-musl-arm64
+            libc: libc.musl-aarch64.so.1
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Build and validate musl native library on Alpine
+        run: |
+          docker run --rm --platform ${{ matrix.platform }} \
+            -v "$PWD:/repo" -w /repo alpine:3 \
+            sh -ec '
+              apk add --no-cache build-base bash binutils
+              make -C src/Hex1b/native all check-exports
+              library=src/Hex1b/runtimes/${{ matrix.rid }}/native/libhex1binterop.so
+              readelf -d "$library" | grep -F "[${{ matrix.libc }}]"
+              if readelf --version-info --dyn-syms "$library" | grep GLIBC_; then
+                echo "Found GLIBC symbols in the musl native library" >&2
+                exit 1
+              fi
+            '
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-${{ matrix.rid }}
+          path: src/Hex1b/runtimes/${{ matrix.rid }}/native/libhex1binterop.so
+          if-no-files-found: error
+
   build-native-linux-arm64:
     runs-on: ubuntu-24.04-arm
     steps:
@@ -375,7 +418,7 @@ jobs:
 
   build-pr:
     runs-on: ubuntu-latest
-    needs: [version, build-web-terminal, test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
+    needs: [version, build-web-terminal, test, build-native-linux-x64, build-native-linux-musl, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
     if: needs.version.outputs.kind == 'pr'
     permissions:
       contents: read
@@ -394,6 +437,18 @@ jobs:
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native
+
+      - name: Download native library - linux-musl-x64
+        uses: actions/download-artifact@v8
+        with:
+          name: native-linux-musl-x64
+          path: src/Hex1b/runtimes/linux-musl-x64/native
+
+      - name: Download native library - linux-musl-arm64
+        uses: actions/download-artifact@v8
+        with:
+          name: native-linux-musl-arm64
+          path: src/Hex1b/runtimes/linux-musl-arm64/native
 
       - name: Download native library - linux-arm64
         uses: actions/download-artifact@v8
@@ -465,7 +520,7 @@ jobs:
 
   build-release:
     runs-on: ubuntu-latest
-    needs: [version, build-web-terminal, test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
+    needs: [version, build-web-terminal, test, build-native-linux-x64, build-native-linux-musl, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
     if: needs.version.outputs.kind != 'pr'
     permissions:
       contents: read
@@ -484,6 +539,18 @@ jobs:
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native
+
+      - name: Download native library - linux-musl-x64
+        uses: actions/download-artifact@v8
+        with:
+          name: native-linux-musl-x64
+          path: src/Hex1b/runtimes/linux-musl-x64/native
+
+      - name: Download native library - linux-musl-arm64
+        uses: actions/download-artifact@v8
+        with:
+          name: native-linux-musl-arm64
+          path: src/Hex1b/runtimes/linux-musl-arm64/native
 
       - name: Download native library - linux-arm64
         uses: actions/download-artifact@v8
