@@ -170,7 +170,6 @@ jobs:
         timeout-minutes: 45
         run: |
           dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
-            -r ${{ matrix.rid }} \
             --no-build \
             -- --report-trx --report-trx-filename test-results.trx \
                --timeout 10m --diagnostic --diagnostic-output-directory ./TestResults/diagnostics \
