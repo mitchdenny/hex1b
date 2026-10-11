@@ -529,9 +529,9 @@ public class EditorNodeRenderingTests
         node.ScrollOffset = 10;
         node.Render(context);
 
-        var pattern = new CellPatternSearcher().Find("Line10");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
+            .WaitUntil(s => Enumerable.Range(0, 5).All(row =>
+                    s.GetLineTrimmed(row).Contains($"Line{10 + row:D2}", StringComparison.Ordinal)),
                 TimeSpan.FromSeconds(2), "lines 10-14 visible")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);

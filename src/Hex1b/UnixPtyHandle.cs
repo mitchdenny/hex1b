@@ -25,6 +25,7 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
     private readonly byte[] _readBuffer = new byte[4096];
     
     public int ProcessId => _childPid;
+    internal int MasterFileDescriptor => _masterFd;
 
     public UnixPtyHandle(TimeSpan? startupTimeout = null)
         : this(startupTimeout ?? UnixPtyStartupOptions.DefaultTimeout, TimeProvider.System, new NativeUnixPtyStartupInterop())
