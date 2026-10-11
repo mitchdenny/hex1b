@@ -379,6 +379,9 @@ Accumulate reads until the exact expected marker or EOF: one child write need no
 equal one parent read. Drain large output concurrently with the child writing;
 also exercise `WaitForExitAsync` concurrently with draining to cover reaping.
 See `UnixPtyReadTests` for exact 64 KB payloads and repeated idle handshakes.
+Include teardown without reading any child output, not only disposal after a
+readiness handshake. On macOS, a child can remain in exit while its PTY output
+is undrained; disposal must release the master before blocking on reaping.
 
 Cancellation is not a native-hang watchdog. Bound reads and teardown independently
 with `WaitAsync`; run potentially synchronous native writes/disposal on a worker:

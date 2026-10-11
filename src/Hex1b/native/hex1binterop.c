@@ -127,6 +127,9 @@ int hex1b_abort_startup(int master_fd, int child_pid, int startup_fd)
     int cleanup_error = 0;
     /* Do not retry close: an interrupted close may already have released the fd. */
     if (startup_fd >= 0 && close(startup_fd) < 0) cleanup_error = errno;
+    /* macOS can wait for slave output to drain during exit. Release the master
+       before reaping so an undrained PTY cannot keep a killed child in exit. */
+    if (master_fd >= 0 && close(master_fd) < 0 && !cleanup_error) cleanup_error = errno;
     if (child_pid > 0) {
         int status;
         pid_t result;
@@ -138,7 +141,6 @@ int hex1b_abort_startup(int master_fd, int child_pid, int startup_fd)
         }
         if (result < 0 && errno != ECHILD && !cleanup_error) cleanup_error = errno;
     }
-    if (master_fd >= 0 && close(master_fd) < 0 && !cleanup_error) cleanup_error = errno;
     if (cleanup_error) {
         errno = cleanup_error;
         return -1;

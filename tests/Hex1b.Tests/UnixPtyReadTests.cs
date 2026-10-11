@@ -232,6 +232,30 @@ public class UnixPtyReadTests
         }
     }
 
+    [TestMethod]
+    public async Task DisposeAsync_ChildOutputNeverDrained_CompletesWithoutHanging()
+    {
+        for (var iteration = 0; iteration < 100; iteration++)
+        {
+            var process = new Hex1bTerminalChildProcess("/bin/bash",
+                ["--norc", "--noprofile", "-c",
+                    "printf 'ready\\n'; while true; do printf 'tick\\n'; sleep 0.25; done"]);
+            using var cancellation = new CancellationTokenSource(Deadline);
+            try
+            {
+                await process.StartAsync(cancellation.Token).WaitAsync(Deadline);
+                // Match a consumer that starts then immediately tears down without
+                // ever draining the slave's output, including a prior SIGTERM.
+                process.Kill();
+                await DisposeAsync(process);
+            }
+            finally
+            {
+                await DisposeAsync(process);
+            }
+        }
+    }
+
     private static async Task AssertIdleAsync(Task<ReadOnlyMemory<byte>> read)
     {
         // This is an intentional idle interval across multiple 100 ms poll timeouts,
