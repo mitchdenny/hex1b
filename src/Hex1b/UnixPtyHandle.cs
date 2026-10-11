@@ -23,7 +23,6 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
     private int? _exitStatus;
     private bool _childReaped;
     private readonly byte[] _readBuffer = new byte[4096];
-    private readonly byte[] _readFds = new byte[128];
     
     public int ProcessId => _childPid;
 
@@ -198,10 +197,8 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
             {
                 while (!ct.IsCancellationRequested)
                 {
-                    Array.Clear(_readFds);
-                    FD_SET(_masterFd, _readFds);
-                    
-                    int result = select(_masterFd + 1, _readFds, IntPtr.Zero, IntPtr.Zero, 100);
+                    var pollFd = new PollFd { fd = _masterFd, events = POLLIN };
+                    int result = poll(ref pollFd, 1, 100);
                     
                     if (result < 0)
                     {
@@ -217,7 +214,7 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
                         continue;
                     }
                     
-                    if (FD_ISSET(_masterFd, _readFds))
+                    if ((pollFd.revents & (POLLIN | POLLHUP | POLLERR)) != 0)
                     {
                         nint bytesRead = read(_masterFd, _readBuffer, (nuint)_readBuffer.Length);
                         if (bytesRead <= 0)
@@ -228,6 +225,9 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
                         
                         return new ReadOnlyMemory<byte>(resultBuf);
                     }
+
+                    // POLLNVAL: the descriptor is not open.
+                    return ReadOnlyMemory<byte>.Empty;
                 }
                 return ReadOnlyMemory<byte>.Empty;
             }, ct);
@@ -268,22 +268,6 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
         }
         
         return ValueTask.CompletedTask;
-    }
-    
-    private static void FD_SET(int fd, byte[] fdset)
-    {
-        int index = fd / 8;
-        int bit = fd % 8;
-        if (index < fdset.Length)
-            fdset[index] |= (byte)(1 << bit);
-    }
-    
-    private static bool FD_ISSET(int fd, byte[] fdset)
-    {
-        int index = fd / 8;
-        int bit = fd % 8;
-        if (index >= fdset.Length) return false;
-        return (fdset[index] & (1 << bit)) != 0;
     }
     
     public void Resize(int width, int height)
@@ -386,26 +370,21 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
     [LibraryImport("hex1binterop", EntryPoint = "hex1b_resize", SetLastError = true)]
     private static partial int pty_resize(int masterFd, int width, int height);
     
-    [LibraryImport("libc", EntryPoint = "select", SetLastError = true)]
-    private static partial int select(int nfds, byte[] readfds, IntPtr writefds, IntPtr exceptfds, ref Timeval timeout);
-    
+    private const short POLLIN = 0x0001;
+    private const short POLLERR = 0x0008;
+    private const short POLLHUP = 0x0010;
+
     [StructLayout(LayoutKind.Sequential)]
-    private struct Timeval
+    private struct PollFd
     {
-        public long tv_sec;
-        public long tv_usec;
+        public int fd;
+        public short events;
+        public short revents;
     }
-    
-    private static int select(int nfds, byte[] readfds, IntPtr writefds, IntPtr exceptfds, int timeoutMs)
-    {
-        var tv = new Timeval
-        {
-            tv_sec = timeoutMs / 1000,
-            tv_usec = (timeoutMs % 1000) * 1000
-        };
-        return select(nfds, readfds, writefds, exceptfds, ref tv);
-    }
-    
+
+    [LibraryImport("libc", EntryPoint = "poll", SetLastError = true)]
+    private static partial int poll(ref PollFd fds, nuint nfds, int timeoutMs);
+
     [LibraryImport("libc", EntryPoint = "read", SetLastError = true)]
     private static partial nint read(int fd, byte[] buf, nuint count);
     
