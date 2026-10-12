@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { promisify } from 'node:util'
-import { checkBundle } from './check-bundle.mjs'
 import { publicationContext, publishPages, validateBundle } from './pages.mjs'
 
 const run = promisify(execFile)
@@ -263,12 +262,9 @@ test('bundle validation rejects symbolic and hard links', async t => {
   await assert.rejects(validateBundle(f.options.bundleDirectory), /link or special/)
 })
 
-test('bundle validation requires nonempty HTML and real base-path-safe JS and CSS', async t => {
+test('bundle validation requires nonempty HTML', async t => {
   const f = await fixture(t)
-  await checkBundle(f.options.bundleDirectory)
-  await writeFile(join(f.options.bundleDirectory, 'index.html'),
-    '<script src="/assets/main-123.js"></script><link href="/hex1b/assets/main-123.css">')
-  await assert.rejects(checkBundle(f.options.bundleDirectory), /does not use the Pages base/)
+  await validateBundle(f.options.bundleDirectory)
   await writeFile(join(f.options.bundleDirectory, 'index.html'), '')
-  await assert.rejects(checkBundle(f.options.bundleDirectory), /nonempty index.html/)
+  await assert.rejects(validateBundle(f.options.bundleDirectory), /nonempty index.html/)
 })

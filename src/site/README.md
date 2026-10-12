@@ -8,7 +8,7 @@ Use .NET 10, Node 24, Aspire CLI 13.6.1, and a running Docker or Podman
 runtime. From the repository root:
 
 ```sh
-# Build and check the static bundle locally; no credentials or remote effects.
+# Build and extract the static bundle locally; no credentials or remote effects.
 aspire do extract-new-site --apphost ./apphost.cs --non-interactive
 
 # Preview the extracted production build at http://localhost:4173/hex1b/.
@@ -27,7 +27,7 @@ builder.AddGitHubPages("new-site", newSite, "mitchdenny/hex1b");
 `new-site-vite` runs the development server during local development.
 During publication, Aspire's standard `build-new-site-vite` step builds its
 build-only container image. The Pages step copies the resource's declared
-container files (`/app/dist` for Vite) from a stopped container, validates them,
+container files (`/app/dist` for Vite) from a stopped container
 and saves them in `.aspire/github-pages/new-site/dist`. Only those extracted
 files are published. The container is never started; it and any anonymous
 volumes are removed even on failure or cancellation. No image is pushed to a
@@ -91,7 +91,7 @@ aspire do deploy-new-site --apphost ./apphost.cs --list-steps --non-interactive
 ```
 
 The last command lists steps without running publication. The selected graph
-should contain `deploy-new-site`, its extraction/validation dependency
+should contain `deploy-new-site`, its extraction dependency
 `extract-new-site`, and Aspire's native `build-new-site-vite` container build
 with its prerequisites. It should not contain Azure deployment or unrelated
 resource builds. The deployment target follows Aspire's `deploy-{resource}`

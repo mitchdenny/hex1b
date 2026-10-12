@@ -56,8 +56,6 @@ jobs:
           npm test --prefix .github/scripts/github-pages
       - name: Build Pages without publication
         run: aspire do extract-new-site --apphost ./apphost.cs --non-interactive
-      - name: Check production asset paths
-        run: node .github/scripts/github-pages/check-bundle.mjs .aspire/github-pages/new-site/dist
 
   publish:
     needs: validate

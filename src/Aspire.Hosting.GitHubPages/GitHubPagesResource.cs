@@ -23,7 +23,7 @@ public sealed class GitHubPagesResource : Resource, IContainerFilesDestinationRe
     /// <summary>Gets the destination repository in owner/name form.</summary>
     public string Repository { get; }
 
-    /// <summary>Gets the directory containing the extracted and validated production bundle.</summary>
+    /// <summary>Gets the directory containing the extracted production bundle.</summary>
     public string BundleDirectory { get; }
 
     /// <summary>Gets the destination project-site URL, without a custom domain.</summary>

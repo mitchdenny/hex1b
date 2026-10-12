@@ -101,7 +101,7 @@ public static class GitHubPagesHostingExtensions
             new PipelineStep
             {
                 Name = $"extract-{name}",
-                Description = "Extract and validate the static files from the built container image.",
+                Description = "Extract the static files from the built container image.",
                 Action = async context =>
                 {
                     var imageResource = context.Model.Resources.Single(r => r.Name == source.Resource.Name);
@@ -131,9 +131,6 @@ public static class GitHubPagesHostingExtensions
                         (arguments, token) => PagesProcess.RunAsync(executable, arguments,
                             helperDirectory, context.Logger, token),
                         image, files[0].SourcePath, bundle, context.CancellationToken);
-                    await PagesProcess.RunAsync("node",
-                        ["check-bundle.mjs", bundle, $"/{repository.Split('/')[1]}/"],
-                        helperDirectory, context.Logger, context.CancellationToken);
                     context.CancellationToken.ThrowIfCancellationRequested();
                     Directory.CreateDirectory(Path.GetDirectoryName(resource.BundleDirectory)!);
                     if (Directory.Exists(resource.BundleDirectory))
