@@ -512,45 +512,36 @@ public class Hex1bTerminalChildProcessTests
     [TestCategory("Unix")]
     public async Task Dispose_CleansUpRunningProcess()
     {
-        // Skip on non-Linux platforms - PTY support requires Linux
-        if (!OperatingSystem.IsLinux())
-            return;
-        
-        int pid;
-        
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+            Assert.Inconclusive("Requires a Unix PTY and /bin/sleep.");
+
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(15));
+        var process = new Hex1bTerminalChildProcess("/bin/sleep", ["60"], inheritEnvironment: false);
+        try
         {
-            var process = new Hex1bTerminalChildProcess(
-                "/bin/bash",
-                ["-c", "sleep 60"]
-            );
-            
-            await process.StartAsync();
-            pid = process.ProcessId;
-            
-            Assert.IsTrue(pid > 0);
-            
-            // Dispose without waiting
-            await process.DisposeAsync();
+            await Task.Run(() => process.StartAsync(cancellation.Token)).WaitAsync(TimeSpan.FromSeconds(5));
+            var pid = process.ProcessId;
+            Assert.IsGreaterThan(0, pid);
+            Assert.IsTrue(ProcessExists(pid), "The child must be running before disposal.");
+            await Task.Run(async () => await process.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.IsFalse(ProcessExists(pid), $"Process {pid} must be terminated when disposal completes.");
         }
-        
-        // Give the OS a moment to clean up
-        await Task.Delay(200);
-        
-        // Verify process is gone (kill with signal 0 checks if process exists)
-        // This will throw or return error if process doesn't exist
-        var exists = ProcessExists(pid);
-        Assert.IsFalse(exists, $"Process {pid} should have been terminated");
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await process.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+        }
     }
     
     private static bool ProcessExists(int pid)
     {
         try
         {
-            // Sending signal 0 just checks if process exists
-            var process = System.Diagnostics.Process.GetProcessById(pid);
+            using var process = System.Diagnostics.Process.GetProcessById(pid);
             return !process.HasExited;
         }
-        catch
+        catch (ArgumentException)
         {
             return false;
         }
