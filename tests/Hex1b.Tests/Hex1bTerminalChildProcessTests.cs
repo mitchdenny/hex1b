@@ -5,8 +5,8 @@ namespace Hex1b.Tests;
 
 /// <summary>
 /// Tests for <see cref="Hex1bTerminalChildProcess"/>.
-/// These tests require Linux (for PTY support via forkpty).
-/// Tests that require Linux use runtime checks to skip on other platforms.
+/// Unix device-path assertions require Linux or macOS; isolated startup tests
+/// use fake PTY handles and run on every platform.
 /// </summary>
 [TestClass]
 public class Hex1bTerminalChildProcessTests
@@ -473,35 +473,44 @@ public class Hex1bTerminalChildProcessTests
     /// <summary>
     /// Verifies that killing the process works.
     /// </summary>
-    [TestMethod, Ignore("Flaky test - needs investigation")]
+    [TestMethod]
     [TestCategory("Unix")]
     public async Task Kill_TerminatesProcess()
     {
-        
-        // Launch a long-running process
-        await using var process = new Hex1bTerminalChildProcess(
-            "/bin/bash",
-            ["-c", "sleep 60"]
-        );
-        
-        await process.StartAsync();
-        
-        Assert.IsTrue(process.HasStarted);
-        Assert.IsFalse(process.HasExited);
-        
-        // Give it a moment to start
-        await Task.Delay(200);
-        
-        // Kill it
-        process.Kill();
-        
-        // Wait for exit
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var exitCode = await process.WaitForExitAsync(cts.Token);
-        
-        Assert.IsTrue(process.HasExited);
-        // SIGTERM (15) results in exit code 128 + 15 = 143
-        Assert.IsTrue(exitCode != 0, $"Expected non-zero exit code from killed process, got {exitCode}");
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+            Assert.Inconclusive("Requires Unix SIGTERM and /bin/sleep.");
+
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(15));
+        var process = new Hex1bTerminalChildProcess("/bin/sleep", ["60"], inheritEnvironment: false);
+        Task<int>? exitTask = null;
+        try
+        {
+            await Task.Run(() => process.StartAsync(cancellation.Token)).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.IsTrue(process.HasStarted);
+            Assert.IsFalse(process.HasExited);
+            await Task.Run(() => process.Kill()).WaitAsync(TimeSpan.FromSeconds(5));
+            exitTask = Task.Run(() => process.WaitForExitAsync(cancellation.Token));
+            Assert.IsTrue((await process.ReadOutputAsync(cancellation.Token).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5))).IsEmpty);
+            Assert.AreEqual(143, await exitTask.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.IsTrue(process.HasExited);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await process.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            if (exitTask is not null)
+            {
+                try
+                {
+                    await exitTask.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                catch (OperationCanceledException) when (exitTask.IsCanceled && cancellation.IsCancellationRequested)
+                {
+                }
+            }
+        }
     }
     
     /// <summary>
