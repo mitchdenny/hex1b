@@ -87,39 +87,50 @@ public class DockerContainerIntegrationTests
     [DockerAvailableCondition]
     public async Task WithDockerContainer_RunsShellInContainer()
     {
-        await using var terminal = Hex1bTerminal.CreateBuilder()
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(30));
+        var terminal = Hex1bTerminal.CreateBuilder()
             .WithHeadless()
             .WithDimensions(120, 24)
             .WithDockerContainer(c =>
             {
                 c.Image = "ubuntu:24.04";
+                c.Environment["PS1"] = "hex1b-docker> ";
                 c.Shell = "/bin/bash";
-                c.ShellArgs = ["--norc", "--noprofile"];
+                c.ShellArgs = ["--norc", "--noprofile", "-i"];
             })
             .Build();
 
-        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var runTask = Task.Run(() => terminal.RunAsync(cancellation.Token));
+        try
+        {
+            using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("hex1b-docker>"), TimeSpan.FromSeconds(15), "container shell ready")
+                .Type("uname -s").Enter()
+                .WaitUntil(s => s.GetNonEmptyLines().Any(line => line.Trim() == "Linux"),
+                    TimeSpan.FromSeconds(10), "uname output from container")
+                .Build()
+                .ApplyAsync(terminal, cancellation.Token);
 
-        var linuxPattern = new CellPatternSearcher().Find("Linux");
-
-        await new Hex1bTerminalInputSequenceBuilder()
-            .Wait(TimeSpan.FromSeconds(3))
-            .Type("uname -s").Enter()
-            .WaitUntil(s => linuxPattern.Search(s).Count > 0, TimeSpan.FromSeconds(10))
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        // Verify pattern was found (WaitUntil would have thrown on timeout)
-        var snapshot = terminal.CreateSnapshot();
-        var found = linuxPattern.Search(snapshot);
-        Assert.IsTrue(found.Count > 0, "Expected 'Linux' in terminal output");
-
-        await new Hex1bTerminalInputSequenceBuilder()
-            .Type("exit").Enter()
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        await runTask;
+            Assert.IsTrue(snapshot.GetNonEmptyLines().Any(line => line.Trim() == "Linux"));
+            await new Hex1bTerminalInputSequenceBuilder()
+                .Type("exit").Enter()
+                .Build()
+                .ApplyAsync(terminal, cancellation.Token);
+            Assert.AreEqual(0, await runTask.WaitAsync(TimeSpan.FromSeconds(5), cancellation.Token));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await terminal.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            try
+            {
+                await runTask.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (OperationCanceledException) when (runTask.IsCanceled && cancellation.IsCancellationRequested)
+            {
+            }
+        }
     }
 
     [TestMethod]
