@@ -487,6 +487,7 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 src/content/dist/
+src/site/dist/
 src/content/.vitepress/cache/
 
 # Intermediate native binaries for PTY interop

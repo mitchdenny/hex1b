@@ -1,6 +1,8 @@
 #:sdk Aspire.AppHost.Sdk@13.6.1
 #:package Aspire.Hosting.JavaScript@13.6.1
 #:package Aspire.Hosting.Azure.AppContainers@13.6.1
+#:project ./src/Hex1b.Hosting.GitHubPages/Hex1b.Hosting.GitHubPages.csproj
+#:property TreatProjectReferencesAsResources=false
 
 using Aspire.Hosting.Pipelines;
 using Microsoft.Extensions.Logging;
@@ -12,6 +14,18 @@ using System.Diagnostics;
 #pragma warning disable ASPIRETERMINAL001
 
 var builder = DistributedApplication.CreateBuilder(args);
+
+builder.AddGitHubPages("new-site", "./src/site", "mitchdenny/hex1b");
+
+// Named Pages invocations need no Azure model preparation or existing site resources.
+var pipelineStep = builder.Configuration["step"];
+if (builder.ExecutionContext.IsPublishMode &&
+    (pipelineStep?.StartsWith("build-github-pages-", StringComparison.Ordinal) == true ||
+     pipelineStep?.StartsWith("publish-github-pages-", StringComparison.Ordinal) == true))
+{
+    builder.Build().Run();
+    return;
+}
 
 // Conditionally adds parameters to app model if config values are specified.
 var customDomainValue = builder.Configuration["Parameters:customDomain"];
