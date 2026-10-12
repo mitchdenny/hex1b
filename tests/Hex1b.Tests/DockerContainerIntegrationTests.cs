@@ -137,39 +137,51 @@ public class DockerContainerIntegrationTests
     [DockerAvailableCondition]
     public async Task WithDockerContainer_EnvironmentVariablesPassedToContainer()
     {
-        await using var terminal = Hex1bTerminal.CreateBuilder()
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(30));
+        var terminal = Hex1bTerminal.CreateBuilder()
             .WithHeadless()
             .WithDimensions(120, 24)
             .WithDockerContainer(c =>
             {
                 c.Image = "ubuntu:24.04";
                 c.Environment["HEX1B_TEST_VAR"] = "hello_from_hex1b";
+                c.Environment["PS1"] = "hex1b-env> ";
                 c.Shell = "/bin/bash";
-                c.ShellArgs = ["--norc", "--noprofile"];
+                c.ShellArgs = ["--norc", "--noprofile", "-i"];
             })
             .Build();
 
-        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var runTask = Task.Run(() => terminal.RunAsync(cancellation.Token));
+        try
+        {
+            using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("hex1b-env>"), TimeSpan.FromSeconds(15), "container shell ready")
+                .Type("echo $HEX1B_TEST_VAR").Enter()
+                .WaitUntil(s => s.GetNonEmptyLines().Any(line => line.Trim() == "hello_from_hex1b"),
+                    TimeSpan.FromSeconds(10), "environment variable expanded in the container")
+                .Build()
+                .ApplyAsync(terminal, cancellation.Token);
 
-        var envPattern = new CellPatternSearcher().Find("hello_from_hex1b");
-
-        await new Hex1bTerminalInputSequenceBuilder()
-            .Wait(TimeSpan.FromSeconds(3))
-            .Type("echo $HEX1B_TEST_VAR").Enter()
-            .WaitUntil(s => envPattern.Search(s).Count > 0, TimeSpan.FromSeconds(10))
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        var snapshot = terminal.CreateSnapshot();
-        var found = envPattern.Search(snapshot);
-        Assert.IsTrue(found.Count > 0, "Expected environment variable value in output");
-
-        await new Hex1bTerminalInputSequenceBuilder()
-            .Type("exit").Enter()
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        await runTask;
+            Assert.IsTrue(snapshot.GetNonEmptyLines().Any(line => line.Trim() == "hello_from_hex1b"));
+            await new Hex1bTerminalInputSequenceBuilder()
+                .Type("exit").Enter()
+                .Build()
+                .ApplyAsync(terminal, cancellation.Token);
+            Assert.AreEqual(0, await runTask.WaitAsync(TimeSpan.FromSeconds(5), cancellation.Token));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await terminal.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            try
+            {
+                await runTask.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (OperationCanceledException) when (runTask.IsCanceled && cancellation.IsCancellationRequested)
+            {
+            }
+        }
     }
 
     [TestMethod]
