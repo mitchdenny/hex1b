@@ -5,7 +5,7 @@ namespace Aspire.Hosting;
 /// <summary>
 /// Describes a Vite site published through GitHub Actions to GitHub Pages.
 /// </summary>
-public sealed class GitHubPagesResource : Resource
+public sealed class GitHubPagesResource : Resource, IContainerFilesDestinationResource
 {
     internal GitHubPagesResource(string name, IResourceWithContainerFiles source, string repository, string bundleDirectory)
         : base(name)

@@ -23,8 +23,8 @@ public static class GitHubPagesHostingExtensions
     /// <param name="repository">The GitHub repository in owner/name form.</param>
     /// <returns>The Pages resource builder.</returns>
     /// <remarks>
-    /// The build-github-pages-NAME step builds a container image and extracts its static files.
-    /// The publish-github-pages-NAME step builds, uploads, and deploys from a
+    /// The extract-NAME step builds a container image and extracts its static files.
+    /// The deploy-NAME step builds, uploads, and deploys from a
     /// GitHub Actions JavaScript action context. Neither joins the default
     /// build, publish, or deploy pipeline.
     /// </remarks>
@@ -93,13 +93,14 @@ public static class GitHubPagesHostingExtensions
             name, source.Resource, repository,
             Path.Combine(builder.AppHostDirectory, ".aspire", "github-pages", name, "dist"));
         var helperDirectory = Path.Combine(builder.AppHostDirectory, ".github", "scripts", "github-pages");
-        var resourceBuilder = builder.AddResource(resource);
+        var resourceBuilder = builder.AddResource(resource)
+            .PublishWithContainerFiles(source, resource.BundleDirectory);
 
         return resourceBuilder.WithPipelineStepFactory(_ => new[]
         {
             new PipelineStep
             {
-                Name = $"build-github-pages-{name}",
+                Name = $"extract-{name}",
                 Description = "Extract and validate the static files from the built container image.",
                 Action = async context =>
                 {
@@ -151,9 +152,9 @@ public static class GitHubPagesHostingExtensions
             },
             new PipelineStep
             {
-                Name = $"publish-github-pages-{name}",
+                Name = $"deploy-{name}",
                 Description = "Upload and deploy the static bundle to GitHub Pages.",
-                DependsOnSteps = [$"build-github-pages-{name}"],
+                DependsOnSteps = [$"extract-{name}"],
                 Action = async context =>
                 {
                     await PagesProcess.RunAsync("npm", ["ci", "--no-audit", "--no-fund"],
@@ -174,7 +175,7 @@ public static class GitHubPagesHostingExtensions
                 {
                     throw new InvalidOperationException($"Source '{source.Resource.Name}' has no container build step.");
                 }
-                var extraction = context.Steps.Single(step => step.Name == $"build-github-pages-{name}");
+                var extraction = context.Steps.Single(step => step.Name == $"extract-{name}");
                 foreach (var build in buildSteps)
                 {
                     extraction.DependsOn(build.Name);

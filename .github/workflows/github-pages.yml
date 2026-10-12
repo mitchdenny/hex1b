@@ -55,7 +55,7 @@ jobs:
           npm ci --prefix .github/scripts/github-pages --no-audit --no-fund
           npm test --prefix .github/scripts/github-pages
       - name: Build Pages without publication
-        run: aspire do build-github-pages-new-site --apphost ./apphost.cs --non-interactive
+        run: aspire do extract-new-site --apphost ./apphost.cs --non-interactive
       - name: Check production asset paths
         run: node .github/scripts/github-pages/check-bundle.mjs .aspire/github-pages/new-site/dist
 
@@ -103,7 +103,7 @@ jobs:
             const idToken = await core.getIDToken();
             await new Promise((resolve, reject) => {
               const child = spawn('aspire', [
-                'do', 'publish-github-pages-new-site',
+                'do', 'deploy-new-site',
                 '--apphost', './apphost.cs', '--non-interactive'
               ], {
                 stdio: 'inherit',

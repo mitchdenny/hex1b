@@ -29,6 +29,9 @@ public class GitHubPagesHostingTests
         Assert.AreEqual("mitchdenny/hex1b", pages.Resource.Repository);
         Assert.AreEqual("https://mitchdenny.github.io/hex1b/", pages.Resource.PublishedUrl.AbsoluteUri);
         Assert.AreEqual(2, builder.Resources.Count);
+        var destination = TestSeq.Single(pages.Resource.Annotations.OfType<ContainerFilesDestinationAnnotation>());
+        Assert.AreSame(site.Resource, destination.Source);
+        Assert.AreEqual(pages.Resource.BundleDirectory, destination.DestinationPath);
 
         using var services = builder.Services.BuildServiceProvider();
         var model = new DistributedApplicationModel(builder.Resources);
@@ -40,10 +43,10 @@ public class GitHubPagesHostingTests
             Resource = pages.Resource,
             PipelineContext = pipeline
         })).ToArray();
-        TestSeq.AreEqual(new[] { "build-github-pages-new-site", "publish-github-pages-new-site" },
+        TestSeq.AreEqual(new[] { "extract-new-site", "deploy-new-site" },
             steps.Select(step => step.Name));
         Assert.IsEmpty(steps[0].DependsOnSteps);
-        TestSeq.AreEqual(new[] { "build-github-pages-new-site" }, steps[1].DependsOnSteps);
+        TestSeq.AreEqual(new[] { "extract-new-site" }, steps[1].DependsOnSteps);
         Assert.IsTrue(steps.All(step => step.RequiredBySteps.Count == 0 && step.Tags.Count == 0));
 
         var source = TestSeq.Single(model.Resources.OfType<ContainerResource>());

@@ -15,21 +15,8 @@ using System.Diagnostics;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Named Pages invocations need no Azure model preparation or existing site resources.
-var pipelineStep = builder.Configuration["step"];
-var isPagesStep = builder.ExecutionContext.IsPublishMode &&
-    (pipelineStep?.StartsWith("build-github-pages-", StringComparison.Ordinal) == true ||
-     pipelineStep?.StartsWith("publish-github-pages-", StringComparison.Ordinal) == true);
-if (builder.ExecutionContext.IsRunMode || isPagesStep)
-{
-    var newSite = builder.AddViteApp("new-site-vite", "./src/site").WithNpm(installCommand: "ci");
-    builder.AddGitHubPages("new-site", newSite, "mitchdenny/hex1b");
-}
-if (isPagesStep)
-{
-    builder.Build().Run();
-    return;
-}
+var newSite = builder.AddViteApp("new-site-vite", "./src/site").WithNpm(installCommand: "ci");
+builder.AddGitHubPages("new-site", newSite, "mitchdenny/hex1b");
 
 // Conditionally adds parameters to app model if config values are specified.
 var customDomainValue = builder.Configuration["Parameters:customDomain"];

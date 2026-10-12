@@ -9,7 +9,7 @@ runtime. From the repository root:
 
 ```sh
 # Build and check the static bundle locally; no credentials or remote effects.
-aspire do build-github-pages-new-site --apphost ./apphost.cs --non-interactive
+aspire do extract-new-site --apphost ./apphost.cs --non-interactive
 
 # Preview the extracted production build at http://localhost:4173/hex1b/.
 npm ci --prefix src/site
@@ -38,13 +38,17 @@ registry, and no separate host-side Vite build is used.
 `.github/workflows/github-pages.yml` validates changes and runs:
 
 ```sh
-aspire do publish-github-pages-new-site --apphost ./apphost.cs --non-interactive
+aspire do deploy-new-site --apphost ./apphost.cs --non-interactive
 ```
 
 This is a **live publication command**, not just artifact generation. Its only
 build dependency is the new Vite site's container image and its native Aspire
-build/runtime prerequisites. It does not build the old documentation, unrelated
-containers, or library packages, and it is not part of the default Azure deploy.
+build/runtime prerequisites. The AppHost declares all resources normally;
+Aspire selects the target's dependency graph without step-name checks or early
+returns in the AppHost. Normal model preparation still runs, but this target
+does not deploy Azure resources or build the old documentation, unrelated
+containers, or library packages. Pages deployment is not attached to the
+default Azure deploy; the Vite source participates in Aspire's standard build.
 
 The command must run inside a GitHub Actions JavaScript action context. The
 workflow uses `actions/github-script` so its child Aspire process inherits the
@@ -83,11 +87,12 @@ the temporary PR publication policy from the workflow.
 dotnet test tests/Aspire.Hosting.GitHubPages.Tests/Aspire.Hosting.GitHubPages.Tests.csproj
 npm ci --prefix .github/scripts/github-pages
 npm test --prefix .github/scripts/github-pages
-aspire do publish-github-pages-new-site --apphost ./apphost.cs --list-steps --non-interactive
+aspire do deploy-new-site --apphost ./apphost.cs --list-steps --non-interactive
 ```
 
 The last command lists steps without running publication. The selected graph
-should contain `publish-github-pages-new-site`, its extraction/validation
-dependency `build-github-pages-new-site`, and Aspire's native
-`build-new-site-vite` container build with its prerequisites. It should not
-contain Azure preparation or unrelated resource builds.
+should contain `deploy-new-site`, its extraction/validation dependency
+`extract-new-site`, and Aspire's native `build-new-site-vite` container build
+with its prerequisites. It should not contain Azure deployment or unrelated
+resource builds. The deployment target follows Aspire's `deploy-{resource}`
+naming convention and is generated automatically by `AddGitHubPages`.
