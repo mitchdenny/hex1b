@@ -508,50 +508,21 @@ public class DiagnosticShellIntegrationTests
         Assert.Contains("dump", content);
     }
     
-    [TestMethod, Ignore("Flaky - timing-sensitive diagnostic shell test")]
+    [TestMethod]
     public async Task DiagnosticShell_PingCommand_RespondsImmediately()
     {
-        // Arrange
         await using var ctx = DiagnosticTestContext.Create();
-        
-        // First verify inner terminal content before starting outer
-        await Task.Delay(200);
-        var innerContentBefore = ctx.GetInnerContent();
-        Console.Error.WriteLine($"Inner content before start: [{innerContentBefore.Trim()}]");
-        
         await ctx.StartAsync();
-        
-        // Act
-        var beforePing = DateTimeOffset.Now;
+        await ctx.WaitForPromptAsync(TimeSpan.FromSeconds(5));
+        var elapsed = Stopwatch.StartNew();
         await ctx.SendCommandAsync("ping");
-        
-        // Wait for pong response (case-insensitive - output is PONG)
-        var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(5));
-        var afterPong = DateTimeOffset.Now;
-        
-        // Dump diagnostic info to stderr (which shows in test output)
-        Console.Error.WriteLine("=== Traced Events ===");
-        foreach (var evt in ctx.Tracer.GetEvents())
-        {
-            var dataPreview = evt.Data != null 
-                ? $" [{evt.Data.Length} chars: {Truncate(evt.Data, 60)}]" 
-                : "";
-            Console.Error.WriteLine($"[{evt.Time:HH:mm:ss.fff}] {evt.Source}: {evt.Event}{dataPreview}");
-        }
-        
-        Console.Error.WriteLine("\n=== Outer Terminal Content ===");
-        Console.Error.WriteLine(ctx.GetOuterContent());
-        
-        Console.Error.WriteLine("\n=== Inner Terminal Content ===");
-        Console.Error.WriteLine(ctx.GetInnerContent());
-        
-        // Assert
-        Assert.IsTrue(foundPong, "Should receive 'pong' response");
-        Assert.IsTrue((afterPong - beforePing).TotalMilliseconds < 3000, $"Pong should appear within 3s, took {(afterPong - beforePing).TotalMilliseconds}ms");
+        var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(3));
+        elapsed.Stop();
+
+        Assert.IsTrue(foundPong, $"Should receive PONG.\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
+        Assert.IsLessThan(TimeSpan.FromSeconds(3), elapsed.Elapsed,
+            $"Pong should appear within 3s, took {elapsed.Elapsed.TotalMilliseconds}ms");
     }
-    
-    private static string Truncate(string s, int maxLen) 
-        => s.Length <= maxLen ? s.Replace("\n", "\\n").Replace("\r", "\\r") : s[..maxLen].Replace("\n", "\\n").Replace("\r", "\\r") + "...";
     
     [TestMethod]
     public async Task DiagnosticShell_MultipleCommands_AllRender()
