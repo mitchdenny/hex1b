@@ -4,18 +4,34 @@ This is a vanilla Vite placeholder proving the GitHub Pages build/publication
 path. It does not replace `src/content`, `src/Hex1b.Website`, or `hex1b.dev`.
 The production base is `/hex1b/` for https://mitchdenny.github.io/hex1b/.
 
-Use .NET 10, Node 24, and Aspire CLI 13.6.1. From the repository root:
+Use .NET 10, Node 24, Aspire CLI 13.6.1, and a running Docker or Podman
+runtime. From the repository root:
 
 ```sh
 # Build and check the static bundle locally; no credentials or remote effects.
 aspire do build-github-pages-new-site --apphost ./apphost.cs --non-interactive
 
-# Preview the production build at http://localhost:4173/hex1b/.
-npm run preview --prefix src/site
+# Preview the extracted production build at http://localhost:4173/hex1b/.
+npm ci --prefix src/site
+npm run preview --prefix src/site -- --outDir ../../.aspire/github-pages/new-site/dist
 ```
 
-The root AppHost also registers `new-site-dev` for local development.
-The built files are in `src/site/dist`; only those files are published.
+The root AppHost declares the Vite app separately, just as the Aspire React
+starter does:
+
+```csharp
+var newSite = builder.AddViteApp("new-site-vite", "./src/site").WithNpm(installCommand: "ci");
+builder.AddGitHubPages("new-site", newSite, "mitchdenny/hex1b");
+```
+
+`new-site-vite` runs the development server during local development.
+During publication, Aspire's standard `build-new-site-vite` step builds its
+build-only container image. The Pages step copies the resource's declared
+container files (`/app/dist` for Vite) from a stopped container, validates them,
+and saves them in `.aspire/github-pages/new-site/dist`. Only those extracted
+files are published. The container is never started; it and any anonymous
+volumes are removed even on failure or cancellation. No image is pushed to a
+registry, and no separate host-side Vite build is used.
 
 ## Publication
 
@@ -26,7 +42,8 @@ aspire do publish-github-pages-new-site --apphost ./apphost.cs --non-interactive
 ```
 
 This is a **live publication command**, not just artifact generation. Its only
-build dependency is the new Vite site. It does not build the old documentation,
+build dependency is the new Vite site's container image and its native Aspire
+build/runtime prerequisites. It does not build the old documentation, unrelated
 containers, or library packages, and it is not part of the default Azure deploy.
 
 The command must run inside a GitHub Actions JavaScript action context. The
@@ -70,5 +87,7 @@ aspire do publish-github-pages-new-site --apphost ./apphost.cs --list-steps --no
 ```
 
 The last command lists steps without running publication. The selected graph
-should contain only `build-github-pages-new-site` and
-`publish-github-pages-new-site`.
+should contain `publish-github-pages-new-site`, its extraction/validation
+dependency `build-github-pages-new-site`, and Aspire's native
+`build-new-site-vite` container build with its prerequisites. It should not
+contain Azure preparation or unrelated resource builds.

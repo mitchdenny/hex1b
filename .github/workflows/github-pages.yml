@@ -57,7 +57,7 @@ jobs:
       - name: Build Pages without publication
         run: aspire do build-github-pages-new-site --apphost ./apphost.cs --non-interactive
       - name: Check production asset paths
-        run: node .github/scripts/github-pages/check-bundle.mjs src/site/dist
+        run: node .github/scripts/github-pages/check-bundle.mjs .aspire/github-pages/new-site/dist
 
   publish:
     needs: validate
