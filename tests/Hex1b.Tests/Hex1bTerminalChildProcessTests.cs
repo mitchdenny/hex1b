@@ -5,8 +5,8 @@ namespace Hex1b.Tests;
 
 /// <summary>
 /// Tests for <see cref="Hex1bTerminalChildProcess"/>.
-/// These tests require Linux (for PTY support via forkpty).
-/// Tests that require Linux use runtime checks to skip on other platforms.
+/// Unix device-path assertions require Linux or macOS; isolated startup tests
+/// use fake PTY handles and run on every platform.
 /// </summary>
 [TestClass]
 public class Hex1bTerminalChildProcessTests
@@ -69,53 +69,53 @@ public class Hex1bTerminalChildProcessTests
     /// Verifies that when we launch bash with "tty" command, it reports
     /// a valid TTY device path (e.g., /dev/pts/X), proving a PTY is attached.
     /// </summary>
-    [TestMethod, Ignore("Flaky test - needs investigation")]
+    [TestMethod]
     [TestCategory("Unix")]
     public async Task BashWithTty_ReportsPtyDevice()
     {
-        
-        // Launch bash with interactive flag (-i) to ensure it thinks it's a terminal
-        // The command runs "tty" which outputs the TTY device path
-        await using var process = new Hex1bTerminalChildProcess(
-            "/bin/bash",
-            ["-ic", "tty; exit"]
-        );
-        
-        await process.StartAsync();
-        
-        // Collect output
-        var output = new StringBuilder();
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+            Assert.Inconclusive("Requires a Unix PTY and /bin/bash.");
+
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(10));
+        var process = new Hex1bTerminalChildProcess("/bin/bash", ["--norc", "--noprofile", "-c", "exec /usr/bin/tty"],
+            environment: new Dictionary<string, string> { ["PATH"] = "/usr/bin:/bin", ["LC_ALL"] = "C" },
+            inheritEnvironment: false);
+        Task<int>? exitTask = null;
         try
         {
-            while (!cts.Token.IsCancellationRequested && !process.HasExited)
+            await Task.Run(() => process.StartAsync(cancellation.Token)).WaitAsync(TimeSpan.FromSeconds(5));
+            exitTask = Task.Run(() => process.WaitForExitAsync(cancellation.Token));
+            var output = new StringBuilder();
+            while (true)
             {
-                var data = await process.ReadOutputAsync(cts.Token);
+                var data = await process.ReadOutputAsync(cancellation.Token).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
                 if (data.IsEmpty)
-                {
-                    await Task.Delay(50, cts.Token);
-                    continue;
-                }
-                
-                var text = Encoding.UTF8.GetString(data.Span);
-                output.Append(text);
-                
-                // Check if we got a TTY path
-                if (output.ToString().Contains("/dev/"))
                     break;
+                output.Append(Encoding.UTF8.GetString(data.Span));
+                Assert.IsLessThanOrEqualTo(4096, output.Length, "Unexpected surplus tty output.");
+            }
+            Assert.AreEqual(0, await exitTask.WaitAsync(TimeSpan.FromSeconds(5)));
+            var device = output.ToString().Trim();
+            Assert.IsTrue(device.StartsWith("/dev/pts/", StringComparison.Ordinal) ||
+                device.StartsWith("/dev/tty", StringComparison.Ordinal), $"Expected PTY device path, got: {device}");
+            Assert.IsTrue(File.Exists(device), $"Reported PTY device must exist: {device}");
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await process.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            if (exitTask is not null)
+            {
+                try
+                {
+                    await exitTask.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                catch (OperationCanceledException) when (exitTask.IsCanceled && cancellation.IsCancellationRequested)
+                {
+                }
             }
         }
-        catch (OperationCanceledException)
-        {
-            // Timeout
-        }
-        
-        var result = output.ToString();
-        
-        // The tty command should output something like /dev/pts/0 or /dev/ttyp0
-        Assert.Contains("/dev/", result);
-        Assert.IsTrue(result.Contains("/dev/pts/") || result.Contains("/dev/tty"), $"Expected PTY device path, got: {result}");
     }
     
     /// <summary>
