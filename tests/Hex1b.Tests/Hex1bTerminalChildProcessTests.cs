@@ -5,8 +5,8 @@ namespace Hex1b.Tests;
 
 /// <summary>
 /// Tests for <see cref="Hex1bTerminalChildProcess"/>.
-/// These tests require Linux (for PTY support via forkpty).
-/// Tests that require Linux use runtime checks to skip on other platforms.
+/// Unix device-path assertions require Linux or macOS; isolated startup tests
+/// use fake PTY handles and run on every platform.
 /// </summary>
 [TestClass]
 public class Hex1bTerminalChildProcessTests
@@ -189,49 +189,48 @@ public class Hex1bTerminalChildProcessTests
     /// <summary>
     /// Verifies that echo command works through the PTY.
     /// </summary>
-    [TestMethod, Ignore("Test hangs - needs investigation")]
+    [TestMethod]
     [TestCategory("Unix")]
     public async Task Echo_WritesToOutput()
     {
-        await using var process = new Hex1bTerminalChildProcess(
-            "/bin/bash",
-            ["-c", "echo 'Hello from PTY!'"]
-        );
-        
-        await process.StartAsync();
-        
-        var output = new StringBuilder();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        
-        // Read output until we get our expected text or process exits
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+            Assert.Inconclusive("Requires a Unix PTY and /bin/echo.");
+
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(10));
+        var process = new Hex1bTerminalChildProcess("/bin/echo", ["Hello from PTY!"], inheritEnvironment: false);
+        Task<int>? exitTask = null;
         try
         {
-            while (!cts.Token.IsCancellationRequested)
+            await Task.Run(() => process.StartAsync(cancellation.Token)).WaitAsync(TimeSpan.FromSeconds(5));
+            exitTask = Task.Run(() => process.WaitForExitAsync(cancellation.Token));
+            var output = new StringBuilder();
+            while (true)
             {
-                var data = await process.ReadOutputAsync(cts.Token);
+                var data = await process.ReadOutputAsync(cancellation.Token).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
                 if (data.IsEmpty)
-                {
-                    // Empty read typically means process exited
                     break;
-                }
-                
                 output.Append(Encoding.UTF8.GetString(data.Span));
-                
-                // Early exit once we have the expected output
-                if (output.ToString().Contains("Hello from PTY!"))
-                    break;
+                Assert.IsLessThanOrEqualTo(4096, output.Length, "Unexpected surplus echo output.");
+            }
+            Assert.AreEqual(0, await exitTask.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.AreEqual("Hello from PTY!\r\n", output.ToString());
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await process.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            if (exitTask is not null)
+            {
+                try
+                {
+                    await exitTask.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                catch (OperationCanceledException) when (exitTask.IsCanceled && cancellation.IsCancellationRequested)
+                {
+                }
             }
         }
-        catch (OperationCanceledException)
-        {
-            // Timeout
-        }
-        
-        // Wait for exit
-        var exitCode = await process.WaitForExitAsync();
-        
-        Assert.AreEqual(0, exitCode);
-        Assert.Contains("Hello from PTY!", output.ToString());
     }
     
     /// <summary>
