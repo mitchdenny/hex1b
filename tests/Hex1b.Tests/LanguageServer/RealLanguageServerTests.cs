@@ -53,20 +53,66 @@ public class RealLanguageServerTests
         catch { return false; }
     }
 
+    private async Task RequireTypeScriptLsAsync()
+    {
+        Assert.IsTrue(Directory.Exists(_workspacePath), "The tracked LanguageServerDemo workspace must exist.");
+        System.Diagnostics.Process? process = null;
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("typescript-language-server", "--version")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            process = System.Diagnostics.Process.Start(psi);
+        }
+        catch (System.ComponentModel.Win32Exception error) when (error.NativeErrorCode == 2)
+        {
+            Assert.Inconclusive("Requires typescript-language-server and typescript on PATH.");
+        }
+
+        Assert.IsNotNull(process);
+        using (process)
+        using (var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken))
+        {
+            cancellation.CancelAfter(TimeSpan.FromSeconds(5));
+            var output = process.StandardOutput.ReadToEndAsync(cancellation.Token);
+            var error = process.StandardError.ReadToEndAsync(cancellation.Token);
+            try
+            {
+                await process.WaitForExitAsync(cancellation.Token).WaitAsync(TimeSpan.FromSeconds(5));
+                var version = await output;
+                var diagnostics = await error;
+                Assert.AreEqual(0, process.ExitCode, $"TypeScript LS version probe failed: {diagnostics}");
+                Assert.IsFalse(string.IsNullOrWhiteSpace(version), "Expected a TypeScript LS version.");
+            }
+            finally
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                await Task.WhenAll(output, error).WaitAsync(TimeSpan.FromSeconds(5));
+            }
+        }
+    }
+
     [TestMethod]
     public async Task TypeScriptLs_ReturnsSemanticTokens()
     {
-        if (!TypeScriptLsAvailable() || !Directory.Exists(_workspacePath))
-            return;
+        await RequireTypeScriptLsAsync();
 
         var config = new LanguageServerConfiguration();
         config.WithServerCommand("typescript-language-server", "--stdio");
         config.WithWorkingDirectory(_workspacePath);
-        config.RootUri = "file://" + _workspacePath;
+        config.RootUri = new Uri(_workspacePath).AbsoluteUri;
         config.LanguageId = "typescript";
 
         var client = new LanguageServerClient(config);
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(30));
 
         try
         {
@@ -74,28 +120,26 @@ public class RealLanguageServerTests
             Assert.IsNotNull(client.ServerCapabilities);
 
             var filePath = Path.Combine(_workspacePath, "TaskManager.ts");
-            var fileUri = "file://" + filePath;
+            var fileUri = new Uri(filePath).AbsoluteUri;
             var text = File.ReadAllText(filePath);
 
             await client.OpenDocumentAsync(fileUri, "typescript", text, cts.Token);
-
-            // TypeScript LS responds quickly — just wait briefly for project init
-            await Task.Delay(2000, cts.Token);
 
             var tokens = await client.RequestSemanticTokensAsync(fileUri, cts.Token);
 
             Assert.IsNotNull(tokens);
             Assert.IsTrue(tokens!.Data.Length > 0, "Expected semantic tokens from typescript-language-server");
+            Assert.AreEqual(0, tokens.Data.Length % 5, "Each semantic token must contain five integers.");
 
             // Verify token count is reasonable (TaskManager.ts should have 50+ tokens)
             var tokenCount = tokens.Data.Length / 5;
-            Assert.IsTrue(tokenCount > 20, $"Expected at least 20 semantic tokens, got {tokenCount}");
+            Assert.IsTrue(tokenCount > 20, $"Expected more than 20 semantic tokens, got {tokenCount}");
 
-            await client.StopAsync();
+            await client.StopAsync(cts.Token).WaitAsync(TimeSpan.FromSeconds(5));
         }
         finally
         {
-            await client.DisposeAsync();
+            await Task.Run(async () => await client.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
         }
     }
 
