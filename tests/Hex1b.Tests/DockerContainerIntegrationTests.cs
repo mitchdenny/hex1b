@@ -163,49 +163,72 @@ public class DockerContainerIntegrationTests
 
     [TestMethod]
     [DockerAvailableCondition]
-    public async Task WithDockerContainer_ContainerRemovedAfterDispose()
+    public async Task WithDockerContainer_NormalExit_RemovesContainer()
     {
         string containerName = $"hex1b-test-dispose-{Guid.NewGuid():N}"[..32];
-
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(30));
+        var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHeadless()
+            .WithDimensions(120, 24)
+            .WithDockerContainer(c =>
+            {
+                c.Image = "ubuntu:24.04";
+                c.Name = containerName;
+                c.Environment["PS1"] = "hex1b-remove> ";
+                c.Shell = "/bin/bash";
+                c.ShellArgs = ["--norc", "--noprofile", "-i"];
+            })
+            .Build();
+        var runTask = Task.Run(() => terminal.RunAsync(cancellation.Token));
+        try
         {
-            await using var terminal = Hex1bTerminal.CreateBuilder()
-                .WithHeadless()
-                .WithDimensions(120, 24)
-                .WithDockerContainer(c =>
-                {
-                    c.Image = "ubuntu:24.04";
-                    c.Name = containerName;
-                    c.Shell = "/bin/bash";
-                    c.ShellArgs = ["--norc", "--noprofile"];
-                })
-                .Build();
-
-            var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
-
             await new Hex1bTerminalInputSequenceBuilder()
-                .Wait(TimeSpan.FromSeconds(3))
+                .WaitUntil(s => s.ContainsText("hex1b-remove>"), TimeSpan.FromSeconds(15), "container shell ready")
                 .Type("exit").Enter()
                 .Build()
-                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-            await runTask;
+                .ApplyAsync(terminal, cancellation.Token);
+            Assert.AreEqual(0, await runTask.WaitAsync(TimeSpan.FromSeconds(5), cancellation.Token));
         }
-
-        // After dispose, verify container is gone
-        await Task.Delay(1000);
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await terminal.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            try
+            {
+                await runTask.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (OperationCanceledException) when (runTask.IsCanceled && cancellation.IsCancellationRequested)
+            {
+            }
+        }
 
         var psi = new System.Diagnostics.ProcessStartInfo("docker", ["ps", "-a", "--filter", $"name={containerName}", "--format", "{{.Names}}"])
         {
             RedirectStandardOutput = true,
+            RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
-
+        using var queryTimeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        queryTimeout.CancelAfter(TimeSpan.FromSeconds(10));
         using var proc = System.Diagnostics.Process.Start(psi)!;
-        var output = await proc.StandardOutput.ReadToEndAsync();
-        await proc.WaitForExitAsync();
-
-        Assert.DoesNotContain(containerName, output);
+        try
+        {
+            var output = proc.StandardOutput.ReadToEndAsync(queryTimeout.Token);
+            var errors = proc.StandardError.ReadToEndAsync(queryTimeout.Token);
+            await proc.WaitForExitAsync(queryTimeout.Token).WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.AreEqual(0, proc.ExitCode, await errors);
+            Assert.DoesNotContain(containerName, await output);
+        }
+        finally
+        {
+            if (!proc.HasExited)
+            {
+                proc.Kill(entireProcessTree: true);
+                await proc.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            }
+        }
     }
 
     [TestMethod]
