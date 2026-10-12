@@ -5,8 +5,8 @@ namespace Hex1b.Tests;
 
 /// <summary>
 /// Tests for <see cref="Hex1bTerminalChildProcess"/>.
-/// These tests require Linux (for PTY support via forkpty).
-/// Tests that require Linux use runtime checks to skip on other platforms.
+/// Unix device-path assertions require Linux or macOS; isolated startup tests
+/// use fake PTY handles and run on every platform.
 /// </summary>
 [TestClass]
 public class Hex1bTerminalChildProcessTests
@@ -241,56 +241,58 @@ public class Hex1bTerminalChildProcessTests
     [TestCategory("Unix")]
     public async Task WriteInput_IsEchoedBack()
     {
-        // Skip on non-Linux platforms - PTY support requires Linux
-        if (!OperatingSystem.IsLinux())
-            return;
-        
-        // Launch cat which will echo input back
-        await using var process = new Hex1bTerminalChildProcess(
-            "/bin/cat",
-            []
-        );
-        
-        await process.StartAsync();
-        
-        // Write some input
-        var input = "test input\n";
-        await process.WriteInputAsync(Encoding.UTF8.GetBytes(input));
-        
-        // Read output
-        var output = new StringBuilder();
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+            Assert.Inconclusive("Requires a Unix PTY and /bin/cat.");
+
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(15));
+        var process = new Hex1bTerminalChildProcess("/bin/sh",
+            ["-c", "/bin/stty -echo; printf ready; exec /bin/cat"], inheritEnvironment: false);
+        Task<int>? exitTask = null;
         try
         {
-            while (!cts.Token.IsCancellationRequested)
+            await Task.Run(() => process.StartAsync(cancellation.Token)).WaitAsync(TimeSpan.FromSeconds(5));
+            var ready = new StringBuilder();
+            while (ready.Length < "ready".Length)
             {
-                var data = await process.ReadOutputAsync(cts.Token);
+                var data = await process.ReadOutputAsync(cancellation.Token).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.IsFalse(data.IsEmpty, "The child exited before disabling terminal echo.");
+                ready.Append(Encoding.UTF8.GetString(data.Span));
+            }
+            Assert.AreEqual("ready", ready.ToString());
+
+            await Task.Run(async () => await process.WriteInputAsync("test input\nsecond line\n"u8.ToArray(), cancellation.Token))
+                .WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.Run(async () => await process.WriteInputAsync(new byte[] { 0x04 }, cancellation.Token))
+                .WaitAsync(TimeSpan.FromSeconds(5));
+            exitTask = Task.Run(() => process.WaitForExitAsync(cancellation.Token));
+            var output = new StringBuilder();
+            while (true)
+            {
+                var data = await process.ReadOutputAsync(cancellation.Token).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
                 if (data.IsEmpty)
-                {
-                    await Task.Delay(50, cts.Token);
-                    continue;
-                }
-                
-                output.Append(Encoding.UTF8.GetString(data.Span));
-                
-                // Cat should echo back our input
-                if (output.ToString().Contains("test input"))
                     break;
+                output.Append(Encoding.UTF8.GetString(data.Span));
+                Assert.IsLessThanOrEqualTo(4096, output.Length, "Unexpected surplus cat output.");
+            }
+            Assert.AreEqual(0, await exitTask.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.AreEqual("test input\r\nsecond line\r\n", output.ToString());
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await process.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            if (exitTask is not null)
+            {
+                try
+                {
+                    await exitTask.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                catch (OperationCanceledException) when (exitTask.IsCanceled && cancellation.IsCancellationRequested)
+                {
+                }
             }
         }
-        catch (OperationCanceledException)
-        {
-            // Timeout
-        }
-        
-        Assert.Contains("test input", output.ToString());
-        
-        // Send EOF (Ctrl+D)
-        await process.WriteInputAsync(new byte[] { 0x04 });
-        
-        var exitCode = await process.WaitForExitAsync(CancellationToken.None);
-        Assert.AreEqual(0, exitCode);
     }
     
     /// <summary>
