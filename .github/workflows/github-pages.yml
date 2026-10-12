@@ -1,0 +1,121 @@
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/site/**'
+      - 'src/Aspire.Hosting.GitHubPages/**'
+      - 'tests/Aspire.Hosting.GitHubPages.Tests/**'
+      - '.github/scripts/github-pages/**'
+      - '.github/workflows/github-pages.yml'
+      - 'apphost.cs'
+      - 'Directory.Build.props'
+      - 'NuGet.config'
+      - 'global.json'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/site/**'
+      - 'src/Aspire.Hosting.GitHubPages/**'
+      - 'tests/Aspire.Hosting.GitHubPages.Tests/**'
+      - '.github/scripts/github-pages/**'
+      - '.github/workflows/github-pages.yml'
+      - 'apphost.cs'
+      - 'Directory.Build.props'
+      - 'NuGet.config'
+      - 'global.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install Aspire 13.6.1
+        run: |
+          curl -fsSL https://aspire.dev/install.sh | bash -s -- --version 13.6.1
+          echo "$HOME/.aspire/bin" >> "$GITHUB_PATH"
+      - name: Test Pages hosting and publisher
+        run: |
+          dotnet test tests/Aspire.Hosting.GitHubPages.Tests/Aspire.Hosting.GitHubPages.Tests.csproj
+          npm ci --prefix .github/scripts/github-pages --no-audit --no-fund
+          npm test --prefix .github/scripts/github-pages
+      - name: Build Pages without publication
+        run: aspire do extract-new-site --apphost ./apphost.cs --non-interactive
+
+  publish:
+    needs: validate
+    # Temporary bring-up policy: trusted PRs replace the same site as main.
+    if: >-
+      vars.HEX1B_PAGES_PUBLICATION_ENABLED == 'true' &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.head.repo.full_name == github.repository &&
+        github.actor != 'dependabot[bot]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install Aspire 13.6.1
+        run: |
+          curl -fsSL https://aspire.dev/install.sh | bash -s -- --version 13.6.1
+          echo "$HOME/.aspire/bin" >> "$GITHUB_PATH"
+      - name: Publish with Aspire
+        id: pages
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { spawn } = require('node:child_process');
+            const idToken = await core.getIDToken();
+            await new Promise((resolve, reject) => {
+              const child = spawn('aspire', [
+                'do', 'deploy-new-site',
+                '--apphost', './apphost.cs', '--non-interactive'
+              ], {
+                stdio: 'inherit',
+                env: {
+                  ...process.env,
+                  GITHUB_TOKEN: process.env.PAGES_TOKEN,
+                  HEX1B_PAGES_ID_TOKEN: idToken
+                }
+              });
+              child.on('error', reject);
+              child.on('exit', (code, signal) => {
+                if (code === 0) resolve();
+                else reject(new Error(`Pages publication failed (exit ${code}, signal ${signal}).`));
+              });
+            });
+        env:
+          PAGES_TOKEN: ${{ github.token }}
