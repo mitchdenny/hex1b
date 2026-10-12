@@ -63,7 +63,7 @@ the temporary PR publication policy from the workflow.
 ## Focused checks
 
 ```sh
-dotnet test tests/Hex1b.Hosting.GitHubPages.Tests/Hex1b.Hosting.GitHubPages.Tests.csproj
+dotnet test tests/Aspire.Hosting.GitHubPages.Tests/Aspire.Hosting.GitHubPages.Tests.csproj
 npm ci --prefix .github/scripts/github-pages
 npm test --prefix .github/scripts/github-pages
 aspire do publish-github-pages-new-site --apphost ./apphost.cs --list-steps --non-interactive

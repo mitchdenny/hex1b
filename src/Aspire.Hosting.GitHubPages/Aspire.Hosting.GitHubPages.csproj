@@ -1,14 +1,14 @@
-<Project Sdk="MSTest.Sdk/4.2.3">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <IsPackable>false</IsPackable>
-    <OutputType>Exe</OutputType>
-    <NoWarn>$(NoWarn);ASPIREPIPELINES001</NoWarn>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Hex1b.Hosting.GitHubPages/Hex1b.Hosting.GitHubPages.csproj" />
+    <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.6.1" />
+    <InternalsVisibleTo Include="Aspire.Hosting.GitHubPages.Tests" />
   </ItemGroup>
 </Project>

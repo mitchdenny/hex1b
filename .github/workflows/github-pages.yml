@@ -5,8 +5,8 @@ on:
     branches: [main]
     paths:
       - 'src/site/**'
-      - 'src/Hex1b.Hosting.GitHubPages/**'
-      - 'tests/Hex1b.Hosting.GitHubPages.Tests/**'
+      - 'src/Aspire.Hosting.GitHubPages/**'
+      - 'tests/Aspire.Hosting.GitHubPages.Tests/**'
       - '.github/scripts/github-pages/**'
       - '.github/workflows/github-pages.yml'
       - 'apphost.cs'
@@ -17,8 +17,8 @@ on:
     branches: [main]
     paths:
       - 'src/site/**'
-      - 'src/Hex1b.Hosting.GitHubPages/**'
-      - 'tests/Hex1b.Hosting.GitHubPages.Tests/**'
+      - 'src/Aspire.Hosting.GitHubPages/**'
+      - 'tests/Aspire.Hosting.GitHubPages.Tests/**'
       - '.github/scripts/github-pages/**'
       - '.github/workflows/github-pages.yml'
       - 'apphost.cs'
@@ -51,7 +51,7 @@ jobs:
           echo "$HOME/.aspire/bin" >> "$GITHUB_PATH"
       - name: Test Pages hosting and publisher
         run: |
-          dotnet test tests/Hex1b.Hosting.GitHubPages.Tests/Hex1b.Hosting.GitHubPages.Tests.csproj
+          dotnet test tests/Aspire.Hosting.GitHubPages.Tests/Aspire.Hosting.GitHubPages.Tests.csproj
           npm ci --prefix .github/scripts/github-pages --no-audit --no-fund
           npm test --prefix .github/scripts/github-pages
       - name: Build Pages without publication

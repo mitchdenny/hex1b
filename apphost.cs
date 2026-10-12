@@ -1,7 +1,7 @@
 #:sdk Aspire.AppHost.Sdk@13.6.1
 #:package Aspire.Hosting.JavaScript@13.6.1
 #:package Aspire.Hosting.Azure.AppContainers@13.6.1
-#:project ./src/Hex1b.Hosting.GitHubPages/Hex1b.Hosting.GitHubPages.csproj
+#:project ./src/Aspire.Hosting.GitHubPages/Aspire.Hosting.GitHubPages.csproj
 #:property TreatProjectReferencesAsResources=false
 
 using Aspire.Hosting.Pipelines;

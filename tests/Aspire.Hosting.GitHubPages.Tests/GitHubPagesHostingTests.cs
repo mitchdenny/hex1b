@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Hex1b.Hosting.GitHubPages.Tests;
+namespace Aspire.Hosting.GitHubPages.Tests;
 
 [TestClass]
 public class GitHubPagesHostingTests
