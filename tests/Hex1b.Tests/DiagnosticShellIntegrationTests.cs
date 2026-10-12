@@ -222,7 +222,8 @@ public class DiagnosticShellIntegrationTests
     /// </summary>
     private sealed class DiagnosticTestContext : IAsyncDisposable
     {
-        private readonly CancellationTokenSource _cts = new();
+        private readonly CancellationTokenSource _cts =
+            CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         private readonly OutputReceivedTracer? _outputTracer;
         
         public DataFlowTracer Tracer { get; }
@@ -233,6 +234,7 @@ public class DiagnosticShellIntegrationTests
         public Hex1bApp? App { get; private set; }
         
         private Task? _runTask;
+        private Task? _innerRunTask;
         
         private DiagnosticTestContext(
             Hex1bTerminal outerTerminal,
@@ -324,14 +326,7 @@ public class DiagnosticShellIntegrationTests
             Tracer.Log("Test", "Starting inner terminal");
             
             // Start the inner terminal (runs the diagnostic shell)
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await InnerTerminal.RunAsync(_cts.Token);
-                }
-                catch (OperationCanceledException) { }
-            });
+            _innerRunTask = InnerTerminal.RunAsync(_cts.Token);
             
             // The diagnostic shell writes to an unbounded channel, so we can prime the
             // initial greeting/prompt immediately without relying on a timing delay.
@@ -371,8 +366,8 @@ public class DiagnosticShellIntegrationTests
 
         public async Task WaitForPromptAsync(TimeSpan timeout)
         {
-            var deadline = DateTimeOffset.Now + timeout;
-            while (DateTimeOffset.Now < deadline)
+            var elapsed = Stopwatch.StartNew();
+            while (elapsed.Elapsed < timeout)
             {
                 using var snapshot = InnerTerminal.CreateSnapshot();
                 if (GetLastNonEmptyLine(snapshot) == "diag>")
@@ -380,7 +375,7 @@ public class DiagnosticShellIntegrationTests
                     Tracer.Log("Test", "Prompt ready");
                     return;
                 }
-                await Task.Delay(50);
+                await Task.Delay(50, _cts.Token);
             }
 
             Tracer.Log("Test", "Timeout waiting for prompt");
@@ -393,8 +388,8 @@ public class DiagnosticShellIntegrationTests
         /// </summary>
         public async Task<bool> WaitForTextAsync(string text, TimeSpan timeout)
         {
-            var deadline = DateTimeOffset.Now + timeout;
-            while (DateTimeOffset.Now < deadline)
+            var elapsed = Stopwatch.StartNew();
+            while (elapsed.Elapsed < timeout)
             {
                 using var snapshot = OuterTerminal.CreateSnapshot();
                 var content = GetSnapshotText(snapshot);
@@ -403,7 +398,7 @@ public class DiagnosticShellIntegrationTests
                     Tracer.Log("Test", $"Found text: {text}");
                     return true;
                 }
-                await Task.Delay(50);
+                await Task.Delay(50, _cts.Token);
             }
             Tracer.Log("Test", $"Timeout waiting for text: {text}");
             return false;
@@ -458,19 +453,36 @@ public class DiagnosticShellIntegrationTests
             Tracer.Log("Test", "Disposing");
             _cts.Cancel();
             
-            if (_runTask != null)
+            try
             {
-                try { await _runTask.WaitAsync(TimeSpan.FromSeconds(5)); }
-                catch { }
+                await Task.WhenAll(_runTask ?? Task.CompletedTask, _innerRunTask ?? Task.CompletedTask)
+                    .WaitAsync(TimeSpan.FromSeconds(5));
             }
-            
-            _outputTracer?.Dispose();
-            InnerTerminal.Dispose();
-            OuterTerminal.Dispose();
-            await DiagShell.DisposeAsync();
-            
-            // Print all traced events
-            Tracer.PrintEvents();
+            catch (OperationCanceledException) when (_cts.IsCancellationRequested &&
+                _runTask?.IsFaulted != true && _innerRunTask?.IsFaulted != true)
+            {
+            }
+            finally
+            {
+                _outputTracer?.Dispose();
+                try
+                {
+                    await InnerTerminal.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                finally
+                {
+                    try
+                    {
+                        await OuterTerminal.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+                    }
+                    finally
+                    {
+                        await DiagShell.DisposeAsync();
+                        _cts.Dispose();
+                        Tracer.PrintEvents();
+                    }
+                }
+            }
         }
     }
     
@@ -496,50 +508,21 @@ public class DiagnosticShellIntegrationTests
         Assert.Contains("dump", content);
     }
     
-    [TestMethod, Ignore("Flaky - timing-sensitive diagnostic shell test")]
+    [TestMethod]
     public async Task DiagnosticShell_PingCommand_RespondsImmediately()
     {
-        // Arrange
         await using var ctx = DiagnosticTestContext.Create();
-        
-        // First verify inner terminal content before starting outer
-        await Task.Delay(200);
-        var innerContentBefore = ctx.GetInnerContent();
-        Console.Error.WriteLine($"Inner content before start: [{innerContentBefore.Trim()}]");
-        
         await ctx.StartAsync();
-        
-        // Act
-        var beforePing = DateTimeOffset.Now;
+        await ctx.WaitForPromptAsync(TimeSpan.FromSeconds(5));
+        var elapsed = Stopwatch.StartNew();
         await ctx.SendCommandAsync("ping");
-        
-        // Wait for pong response (case-insensitive - output is PONG)
-        var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(5));
-        var afterPong = DateTimeOffset.Now;
-        
-        // Dump diagnostic info to stderr (which shows in test output)
-        Console.Error.WriteLine("=== Traced Events ===");
-        foreach (var evt in ctx.Tracer.GetEvents())
-        {
-            var dataPreview = evt.Data != null 
-                ? $" [{evt.Data.Length} chars: {Truncate(evt.Data, 60)}]" 
-                : "";
-            Console.Error.WriteLine($"[{evt.Time:HH:mm:ss.fff}] {evt.Source}: {evt.Event}{dataPreview}");
-        }
-        
-        Console.Error.WriteLine("\n=== Outer Terminal Content ===");
-        Console.Error.WriteLine(ctx.GetOuterContent());
-        
-        Console.Error.WriteLine("\n=== Inner Terminal Content ===");
-        Console.Error.WriteLine(ctx.GetInnerContent());
-        
-        // Assert
-        Assert.IsTrue(foundPong, "Should receive 'pong' response");
-        Assert.IsTrue((afterPong - beforePing).TotalMilliseconds < 3000, $"Pong should appear within 3s, took {(afterPong - beforePing).TotalMilliseconds}ms");
+        var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(3));
+        elapsed.Stop();
+
+        Assert.IsTrue(foundPong, $"Should receive PONG.\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
+        Assert.IsLessThan(TimeSpan.FromSeconds(3), elapsed.Elapsed,
+            $"Pong should appear within 3s, took {elapsed.Elapsed.TotalMilliseconds}ms");
     }
-    
-    private static string Truncate(string s, int maxLen) 
-        => s.Length <= maxLen ? s.Replace("\n", "\\n").Replace("\r", "\\r") : s[..maxLen].Replace("\n", "\\n").Replace("\r", "\\r") + "...";
     
     [TestMethod]
     public async Task DiagnosticShell_MultipleCommands_AllRender()
