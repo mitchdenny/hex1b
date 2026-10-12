@@ -53,6 +53,53 @@ public class RealLanguageServerTests
         catch { return false; }
     }
 
+    private async Task RequireTypeScriptLsAsync()
+    {
+        Assert.IsTrue(Directory.Exists(_workspacePath), "The tracked LanguageServerDemo workspace must exist.");
+        Assert.IsTrue(File.Exists(Path.Combine(_workspacePath, "TaskManager.ts")), "The tracked TaskManager.ts fixture must exist.");
+        System.Diagnostics.Process? process = null;
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("typescript-language-server", "--version")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            process = System.Diagnostics.Process.Start(psi);
+        }
+        catch (System.ComponentModel.Win32Exception error) when (error.NativeErrorCode == 2)
+        {
+            Assert.Inconclusive("Requires typescript-language-server and typescript on PATH.");
+        }
+
+        Assert.IsNotNull(process);
+        using (process)
+        using (var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken))
+        {
+            cancellation.CancelAfter(TimeSpan.FromSeconds(5));
+            var output = process.StandardOutput.ReadToEndAsync(cancellation.Token);
+            var error = process.StandardError.ReadToEndAsync(cancellation.Token);
+            try
+            {
+                await process.WaitForExitAsync(cancellation.Token).WaitAsync(TimeSpan.FromSeconds(5));
+                var version = await output;
+                var diagnostics = await error;
+                Assert.AreEqual(0, process.ExitCode, $"TypeScript LS version probe failed: {diagnostics}");
+                Assert.IsFalse(string.IsNullOrWhiteSpace(version), "Expected a TypeScript LS version.");
+            }
+            finally
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                await Task.WhenAll(output, error).WaitAsync(TimeSpan.FromSeconds(5));
+            }
+        }
+    }
+
     [TestMethod]
     public async Task TypeScriptLs_ReturnsSemanticTokens()
     {
@@ -140,28 +187,27 @@ public class RealLanguageServerTests
     [TestMethod]
     public async Task TypeScriptLs_ReturnsCompletions()
     {
-        if (!TypeScriptLsAvailable() || !Directory.Exists(_workspacePath))
-            return;
+        await RequireTypeScriptLsAsync();
 
         var config = new LanguageServerConfiguration();
         config.WithServerCommand("typescript-language-server", "--stdio");
         config.WithWorkingDirectory(_workspacePath);
-        config.RootUri = "file://" + _workspacePath;
+        config.RootUri = new Uri(_workspacePath).AbsoluteUri;
         config.LanguageId = "typescript";
 
         var client = new LanguageServerClient(config);
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(15));
 
         try
         {
             await client.StartAsync(cts.Token);
 
             var filePath = Path.Combine(_workspacePath, "TaskManager.ts");
-            var fileUri = "file://" + filePath;
+            var fileUri = new Uri(filePath).AbsoluteUri;
             var text = File.ReadAllText(filePath);
 
             await client.OpenDocumentAsync(fileUri, "typescript", text, cts.Token);
-            await Task.Delay(2000, cts.Token);
 
             // Request completions after "this." on line that has it
             // Find a line with "this." and request at its position
@@ -188,12 +234,16 @@ public class RealLanguageServerTests
             // Should contain class members
             var labels = completions.Items.Select(i => i.Label).ToList();
             Assert.IsTrue(labels.Any(l => !string.IsNullOrEmpty(l)));
+            Assert.Contains("tasks", labels);
+            Assert.Contains("nextId", labels);
+            Assert.Contains("add", labels);
+            Assert.Contains("complete", labels);
 
-            await client.StopAsync();
+            await client.StopAsync(cts.Token).WaitAsync(TimeSpan.FromSeconds(5));
         }
         finally
         {
-            await client.DisposeAsync();
+            await Task.Run(async () => await client.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
         }
     }
 
