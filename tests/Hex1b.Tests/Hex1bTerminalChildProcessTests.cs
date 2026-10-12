@@ -5,8 +5,8 @@ namespace Hex1b.Tests;
 
 /// <summary>
 /// Tests for <see cref="Hex1bTerminalChildProcess"/>.
-/// These tests require Linux (for PTY support via forkpty).
-/// Tests that require Linux use runtime checks to skip on other platforms.
+/// Unix device-path assertions require Linux or macOS; isolated startup tests
+/// use fake PTY handles and run on every platform.
 /// </summary>
 [TestClass]
 public class Hex1bTerminalChildProcessTests
@@ -376,52 +376,52 @@ public class Hex1bTerminalChildProcessTests
     /// <summary>
     /// Verifies that the process integrates with Hex1bTerminal as a workload adapter.
     /// </summary>
-    [TestMethod, Ignore("Flaky test - needs investigation")]
+    [TestMethod]
     [TestCategory("Unix")]
     public async Task Integration_WithHex1bTerminal()
     {
-        
-        // Launch bash that prints something recognizable
-        await using var process = new Hex1bTerminalChildProcess(
-            "/bin/bash",
-            ["-c", "echo 'PTY_TEST_MARKER'; exit 0"]
-        );
-        
-        await process.StartAsync();
-        
-        // Create a capturing presentation adapter
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+            Assert.Inconclusive("Requires a Unix PTY and /bin/echo.");
+
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(15));
+        var process = new Hex1bTerminalChildProcess("/bin/echo", ["PTY_TEST_MARKER"], inheritEnvironment: false);
         var presentation = new CapturingTestPresentationAdapter();
-        
-        // Create a Hex1bTerminal with both workload and presentation
-        // This will auto-start the pump
-        using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
         {
             PresentationAdapter = presentation,
             WorkloadAdapter = process,
             Width = 80,
             Height = 24
         });
-        
-        // Wait for output to appear in the captured output
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        
-        while (!cts.Token.IsCancellationRequested)
+        Task<int>? runTask = null;
+        Task<int>? exitTask = null;
+        try
         {
-            if (presentation.CapturedOutput.Contains("PTY_TEST_MARKER"))
-                break;
-            
-            if (process.HasExited)
-            {
-                // Give it a little more time to pump remaining data
-                await Task.Delay(200, cts.Token);
-                break;
-            }
-                
-            await Task.Delay(50, cts.Token);
+            await Task.Run(() => process.StartAsync(cancellation.Token)).WaitAsync(TimeSpan.FromSeconds(5));
+            runTask = terminal.RunAsync(cancellation.Token);
+            exitTask = Task.Run(() => process.WaitForExitAsync(cancellation.Token));
+            Assert.AreEqual(0, await runTask.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.AreEqual(0, await exitTask.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Contains("PTY_TEST_MARKER\r\n", presentation.CapturedOutput);
         }
-        
-        // Verify the output appeared in the presentation
-        Assert.Contains("PTY_TEST_MARKER", presentation.CapturedOutput);
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await terminal.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            foreach (var task in new[] { runTask, exitTask })
+            {
+                if (task is null)
+                    continue;
+                try
+                {
+                    await task.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                catch (OperationCanceledException) when (task.IsCanceled && cancellation.IsCancellationRequested)
+                {
+                }
+            }
+        }
     }
     
     /// <summary>
@@ -460,8 +460,11 @@ public class Hex1bTerminalChildProcessTests
             return ValueTask.CompletedTask;
         }
         
-        public ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
-            => new(Task.Delay(Timeout.Infinite, ct).ContinueWith(_ => ReadOnlyMemory<byte>.Empty));
+        public async ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
+        {
+            await Task.Delay(Timeout.Infinite, ct);
+            return ReadOnlyMemory<byte>.Empty;
+        }
         
         public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
         public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
