@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using Hex1b.Documents;
 using Hex1b.LanguageServer;
 using Hex1b.LanguageServer.Protocol;
@@ -14,6 +15,7 @@ namespace Hex1b.Tests.LanguageServer;
 public class RealLanguageServerTests
 {
     private readonly string _workspacePath;
+    public TestContext TestContext { get; set; } = null!;
 
     public RealLanguageServerTests()
     {
@@ -51,52 +53,6 @@ public class RealLanguageServerTests
             return p?.ExitCode == 0;
         }
         catch { return false; }
-    }
-
-    private async Task RequireTypeScriptLsAsync()
-    {
-        Assert.IsTrue(Directory.Exists(_workspacePath), "The tracked LanguageServerDemo workspace must exist.");
-        System.Diagnostics.Process? process = null;
-        try
-        {
-            var psi = new System.Diagnostics.ProcessStartInfo("typescript-language-server", "--version")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-            };
-            process = System.Diagnostics.Process.Start(psi);
-        }
-        catch (System.ComponentModel.Win32Exception error) when (error.NativeErrorCode == 2)
-        {
-            Assert.Inconclusive("Requires typescript-language-server and typescript on PATH.");
-        }
-
-        Assert.IsNotNull(process);
-        using (process)
-        using (var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken))
-        {
-            cancellation.CancelAfter(TimeSpan.FromSeconds(5));
-            var output = process.StandardOutput.ReadToEndAsync(cancellation.Token);
-            var error = process.StandardError.ReadToEndAsync(cancellation.Token);
-            try
-            {
-                await process.WaitForExitAsync(cancellation.Token).WaitAsync(TimeSpan.FromSeconds(5));
-                var version = await output;
-                var diagnostics = await error;
-                Assert.AreEqual(0, process.ExitCode, $"TypeScript LS version probe failed: {diagnostics}");
-                Assert.IsFalse(string.IsNullOrWhiteSpace(version), "Expected a TypeScript LS version.");
-            }
-            finally
-            {
-                if (!process.HasExited)
-                {
-                    process.Kill(entireProcessTree: true);
-                    await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
-                }
-                await Task.WhenAll(output, error).WaitAsync(TimeSpan.FromSeconds(5));
-            }
-        }
     }
 
     [TestMethod]
@@ -146,66 +102,113 @@ public class RealLanguageServerTests
     [TestMethod]
     public async Task TypeScriptLs_ViaWorkspace_ReturnsTokens()
     {
-        if (!TypeScriptLsAvailable() || !Directory.Exists(_workspacePath))
-            return;
+        await RequireTypeScriptLsAsync();
 
-        await using var workspace = new Hex1bDocumentWorkspace(_workspacePath);
-        workspace.AddLanguageServer("ts-ls", lsp => lsp
-            .WithServerCommand("typescript-language-server", "--stdio")
-            .WithLanguageId("typescript"));
-        workspace.MapLanguageServer("*.ts", "ts-ls");
-
-        var doc = await workspace.OpenDocumentAsync("TaskManager.ts");
-        var provider = workspace.GetProvider(doc);
-        Assert.IsNotNull(provider);
-
-        // Activate the provider with a minimal session
-        var state = new EditorState(doc);
-        var session = new TestEditorSession(state);
-        provider.Activate(session);
-
-        // Wait for typescript-language-server to load and return tokens
-        var deadline = DateTime.UtcNow.AddSeconds(15);
-        IReadOnlyList<TextDecorationSpan>? decorations = null;
-        while (DateTime.UtcNow < deadline)
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(30));
+        var workspace = new Hex1bDocumentWorkspace(_workspacePath);
+        try
         {
-            await Task.Delay(1000);
-            decorations = provider.GetDecorations(1, doc.LineCount, doc);
-            if (decorations.Count > 0)
-                break;
+            workspace.AddLanguageServer("ts-ls", lsp => lsp
+                .WithServerCommand("typescript-language-server", "--stdio")
+                .WithLanguageId("typescript"));
+            workspace.MapLanguageServer("*.ts", "ts-ls");
+
+            var doc = await workspace.OpenDocumentAsync("TaskManager.ts", cancellation.Token);
+            var provider = workspace.GetProvider(doc);
+            Assert.IsNotNull(provider);
+            var session = new TestEditorSession(new EditorState(doc));
+            provider.Activate(session);
+
+            IReadOnlyList<TextDecorationSpan> decorations;
+            do
+            {
+                await session.WaitForInvalidationAsync(cancellation.Token).AsTask().WaitAsync(TimeSpan.FromSeconds(30));
+                decorations = provider.GetDecorations(1, doc.LineCount, doc);
+            } while (!decorations.Any(span => span.Decoration.ForegroundThemeElement is not null));
+
+            Assert.IsTrue(decorations.Count > 0, "Expected semantic token decorations from typescript-language-server");
+            Assert.IsTrue(provider.IsConnected);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await workspace.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+        }
+    }
+
+    private async Task RequireTypeScriptLsAsync()
+    {
+        Assert.IsTrue(Directory.Exists(_workspacePath), "The tracked LanguageServerDemo workspace must exist.");
+        Assert.IsTrue(File.Exists(Path.Combine(_workspacePath, "TaskManager.ts")), "The tracked TaskManager.ts fixture must exist.");
+        System.Diagnostics.Process? process = null;
+        try
+        {
+            process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                "typescript-language-server", "--version")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            });
+        }
+        catch (System.ComponentModel.Win32Exception error) when (error.NativeErrorCode == 2)
+        {
+            Assert.Inconclusive("Requires typescript-language-server and typescript on PATH.");
         }
 
-        Assert.IsNotNull(decorations);
-        Assert.IsTrue(decorations.Count > 0, "Expected semantic token decorations from typescript-language-server");
-
-        provider.Deactivate();
+        Assert.IsNotNull(process);
+        using (process)
+        using (var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken))
+        {
+            cancellation.CancelAfter(TimeSpan.FromSeconds(5));
+            var output = process.StandardOutput.ReadToEndAsync();
+            var error = process.StandardError.ReadToEndAsync();
+            try
+            {
+                await process.WaitForExitAsync(cancellation.Token).WaitAsync(TimeSpan.FromSeconds(5));
+                var version = await output.WaitAsync(TimeSpan.FromSeconds(5));
+                var diagnostics = await error.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.AreEqual(0, process.ExitCode, $"TypeScript LS version probe failed: {diagnostics}");
+                Assert.IsFalse(string.IsNullOrWhiteSpace(version), "Expected a TypeScript LS version.");
+                TestContext.WriteLine($"TypeScript LS version: {version.Trim()}");
+            }
+            finally
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                await Task.WhenAll(output, error).WaitAsync(TimeSpan.FromSeconds(5));
+            }
+        }
     }
 
     [TestMethod]
     public async Task TypeScriptLs_ReturnsCompletions()
     {
-        if (!TypeScriptLsAvailable() || !Directory.Exists(_workspacePath))
-            return;
+        await RequireTypeScriptLsAsync();
 
         var config = new LanguageServerConfiguration();
         config.WithServerCommand("typescript-language-server", "--stdio");
         config.WithWorkingDirectory(_workspacePath);
-        config.RootUri = "file://" + _workspacePath;
+        config.RootUri = new Uri(_workspacePath).AbsoluteUri;
         config.LanguageId = "typescript";
 
         var client = new LanguageServerClient(config);
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(15));
 
         try
         {
             await client.StartAsync(cts.Token);
 
             var filePath = Path.Combine(_workspacePath, "TaskManager.ts");
-            var fileUri = "file://" + filePath;
+            var fileUri = new Uri(filePath).AbsoluteUri;
             var text = File.ReadAllText(filePath);
 
             await client.OpenDocumentAsync(fileUri, "typescript", text, cts.Token);
-            await Task.Delay(2000, cts.Token);
 
             // Request completions after "this." on line that has it
             // Find a line with "this." and request at its position
@@ -232,22 +235,27 @@ public class RealLanguageServerTests
             // Should contain class members
             var labels = completions.Items.Select(i => i.Label).ToList();
             Assert.IsTrue(labels.Any(l => !string.IsNullOrEmpty(l)));
+            Assert.Contains("tasks", labels);
+            Assert.Contains("nextId", labels);
+            Assert.Contains("add", labels);
+            Assert.Contains("complete", labels);
 
-            await client.StopAsync();
+            await client.StopAsync(cts.Token).WaitAsync(TimeSpan.FromSeconds(5));
         }
         finally
         {
-            await client.DisposeAsync();
+            await Task.Run(async () => await client.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
         }
     }
 
     private sealed class TestEditorSession : IEditorSession
     {
+        private readonly Channel<byte> _invalidations = Channel.CreateUnbounded<byte>();
         public TestEditorSession(EditorState state) => State = state;
         public EditorState State { get; }
         public TerminalCapabilities Capabilities => TerminalCapabilities.Modern;
-        public bool Invalidated { get; private set; }
-        public void Invalidate() => Invalidated = true;
+        public void Invalidate() => _invalidations.Writer.TryWrite(0);
+        public ValueTask<byte> WaitForInvalidationAsync(CancellationToken ct) => _invalidations.Reader.ReadAsync(ct);
         public void PushOverlay(EditorOverlay overlay) { }
         public void DismissOverlay(string id) { }
         public IReadOnlyList<EditorOverlay> ActiveOverlays => [];

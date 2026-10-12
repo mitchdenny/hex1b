@@ -27,6 +27,9 @@ internal sealed class TestLanguageServer : IAsyncDisposable
     /// <summary>Client writes to this stream (server's stdin).</summary>
     public Stream ClientOutput { get; }
 
+    public bool IgnoreShutdownRequests { get; init; }
+    public TaskCompletionSource ShutdownRequested { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     public TestLanguageServer()
     {
         // Create two pipes: client→server and server→client
@@ -136,7 +139,9 @@ internal sealed class TestLanguageServer : IAsyncDisposable
                 break;
 
             case "shutdown":
-                await SendResponseAsync(idElement.GetInt32(), (object?)null, ct).ConfigureAwait(false);
+                ShutdownRequested.TrySetResult();
+                if (!IgnoreShutdownRequests)
+                    await SendResponseAsync(idElement.GetInt32(), (object?)null, ct).ConfigureAwait(false);
                 break;
 
             case "exit":
