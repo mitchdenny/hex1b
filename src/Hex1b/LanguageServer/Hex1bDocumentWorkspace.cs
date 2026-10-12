@@ -59,7 +59,7 @@ public sealed class Hex1bDocumentWorkspace : IAsyncDisposable
     public Hex1bDocumentWorkspace(string rootPath)
     {
         _rootPath = Path.GetFullPath(rootPath);
-        _rootUri = "file://" + _rootPath;
+        _rootUri = PathToUri(_rootPath);
     }
 
     /// <summary>The workspace root directory path.</summary>
@@ -365,7 +365,7 @@ public sealed class Hex1bDocumentWorkspace : IAsyncDisposable
     // ── Utilities ────────────────────────────────────────────
 
     private static string PathToUri(string path) =>
-        "file://" + path.Replace('\\', '/');
+        new Uri(path).AbsoluteUri;
 
     private static bool GlobMatch(string fileName, string pattern)
     {
@@ -429,7 +429,8 @@ public sealed class Hex1bDocumentWorkspace : IAsyncDisposable
 
         foreach (var client in _activeClients.Values)
         {
-            try { await client.StopAsync().ConfigureAwait(false); } catch { }
+            using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try { await client.StopAsync(shutdown.Token).ConfigureAwait(false); } catch { }
             await client.DisposeAsync().ConfigureAwait(false);
         }
 
