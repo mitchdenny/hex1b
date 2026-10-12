@@ -11,7 +11,6 @@ using System.Diagnostics;
 #pragma warning disable ASPIRECSHARPAPPS001
 #pragma warning disable ASPIREACADOMAINS001
 #pragma warning disable ASPIREPIPELINES001
-#pragma warning disable ASPIRETERMINAL001
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -90,22 +89,6 @@ var content=builder.AddViteApp("content", "./src/content")
     .WaitFor(website)
     .WaitFor(docGenerator)
     .WithEndpoint("http", ep => ep.Port = 1189);
-
-var sceneDemo = builder.AddCSharpApp("scene-demo", "./samples/SceneDemo")
-    .ExcludeFromManifest()
-    .WithTerminal();
-
-var dirtRaceDemo = builder.AddCSharpApp("dirt-race-demo", "./samples/DirtRaceDemo")
-    .ExcludeFromManifest()
-    .WithTerminal();
-
-var asciiEarthDemo = builder.AddCSharpApp("ascii-earth-demo", "./samples/AsciiEarth")
-    .ExcludeFromManifest()
-    .WithTerminal();
-
-var kittySearch = builder.AddCSharpApp("kitty-search", "./samples/KittySearch")
-    .ExcludeFromManifest()
-    .WithTerminal();
 
 // Wire up pipeline dependencies: content build depends on doc generation
 content.WithPipelineConfiguration(context =>
