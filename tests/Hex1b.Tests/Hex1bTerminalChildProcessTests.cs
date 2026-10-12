@@ -121,69 +121,67 @@ public class Hex1bTerminalChildProcessTests
     /// <summary>
     /// Verifies that we can launch bash and it stays running at a prompt.
     /// </summary>
-    [TestMethod, Ignore("Flaky test - needs investigation")]
+    [TestMethod]
     [TestCategory("Unix")]
     public async Task BashInteractive_StaysAtPrompt()
     {
-        
-        // Launch: bash -ic "tty;bash"
-        // This prints the TTY and then drops to an interactive bash prompt
-        await using var process = new Hex1bTerminalChildProcess(
-            "/bin/bash",
-            ["-ic", "tty;bash"]
-        );
-        
-        await process.StartAsync();
-        
-        Assert.IsTrue(process.HasStarted);
-        Assert.IsTrue(process.ProcessId > 0, $"Expected positive PID, got {process.ProcessId}");
-        
-        // Read initial output (should include the tty path)
-        var output = new StringBuilder();
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+            Assert.Inconclusive("Requires a Unix PTY and /bin/bash.");
+
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(15));
+        var process = new Hex1bTerminalChildProcess("/bin/bash", ["--norc", "--noprofile", "-i"],
+            environment: new Dictionary<string, string>
+            {
+                ["PATH"] = "/usr/bin:/bin", ["LC_ALL"] = "C", ["TERM"] = "xterm",
+                ["PS1"] = "$(/usr/bin/tty) hex1b-pty> "
+            },
+            inheritEnvironment: false);
+        Task<int>? exitTask = null;
         try
         {
-            while (!cts.Token.IsCancellationRequested)
+            await Task.Run(() => process.StartAsync(cancellation.Token)).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.IsTrue(process.HasStarted);
+            Assert.IsGreaterThan(0, process.ProcessId);
+            var output = new StringBuilder();
+            while (!output.ToString().Contains("hex1b-pty> ", StringComparison.Ordinal))
             {
-                var data = await process.ReadOutputAsync(cts.Token);
-                if (data.IsEmpty)
+                var data = await process.ReadOutputAsync(cancellation.Token).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.IsFalse(data.IsEmpty, $"Shell exited before its prompt: {output}");
+                output.Append(Encoding.UTF8.GetString(data.Span));
+                Assert.IsLessThanOrEqualTo(4096, output.Length, "Unexpected surplus startup output.");
+            }
+            Assert.Contains("/dev/", output.ToString(), "The interactive shell must have a PTY attached.");
+            var pendingRead = process.ReadOutputAsync(cancellation.Token).AsTask();
+            // Span multiple native poll timeouts: the idle shell must not report EOF.
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellation.Token);
+            Assert.IsFalse(pendingRead.IsCompleted, "Interactive bash should remain waiting at its prompt.");
+            Assert.IsFalse(process.HasExited);
+
+            await Task.Run(async () => await process.WriteInputAsync("exit\n"u8.ToArray(), cancellation.Token))
+                .WaitAsync(TimeSpan.FromSeconds(5));
+            exitTask = Task.Run(() => process.WaitForExitAsync(cancellation.Token));
+            var trailing = await pendingRead.WaitAsync(TimeSpan.FromSeconds(5));
+            while (!trailing.IsEmpty)
+                trailing = await process.ReadOutputAsync(cancellation.Token).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.AreEqual(0, await exitTask.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.IsTrue(process.HasExited);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await process.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            if (exitTask is not null)
+            {
+                try
                 {
-                    await Task.Delay(50, cts.Token);
-                    continue;
+                    await exitTask.WaitAsync(TimeSpan.FromSeconds(5));
                 }
-                
-                var text = Encoding.UTF8.GetString(data.Span);
-                output.Append(text);
-                
-                // Once we see the /dev/pts path, we've got our confirmation
-                if (output.ToString().Contains("/dev/"))
-                    break;
+                catch (OperationCanceledException) when (exitTask.IsCanceled && cancellation.IsCancellationRequested)
+                {
+                }
             }
         }
-        catch (OperationCanceledException)
-        {
-            // Timeout is acceptable
-        }
-        
-        var result = output.ToString();
-        
-        // Verify PTY is attached
-        Assert.Contains("/dev/", result);
-        
-        // Process should still be running (bash is waiting for input)
-        Assert.IsFalse(process.HasExited, "Process should still be running");
-        
-        // Send exit command
-        await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\n"));
-        await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\n")); // Exit nested bash too
-        
-        // Wait for exit with timeout
-        var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var exitCode = await process.WaitForExitAsync(exitCts.Token);
-        
-        Assert.IsTrue(process.HasExited);
-        Assert.AreEqual(0, exitCode);
     }
     
     /// <summary>
