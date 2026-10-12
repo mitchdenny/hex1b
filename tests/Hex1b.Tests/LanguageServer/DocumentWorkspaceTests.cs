@@ -200,6 +200,50 @@ public class DocumentWorkspaceTests : IDisposable
     }
 
     [TestMethod]
+    public async Task GetProvider_WithReservedPathCharacters_UsesAbsoluteFileUris()
+    {
+        var server = new TestLanguageServer();
+        server.Start();
+        var root = Path.Combine(_tempDir, "space # % root");
+        var workspace = new Hex1bDocumentWorkspace(root);
+        try
+        {
+            string? configuredRootUri = null;
+            workspace.AddLanguageServer("csharp-ls", lsp =>
+            {
+                configuredRootUri = lsp.RootUri;
+                lsp.WithTransport(server.ClientInput, server.ClientOutput).WithLanguageId("csharp");
+            });
+            workspace.MapLanguageServer("*.cs", "csharp-ls");
+            var doc = workspace.CreateDocument("class Foo {}", "space # % file.cs");
+            var provider = workspace.GetProvider(doc);
+
+            Assert.IsNotNull(provider);
+            Assert.AreEqual(new Uri(root).AbsoluteUri, configuredRootUri);
+            Assert.AreEqual(new Uri(Path.Combine(root, "space # % file.cs")).AbsoluteUri,
+                provider.DocumentUriForCompletion);
+            Assert.Contains("%20%23%20%25", provider.DocumentUriForCompletion);
+            var client = provider.ActiveClientForCompletion;
+            Assert.IsNotNull(client);
+            await client.WaitUntilReadyAsync(TestContext.Current.CancellationToken)
+                .WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            try
+            {
+                await Task.Run(async () => await workspace.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            finally
+            {
+                server.ClientInput.Dispose();
+                server.ClientOutput.Dispose();
+                await server.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+            }
+        }
+    }
+
+    [TestMethod]
     public async Task GetProvider_ReturnsNullForUnmappedExtension()
     {
         File.WriteAllText(Path.Combine(_tempDir, "readme.txt"), "hello");
@@ -227,6 +271,36 @@ public class DocumentWorkspaceTests : IDisposable
     }
 
     // ── Dispose semantics ────────────────────────────────────
+
+    [TestMethod]
+    public async Task DisposeAsync_ServerDoesNotAcknowledgeShutdown_CompletesWithinDeadline()
+    {
+        var server = new TestLanguageServer { IgnoreShutdownRequests = true };
+        server.Start();
+        var workspace = new Hex1bDocumentWorkspace(_tempDir);
+        Task? disposal = null;
+        try
+        {
+            workspace.AddLanguageServer("csharp-ls", lsp =>
+                lsp.WithTransport(server.ClientInput, server.ClientOutput).WithLanguageId("csharp"));
+            workspace.MapLanguageServer("*.cs", "csharp-ls");
+            var provider = workspace.GetProvider(workspace.CreateDocument("class Foo {}", "test.cs"));
+            Assert.IsNotNull(provider);
+            var client = provider.ActiveClientForCompletion;
+            Assert.IsNotNull(client);
+            await client.WaitUntilReadyAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(5));
+            disposal = Task.Run(async () => await workspace.DisposeAsync());
+            await server.ShutdownRequested.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await disposal.WaitAsync(TimeSpan.FromSeconds(8));
+        }
+        finally
+        {
+            server.ClientInput.Dispose();
+            server.ClientOutput.Dispose();
+            await server.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+            await (disposal ?? Task.Run(async () => await workspace.DisposeAsync())).WaitAsync(TimeSpan.FromSeconds(8));
+        }
+    }
 
     [TestMethod]
     public async Task DisposeAsync_ClearsDocuments()
