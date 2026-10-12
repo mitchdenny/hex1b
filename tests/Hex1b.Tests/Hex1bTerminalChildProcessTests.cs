@@ -293,83 +293,64 @@ public class Hex1bTerminalChildProcessTests
     }
     
     /// <summary>
-    /// Verifies that terminal resize works via SIGWINCH.
+    /// Verifies that terminal resize updates the dimensions observed by the child.
     /// </summary>
-    [TestMethod, Ignore("Flaky test - needs investigation")]
+    [TestMethod]
     [TestCategory("Unix")]
     public async Task Resize_UpdatesTerminalSize()
     {
-        
-        // Launch bash with a command that prints terminal size
-        await using var process = new Hex1bTerminalChildProcess(
-            "/bin/bash",
-            ["-ic", "stty size; read -t 2; stty size; exit"],
-            workingDirectory: null,
-            environment: null,
-            inheritEnvironment: true,
-            initialWidth: 80,
-            initialHeight: 24
-        );
-        
-        await process.StartAsync();
-        
-        // Read initial size output
-        var output = new StringBuilder();
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-        
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+            Assert.Inconclusive("Requires a Unix PTY and /bin/stty.");
+
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(15));
+        var process = new Hex1bTerminalChildProcess("/bin/sh",
+            ["-c", "/bin/stty -echo && /bin/stty size && IFS= read -r line && /bin/stty size"],
+            inheritEnvironment: false, initialWidth: 80, initialHeight: 24);
+        Task<int>? exitTask = null;
         try
         {
-            while (!cts.Token.IsCancellationRequested)
+            await Task.Run(() => process.StartAsync(cancellation.Token)).WaitAsync(TimeSpan.FromSeconds(5));
+            var output = new StringBuilder();
+            const string initialSize = "24 80\r\n";
+            while (output.Length < initialSize.Length)
             {
-                var data = await process.ReadOutputAsync(cts.Token);
-                if (!data.IsEmpty)
-                    output.Append(Encoding.UTF8.GetString(data.Span));
-                else
-                    await Task.Delay(50, cts.Token);
-                    
-                if (output.ToString().Contains("24 80"))
+                var data = await process.ReadOutputAsync(cancellation.Token).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.IsFalse(data.IsEmpty, "The child exited before reporting its initial dimensions.");
+                output.Append(Encoding.UTF8.GetString(data.Span));
+            }
+            Assert.AreEqual(initialSize, output.ToString());
+            await Task.Run(async () => await process.ResizeAsync(120, 40, cancellation.Token))
+                .WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.Run(async () => await process.WriteInputAsync("\n"u8.ToArray(), cancellation.Token))
+                .WaitAsync(TimeSpan.FromSeconds(5));
+            exitTask = Task.Run(() => process.WaitForExitAsync(cancellation.Token));
+            while (true)
+            {
+                var data = await process.ReadOutputAsync(cancellation.Token).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+                if (data.IsEmpty)
                     break;
+                output.Append(Encoding.UTF8.GetString(data.Span));
+                Assert.IsLessThanOrEqualTo(4096, output.Length, "Unexpected surplus size output.");
+            }
+            Assert.AreEqual(0, await exitTask.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.AreEqual(initialSize + "40 120\r\n", output.ToString());
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await process.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            if (exitTask is not null)
+            {
+                try
+                {
+                    await exitTask.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                catch (OperationCanceledException) when (exitTask.IsCanceled && cancellation.IsCancellationRequested)
+                {
+                }
             }
         }
-        catch (OperationCanceledException)
-        {
-            // Timeout
-        }
-        
-        // Should show initial size (rows cols format from stty)
-        Assert.Contains("24 80", output.ToString());
-        
-        // Resize
-        await process.ResizeAsync(120, 40);
-        
-        // Send enter to continue (releases the read)
-        await process.WriteInputAsync(Encoding.UTF8.GetBytes("\n"));
-        
-        // Read new size output
-        var output2 = new StringBuilder();
-        var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        
-        try
-        {
-            while (!cts2.Token.IsCancellationRequested && !process.HasExited)
-            {
-                var data = await process.ReadOutputAsync(cts2.Token);
-                if (!data.IsEmpty)
-                    output2.Append(Encoding.UTF8.GetString(data.Span));
-                else
-                    await Task.Delay(50, cts2.Token);
-                    
-                if (output2.ToString().Contains("40 120"))
-                    break;
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Timeout
-        }
-        
-        // Should show new size
-        Assert.Contains("40 120", output2.ToString());
     }
     
     /// <summary>
