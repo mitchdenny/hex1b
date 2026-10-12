@@ -191,7 +191,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           set -e
-          curl -sSL https://aspire.dev/install.sh | bash -s
+          curl -sSL https://aspire.dev/install.sh | bash -s -- --version 13.6.1
           echo "$HOME/.aspire/bin" >> $GITHUB_PATH
 
       - name: Setup Node.js for content build
@@ -1047,7 +1047,7 @@ jobs:
       - name: Download and install Aspire CLI
         run: |
           set -e
-          curl -sSL https://aspire.dev/install.sh | bash -s -- -q dev
+          curl -sSL https://aspire.dev/install.sh | bash -s -- --version 13.6.1
           echo "$HOME/.aspire/bin" >> $GITHUB_PATH
 
       - name: Show Aspire CLI version
