@@ -233,8 +233,8 @@ public class Hmp1BuilderExtensionsTests
         if (!dimensionsFirst)
             builder.WithDimensions(width, height);
 
-        await using var terminal = builder.Build();
-        var runTask = terminal.RunAsync(cts.Token);
+        var terminal = builder.Build();
+        var runTask = Task.Run(() => terminal.RunAsync(cts.Token));
         try
         {
             await new Hex1bTerminalInputSequenceBuilder()
@@ -246,16 +246,17 @@ public class Hmp1BuilderExtensionsTests
                 .Type("exit").Enter()
                 .Build()
                 .ApplyAsync(terminal, cts.Token);
-            Assert.AreEqual(0, await runTask.WaitAsync(cts.Token));
+            Assert.AreEqual(0, await runTask.WaitAsync(TimeSpan.FromSeconds(30), cts.Token));
         }
         finally
         {
             await cts.CancelAsync();
+            await Task.Run(async () => await terminal.DisposeAsync()).WaitAsync(TestTimeout);
             try
             {
                 await runTask.WaitAsync(TestTimeout);
             }
-            catch (OperationCanceledException) when (cts.IsCancellationRequested)
+            catch (OperationCanceledException) when (runTask.IsCanceled && cts.IsCancellationRequested)
             {
             }
         }
