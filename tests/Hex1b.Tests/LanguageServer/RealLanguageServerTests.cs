@@ -186,53 +186,6 @@ public class RealLanguageServerTests
         }
     }
 
-    private async Task RequireTypeScriptLsAsync()
-    {
-        Assert.IsTrue(Directory.Exists(_workspacePath), "The tracked LanguageServerDemo workspace must exist.");
-        System.Diagnostics.Process? process = null;
-        try
-        {
-            process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
-                "typescript-language-server", "--version")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-            });
-        }
-        catch (System.ComponentModel.Win32Exception error) when (error.NativeErrorCode == 2)
-        {
-            Assert.Inconclusive("Requires typescript-language-server and typescript on PATH.");
-        }
-
-        Assert.IsNotNull(process);
-        using (process)
-        using (var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken))
-        {
-            cancellation.CancelAfter(TimeSpan.FromSeconds(5));
-            var output = process.StandardOutput.ReadToEndAsync();
-            var error = process.StandardError.ReadToEndAsync();
-            try
-            {
-                await process.WaitForExitAsync(cancellation.Token).WaitAsync(TimeSpan.FromSeconds(5));
-                var version = await output.WaitAsync(TimeSpan.FromSeconds(5));
-                var diagnostics = await error.WaitAsync(TimeSpan.FromSeconds(5));
-                Assert.AreEqual(0, process.ExitCode, $"TypeScript LS version probe failed: {diagnostics}");
-                Assert.IsFalse(string.IsNullOrWhiteSpace(version), "Expected a TypeScript LS version.");
-                TestContext.WriteLine($"TypeScript LS version: {version.Trim()}");
-            }
-            finally
-            {
-                if (!process.HasExited)
-                {
-                    process.Kill(entireProcessTree: true);
-                    await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
-                }
-                await Task.WhenAll(output, error).WaitAsync(TimeSpan.FromSeconds(5));
-            }
-        }
-    }
-
     [TestMethod]
     public async Task TypeScriptLs_ReturnsCompletions()
     {
