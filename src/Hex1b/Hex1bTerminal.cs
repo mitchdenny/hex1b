@@ -688,6 +688,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _outputProcessingTask is not null)
             await _outputProcessingTask.WaitAsync(ct);
 
+        if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess)
+            await ExpireLocalProgramStatusAsync(ct);
+
         return exitCode;
     }
 
@@ -1296,6 +1299,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     
     private async Task PumpWorkloadOutputAsync(CancellationToken ct)
     {
+        var localWorkloadEnded = false;
         try
         {
             while (!ct.IsCancellationRequested)
@@ -1305,6 +1309,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 Hmp1TerminalState? remoteState = null;
                 Hmp1KgpAnimationState? animationState = null;
                 Hmp1ActivityState? activityState = null;
+                TerminalProgramStatusSnapshot? programStatusState = null;
                 Hmp1ScrollbackState? scrollbackState = null;
                 Hmp1CommandMarkState? commandMarkState = null;
                 Hmp1WorkloadAdapter? remoteSource = null;
@@ -1319,6 +1324,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     remoteState = item.State;
                     animationState = item.AnimationState;
                     activityState = item.ActivityState;
+                    programStatusState = item.ProgramStatusState;
                     scrollbackState = item.ScrollbackState;
                     commandMarkState = item.CommandMarkState;
                     remoteSource = item.Source;
@@ -1339,7 +1345,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     data = await _workload.ReadOutputAsync(ct);
                 }
                 
-                if (data.IsEmpty && remoteState is null && animationState is null)
+                if (data.IsEmpty && remoteState is null && animationState is null &&
+                    activityState is null && programStatusState is null && scrollbackState is null && commandMarkState is null)
                 {
                     if (pooledItemBuffer is not null)
                         System.Buffers.ArrayPool<byte>.Shared.Return(pooledItemBuffer);
@@ -1353,7 +1360,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Other workloads can return empty between frames and must keep pumping.
                     if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess ||
                         _workload is Hmp1WorkloadAdapter { OutputCompleted: true })
+                    {
+                        if (_workload is Hex1bTerminalChildProcess { HasExited: false } child)
+                            await child.WaitForExitAsync(ct);
+                        localWorkloadEnded = _workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess;
                         break;
+                    }
                     
                     // Small delay to prevent busy-waiting in headless mode
                     await Task.Delay(10, ct);
@@ -1375,7 +1387,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // transaction. A browser must not become ready on the empty replica.
                 if (isStateSync)
                 {
-                    await ApplyHmp1ReplayAsync(data, remoteState, activityState, scrollbackState, commandMarkState, ct);
+                    await ApplyHmp1ReplayAsync(data, remoteState, activityState, scrollbackState, commandMarkState,
+                        programStatusState, ct);
                     remoteSource?.CompleteInitialReplay(null);
                     continue;
                 }
@@ -1383,6 +1396,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     await ApplyHmp1StateAsync(remoteState);
                 if (animationState is not null)
                     ApplyHmp1KgpAnimationState(animationState);
+                if (programStatusState is not null)
+                    RestoreProgramStatus(programStatusState);
                 if (data.IsEmpty)
                     continue;
                 var rawPresentationPassthrough =
@@ -1406,6 +1421,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 IReadOnlyDictionary<DcsToken, DcsFrame>? framedDcs = null;
 
                 if (preTokenizedTokens != null &&
+                    !_discardingProgramStatus &&
                     !_dcsByteStreamParser.HasPendingInput &&
                     string.IsNullOrEmpty(_incompleteSequenceBuffer))
                 {
@@ -1426,7 +1442,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (rawProcessingFastPath)
                 {
                     // Still apply tokens to internal buffer so CreateSnapshot() works
+                    Hmp1ApplyingWorkloadOutput = true;
                     ApplyTokens(tokens, framedDcs);
+                    Hmp1ApplyingWorkloadOutput = false;
                     continue;
                 }
                 
@@ -1434,8 +1452,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 await NotifyWorkloadFiltersOutputAsync(tokens);
                 
                 // HWT reads authoritative snapshots but still needs its per-batch callback.
+                Hmp1ApplyingWorkloadOutput = true;
                 var appliedTokens = ApplyTokensWithImpacts(tokens, framedDcs,
                     collectImpacts: PresentationRequiresAppliedTokens);
+                Hmp1ApplyingWorkloadOutput = false;
                 if (_disposed)
                     continue;
                 
@@ -1474,7 +1494,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 finally
                 {
+                    Hmp1ApplyingWorkloadOutput = false;
                     Hmp1ReplayActivityState = null;
+                    Hmp1ReplayProgramStatusState = null;
                     Hmp1ReplayScrollbackState = null;
                     Hmp1ReplayCommandMarkState = null;
                     if (outputStateLockTaken)
@@ -1500,6 +1522,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             foreach (var boundary in _dcsByteStreamParser.Complete().Frames)
                 RecordDcsFrame(boundary.Frame);
+            if (localWorkloadEnded)
+                await ExpireLocalProgramStatusAsync(ct);
         }
     }
 
@@ -1514,12 +1538,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Restore decoder bytes before the byte framer's held ESC, which may be
         // the first byte of ST. Neither is represented by the decoded OSC prefix.
         // The caller holds Hmp1OutputStateLock.
-        var prefixBytes = Encoding.UTF8.GetByteCount(_incompleteSequenceBuffer);
+        // An oversized OSC has no retained body, but a new replica must still
+        // discard its continuation. This bounded, inert seed re-enters exactly
+        // that framing state without carrying any untrusted discarded content.
+        var prefix = _discardingProgramStatus
+            ? "\x1b]7501;" + new string('x', TerminalProgramStatusCodec.MaximumSequenceBytes - 7 + 1)
+            : _incompleteSequenceBuffer;
+        var pendingEscape = _dcsByteStreamParser.HasPendingGroundEscape ||
+            _discardingProgramStatus && _discardedProgramStatusEscape;
+        var prefixBytes = Encoding.UTF8.GetByteCount(prefix);
         var pending = new byte[prefixBytes + _pendingUtf8OutputLength +
-            (_dcsByteStreamParser.HasPendingGroundEscape ? 1 : 0)];
-        Encoding.UTF8.GetBytes(_incompleteSequenceBuffer, pending);
+            (pendingEscape ? 1 : 0)];
+        Encoding.UTF8.GetBytes(prefix, pending);
         _pendingUtf8Output.AsSpan(0, _pendingUtf8OutputLength).CopyTo(pending.AsSpan(prefixBytes));
-        if (_dcsByteStreamParser.HasPendingGroundEscape)
+        if (pendingEscape)
             pending[^1] = 0x1b;
         return pending;
     }
@@ -1575,11 +1607,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         var text = _incompleteSequenceBuffer + decodedText;
         _incompleteSequenceBuffer = "";
+        text = FilterProgramStatusFraming(text, flushAtBoundary);
 
         var extracted = ExtractIncompleteEscapeSequence(text, recognizeC1Dcs: false);
         if (flushAtBoundary)
         {
             _utf8Decoder.Reset();
+            _discardingProgramStatus = false;
+            _discardedProgramStatusEscape = false;
         }
         else
         {
@@ -2212,7 +2247,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _activityState.WorkingDirectory,
                 [.. _commandMarks])
             {
-                LineRenditions = lineRenditions
+                LineRenditions = lineRenditions,
+                ProgramStatus = _programStatus
             };
         }
     }
@@ -3386,7 +3422,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
                 
             case OscToken oscToken:
-                ProcessOscSequence(oscToken.Command, oscToken.Parameters, oscToken.Payload);
+                ProcessOscSequence(oscToken.Command, oscToken.Parameters, oscToken.Payload,
+                    oscToken.OriginalSequenceByteCount ?? Encoding.UTF8.GetByteCount(
+                        oscToken.Command + ";" + (oscToken.Parameters.Length == 0 ? oscToken.Payload :
+                            oscToken.Parameters + ";" + oscToken.Payload)) + 2 + (oscToken.UseEscBackslash ? 2 : 1));
                 break;
                 
             case DcsToken dcsToken:
@@ -3542,6 +3581,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _savedMainTextRowIds = null;
                 _savedMainTextHistoryRowIds = null;
                 SetActivityState(TerminalActivityState.Default);
+                SetProgramStatus(new([]));
                 SetSynchronizedOutputMode(false);
                 InvalidateTextCoordinates();
                 // RIS (ESC c): Full terminal reset — clear screen, reset all state
@@ -6454,7 +6494,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// what changes were made with 0/1/2 in between.
     /// </para>
     /// </remarks>
-    private void ProcessOscSequence(string command, string parameters, string payload)
+    private void ProcessOscSequence(string command, string parameters, string payload, int sequenceBytes = 0)
     {
         switch (command)
         {
@@ -6482,8 +6522,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             case "7":
             case "9":
             case "133":
+                if (command == "133" && TerminalActivityState.TryParseMarker(parameters, payload,
+                        out var phase, out _, out _) && phase == TerminalShellIntegrationPhase.Prompt)
+                    ExpireProgramStatus();
                 SetActivityState(_activityState.ApplyOsc(command, parameters, payload));
                 RecordCommandMarkIfPresent(command, parameters, payload);
+                break;
+
+            case "7501":
+                ProcessProgramStatus(parameters.Length == 0 ? payload : parameters + ";" + payload, sequenceBytes);
                 break;
                 
             case "22":

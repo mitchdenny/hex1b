@@ -134,22 +134,29 @@ public sealed partial class Hex1bTerminal
         lock (_bufferLock)
         {
             if (_activityRestoreDepth++ == 0)
+            {
                 _activityRestoreBaseline = _activityState;
+                _programStatusRestoreBaseline = _programStatus;
+            }
         }
     }
 
     internal void RestoreActivityState(TerminalProgress progress, TerminalShellIntegration shellIntegration,
         TerminalWorkingDirectory workingDirectory)
     {
+        bool invalidate;
         lock (_bufferLock)
         {
             SetActivityState(new TerminalActivityState(progress, shellIntegration, workingDirectory));
+            invalidate = _activityRestoreDepth == 0;
         }
-        PresentationInvalidated?.Invoke();
+        if (invalidate)
+            PresentationInvalidated?.Invoke();
     }
 
     internal void EndActivityStateRestore()
     {
+        var invalidate = false;
         lock (_bufferLock)
         {
             if (_activityRestoreDepth == 0)
@@ -158,9 +165,16 @@ public sealed partial class Hex1bTerminal
             {
                 var baseline = _activityRestoreBaseline!;
                 _activityRestoreBaseline = null;
+                var programBaseline = _programStatusRestoreBaseline!;
+                _programStatusRestoreBaseline = null;
                 NotifyActivityStateChanged(baseline, _activityState);
+                if (!programBaseline.ContentEquals(_programStatus))
+                    ProgramStatusChanged?.Invoke(_programStatus);
+                invalidate = true;
             }
         }
+        if (invalidate)
+            PresentationInvalidated?.Invoke();
     }
 
     private void SetActivityState(TerminalActivityState state)

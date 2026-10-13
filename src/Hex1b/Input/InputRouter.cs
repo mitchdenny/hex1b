@@ -37,14 +37,18 @@ public static class InputRouter
         CancellationToken cancellationToken = default,
         Action<string>? copyToClipboard = null,
         Action? invalidate = null,
-        WindowManagerRegistry? windowManagerRegistry = null)
+        WindowManagerRegistry? windowManagerRegistry = null,
+        TerminalProgramStatusReporter? programStatus = null)
     {
         // Dispatch based on event type
         return inputEvent switch
         {
-            Hex1bKeyEvent keyEvent => await RouteKeyInputAsync(root, keyEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard, invalidate, windowManagerRegistry),
+            Hex1bKeyEvent keyEvent => await RouteKeyInputAsync(root, keyEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard, invalidate, windowManagerRegistry, programStatus),
             Hex1bMouseEvent mouseEvent => await RouteMouseInputAsync(root, mouseEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard, windowManagerRegistry),
-            Hex1bPasteEvent pasteEvent => await RoutePasteInputAsync(root, pasteEvent, focusRing),
+            Hex1bPasteEvent pasteEvent => await RoutePasteInputAsync(root, pasteEvent, focusRing,
+                new InputBindingActionContext(focusRing, requestStop, cancellationToken,
+                    copyToClipboard: copyToClipboard, invalidate: invalidate,
+                    windowManagerRegistry: windowManagerRegistry, programStatus: programStatus)),
             _ => InputResult.NotHandled
         };
     }
@@ -61,10 +65,11 @@ public static class InputRouter
         CancellationToken cancellationToken = default,
         Action<string>? copyToClipboard = null,
         Action? invalidate = null,
-        WindowManagerRegistry? windowManagerRegistry = null)
+        WindowManagerRegistry? windowManagerRegistry = null,
+        TerminalProgramStatusReporter? programStatus = null)
     {
         // Create the action context for this input routing
-        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry, programStatus: programStatus);
         
         // Check global bindings first (evaluated regardless of focus)
         // Global bindings are collected from the entire tree
@@ -207,7 +212,8 @@ public static class InputRouter
     private static async Task<InputResult> RoutePasteInputAsync(
         Hex1bNode root,
         Hex1bPasteEvent pasteEvent,
-        FocusRing focusRing)
+        FocusRing focusRing,
+        InputBindingActionContext actionContext)
     {
         // Build path from root to focused node
         var path = BuildPathToFocused(root);
@@ -220,7 +226,7 @@ public static class InputRouter
         // Try focused node first, then bubble up through ancestors
         for (int i = path.Count - 1; i >= 0; i--)
         {
-            var result = await path[i].HandlePasteAsync(pasteEvent);
+            var result = await path[i].HandlePasteAsync(pasteEvent, actionContext);
             if (result == InputResult.Handled)
             {
                 return InputResult.Handled;
@@ -333,6 +339,7 @@ public static class InputRouter
     /// <param name="copyToClipboard">Optional callback to copy text to clipboard.</param>
     /// <param name="invalidate">Optional callback to invalidate the app and trigger re-render.</param>
     /// <param name="windowManagerRegistry">Optional registry for window managers.</param>
+    /// <param name="programStatus">Optional application program-status reporting service.</param>
     /// <returns>The result of input processing.</returns>
     internal static async Task<InputResult> RouteInputToNodeAsync(
         Hex1bNode node, 
@@ -342,11 +349,12 @@ public static class InputRouter
         CancellationToken cancellationToken = default,
         Action<string>? copyToClipboard = null,
         Action? invalidate = null,
-        WindowManagerRegistry? windowManagerRegistry = null)
+        WindowManagerRegistry? windowManagerRegistry = null,
+        TerminalProgramStatusReporter? programStatus = null)
     {
         // Create focus ring if not provided
         focusRing ??= new FocusRing();
-        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry, programStatus: programStatus);
         
         // Build bindings for this node and look up the key
         var builder = node.BuildBindings();

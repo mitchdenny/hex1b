@@ -51,6 +51,7 @@
     <Compile Include="../../samples/WebTerminalDemo/TerminalInstanceInfo.cs" Link="Samples/TerminalInstanceInfo.cs" />
     <Compile Include="../../samples/WebTerminalDemo/TerminalControlsRequest.cs" Link="Samples/TerminalControlsRequest.cs" />
     <Compile Include="../../samples/WebTerminalDemo/DemoWorkload.cs" Link="Samples/DemoWorkload.cs" />
+    <Compile Include="../../samples/WebTerminalDemo/ProgramStatusDemo.cs" Link="Samples/ProgramStatusDemo.cs" />
     <Compile Include="../../samples/WebTerminalDemo/DemoTape.cs" Link="Samples/DemoTape.cs" />
     <Compile Include="../../samples/WebTerminalDemo/DemoTapeInfo.cs" Link="Samples/DemoTapeInfo.cs" />
     <Compile Include="../../samples/WebTerminalDemo/DemoTapeCatalog.cs" Link="Samples/DemoTapeCatalog.cs" />

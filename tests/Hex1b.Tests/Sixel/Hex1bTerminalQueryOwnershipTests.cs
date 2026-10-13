@@ -7,8 +7,8 @@ namespace Hex1b.Tests.Sixel;
 /// <summary>
 /// Coverage for stage #455's query-ownership model at the <see cref="Hex1bTerminal"/>
 /// level: who answers a hosted workload's Primary Device Attributes (<c>CSI c</c>)
-/// and XTWINOPS window-operation (<c>CSI 14/16/18 t</c>) queries, and how effective
-/// Sixel support is advertised back to that workload.
+/// and XTWINOPS window-operation (<c>CSI 14/16/18 t</c>) queries, OSC 7501 capability
+/// queries, and how effective Sixel support is advertised back to that workload.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -208,6 +208,8 @@ public class Hex1bTerminalQueryOwnershipTests
     [DataRow(Csi18Query, "\x1b[8;24;80t", true)]
     [DataRow(Csi16Query, "\x1b[6;20;10t", true)]
     [DataRow(Csi14Query, "\x1b[4;480;800t", true)]
+    [DataRow("\x1b]7501;?\x07", "\x1b]7501;?:states=idle,working,done,blocked,error:kinds=permission,question,auth\x1b\\", true)]
+    [DataRow("\x1b]7501;?\x1b\\", "\x1b]7501;?:states=idle,working,done,blocked,error:kinds=permission,question,auth\x1b\\", true)]
     [DataRow("\x1b[5n", "\x1b[0n", false)]
     [DataRow("\x1b[6n", "\x1b[1;1R", false)]
     [DataRow("\x1b_Ga=q,i=7,f=32,s=1,v=1;AAAAAA==\x1b\\", "\x1b_Gi=7;OK\x1b\\", false)]

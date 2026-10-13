@@ -510,6 +510,10 @@ public abstract class Hex1bNode
     /// </remarks>
     public virtual Task<InputResult> HandlePasteAsync(Hex1bPasteEvent pasteEvent) => Task.FromResult(InputResult.NotHandled);
 
+    internal virtual Task<InputResult> HandlePasteAsync(
+        Hex1bPasteEvent pasteEvent, InputBindingActionContext actionContext)
+        => HandlePasteAsync(pasteEvent);
+
     /// <summary>
     /// Returns true if this node can receive focus.
     /// </summary>

@@ -439,7 +439,15 @@ public sealed class TextBoxNode : Hex1bNode
     /// For default behavior: reads full paste content and inserts at cursor position.
     /// For single-line text boxes, newlines are replaced with spaces.
     /// </summary>
-    public override async Task<InputResult> HandlePasteAsync(Hex1bPasteEvent pasteEvent)
+    public override Task<InputResult> HandlePasteAsync(Hex1bPasteEvent pasteEvent)
+        => HandlePasteCoreAsync(pasteEvent, new InputBindingActionContext(null!));
+
+    internal override Task<InputResult> HandlePasteAsync(
+        Hex1bPasteEvent pasteEvent, InputBindingActionContext actionContext)
+        => HandlePasteCoreAsync(pasteEvent, actionContext);
+
+    private async Task<InputResult> HandlePasteCoreAsync(
+        Hex1bPasteEvent pasteEvent, InputBindingActionContext actionContext)
     {
         // Paste is treated as an out-of-band edit — drop any in-flight prediction.
         ClearPrediction();
@@ -478,9 +486,7 @@ public sealed class TextBoxNode : Hex1bNode
 
         if (TextChangedAction != null && oldText != State.Text)
         {
-            // Create a minimal context for the paste callback
-            var ctx = new InputBindingActionContext(null!, null, default);
-            await TextChangedAction(ctx, oldText, State.Text);
+            await TextChangedAction(actionContext, oldText, State.Text);
         }
 
         return InputResult.Handled;

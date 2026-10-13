@@ -190,6 +190,7 @@ internal sealed class Hwt1RenderProjection
             Hwt1CommandMark.From(snapshot.CommandMarks.Count > 0 ? snapshot.CommandMarks[^1] : null),
             indexedColors ? "indexed-v1" : null)
             {
+                ProgramStatus = Hwt1ProgramStatus.From(snapshot.ProgramStatus),
                 LineRenditions = Enumerable.Range(0, _rows).Select(y => (int)snapshot.GetLineRendition(y)).ToArray()
             },
             Hwt1JsonSerializerContext.Default.Hwt1FrameMetadata);

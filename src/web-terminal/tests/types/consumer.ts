@@ -3,7 +3,8 @@ import {
   type WebTerminalOptions, type WebTerminalHandle, type TerminalInput, type InputBinding,
   type TerminalSelection, type TerminalViewport, type SelectionUIEvent, type TerminalStats,
   type TerminalRendererKind, type TerminalRendererPreference, type TerminalProgress,
-  type TerminalShellIntegration, type TerminalCloseDetails
+  type TerminalShellIntegration, type TerminalCloseDetails, type TerminalProgramStatusSnapshot,
+  type TerminalProgramStatusRecord
 } from "@hex1b/web-terminal";
 import {
   createWebSocketTransport, type TerminalTransport, type TerminalTransportContext,
@@ -63,6 +64,18 @@ const maximumFontSize: 32 = MAX_FONT_SIZE;
 console.log(minimumFontSize, maximumFontSize);
 const bindings: InputBinding[] = defaultInputBindings();
 const options: WebTerminalOptions = {
+  onProgramStatusChange(status) {
+    const snapshot: TerminalProgramStatusSnapshot = status;
+    const root: TerminalProgramStatusRecord | undefined = snapshot.find("");
+    const descendants: readonly TerminalProgramStatusRecord[] = snapshot.getDescendants("build");
+    console.log(root?.effectiveApp, descendants);
+    // @ts-expect-error Record inventories are immutable.
+    snapshot.records.push(root);
+    if (root) {
+      // @ts-expect-error Status records are immutable.
+      root.message = "Changed";
+    }
+  },
   preserveOnDisconnect: true,
   colorMode: "system",
   lightModePalette: defaultLightPalette,

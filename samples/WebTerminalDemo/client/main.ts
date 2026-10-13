@@ -1,4 +1,4 @@
-import { WebTerminal, MIN_FONT_SIZE, MAX_FONT_SIZE, getCmdlineUrl, linkAction, type TerminalCloseDetails, type TerminalScrollbar, type TerminalPadding, type TerminalScrollbarTooltipRenderer } from "@hex1b/web-terminal";
+import { WebTerminal, MIN_FONT_SIZE, MAX_FONT_SIZE, getCmdlineUrl, linkAction, type TerminalCloseDetails, type TerminalScrollbar, type TerminalPadding, type TerminalScrollbarTooltipRenderer, type TerminalProgramStatusSnapshot } from "@hex1b/web-terminal";
 import { NativeScrollbar } from "./native-scrollbar.js";
 import { workloadExitCode, exitMessage } from "./exit-presentation.js";
 import { createTerminalPreviewTooltip } from "./terminal-preview.js";
@@ -82,6 +82,63 @@ function elementAt<T extends Element>(root: ParentNode, selector: string, type: 
   const element = root.querySelector(selector);
   if (!(element instanceof type)) throw new Error(`Missing or invalid playground element: ${selector}`);
   return element;
+}
+
+function renderProgramStatus(element: HTMLElement, status: TerminalProgramStatusSnapshot): void {
+  const displayText = (text: string) => text.replace(/[\u061c\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/gu, "\ufffd");
+  elementAt(element, ".program-status-count", HTMLElement).textContent = String(status.records.length);
+  const list = elementAt(element, ".program-status-list", HTMLElement);
+  const nodes = new Map<string, HTMLDivElement>();
+  const fragment = document.createDocumentFragment();
+  const ensure = (id: string): HTMLDivElement => {
+    const existing = nodes.get(id);
+    if (existing) return existing;
+    const node = document.createElement("div");
+    node.className = "program-status-record";
+    node.dataset.statusId = id;
+    const label = document.createElement("div");
+    label.className = "program-status-label";
+    label.textContent = id === "" ? "(root)" : id.slice(id.lastIndexOf("/") + 1);
+    node.append(label);
+    nodes.set(id, node);
+    if (id === "") fragment.append(node);
+    else {
+      const slash = id.lastIndexOf("/");
+      ensure(slash < 0 ? "" : id.slice(0, slash)).append(node);
+    }
+    return node;
+  };
+  for (const record of status.records) {
+    const node = ensure(record.id);
+    node.dataset.state = record.state;
+    const label = elementAt(node, ".program-status-label", HTMLElement);
+    label.textContent = `${displayText(record.title ?? (record.id || "(root)"))} | ${record.state}` +
+      (record.kind === null ? "" : ` / ${record.kind}`) +
+      (record.effectiveApp === null ? "" : ` | ${record.effectiveApp}`);
+    const message = document.createElement("div");
+    message.className = "program-status-message";
+    // Metadata is untrusted even when emitted by the demo; never interpret it as HTML.
+    message.textContent = displayText(record.message ?? "");
+    node.insertBefore(message, label.nextSibling);
+    if (record.progress !== null || record.state === "working" || record.state === "blocked") {
+      const progress = document.createElement("progress");
+      progress.max = 100;
+      progress.setAttribute("aria-label", `${record.id || "Root"} progress`);
+      if (record.progress !== null) progress.value = record.progress;
+      node.insertBefore(progress, message.nextSibling);
+    }
+  }
+  if (status.records.length === 0) {
+    const empty = document.createElement("p");
+    empty.textContent = "No OSC 7501 records reported.";
+    fragment.append(empty);
+  }
+  for (const [id, node] of nodes)
+    if (!status.find(id)) {
+      node.dataset.group = "true";
+      elementAt(node, ".program-status-label", HTMLElement).textContent += " (group only)";
+    }
+  list.replaceChildren(fragment);
 }
 
 const byId = (id: string) => elementAt(document, `#${id}`, HTMLElement);
@@ -734,6 +791,15 @@ async function openView(instance: TerminalInstance, { primary = false, thumbnail
   element.innerHTML = `
     <header class="view-titlebar">
       <span class="view-title"></span><span class="view-role">Joining</span>
+      <details class="view-program-status">
+        <summary title="Inspect self-reported OSC 7501 state">Status (<span class="program-status-count">0</span>)</summary>
+        <div class="program-status-panel">
+          <p>Self-reported program state; groups do not aggregate child status.</p>
+          <div class="program-status-list" role="group" aria-label="Program status records">
+            <p>No OSC 7501 records reported.</p>
+          </div>
+        </div>
+      </details>
       <details class="view-marker-details">
         <summary title="Browse retained shell marks and bookmarks">Marks (<span class="marker-count">0</span>)</summary>
         <div class="marker-panel">
@@ -1043,6 +1109,9 @@ async function mountView(view: TerminalView, primary = false, failure = "", focu
         element.dataset.progress = progress.state;
         elementAt(element, ".progress-status", HTMLElement).textContent = progress.state === "none" ? ""
           : `${progress.state}${progress.percentage === null ? "" : ` ${progress.percentage}%`}`;
+      },
+      onProgramStatusChange(status) {
+        if (current()) renderProgramStatus(element, status);
       },
       onShellIntegrationChange(shell) {
         const labels = {

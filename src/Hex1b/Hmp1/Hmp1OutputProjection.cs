@@ -10,7 +10,7 @@ internal sealed class Hmp1OutputProjection
 {
     internal const int MaximumHeaderBytes = 64 * 1024;
 
-    private enum State { Ground, Escape, Utf8Control, Csi, ApcStart, KgpHeader, String, StringEscape }
+    private enum State { Ground, Escape, Utf8Control, Csi, OscProbe, ApcStart, KgpHeader, String, StringEscape }
     private enum StringKind { Osc, Dcs, Apc, Other }
 
     private State _state;
@@ -18,6 +18,7 @@ internal sealed class Hmp1OutputProjection
     private readonly List<byte> _pending = [];
     private bool _discardString;
     private int _kgpControlOffset;
+    private int _oscControlOffset;
     private int _utf8Remaining;
     private byte _previous;
 
@@ -69,6 +70,12 @@ internal sealed class Hmp1OutputProjection
                     _pending.Add(value);
                     _state = State.Utf8Control;
                 }
+                else if (!continuation && value == 0x9d)
+                {
+                    _pending.Add(value);
+                    _oscControlOffset = _pending.Count;
+                    _state = State.OscProbe;
+                }
                 else
                 {
                     WriteByte(output, value);
@@ -78,7 +85,13 @@ internal sealed class Hmp1OutputProjection
                 break;
 
             case State.Utf8Control:
-                if (value == 0x9f)
+                if (value == 0x9d)
+                {
+                    _pending.Add(value);
+                    _oscControlOffset = _pending.Count;
+                    _state = State.OscProbe;
+                }
+                else if (value == 0x9f)
                 {
                     _pending.Add(value);
                     _state = State.ApcStart;
@@ -104,6 +117,12 @@ internal sealed class Hmp1OutputProjection
                 {
                     _pending.Add(value);
                     _state = State.Csi;
+                }
+                else if (value == ']')
+                {
+                    _pending.Add(value);
+                    _oscControlOffset = _pending.Count;
+                    _state = State.OscProbe;
                 }
                 else if (value == '_')
                 {
@@ -150,6 +169,26 @@ internal sealed class Hmp1OutputProjection
                     else
                         _pending.Clear();
                     _state = State.Ground;
+                }
+                break;
+
+            case State.OscProbe:
+                AppendHeader(value);
+                var probe = CollectionsMarshal.AsSpan(_pending)[_oscControlOffset..];
+                if (stringTerminator || value == 7 || (_previous == 0x1b && value == '\\'))
+                {
+                    var terminatorBytes = value == 7 ? 1 : _previous is 0xc2 or 0x1b ? 2 : 1;
+                    if (!probe[..^terminatorBytes].SequenceEqual("7501;?"u8))
+                        FlushPending(output);
+                    else
+                        _pending.Clear();
+                    _state = State.Ground;
+                }
+                else if (!"7501;?\x1b\\"u8.StartsWith(probe) && !"7501;?\u009c"u8.StartsWith(probe))
+                {
+                    FlushPending(output);
+                    _stringKind = StringKind.Osc;
+                    _state = value == 0x1b ? State.StringEscape : State.String;
                 }
                 break;
 

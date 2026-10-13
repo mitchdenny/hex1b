@@ -39,8 +39,9 @@ internal sealed class TerminalInstance
         Presentation = new Hmp1PresentationAdapter(request.Columns, request.Rows);
         if (request.GetReflowProvider() is { } reflow)
             Presentation.WithReflow(reflow);
-        _demo = _scene == "shell" ? null : new DemoWorkload(_scene, request.Columns, request.Rows);
-        var child = _demo is null ? new Hex1bTerminalChildProcess(
+        _demo = _scene is "shell" or "program-status" ? null : new DemoWorkload(_scene, request.Columns, request.Rows);
+        var appWorkload = _scene == "program-status" ? new Hex1bAppWorkloadAdapter() : null;
+        var child = _scene == "shell" ? new Hex1bTerminalChildProcess(
             OperatingSystem.IsWindows() ? "cmd.exe" : Environment.GetEnvironmentVariable("SHELL") ?? "/bin/sh",
             [], environment: OperatingSystem.IsWindows() ? null : new()
             {
@@ -51,11 +52,16 @@ internal sealed class TerminalInstance
         {
             Width = request.Columns,
             Height = request.Rows,
-            WorkloadAdapter = (IHex1bTerminalWorkloadAdapter?)_demo ?? child!,
+            WorkloadAdapter = (IHex1bTerminalWorkloadAdapter?)_demo ?? appWorkload ?? (IHex1bTerminalWorkloadAdapter?)child!,
             PresentationAdapter = Presentation,
             ScrollbackCapacity = _scene == "marks" ? DemoWorkload.MarkScenarioScrollbackCapacity : 1000,
             RunCallback = async ct =>
             {
+                if (appWorkload is not null)
+                {
+                    await ProgramStatusDemo.RunAsync(appWorkload, ct);
+                    return 0;
+                }
                 if (_demo is not null)
                 {
                     await _demo.RunAsync(ct);

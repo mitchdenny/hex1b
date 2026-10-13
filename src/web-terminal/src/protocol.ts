@@ -2,6 +2,7 @@ import type { FrameMetadata, HistoryMetadata, SelectionText, TerminalCell, Termi
 import { isRecord } from "./validation.js";
 import { validateMarkerId } from "./marker-state.js";
 import { validateColorReference } from "./terminal-palette.js";
+import { validateProgramStatus } from "./program-status.js";
 
 // Binary validation is deliberately independent of the GPU and the transport.
 export const LIMITS = Object.freeze({
@@ -170,6 +171,9 @@ function validateMetadata(metadata: unknown): asserts metadata is FrameMetadata 
     throw new Error("Invalid terminal title");
   }
   const progress = metadata.progress;
+  // Pre-extension HWT1 producers have no program-status inventory.
+  if (metadata.programStatus === undefined) metadata.programStatus = { records: [] };
+  validateProgramStatus(metadata.programStatus);
   if (!isRecord(progress) || typeof progress.state !== "string" ||
       !["none", "normal", "error", "indeterminate", "warning"].includes(progress.state)) {
     throw new Error("Invalid terminal progress");
