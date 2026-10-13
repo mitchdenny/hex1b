@@ -15,4 +15,5 @@ internal sealed record Hwt1FrameMetadata(
 {
     public string[] ColorEncodings { get; } = ["indexed-v1"];
     public int[] LineRenditions { get; init; } = [];
+    public Hwt1ProgramStatus ProgramStatus { get; init; } = new([]);
 }

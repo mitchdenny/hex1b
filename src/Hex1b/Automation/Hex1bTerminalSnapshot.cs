@@ -68,6 +68,7 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         ShellIntegration = state.ShellIntegration;
         WorkingDirectory = state.WorkingDirectory;
         CommandMarks = state.CommandMarks;
+        ProgramStatus = state.ProgramStatus;
 
         var scrollbackRows = state.ScrollbackRows;
         ScrollbackLineCount = scrollbackRows.Length;
@@ -143,6 +144,9 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// Reference to the live terminal (for advanced scenarios).
     /// </summary>
     public Hex1bTerminal Terminal { get; }
+
+    /// <summary>Gets the immutable program inventory captured atomically with the screen and activity state.</summary>
+    public TerminalProgramStatusSnapshot ProgramStatus { get; }
 
     /// <summary>
     /// Terminal width at snapshot time.

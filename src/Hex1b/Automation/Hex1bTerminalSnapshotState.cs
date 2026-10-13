@@ -40,4 +40,5 @@ internal sealed record Hex1bTerminalSnapshotState(
     IReadOnlyList<TerminalCommandMark> CommandMarks)
 {
     internal LineRendition[] LineRenditions { get; init; } = [];
+    internal TerminalProgramStatusSnapshot ProgramStatus { get; init; } = new([]);
 }

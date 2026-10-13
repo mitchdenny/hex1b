@@ -39,7 +39,11 @@ public static class AnsiTokenizer
             if (TryParseOscSequence(text, i, out var oscConsumed, out var oscCommand, out var oscParams, out var oscPayload, out var oscUseEscBackslash))
             {
                 FlushTextToken(text, ref textStart, i, tokens);
-                tokens.Add(new OscToken(oscCommand, oscParams, oscPayload, oscUseEscBackslash));
+                tokens.Add(new OscToken(oscCommand, oscParams, oscPayload, oscUseEscBackslash)
+                {
+                    OriginalSequenceByteCount = oscCommand == "7501"
+                        ? System.Text.Encoding.UTF8.GetByteCount(text.AsSpan(i, oscConsumed)) : null
+                });
                 i += oscConsumed;
             }
             // Check for APC sequence (ESC _ or 0x9F)
@@ -993,8 +997,16 @@ public static class AnsiTokenizer
         // Find the ST (String Terminator): ESC \ (0x1b 0x5c), BEL (\x07), or 0x9C
         int dataEnd = -1;
         int stLength = 0;
+        var programStatus = text.AsSpan(dataStart).StartsWith("7501;", StringComparison.Ordinal);
         for (int j = dataStart; j < text.Length; j++)
         {
+            if (programStatus && (text[j] is '\x18' or '\x1a' ||
+                text[j] == '\x1b' && (j + 1 == text.Length || text[j + 1] != '\\')))
+            {
+                command = "7501";
+                consumed = (text[j] == '\x1b' ? j : j + 1) - start;
+                return true;
+            }
             if (j + 1 < text.Length && text[j] == '\x1b' && text[j + 1] == '\\')
             {
                 dataEnd = j;
@@ -1017,7 +1029,15 @@ public static class AnsiTokenizer
         }
 
         if (dataEnd < 0)
+        {
+            if (programStatus)
+            {
+                command = "7501";
+                consumed = text.Length - start;
+                return true;
+            }
             return false; // No terminator found
+        }
 
         consumed = dataEnd + stLength - start;
 
@@ -1037,7 +1057,7 @@ public static class AnsiTokenizer
 
         // Title commands have one text payload; semicolons are literal title text,
         // unlike OSC 8's separate hyperlink parameters.
-        if (command is "0" or "1" or "2" or "22" or "23")
+        if (command is "0" or "1" or "2" or "22" or "23" or "7501")
         {
             payload = oscData[(firstSemicolon + 1)..];
             return true;

@@ -20,6 +20,7 @@ import type { TerminalInsets, TerminalLayout, TerminalMarker, TerminalMarkerOpti
 import { terminalThemeCss } from "./terminal-theme.js";
 import { InputPolicy, InputRoute, TerminalAction, inputModifiers } from "./input-policy.js";
 import { assertCommandSize } from "./protocol.js";
+import { programStatusSnapshot, sameProgramStatus } from "./program-status.js";
 import { SelectionUI } from "./selection-ui.js";
 import { Hyperlinks } from "./hyperlinks.js";
 import { LinkDetection } from "./link-detection.js";
@@ -30,6 +31,7 @@ import type { CopySelectionOptions, InputActionHandler, InputDecision, InputBind
   TerminalActionName, TerminalGeometry, TerminalInput, TerminalInputContext, TerminalPeer,
   TerminalRendererPreference, TerminalSelection, TerminalSizing, TerminalSizingState, TerminalStats, TerminalViewport,
   TerminalProgress, TerminalShellIntegration, TerminalWorkingDirectory, TerminalCommandMark,
+  TerminalProgramStatusSnapshot,
   TerminalLinkOptions, TerminalLinkActivation, TerminalPoint,
   WebTerminalHandle, WebTerminalOptions } from "./types.js";
 import type { HyperlinkRange, InputCommand, TerminalCommand, WorkerInputMessage, WorkerOutputMessage } from "./wire-types.js";
@@ -88,6 +90,7 @@ export class WebTerminal implements WebTerminalHandle {
   #title = "";
   #hasTitle = false;
   #progress: TerminalProgress = { state: "none", percentage: null };
+  #programStatus: TerminalProgramStatusSnapshot = programStatusSnapshot({ records: [] });
   #shellIntegration: TerminalShellIntegration = { phase: "unknown", lastExitCode: null };
   #workingDirectory: TerminalWorkingDirectory = { uri: null, host: null, path: null };
   #commandMark: TerminalCommandMark | null = null;
@@ -214,6 +217,7 @@ export class WebTerminal implements WebTerminalHandle {
   /** Current presented workload title; retained on disconnect/dispose. Treat as untrusted text. */
   get title(): string { return this.#title; }
   get progress(): TerminalProgress { return { ...this.#progress }; }
+  get programStatus(): TerminalProgramStatusSnapshot { return this.#programStatus; }
   get shellIntegration(): TerminalShellIntegration { return { ...this.#shellIntegration }; }
   get workingDirectory(): TerminalWorkingDirectory { return { ...this.#workingDirectory }; }
   get commandMark(): TerminalCommandMark | null { return this.#commandMark ? { ...this.#commandMark } : null; }
@@ -522,6 +526,7 @@ export class WebTerminal implements WebTerminalHandle {
         const titleChanged = !this.#hasTitle || this.#title !== message.title;
         const progressChanged = !this.#hasActivity || this.#progress.state !== message.progress.state ||
           this.#progress.percentage !== message.progress.percentage;
+        const programStatusChanged = !this.#hasActivity || !sameProgramStatus(this.#programStatus, message.programStatus);
         const shellChanged = !this.#hasActivity || this.#shellIntegration.phase !== message.shellIntegration.phase ||
           this.#shellIntegration.lastExitCode !== message.shellIntegration.lastExitCode;
         const workingDirectoryChanged = !this.#hasActivity ||
@@ -532,12 +537,14 @@ export class WebTerminal implements WebTerminalHandle {
         this.#title = message.title;
         this.#hasTitle = true;
         this.#progress = { ...message.progress };
+        if (programStatusChanged) this.#programStatus = programStatusSnapshot(message.programStatus);
         this.#shellIntegration = { ...message.shellIntegration };
         this.#workingDirectory = { ...message.workingDirectory };
         this.#commandMark = message.commandMark ? { ...message.commandMark } : null;
         this.#hasActivity = true;
         if (titleChanged) this.#options.onTitleChange?.(this.#title);
         if (!this.#disposed && progressChanged) this.#options.onProgressChange?.(this.progress);
+        if (!this.#disposed && programStatusChanged) this.#options.onProgramStatusChange?.(this.programStatus);
         if (!this.#disposed && shellChanged) this.#options.onShellIntegrationChange?.(this.shellIntegration);
         if (!this.#disposed && workingDirectoryChanged) this.#options.onWorkingDirectoryChange?.(this.workingDirectory);
         if (!this.#disposed && commandMarkChanged) this.#options.onCommandMarkChange?.(this.commandMark);

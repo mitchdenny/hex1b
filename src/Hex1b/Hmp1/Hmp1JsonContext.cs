@@ -14,6 +14,7 @@ namespace Hex1b;
 [JsonSerializable(typeof(PeerLeavePayload))]
 [JsonSerializable(typeof(Hmp1KgpAnimationState))]
 [JsonSerializable(typeof(Hmp1ActivityState))]
+[JsonSerializable(typeof(Hmp1ProgramStatusState))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal sealed partial class Hmp1JsonContext : JsonSerializerContext
 {

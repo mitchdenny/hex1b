@@ -11,6 +11,9 @@ namespace Hex1b;
 internal sealed class ClientHelloPayload
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int ProgramStatusVersion { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int CommandMarkHistoryVersion { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

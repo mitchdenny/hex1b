@@ -250,6 +250,15 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         EnqueueOutput(new WorkloadOutputItem(data, Tokens: null));
     }
 
+    internal async ValueTask WriteRawAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        cancellationToken.ThrowIfCancellationRequested();
+        await _outputChannel.Writer.WriteAsync(
+            new WorkloadOutputItem(data, Tokens: null), cancellationToken).ConfigureAwait(false);
+        Interlocked.Increment(ref _outputQueueDepth);
+    }
+
     /// <summary>
     /// Writes output with an already-tokenized representation to avoid terminal-side UTF-8 decode + tokenization.
     /// </summary>

@@ -47,6 +47,18 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private readonly Hex1bTerminal? _ownedTerminal; // Terminal we created and should dispose
     private readonly Hex1bRenderContext _context;
     private readonly RootContext _rootContext = new();
+    private readonly SemaphoreSlim _outputGate = new(1, 1);
+    private readonly AsyncLocal<RenderOutputScope?> _renderOutputScope = new();
+    private readonly CancellationTokenSource _programStatusLifetime = new();
+    private int _disposed;
+
+    /// <summary>Gets the application's OSC 7501 program-status reporting service.</summary>
+    public TerminalProgramStatusReporter ProgramStatus { get; }
+
+    private sealed class RenderOutputScope
+    {
+        public volatile bool Active = true;
+    }
     private readonly FocusRing _focusRing = new();
     private readonly InputRouterState _inputRouterState = new();
     private Hex1bNode? _rootNode;
@@ -302,6 +314,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             appAdapter.EnableMouse = _mouseEnabled;
         }
         
+        ProgramStatus = new TerminalProgramStatusReporter(WriteProgramStatus, WriteProgramStatusAsync);
+        _rootContext.ProgramStatusReporter = ProgramStatus;
+
         var initialTheme = options.ThemeProvider?.Invoke() ?? options.Theme;
         _context = new Hex1bRenderContext(_adapter, initialTheme);
         
@@ -483,10 +498,13 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// 
     /// The text is base64-encoded and sent via the OSC 52 sequence. Not all terminals
     /// support this feature, but most modern terminals do.
+    /// Call from widget building or input handlers, not render callbacks.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">Called reentrantly from a render callback.</exception>
     public void CopyToClipboard(string text)
     {
         if (string.IsNullOrEmpty(text)) return;
+        ThrowIfReentrantRenderOutput();
         
         // Base64 encode the text
         var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(text));
@@ -494,7 +512,55 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // Send OSC 52 sequence: ESC ] 52 ; c ; <base64> ST
         // Using BEL (\a or \x07) as string terminator for better compatibility
         var osc52 = $"\x1b]52;c;{base64}\x07";
-        _adapter.Write(osc52);
+        _outputGate.Wait();
+        try
+        {
+            _adapter.Write(osc52);
+        }
+        finally
+        {
+            _outputGate.Release();
+        }
+    }
+
+    private void WriteProgramStatus(string output)
+        => WriteProgramStatusAsync(output, default).GetAwaiter().GetResult();
+
+    private async Task WriteProgramStatusAsync(string output, CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        ThrowIfReentrantRenderOutput();
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _programStatusLifetime.Token);
+        await _outputGate.WaitAsync(linked.Token).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            linked.Token.ThrowIfCancellationRequested();
+            if (_adapter is Hex1bAppWorkloadAdapter adapter)
+            {
+                await adapter.WriteRawAsync(System.Text.Encoding.UTF8.GetBytes(output), linked.Token).ConfigureAwait(false);
+            }
+            else
+            {
+                _adapter.Write(output);
+            }
+            _adapter.Flush();
+        }
+        finally
+        {
+            _outputGate.Release();
+        }
+    }
+
+    private void ThrowIfReentrantRenderOutput()
+    {
+        if (_renderOutputScope.Value is { Active: true })
+        {
+            throw new InvalidOperationException(
+                "Program status and clipboard output cannot be emitted reentrantly from a render callback. " +
+                "Emit from a widget builder or input callback instead.");
+        }
     }
 
     /// <summary>
@@ -522,7 +588,15 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             });
         }
         
-        _context.EnterAlternateScreen();
+        await _outputGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            _context.EnterAlternateScreen();
+        }
+        finally
+        {
+            _outputGate.Release();
+        }
         try
         {
             // Initial render
@@ -701,7 +775,15 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         finally
         {
             // Always exit alternate buffer, even on error
-            _context.ExitAlternateScreen();
+            await _outputGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                _context.ExitAlternateScreen();
+            }
+            finally
+            {
+                _outputGate.Release();
+            }
 
             // Drop the repaint handler so we don't keep this app alive via
             // the workload adapter's delegate slot if RunAsync is restarted
@@ -755,7 +837,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     break;
                 }
                 // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
-                await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken, CopyToClipboard, Invalidate, _windowManagerRegistry);
+                await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken, CopyToClipboard, Invalidate, _windowManagerRegistry, ProgramStatus);
                 break;
             
             // Paste events: route to focused node with ancestor bubbling
@@ -777,7 +859,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     {
                         var pasteResult = await InputRouter.RouteInputAsync(
                             pasteRootNode, pasteEvent, pasteFocusRing, pasteRouterState,
-                            RequestStop, cancellationToken, CopyToClipboard, Invalidate, pasteWindowRegistry);
+                            RequestStop, cancellationToken, CopyToClipboard, Invalidate, pasteWindowRegistry, ProgramStatus);
                         
                         if (pasteResult == InputResult.NotHandled)
                         {
@@ -827,7 +909,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     // Create context for drag events
                     var dragContext = new InputBindingActionContext(
                         _focusRing, RequestStop, cancellationToken, 
-                        mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry);
+                        mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry, ProgramStatus);
                     
                     // Handle both Move (no button) and Drag (button held) actions
                     if (mouseEvent.Action == MouseAction.Move || mouseEvent.Action == MouseAction.Drag)
@@ -875,7 +957,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     {
                         var dragContext = new InputBindingActionContext(
                             _focusRing, RequestStop, cancellationToken,
-                            mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry);
+                            mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry, ProgramStatus);
                         ActivatePendingBubbleDrag(pending, mouseEvent, dragContext);
                         break;
                     }
@@ -895,7 +977,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 else if (_rootNode != null)
                 {
                     await InputRouter.RouteInputAsync(_rootNode, mouseEvent, _focusRing, _inputRouterState,
-                        RequestStop, cancellationToken, CopyToClipboard, Invalidate, _windowManagerRegistry);
+                        RequestStop, cancellationToken, CopyToClipboard, Invalidate, _windowManagerRegistry, ProgramStatus);
                 }
                 break;
         }
@@ -1070,12 +1152,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // write" states. This is what prevents the mouse pointer from blinking at the
         // redraw rate during animated content (e.g. EffectPanel.RedrawAfter(50)).
         // Terminals that don't support mode 2026 ignore the sequences.
-        if (needsRender)
-        {
-            _context.Write(SyncUpdateBegin);
-        }
+        await _outputGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var previousOutputScope = _renderOutputScope.Value;
+        var outputScope = new RenderOutputScope();
+        _renderOutputScope.Value = outputScope;
         try
         {
+            if (needsRender)
+            {
+                _context.Write(SyncUpdateBegin);
+            }
             if (needsRender)
             {
                 // Hide cursor during rendering to prevent flicker.
@@ -1142,9 +1228,18 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         }
         finally
         {
-            if (needsRender)
+            try
             {
-                _context.Write(SyncUpdateEnd);
+                if (needsRender)
+                {
+                    _context.Write(SyncUpdateEnd);
+                }
+            }
+            finally
+            {
+                outputScope.Active = false;
+                _renderOutputScope.Value = previousOutputScope;
+                _outputGate.Release();
             }
         }
     }
@@ -1957,7 +2052,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 var capturedActionContext = new InputBindingActionContext(
                     _focusRing, RequestStop, cancellationToken,
                     mouseEvent.X, mouseEvent.Y,
-                    CopyToClipboard, Invalidate, _windowManagerRegistry);
+                    CopyToClipboard, Invalidate, _windowManagerRegistry, ProgramStatus);
                 await matched.ExecuteAsync(capturedActionContext);
                 return;
             }
@@ -1983,7 +2078,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         var localY = mouseEvent.Y - hitNode.Bounds.Y;
         
         // Create action context for mouse bindings (includes mouse coordinates)
-        var actionContext = new InputBindingActionContext(_focusRing, RequestStop, cancellationToken, mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry);
+        var actionContext = new InputBindingActionContext(_focusRing, RequestStop, cancellationToken, mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry, ProgramStatus);
         
         // Check if the node has a drag binding for this event
         // For multi-clicks (double/triple), check mouse bindings first since
@@ -2217,7 +2312,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
         var dragContext = new InputBindingActionContext(
             _focusRing, RequestStop, cancellationToken,
-            mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry);
+            mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry, ProgramStatus);
 
         var matched = false;
         for (var n = dragNode; n != null; n = n.Parent)
@@ -2448,6 +2543,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _programStatusLifetime.Cancel();
         // Signal RunAsync to exit immediately
         _stopRequested = true;
         _invalidateChannel.Writer.TryComplete();
@@ -2465,6 +2562,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _programStatusLifetime.Cancel();
         // Signal RunAsync to exit immediately
         _stopRequested = true;
         _invalidateChannel.Writer.TryComplete();

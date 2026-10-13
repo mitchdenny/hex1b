@@ -177,6 +177,30 @@ export interface TerminalProgress {
   readonly state: TerminalProgressState;
   readonly percentage: number | null;
 }
+/** OSC 7501 semantic state, independent of progress and shell execution. */
+export type TerminalProgramStatusState = "idle" | "working" | "blocked" | "done" | "error";
+export type TerminalProgramStatusKind = "permission" | "question" | "auth";
+/** A self-reported record, not an authenticated process or an aggregate of its children. */
+export interface TerminalProgramStatusRecord {
+  /** Empty identifies the root; slash-separated paths identify nested records. */
+  readonly id: string;
+  readonly state: TerminalProgramStatusState;
+  readonly kind: TerminalProgramStatusKind | null;
+  readonly progress: number | null;
+  readonly app: string | null;
+  readonly effectiveApp: string | null;
+  readonly title: string | null;
+  readonly message: string | null;
+}
+/** Records in least-recently-updated order. Messages and titles are untrusted plain text. */
+export interface TerminalProgramStatusInventory {
+  readonly records: readonly TerminalProgramStatusRecord[];
+}
+/** An immutable presented inventory; missing parent records are never manufactured. */
+export interface TerminalProgramStatusSnapshot extends TerminalProgramStatusInventory {
+  find(id: string): TerminalProgramStatusRecord | undefined;
+  getDescendants(id: string): readonly TerminalProgramStatusRecord[];
+}
 /** Last reported OSC 133 phase. Unknown does not mean idle; commandLine is not execution. */
 export type TerminalShellIntegrationPhase = "unknown" | "prompt" | "commandLine" | "executing" | "finished";
 /** Current shell phase and latest reported completion status, not command history. */
@@ -272,6 +296,12 @@ interface WebTerminalCommonOptions extends InputPolicyOptions {
    */
   onProgressChange?: (progress: TerminalProgress) => void;
   /**
+   * Receives the first presented inventory before mount resolves, then distinct changes.
+   * Intermediate reports may coalesce. Getters update first. No callbacks after disposal;
+   * disconnect retains the last state rather than implying program completion.
+   */
+  onProgramStatusChange?: (status: TerminalProgramStatusSnapshot) => void;
+  /**
    * Receives the first authoritative presented shell state before mount resolves, then distinct
    * presented changes. This is not a lossless command-start/finish stream: entire commands may
    * occur between frames. Replays provide current state, never synthetic command executions.
@@ -315,6 +345,8 @@ export interface WebTerminalHandle {
   readonly title: string;
   /** Current presented progress, initially none. Retained on disconnect/dispose; check connected. */
   readonly progress: TerminalProgress;
+  /** Immutable latest presented inventory, initially empty. Retained on disconnect/dispose. */
+  readonly programStatus: TerminalProgramStatusSnapshot;
   /** Current presented shell state, initially unknown. Retained on disconnect/dispose. */
   readonly shellIntegration: TerminalShellIntegration;
   /** Current presented working directory, all-null initially. Retained on disconnect/dispose. */

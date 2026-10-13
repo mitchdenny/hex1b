@@ -67,6 +67,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     private int _connectionStarted;
     private int _scrollbackHistoryRows;
     private bool _commandMarkHistory;
+    private bool _programStatus;
 
     internal bool ConnectionStarted => Volatile.Read(ref _connectionStarted) != 0;
     /// <summary>
@@ -312,7 +313,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             _stream,
             _localDisplayName,
             _options.DefaultRole?.ToWireString(),
-            ct, requestedHistoryRows, requestedCommandMarks).ConfigureAwait(false);
+            ct, requestedHistoryRows, requestedCommandMarks, programStatus: true).ConfigureAwait(false);
 
         // Read Hello frame
         var helloFrame = await Hmp1Protocol.ReadFrameAsync(_stream, ct).ConfigureAwait(false)
@@ -322,6 +323,9 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             throw new InvalidOperationException($"Expected Hello frame, got {helloFrame.Type}.");
 
         var hello = Hmp1Protocol.ParseHello(helloFrame.Payload);
+        if (hello.ProgramStatusVersion != 0 && hello.ProgramStatusVersion != Hmp1ProgramStatusState.Version)
+            throw new InvalidDataException("Server selected an unsupported program status capability.");
+        _programStatus = hello.ProgramStatusVersion == Hmp1ProgramStatusState.Version;
         if (hello.CommandMarkHistoryVersion != 0)
         {
             if (!requestedCommandMarks || hello.CommandMarkHistoryVersion != Hmp1CommandMarkState.Version)
@@ -360,6 +364,9 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         // Hello geometry must be applied before StateSync, even when the adapter
         // was connected before its consuming terminal was constructed.
         var activityState = await Hmp1Protocol.ReadActivityStateAsync(_stream, ct).ConfigureAwait(false);
+        var programStatusState = _programStatus
+            ? await Hmp1ProgramStatusState.ReadAsync(_stream, ct).ConfigureAwait(false)
+            : null;
         var scrollbackState = _scrollbackHistoryRows > 0
             ? await Hmp1ScrollbackState.ReadAsync(_stream, _scrollbackHistoryRows, ct).ConfigureAwait(false)
             : null;
@@ -369,7 +376,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             : null;
         _outputChannel.Writer.TryWrite(new(syncFrame.Payload, terminalState,
             IsStateSync: true, ActivityState: activityState, ScrollbackState: scrollbackState,
-            CommandMarkState: commandMarkState));
+            CommandMarkState: commandMarkState, ProgramStatusState: programStatusState));
 
         // Start the background read pump. Important: do NOT capture the caller-supplied
         // CancellationToken here. A "handshake timeout" CT must NOT keep cancelling
@@ -435,7 +442,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     internal async ValueTask<Hmp1WorkloadOutput> ReadTerminalOutputAsync(CancellationToken ct)
     {
         var item = await ReadOutputItemCoreAsync(ct).ConfigureAwait(false);
-        if (item.State is null && item.AnimationState is null && item.Bytes.IsEmpty &&
+        if (item.State is null && item.AnimationState is null && item.ProgramStatusState is null && item.Bytes.IsEmpty &&
             _outputChannel.Reader.Completion.IsCompleted && !_terminalDisconnectDelivered)
         {
             _terminalDisconnectDelivered = true;
@@ -465,13 +472,15 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
 
             // Never coalesce across a terminal-state or animation checkpoint. Public callbacks
             // still run at receipt time; terminal state follows this ordered queue.
-            if (first.State is not null || first.AnimationState is not null || first.IsStateSync ||
-                !_outputChannel.Reader.TryPeek(out var next) || next.State is not null || next.AnimationState is not null || next.IsStateSync)
+            if (first.State is not null || first.AnimationState is not null || first.ProgramStatusState is not null || first.IsStateSync ||
+                !_outputChannel.Reader.TryPeek(out var next) || next.State is not null || next.AnimationState is not null ||
+                next.ProgramStatusState is not null || next.IsStateSync)
                 return first;
 
             var pending = new List<ReadOnlyMemory<byte>> { first.Bytes };
             var total = first.Bytes.Length;
-            while (_outputChannel.Reader.TryPeek(out next) && next.State is null && next.AnimationState is null && !next.IsStateSync &&
+            while (_outputChannel.Reader.TryPeek(out next) && next.State is null && next.AnimationState is null &&
+                next.ProgramStatusState is null && !next.IsStateSync &&
                 _outputChannel.Reader.TryRead(out var more))
             {
                 pending.Add(more.Bytes);
@@ -626,6 +635,9 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                 {
                     case Hmp1FrameType.StateSync:
                         var activityState = await Hmp1Protocol.ReadActivityStateAsync(_stream, ct).ConfigureAwait(false);
+                        var programStatusState = _programStatus
+                            ? await Hmp1ProgramStatusState.ReadAsync(_stream, ct).ConfigureAwait(false)
+                            : null;
                         var scrollbackState = _scrollbackHistoryRows > 0
                             ? await Hmp1ScrollbackState.ReadAsync(_stream, _scrollbackHistoryRows, ct).ConfigureAwait(false)
                             : null;
@@ -636,7 +648,14 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                         await _outputChannel.Writer.WriteAsync(
                             new(frame.Payload, terminalState,
                                 IsStateSync: true, ActivityState: activityState, ScrollbackState: scrollbackState,
-                                CommandMarkState: commandMarkState), ct).ConfigureAwait(false);
+                                CommandMarkState: commandMarkState, ProgramStatusState: programStatusState), ct).ConfigureAwait(false);
+                        break;
+
+                    case Hmp1FrameType.ProgramStatusState:
+                        if (!_programStatus)
+                            throw new InvalidDataException("Unnegotiated program status checkpoint.");
+                        await _outputChannel.Writer.WriteAsync(
+                            new(default, ProgramStatusState: Hmp1ProgramStatusState.Parse(frame.Payload)), ct).ConfigureAwait(false);
                         break;
 
                     case Hmp1FrameType.ScrollbackState:
