@@ -69,6 +69,7 @@ public sealed partial class Hex1bTerminal
     {
         if (body == "?")
         {
+            if (_presentation.AnswersProtocolQueriesDirectly) return;
             _ = SendProtocolResponseAsync(Encoding.ASCII.GetBytes(
                 "\x1b]7501;?:states=idle,working,done,blocked,error:kinds=permission,question,auth\x1b\\"));
             return;

@@ -129,6 +129,14 @@ records.
 
 ## Network and browser presentation
 
+OSC 7501 capability queries follow the terminal's existing query-ownership rules.
+Hex1b answers for local workloads with headless, HWT1/browser, or HMP1 producer
+presentations. It does not synthesize a reply when the presentation sets
+`AnswersProtocolQueriesDirectly` (such as raw console passthrough), or when the
+workload sets `HandlesProtocolQueries` (such as an HMP1 replica). The outer terminal
+or upstream producer then owns the response. Report parsing and snapshot observation
+remain enabled even when Hex1b does not own replies.
+
 HMP1 negotiates a program-status extension and transfers an authoritative
 checkpoint for attachment/reconnection. Live reports and lifecycle changes
 preserve ordered replica state. Peers without the extension continue using
