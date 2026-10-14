@@ -154,3 +154,9 @@ See [browser API documentation](../src/web-terminal/README.md#program-status-osc
 The [WebTerminalDemo scenario](../samples/WebTerminalDemo/README.md#try-osc-7501-program-status)
 provides a per-view Status panel and a real Hex1bApp callback-driven workload,
 including a late-attached HMP1 relay.
+
+For a local PTY tester, run
+`dotnet run --project samples/OSC7501Demo`. The
+[OSC7501Demo](../samples/OSC7501Demo/README.md) lets you choose a detected shell
+and inspect its live report hierarchy alongside the embedded terminal, with
+complete details for the selected record.
