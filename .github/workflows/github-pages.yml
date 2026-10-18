@@ -94,7 +94,7 @@ jobs:
           echo "$HOME/.aspire/bin" >> "$GITHUB_PATH"
       - name: Publish with Aspire
         id: pages
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const { spawn } = require('node:child_process');
