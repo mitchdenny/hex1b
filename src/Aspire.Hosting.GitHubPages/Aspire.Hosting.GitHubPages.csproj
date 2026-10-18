@@ -9,6 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.6.1" />
+    <PackageReference Include="MessagePack" Version="2.5.303" />
     <InternalsVisibleTo Include="Aspire.Hosting.GitHubPages.Tests" />
   </ItemGroup>
 </Project>
