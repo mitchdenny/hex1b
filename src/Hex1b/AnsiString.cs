@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 
 namespace Hex1b;
@@ -8,23 +9,93 @@ internal static class AnsiString
 
     public static int VisibleLength(string text)
     {
-        if (string.IsNullOrEmpty(text))
-            return 0;
-
-        // Strip ANSI codes first, then calculate display width
-        var stripped = StripAnsiCodes(text);
-        return DisplayWidth.GetStringWidth(stripped);
+        return MeasureVisible(text, out _);
     }
 
     /// <summary>
-    /// Strips all ANSI escape codes (CSI and OSC) from the text.
+    /// Measures the display width of the text outside CSI, OSC, DCS and APC sequences. Reports
+    /// through <paramref name="isPlainAscii"/> whether the visible part is nothing but printable
+    /// ASCII (0x20-0x7E) with only complete sequences of those kinds around it.
     /// </summary>
-    private static string StripAnsiCodes(string text)
+    internal static int MeasureVisible(string text, out bool isPlainAscii)
     {
         if (string.IsNullOrEmpty(text))
-            return "";
-            
-        var result = new System.Text.StringBuilder();
+        {
+            isPlainAscii = true;
+            return 0;
+        }
+
+        if (TryMeasurePlainAscii(text, out var width))
+        {
+            isPlainAscii = true;
+            return width;
+        }
+
+        isPlainAscii = false;
+        return MeasureStripped(text);
+    }
+
+    /// <summary>
+    /// Counts the columns of text that consists only of printable ASCII outside complete CSI, OSC,
+    /// DCS or APC sequences. Returns false at the first other character, including an escape that
+    /// does not start a complete sequence.
+    /// </summary>
+    internal static bool TryMeasurePlainAscii(string text, out int width)
+    {
+        width = 0;
+        var columns = 0;
+        for (var i = 0; i < text.Length;)
+        {
+            var c = text[i];
+            if (c >= 0x20 && c < 0x7F)
+            {
+                columns++;
+                i++;
+                continue;
+            }
+
+            if (c == Escape && (TryReadCsi(text, i, out var nextIndex) || TryReadOsc(text, i, out nextIndex)
+                || TryReadDcsOrApc(text, i, out nextIndex)))
+            {
+                i = nextIndex;
+                continue;
+            }
+
+            return false;
+        }
+
+        width = columns;
+        return true;
+    }
+
+    private const int StackBufferLength = 256;
+
+    private static int MeasureStripped(string text)
+    {
+        // Strip the sequences into a scratch buffer and measure that, so no stripped string is built.
+        char[]? rented = null;
+        Span<char> buffer = text.Length <= StackBufferLength
+            ? stackalloc char[StackBufferLength]
+            : (rented = ArrayPool<char>.Shared.Rent(text.Length));
+        try
+        {
+            var length = StripAnsiCodes(text, buffer);
+            return DisplayWidth.GetStringWidth(buffer[..length]);
+        }
+        finally
+        {
+            if (rented is not null)
+                ArrayPool<char>.Shared.Return(rented);
+        }
+    }
+
+    /// <summary>
+    /// Copies the text without CSI, OSC, DCS and APC sequences into <paramref name="destination"/>,
+    /// which must be at least as long as the text, and returns the number of characters written.
+    /// </summary>
+    private static int StripAnsiCodes(string text, Span<char> destination)
+    {
+        var written = 0;
         for (var i = 0; i < text.Length;)
         {
             if (TryReadCsi(text, i, out var nextIndex))
@@ -37,10 +108,15 @@ internal static class AnsiString
                 i = nextIndex;
                 continue;
             }
-            result.Append(text[i]);
+            if (TryReadDcsOrApc(text, i, out nextIndex))
+            {
+                i = nextIndex;
+                continue;
+            }
+            destination[written++] = text[i];
             i++;
         }
-        return result.ToString();
+        return written;
     }
 
     public static string SliceByColumns(string text, int startColumn, int lengthColumns)
@@ -77,7 +153,7 @@ internal static class AnsiString
                 i = nextIndex;
                 continue;
             }
-            
+
             if (TryReadOsc(text, i, out nextIndex))
             {
                 var seq = text.Substring(i, nextIndex - i);
@@ -192,19 +268,26 @@ internal static class AnsiString
             length = 2;
             return text.Substring(index, 2);
         }
-        
+
         length = 1;
         return text[index].ToString();
     }
 
-    public static string TrailingEscapeSuffix(string text)
+    /// <summary>
+    /// Returns the index where the run of complete CSI, OSC, DCS and APC sequences at the end of the
+    /// text starts, which is typically a reset or a hyperlink closer, or the length of the text when
+    /// it does not end in such a run. <paramref name="startIndex"/> must be the start of a sequence
+    /// or of a character, and the text from there on must contain a printable character; the text
+    /// before it is not looked at.
+    /// </summary>
+    internal static int TrailingEscapeSuffixStart(string text, int startIndex)
     {
         if (string.IsNullOrEmpty(text))
-            return "";
+            return 0;
 
         // Find the end index of the last printable character.
-        var lastPrintableEnd = 0;
-        for (var i = 0; i < text.Length;)
+        var lastPrintableEnd = startIndex;
+        for (var i = startIndex; i < text.Length;)
         {
             if (TryReadCsi(text, i, out var nextIndex))
             {
@@ -216,6 +299,11 @@ internal static class AnsiString
                 i = nextIndex;
                 continue;
             }
+            if (TryReadDcsOrApc(text, i, out nextIndex))
+            {
+                i = nextIndex;
+                continue;
+            }
 
             // Treat any non-escape as printable for our purposes.
             lastPrintableEnd = i + 1;
@@ -223,9 +311,9 @@ internal static class AnsiString
         }
 
         if (lastPrintableEnd >= text.Length)
-            return "";
+            return text.Length;
 
-        // Ensure suffix contains only full escape sequences (CSI or OSC).
+        // Ensure suffix contains only full escape sequences.
         for (var i = lastPrintableEnd; i < text.Length;)
         {
             if (TryReadCsi(text, i, out var nextIndex))
@@ -238,10 +326,15 @@ internal static class AnsiString
                 i = nextIndex;
                 continue;
             }
-            return "";
+            if (TryReadDcsOrApc(text, i, out nextIndex))
+            {
+                i = nextIndex;
+                continue;
+            }
+            return text.Length;
         }
 
-        return text.Substring(lastPrintableEnd);
+        return lastPrintableEnd;
     }
 
     private static bool TryReadCsi(string text, int index, out int nextIndex)
@@ -269,7 +362,7 @@ internal static class AnsiString
         // Incomplete CSI sequence.
         return false;
     }
-    
+
     /// <summary>
     /// Tries to read an OSC (Operating System Command) sequence.
     /// OSC sequences start with ESC ] and end with ST (String Terminator).
@@ -306,5 +399,28 @@ internal static class AnsiString
 
         // Incomplete OSC sequence.
         return false;
+    }
+
+    /// <summary>
+    /// Tries to read a DCS (Device Control String, ESC P) or APC (Application Program Command,
+    /// ESC _) sequence. Both end with ST, which is ESC \ only; unlike for OSC, BEL does not end them.
+    /// </summary>
+    private static bool TryReadDcsOrApc(string text, int index, out int nextIndex)
+    {
+        nextIndex = index;
+        if (index < 0 || index >= text.Length)
+            return false;
+
+        if (text[index] != Escape)
+            return false;
+        if (index + 1 >= text.Length || (text[index + 1] != 'P' && text[index + 1] != '_'))
+            return false;
+
+        var terminator = text.IndexOf("\x1b\\", index + 2, StringComparison.Ordinal);
+        if (terminator < 0)
+            return false; // Incomplete DCS or APC sequence.
+
+        nextIndex = terminator + 2;
+        return true;
     }
 }
