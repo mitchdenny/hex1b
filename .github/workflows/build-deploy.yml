@@ -156,6 +156,8 @@ jobs:
           dotnet restore tests/Hex1b.Analyzers.Tests/Hex1b.Analyzers.Tests.csproj
           dotnet restore tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj
           dotnet restore tests/Hex1b.Tool.Tests/Hex1b.Tool.Tests.csproj
+          dotnet restore tests/AnimatedHumanoidDemo.Tests/AnimatedHumanoidDemo.Tests.csproj
+          dotnet restore tests/HelicopterDemo.Tests/HelicopterDemo.Tests.csproj
           dotnet restore src/Hex1b.Tool/Hex1b.Tool.csproj
 
       - name: Build
@@ -164,6 +166,8 @@ jobs:
           dotnet build tests/Hex1b.Analyzers.Tests/Hex1b.Analyzers.Tests.csproj --no-restore
           dotnet build tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj --no-restore
           dotnet build tests/Hex1b.Tool.Tests/Hex1b.Tool.Tests.csproj --no-restore
+          dotnet build tests/AnimatedHumanoidDemo.Tests/AnimatedHumanoidDemo.Tests.csproj --no-restore
+          dotnet build tests/HelicopterDemo.Tests/HelicopterDemo.Tests.csproj --no-restore
           dotnet build src/Hex1b.Tool/Hex1b.Tool.csproj --no-restore
 
       - name: Run tests
@@ -186,6 +190,14 @@ jobs:
             --no-build \
             -- --report-trx --report-trx-filename tool-test-results.trx \
                --results-directory ./TestResults
+          dotnet test tests/AnimatedHumanoidDemo.Tests/AnimatedHumanoidDemo.Tests.csproj \
+            --no-build \
+            -- --report-trx --report-trx-filename humanoid-test-results.trx \
+               --results-directory ./TestResults
+          dotnet test tests/HelicopterDemo.Tests/HelicopterDemo.Tests.csproj \
+            --no-build \
+            -- --report-trx --report-trx-filename helicopter-test-results.trx \
+            --results-directory ./TestResults
 
       - name: Download and install Aspire CLI
         if: runner.os == 'Linux'
