@@ -39,6 +39,13 @@ Thank you for your interest in contributing to Hex1b! This document provides gui
 
 ### Running Samples
 
+When updating SkiaSharp in `Hex1b.Tool`, `Hex1b.Website`, `TileDemo`, or
+`WindowingDemo`, change the project's `SkiaSharpVersion` property rather than
+updating the individual package references. The managed package and its Linux
+native assets must stay on the same release; a successful restore does not
+establish native ABI compatibility. Validate the tool's SVG-to-PNG converter
+tests on Linux as well as the affected application's runtime behavior.
+
 Run a sample directly; no separate `make` or native-library copy is needed:
 
 ```bash
