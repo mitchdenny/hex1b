@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Text;
 
@@ -50,18 +51,27 @@ public static class DisplayWidth
     /// </summary>
     public static int GetGraphemeWidth(string grapheme)
     {
-        if (string.IsNullOrEmpty(grapheme))
+        return GetGraphemeWidth(grapheme.AsSpan());
+    }
+
+    /// <summary>
+    /// Span form of <see cref="GetGraphemeWidth(string)"/> so callers that already know the extent
+    /// of a cluster do not have to allocate a string for it.
+    /// </summary>
+    internal static int GetGraphemeWidth(ReadOnlySpan<char> grapheme)
+    {
+        if (grapheme.IsEmpty)
             return 0;
 
         // Most grapheme clusters display as a single unit.
         // Emoji sequences (ZWJ, skin tones, flags) typically display as 2 cells.
         // Combining sequences display as the width of their base character.
-        
+
         // Check for variation selectors first - they explicitly set the presentation
         bool hasVS16 = false;  // U+FE0F - emoji presentation (wide)
         bool hasVS15 = false;  // U+FE0E - text presentation (narrow)
         bool hasKeycap = false; // U+20E3 - combining enclosing keycap
-        
+
         foreach (var rune in grapheme.EnumerateRunes())
         {
             if (rune.Value == 0x20E3) // Combining enclosing keycap
@@ -71,11 +81,11 @@ public static class DisplayWidth
             if (rune.Value == 0xFE0E) // Variation selector-15 (text presentation)
                 hasVS15 = true;
         }
-        
+
         // Keycap sequences are always 2 cells wide (like 1️⃣)
         if (hasKeycap)
             return 2;
-        
+
         // VS16 forces emoji presentation (2 cells) — but ONLY if the base character
         // has the Unicode Emoji property. VS16 on non-emoji characters (like 'n') is
         // ignored per Unicode spec and all major terminals (kitty, WezTerm, xterm, Ghostty).
@@ -91,10 +101,10 @@ public static class DisplayWidth
                 break; // Base is not emoji — ignore VS16
             }
         }
-        
+
         // VS15 forces text presentation - use GetRuneWidth for the base character
         // (fall through to normal width calculation)
-        
+
         int width = 0;
         foreach (var rune in grapheme.EnumerateRunes())
         {
@@ -106,24 +116,24 @@ public static class DisplayWidth
                 {
                     return 2;
                 }
-                
+
                 // For BMP characters with Emoji_Presentation property (like ✅❌),
                 // default to emoji presentation (2 cells) unless VS15 is present
                 if (!hasVS15 && HasDefaultEmojiPresentation(rune.Value))
                 {
                     return 2;
                 }
-                
+
                 // For other BMP characters (including those that CAN be emoji like ✓),
                 // default to text presentation (1 cell) unless VS16 was present
                 width = Math.Max(width, runeWidth);
             }
         }
-        
+
         // If no visible characters, return 0
         return width;
     }
-    
+
     /// <summary>
     /// Checks if a BMP codepoint has the Emoji_Presentation property,
     /// meaning it defaults to emoji (wide) presentation without needing VS16.
@@ -135,7 +145,7 @@ public static class DisplayWidth
         // Characters with Emoji=Yes but Emoji_Presentation=No (like ❤ U+2764)
         // only become wide with VS16 — they are NOT listed here.
         // See: https://www.unicode.org/Public/16.0.0/ucd/emoji/emoji-data.txt
-        
+
         return codePoint switch
         {
             // Miscellaneous Technical
@@ -147,11 +157,11 @@ public static class DisplayWidth
             0x23EC => true,  // ⏬ Fast Down
             0x23F0 => true,  // ⏰ Alarm Clock
             0x23F3 => true,  // ⏳ Hourglass Not Done
-            
+
             // Geometric Shapes
             0x25FD => true,  // ◽ White Medium-Small Square
             0x25FE => true,  // ◾ Black Medium-Small Square
-            
+
             // Miscellaneous Symbols
             0x2614 => true,  // ☔ Umbrella With Rain Drops
             0x2615 => true,  // ☕ Hot Beverage
@@ -184,7 +194,7 @@ public static class DisplayWidth
             0x26F5 => true,  // ⛵ Sailboat
             0x26FA => true,  // ⛺ Tent
             0x26FD => true,  // ⛽ Fuel Pump
-            
+
             // Dingbats
             0x2705 => true,  // ✅ Check Mark Button
             0x270A => true,  // ✊ Raised Fist
@@ -201,23 +211,23 @@ public static class DisplayWidth
             0x2797 => true,  // ➗ Divide
             0x27B0 => true,  // ➰ Curly Loop
             0x27BF => true,  // ➿ Double Curly Loop
-            
+
             // Geometric Shapes (arrows and squares)
             0x2B1B => true,  // ⬛ Black Large Square
             0x2B1C => true,  // ⬜ White Large Square
             0x2B50 => true,  // ⭐ Star
             0x2B55 => true,  // ⭕ Heavy Large Circle
-            
+
             // CJK Symbols
             0x3030 => true,  // 〰 Wavy Dash
             0x303D => true,  // 〽 Part Alternation Mark
             0x3297 => true,  // ㊗ Japanese "Congratulations"
             0x3299 => true,  // ㊙ Japanese "Secret"
-            
+
             _ => false
         };
     }
-    
+
     /// <summary>
     /// Checks if a codepoint is in the Supplementary Multilingual Plane (SMP) emoji ranges.
     /// These characters default to emoji presentation (width 2).
@@ -227,7 +237,7 @@ public static class DisplayWidth
     {
         // SMP Emoji Blocks (U+1F000 - U+1FFFF range)
         // These default to emoji presentation
-        
+
         // Mahjong Tiles and Domino Tiles
         if (codePoint >= 0x1F000 && codePoint <= 0x1F0FF)
             return true;
@@ -264,7 +274,7 @@ public static class DisplayWidth
         // Chess Symbols, Symbols and Pictographs Extended-A/B
         if (codePoint >= 0x1FA00 && codePoint <= 0x1FAFF)
             return true;
-            
+
         return false;
     }
 
@@ -416,13 +426,20 @@ public static class DisplayWidth
     /// </summary>
     public static int GetStringWidth(string text)
     {
-        if (string.IsNullOrEmpty(text))
+        return GetStringWidth(text.AsSpan());
+    }
+
+    /// <summary>
+    /// Span form of <see cref="GetStringWidth(string)"/>; walks the clusters without allocating.
+    /// </summary>
+    internal static int GetStringWidth(ReadOnlySpan<char> text)
+    {
+        if (text.IsEmpty)
             return 0;
 
-        // PERF: StringInfo.GetTextElementEnumerator allocates a new string per grapheme cluster.
-        // For printable ASCII (0x20–0x7E), every char is exactly one display column and one
+        // PERF: For printable ASCII (0x20–0x7E), every char is exactly one display column and one
         // grapheme cluster, so we can return text.Length directly. This fast-path avoids all
-        // allocations for the common case of ASCII-only content (labels, borders, padding).
+        // segmentation for the common case of ASCII-only content (labels, borders, padding).
         //
         // PITFALL: Control chars (< 0x20) and DEL (0x7F) are zero-width; chars >= 0x80 may be
         // multi-column (CJK) or combining marks. Any such char forces the slow path.
@@ -437,15 +454,15 @@ public static class DisplayWidth
 
         return text.Length;
 
-        SlowPath:
+    SlowPath:
         int totalWidth = 0;
-        var enumerator = StringInfo.GetTextElementEnumerator(text);
-        while (enumerator.MoveNext())
+        while (!text.IsEmpty)
         {
-            var grapheme = (string)enumerator.Current;
-            totalWidth += GetGraphemeWidth(grapheme);
+            var length = StringInfo.GetNextTextElementLength(text);
+            totalWidth += GetGraphemeWidth(text[..length]);
+            text = text[length..];
         }
-        
+
         return totalWidth;
     }
 
@@ -479,20 +496,20 @@ public static class DisplayWidth
         int columnsUsed = 0;
         int paddingBefore = 0;
         int paddingAfter = 0;
-        
+
         var enumerator = StringInfo.GetTextElementEnumerator(text);
         while (enumerator.MoveNext())
         {
             var grapheme = (string)enumerator.Current;
             var graphemeWidth = GetGraphemeWidth(grapheme);
-            
+
             // Skip graphemes before start column
             if (currentColumn + graphemeWidth <= startColumn)
             {
                 currentColumn += graphemeWidth;
                 continue;
             }
-            
+
             // Check if we're starting in the middle of a wide character
             if (currentColumn < startColumn && currentColumn + graphemeWidth > startColumn)
             {
@@ -501,7 +518,7 @@ public static class DisplayWidth
                 currentColumn += graphemeWidth;
                 continue;
             }
-            
+
             // Check if adding this grapheme would exceed our limit
             if (columnsUsed + graphemeWidth > maxColumns)
             {
@@ -513,12 +530,12 @@ public static class DisplayWidth
                 }
                 break;
             }
-            
+
             result.Append(grapheme);
             columnsUsed += graphemeWidth;
             currentColumn += graphemeWidth;
         }
-        
+
         return (result.ToString(), columnsUsed, paddingBefore, paddingAfter);
     }
 
@@ -539,78 +556,65 @@ public static class DisplayWidth
         if (string.IsNullOrEmpty(text) || maxColumns <= 0)
             return ("", 0, 0, 0);
 
-        var prefix = new StringBuilder(); // ANSI codes before first visible char
-        var result = new StringBuilder();
+        if (AnsiString.TryMeasurePlainAscii(text, out _))
+            return SliceAsciiWithAnsi(text, startColumn, maxColumns);
+
+        // Escape sequences before the first included grapheme are the prefix; the result is empty
+        // until that grapheme is reached, so one builder holds prefix and result in order.
+        var result = t_sliceBuilder ??= new StringBuilder(256);
+        result.Clear();
+
         int currentColumn = 0;
         int columnsUsed = 0;
         int paddingBefore = 0;
         int paddingAfter = 0;
         bool started = false;
 
+        // True while i is known to be a grapheme boundary of the whole text. The original
+        // implementation looked every grapheme up by index in an enumeration of the whole text
+        // and fell back to a single character where the index was inside a cluster. That can only
+        // happen right after an escape sequence (the sequence's last character is segmented with
+        // what follows it), so the cheap forward segmentation is used while the boundary is
+        // known and the lookup by index only until a boundary is found again.
+        bool atBoundary = true;
+
         int i = 0;
         while (i < text.Length)
         {
-            // Check for ANSI escape sequence (ESC [ ... final byte) - CSI sequences
-            if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '[')
+            // CSI sequences (ESC [ ... final byte) and OSC sequences (ESC ] ... ST, where ST is
+            // ESC \ or BEL) are kept without counting columns.
+            if (text[i] == '\x1b' && i + 1 < text.Length && (text[i + 1] == '[' || text[i + 1] == ']'))
             {
-                // Find the end of the CSI sequence
-                var seqStart = i;
-                i += 2; // Skip ESC [
-                while (i < text.Length)
-                {
-                    var c = text[i];
-                    if (c >= '@' && c <= '~')
-                    {
-                        i++; // Include final byte
-                        break;
-                    }
-                    i++;
-                }
-                var seq = text.Substring(seqStart, i - seqStart);
-                
-                // Add to prefix or result depending on whether we've started
-                if (!started)
-                    prefix.Append(seq);
-                else
-                    result.Append(seq);
-                continue;
-            }
-            
-            // Check for OSC escape sequence (ESC ] ... ST) - OSC sequences like OSC 8 hyperlinks
-            // ST (String Terminator) can be ESC \ or BEL (\x07)
-            if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == ']')
-            {
-                var seqStart = i;
-                i += 2; // Skip ESC ]
-                while (i < text.Length)
-                {
-                    // Check for ST = ESC \ (two characters)
-                    if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '\\')
-                    {
-                        i += 2; // Include ESC \
-                        break;
-                    }
-                    // Check for ST = BEL (single character \x07)
-                    if (text[i] == '\x07')
-                    {
-                        i++; // Include BEL
-                        break;
-                    }
-                    i++;
-                }
-                var seq = text.Substring(seqStart, i - seqStart);
-                
-                // Add to prefix or result depending on whether we've started
-                if (!started)
-                    prefix.Append(seq);
-                else
-                    result.Append(seq);
+                var sequenceEnd = text[i + 1] == '[' ? SkipCsiSequence(text, i) : SkipOscSequence(text, i);
+                result.Append(text, i, sequenceEnd - i);
+                i = sequenceEnd;
+                atBoundary = IsGraphemeBoundaryAfterSequence(text, i);
                 continue;
             }
 
-            // Get the grapheme cluster at this position
-            var grapheme = GetGraphemeAtIndex(text, i, out var graphemeLength);
-            var graphemeWidth = GetGraphemeWidth(grapheme);
+            // Get the extent and width of the grapheme cluster at this position
+            int graphemeLength;
+            int graphemeWidth;
+            var c = text[i];
+            if (atBoundary)
+            {
+                if (c >= 0x20 && c < 0x7F && (i + 1 >= text.Length || text[i + 1] < 0x80))
+                {
+                    // Printable ASCII that is not followed by a possible combining character.
+                    graphemeLength = 1;
+                    graphemeWidth = 1;
+                }
+                else
+                {
+                    graphemeLength = StringInfo.GetNextTextElementLength(text.AsSpan(i));
+                    graphemeWidth = GetGraphemeWidth(text.AsSpan(i, graphemeLength));
+                }
+            }
+            else
+            {
+                graphemeLength = GetGraphemeLengthAtIndex(text, i, out atBoundary);
+                graphemeWidth = GetGraphemeWidth(text.AsSpan(i, graphemeLength));
+            }
 
             // Skip graphemes before start column
             if (currentColumn + graphemeWidth <= startColumn)
@@ -642,87 +646,154 @@ public static class DisplayWidth
                 break;
             }
 
-            if (!started)
-            {
-                result.Append(prefix);
-                started = true;
-            }
-
-            result.Append(grapheme);
+            started = true;
+            result.Append(text, i, graphemeLength);
             columnsUsed += graphemeWidth;
             currentColumn += graphemeWidth;
             i += graphemeLength;
         }
 
-        // Collect any trailing ANSI sequences (CSI and OSC)
+        // The loop only stops at a grapheme, never at an escape sequence, so there are no
+        // trailing sequences to collect.
+        var slice = started ? result.ToString() : "";
+        if (result.Capacity > MaxCachedSliceBuilderCapacity)
+            t_sliceBuilder = null;
+
+        return (slice, columnsUsed, paddingBefore, paddingAfter);
+    }
+
+    private const int MaxCachedSliceBuilderCapacity = 4096;
+    private const int SliceStackBufferLength = 256;
+
+    /// <summary>
+    /// Slices text that is nothing but printable ASCII around complete CSI and OSC sequences
+    /// (see <see cref="AnsiString.TryMeasurePlainAscii"/>). Every visible character is one column
+    /// and a cluster of its own, so no segmentation and no padding are involved.
+    /// </summary>
+    private static (string text, int columns, int paddingBefore, int paddingAfter) SliceAsciiWithAnsi(
+        string text, int startColumn, int maxColumns)
+    {
+        char[]? rented = null;
+        Span<char> buffer = text.Length <= SliceStackBufferLength
+            ? stackalloc char[SliceStackBufferLength]
+            : (rented = ArrayPool<char>.Shared.Rent(text.Length));
+        try
+        {
+            var written = 0;
+            var currentColumn = 0;
+            var columnsUsed = 0;
+            var i = 0;
+            while (i < text.Length)
+            {
+                var c = text[i];
+                if (c == '\x1b')
+                {
+                    // Escape sequences are kept without counting columns. Before the first
+                    // included character they form the prefix, which is the same position in
+                    // the output.
+                    var sequenceEnd = text[i + 1] == '[' ? SkipCsiSequence(text, i) : SkipOscSequence(text, i);
+                    text.AsSpan(i, sequenceEnd - i).CopyTo(buffer[written..]);
+                    written += sequenceEnd - i;
+                    i = sequenceEnd;
+                    continue;
+                }
+
+                if (currentColumn < startColumn)
+                {
+                    currentColumn++;
+                    i++;
+                    continue;
+                }
+
+                if (columnsUsed == maxColumns)
+                    break;
+
+                buffer[written++] = c;
+                columnsUsed++;
+                currentColumn++;
+                i++;
+            }
+
+            if (columnsUsed == 0)
+                return ("", 0, 0, 0);
+
+            var slice = written == text.Length ? text : new string(buffer[..written]);
+            return (slice, columnsUsed, 0, 0);
+        }
+        finally
+        {
+            if (rented is not null)
+                ArrayPool<char>.Shared.Return(rented);
+        }
+    }
+
+    [ThreadStatic]
+    private static StringBuilder? t_sliceBuilder;
+
+    /// <summary>
+    /// Returns the index just past a CSI sequence that starts at <paramref name="start"/>
+    /// (ESC [ ... final byte), or the end of the text if it has no final byte.
+    /// </summary>
+    private static int SkipCsiSequence(string text, int start)
+    {
+        var i = start + 2; // Skip ESC [
         while (i < text.Length)
         {
-            // CSI sequences
-            if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '[')
-            {
-                var seqStart = i;
-                i += 2;
-                while (i < text.Length)
-                {
-                    var c = text[i];
-                    if (c >= '@' && c <= '~')
-                    {
-                        i++;
-                        break;
-                    }
-                    i++;
-                }
-                result.Append(text.Substring(seqStart, i - seqStart));
-                continue;
-            }
-            // OSC sequences
-            if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == ']')
-            {
-                var seqStart = i;
-                i += 2;
-                while (i < text.Length)
-                {
-                    if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '\\')
-                    {
-                        i += 2;
-                        break;
-                    }
-                    if (text[i] == '\x07')
-                    {
-                        i++;
-                        break;
-                    }
-                    i++;
-                }
-                result.Append(text.Substring(seqStart, i - seqStart));
-                continue;
-            }
-            break;
+            var c = text[i];
+            i++;
+            if (c >= '@' && c <= '~')
+                break; // Final byte included
         }
-
-        return (result.ToString(), columnsUsed, paddingBefore, paddingAfter);
+        return i;
     }
 
     /// <summary>
-    /// Gets the grapheme cluster at the specified index in a string.
+    /// Returns the index just past an OSC sequence that starts at <paramref name="start"/>
+    /// (ESC ] ... ST, with ST being ESC \ or BEL), or the end of the text if it is not terminated.
     /// </summary>
-    private static string GetGraphemeAtIndex(string text, int index, out int length)
+    private static int SkipOscSequence(string text, int start)
     {
-        if (index >= text.Length)
+        var i = start + 2; // Skip ESC ]
+        while (i < text.Length)
         {
-            length = 0;
-            return "";
+            if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '\\')
+                return i + 2; // Include ESC \
+            if (text[i] == '\x07')
+                return i + 1; // Include BEL
+            i++;
         }
+        return i;
+    }
 
+    /// <summary>
+    /// Determines whether the index just past an escape sequence is a grapheme boundary of the
+    /// whole text. The sequence ends in an ASCII character (final byte, backslash or BEL), and
+    /// the boundary rules between such a character and the next one do not depend on anything
+    /// before it, so only a following combining mark, joiner or spacing mark can attach to it.
+    /// </summary>
+    private static bool IsGraphemeBoundaryAfterSequence(string text, int index)
+    {
+        if (index >= text.Length || text[index] < 0x80)
+            return true;
+
+        return StringInfo.GetNextTextElementLength(text.AsSpan(index - 1)) == 1;
+    }
+
+    /// <summary>
+    /// Gets the length of the grapheme cluster at the specified index of the whole text, the way the
+    /// text is segmented from its start. When the index is inside a cluster, a surrogate pair or a
+    /// single character is returned and <paramref name="isClusterStart"/> is false.
+    /// </summary>
+    private static int GetGraphemeLengthAtIndex(string text, int index, out bool isClusterStart)
+    {
         // Use StringInfo to find the grapheme at this position
         var enumerator = StringInfo.GetTextElementEnumerator(text);
         while (enumerator.MoveNext())
         {
             if (enumerator.ElementIndex == index)
             {
-                var grapheme = (string)enumerator.Current;
-                length = grapheme.Length;
-                return grapheme;
+                isClusterStart = true;
+                return enumerator.GetTextElement().Length;
             }
             if (enumerator.ElementIndex > index)
             {
@@ -732,14 +803,11 @@ public static class DisplayWidth
         }
 
         // Fallback: handle surrogate pairs
+        isClusterStart = false;
         if (char.IsHighSurrogate(text[index]) && index + 1 < text.Length && char.IsLowSurrogate(text[index + 1]))
-        {
-            length = 2;
-            return text.Substring(index, 2);
-        }
+            return 2;
 
-        length = 1;
-        return text[index].ToString();
+        return 1;
     }
 
     /// <summary>
@@ -776,7 +844,7 @@ public static class DisplayWidth
         // the base emoji determines the width. When they are standalone (split off by
         // GetGraphemeAt because the base was not Emoji_Modifier_Base), they render as
         // independent wide characters (2 cells), matching Ghostty and other terminals.
-        
+
         // Fallback: use Unicode general category for nonspacing marks (Mn) and
         // enclosing marks (Me). This covers combining marks in all scripts
         // (Devanagari virama U+094D, Arabic marks, Hebrew points, etc.)
@@ -787,7 +855,7 @@ public static class DisplayWidth
                 category == System.Globalization.UnicodeCategory.EnclosingMark)
                 return true;
         }
-            
+
         return false;
     }
 
@@ -813,41 +881,41 @@ public static class DisplayWidth
             return true;
         if (codePoint >= 0x30000 && codePoint <= 0x3134F) // CJK Extension G
             return true;
-            
+
         // CJK Compatibility Ideographs
         if (codePoint >= 0xF900 && codePoint <= 0xFAFF)
             return true;
         if (codePoint >= 0x2F800 && codePoint <= 0x2FA1F)
             return true;
-            
+
         // Hangul Syllables
         if (codePoint >= 0xAC00 && codePoint <= 0xD7AF)
             return true;
-            
+
         // Hangul Jamo Extended
         if (codePoint >= 0xA960 && codePoint <= 0xA97F)
             return true;
         if (codePoint >= 0xD7B0 && codePoint <= 0xD7FF)
             return true;
-            
+
         // Katakana and Hiragana
         if (codePoint >= 0x3040 && codePoint <= 0x30FF)
             return true;
         if (codePoint >= 0x31F0 && codePoint <= 0x31FF) // Katakana Phonetic Extensions
             return true;
-            
+
         // Fullwidth Forms
         if (codePoint >= 0xFF00 && codePoint <= 0xFF60)
             return true;
         if (codePoint >= 0xFFE0 && codePoint <= 0xFFE6)
             return true;
-            
+
         // SMP Emoji are wide (but BMP emoji default to text presentation unless VS16)
         // Note: BMP characters like ✓ (U+2713) are handled by GetGraphemeWidth
         // which checks for VS16 to determine emoji vs text presentation
         if (IsSmpEmoji(codePoint))
             return true;
-            
+
         return false;
     }
 
@@ -859,7 +927,7 @@ public static class DisplayWidth
     {
         // SMP Emoji Blocks (U+1F000 - U+1FFFF range)
         // Using broader ranges to be more future-proof
-        
+
         // Mahjong Tiles and Domino Tiles
         if (codePoint >= 0x1F000 && codePoint <= 0x1F0FF)
             return true;
@@ -897,9 +965,9 @@ public static class DisplayWidth
         // Chess Symbols, Symbols and Pictographs Extended-A/B
         if (codePoint >= 0x1FA00 && codePoint <= 0x1FAFF)
             return true;
-        
+
         // BMP Emoji Blocks
-        
+
         // Miscellaneous Symbols (☀️⚡⚠️ etc)
         if (codePoint >= 0x2600 && codePoint <= 0x26FF)
             return true;
@@ -918,7 +986,7 @@ public static class DisplayWidth
         // Enclosed CJK Letters and Months
         if (codePoint >= 0x3300 && codePoint <= 0x33FF)
             return true;
-            
+
         // Specific standalone emoji characters
         // Copyright, Registered, Trademark
         if (codePoint == 0x00A9 || codePoint == 0x00AE || codePoint == 0x2122)
@@ -957,7 +1025,7 @@ public static class DisplayWidth
         // - U+25B6, U+25C0 (play/reverse triangles - used as scroll arrows)
         // - U+25FB-U+25FE (medium squares)
         // If they were listed here, they'd incorrectly be width 2 in text mode.
-            
+
         return false;
     }
 

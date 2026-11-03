@@ -24,11 +24,11 @@ public class SurfaceRenderContext : Hex1bRenderContext
     private readonly Surface _surface;
     private int _cursorX;
     private int _cursorY;
-    
+
     // Coordinate offset for child rendering - allows absolute coordinates to map to a smaller surface
     private int _offsetX;
     private int _offsetY;
-    
+
     // Terminal capabilities inherited from parent context
     private TerminalCapabilities? _capabilities;
 
@@ -50,35 +50,35 @@ public class SurfaceRenderContext : Hex1bRenderContext
     // Real terminal content rarely exceeds 10000 rows; this prevents int.MaxValue-sized children
     // (from unconstrained measure passes) from causing OverflowException in Surface allocation.
     private const int MaxSurfaceDimension = 10_000;
-    
+
     /// <summary>
     /// Gets the X offset applied to coordinates.
     /// </summary>
     internal int OffsetX => _offsetX;
-    
+
     /// <summary>
     /// Gets the Y offset applied to coordinates.
     /// </summary>
     internal int OffsetY => _offsetY;
-    
+
     /// <summary>
     /// Gets the cell metrics (pixel dimensions per cell).
     /// </summary>
     public CellMetrics CellMetrics { get; init; } = CellMetrics.Default;
-    
+
     // Current style state (from parsed ANSI codes)
     private Hex1bColor? _currentForeground;
     private Hex1bColor? _currentBackground;
     private CellAttributes _currentAttributes;
     private UnderlineStyle _currentUnderlineStyle;
     private Hex1bColor? _currentUnderlineColor;
-    
+
     // Current hyperlink state (from parsed OSC 8 sequences)
     private TrackedObject<HyperlinkData>? _currentHyperlink;
-    
+
     // Store for tracking hyperlink objects (for deduplication and reference counting)
     private readonly TrackedObjectStore _trackedObjects;
-    
+
     /// <summary>
     /// Gets the tracked object store for creating sixels and hyperlinks.
     /// </summary>
@@ -201,7 +201,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
         _surface = surface ?? throw new ArgumentNullException(nameof(surface));
         _trackedObjects = new TrackedObjectStore();
     }
-    
+
     /// <summary>
     /// Creates a new SurfaceRenderContext with coordinate offset for child rendering.
     /// </summary>
@@ -217,7 +217,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
         _offsetY = offsetY;
         _trackedObjects = new TrackedObjectStore();
     }
-    
+
     /// <summary>
     /// Creates a new SurfaceRenderContext with coordinate offset for child rendering,
     /// sharing the parent's tracked object store.
@@ -246,7 +246,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
     /// falling back to <see cref="TerminalCapabilities.Modern"/> if not set.
     /// </summary>
     public override TerminalCapabilities Capabilities => _capabilities ?? TerminalCapabilities.Modern;
-    
+
     /// <summary>
     /// Sets the terminal capabilities for this context and child contexts.
     /// Call this to propagate capabilities from a parent render context.
@@ -445,7 +445,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
             }
         }
     }
-    
+
     /// <summary>
     /// Writes a KGP image at the current cursor position by populating surface cells
     /// with structured <see cref="KgpCellData"/>. The anchor cell (top-left) carries
@@ -567,9 +567,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 return;
             }
 
-            var newLeft   = Math.Max(anchorX, clip.X);
-            var newTop    = Math.Max(anchorY, clip.Y);
-            var newRight  = Math.Min(anchorX + cellWidth, clipRight);
+            var newLeft = Math.Max(anchorX, clip.X);
+            var newTop = Math.Max(anchorY, clip.Y);
+            var newRight = Math.Min(anchorX + cellWidth, clipRight);
             var newBottom = Math.Min(anchorY + cellHeight, clipBottom);
 
             var newCellW = newRight - newLeft;
@@ -590,7 +590,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 var effH = clipH > 0 ? clipH : pixelHeight;
 
                 var leftClipped = newLeft - anchorX;
-                var topClipped  = newTop - anchorY;
+                var topClipped = newTop - anchorY;
 
                 var newClipX = clipX + (int)((long)leftClipped * effW / cellWidth);
                 var newClipY = clipY + (int)((long)topClipped * effH / cellHeight);
@@ -911,19 +911,19 @@ public class SurfaceRenderContext : Hex1bRenderContext
         _currentUnderlineColor = null;
         // Note: We don't reset hyperlink here - OSC 8 reset is explicit with empty URI
     }
-    
+
     /// <summary>
     /// Whether render caching is enabled. When true, RenderChild will use cached
     /// surfaces for nodes that are not dirty. Default is true.
     /// </summary>
     public bool CachingEnabled { get; set; } = true;
-    
+
     /// <summary>
     /// Statistics about cache usage for the current frame.
     /// </summary>
     public int CacheHits { get; private set; }
     public int CacheMisses { get; private set; }
-    
+
     /// <summary>
     /// Resets cache statistics. Call at the start of each frame.
     /// </summary>
@@ -968,7 +968,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
     public override void RenderChild(Hex1bNode child)
     {
         if (child == null) return;
-        
+
         // If caching is disabled, render directly into this surface
         // UNLESS there's a layout provider requiring clipping (e.g., ScrollPanel viewport)
         if (!CachingEnabled)
@@ -1074,7 +1074,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 _kgpClipRect = IntersectKgpClip(_kgpClipRect, child.Bounds);
             RenderChildTimed(child, this);
             _kgpClipRect = savedClip;
-            
+
             // Post-process: fill transparent backgrounds in the child's region.
             // In direct rendering mode, child writes overwrite fill cells with
             // transparent bg. We fix them up after rendering.
@@ -1086,7 +1086,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
             }
             return;
         }
-        
+
         // Check if we can use cached surface.
         // Reconciled trees use an O(1) subtree dirty-version gate.
         // For manually-constructed trees without parent links, fall back to recursive NeedsRender().
@@ -1128,7 +1128,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
 
         // Cache miss - render and cache
         CacheMisses++;
-        
+
         // Only cache if the node has non-zero bounds
         if (child.Bounds.Width > 0 && child.Bounds.Height > 0)
         {
@@ -1172,7 +1172,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                     : new Surface(clampedWidth, clampedHeight, CellMetrics);
             }
             var subtreeVersionBeforeRender = child.SubtreeRenderVersion;
-            
+
             // Create context with offset so child's absolute coordinates map to surface (0,0)
             // Share the tracked object store so graphics created by children are properly tracked.
             // Seed the child context with a RectLayoutProvider for the child bounds that chains
@@ -1195,15 +1195,15 @@ public class SurfaceRenderContext : Hex1bRenderContext
             {
                 ParentLayoutProvider = CurrentLayoutProvider
             };
-            
+
             // Set cursor position to child's origin so Write() calls work correctly
             // (the offset will translate this to 0,0 on the child surface)
             childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
-            
+
             // Render to the child surface (child uses its normal absolute coordinates,
             // context translates them via the offset)
             RenderChildTimed(child, childContext);
-            
+
             // Post-process: fill transparent backgrounds with the node's fill color.
             // This prevents background bleed-through in layered compositing by ensuring
             // all cells on this surface have an explicit background color.
@@ -1211,12 +1211,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
             {
                 childSurface.FillBackground(child.FillBackground);
             }
-            
+
             // Cache the result
             child.CachedSurface = childSurface;
             child.CachedBounds = child.Bounds;
             child.CachedSubtreeRenderVersion = subtreeVersionBeforeRender;
-            
+
             // Composite onto our surface at RELATIVE position
             // (child.Bounds are absolute, but _surface may have its own offset)
             // If there's a layout provider, clip to its bounds
@@ -1281,12 +1281,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
 
             // Find the extent of the current grapheme cluster
             var grapheme = GetNextGrapheme(text, i, out var charCount);
-            
+
             // Write to surface if in bounds (using offset-adjusted coordinates)
             if (writeX >= 0 && writeX < _surface.Width && writeY >= 0 && writeY < _surface.Height)
             {
                 var displayWidth = DisplayWidth.GetGraphemeWidth(grapheme);
-                
+
                 // Add ref to hyperlink if present (each cell holds a reference)
                 _currentHyperlink?.AddRef();
 
@@ -1382,7 +1382,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
     private static bool IsSixelOccluder(in SurfaceCell cell)
         => cell.Character != SurfaceCells.UnwrittenMarker
             && (cell.Character != " " || cell.Background is not null);
-    
+
     /// <summary>
     /// Gets the next grapheme cluster from the string starting at the given index.
     /// </summary>
@@ -1398,13 +1398,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
             return "";
         }
 
-        // PERF: StringInfo.GetTextElementEnumerator allocates a new string per call.
-        // GetNextGrapheme is called for EVERY character written to a surface cell during
-        // rendering, making it one of the highest-frequency allocation sites.
+        // PERF: GetNextGrapheme is called for EVERY character written to a surface cell during
+        // rendering, making it one of the highest-frequency allocation sites. char.ToString() and
+        // the text element enumerator both allocate a new string per call, so the strings come
+        // from GraphemeStringCache, which hands out shared instances.
         //
         // For printable ASCII (0x20–0x7E), each char is always a complete single-char grapheme.
-        // char.ToString() for chars <= 0x7F returns a cached (interned) string in .NET 6+,
-        // making this path entirely allocation-free.
         //
         // PITFALL: We must also check that the NEXT character is ASCII (or end-of-string).
         // Keycap emoji sequences start with an ASCII char followed by U+FE0F (variation
@@ -1417,24 +1416,15 @@ public class SurfaceRenderContext : Hex1bRenderContext
             && (start + 1 >= text.Length || text[start + 1] < 0x80))
         {
             charCount = 1;
-            return ch.ToString();
+            return GraphemeStringCache.GetAscii(ch);
         }
-        
-        // Use .NET's grapheme cluster enumeration to properly handle:
+
+        // Use .NET's grapheme cluster segmentation to properly handle:
         // - Surrogate pairs (emoji like 🖥)
         // - Combining characters (variation selectors like U+FE0F)
         // - Extended grapheme clusters (emoji + skin tones, ZWJ sequences)
-        var enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(text, start);
-        if (enumerator.MoveNext())
-        {
-            var grapheme = enumerator.GetTextElement();
-            charCount = grapheme.Length;
-            return grapheme;
-        }
-        
-        // Fallback (shouldn't happen)
-        charCount = 1;
-        return ch.ToString();
+        charCount = System.Globalization.StringInfo.GetNextTextElementLength(text.AsSpan(start));
+        return GraphemeStringCache.Get(text.AsSpan(start, charCount));
     }
 
     /// <summary>
@@ -1489,12 +1479,11 @@ public class SurfaceRenderContext : Hex1bRenderContext
             {
                 // This is the final byte
                 var seqLength = i - start + 1;
-                var sequence = text.Substring(start + 2, i - start - 2);
 
                 if (c == 'm')
                 {
                     // SGR sequence - parse colors and attributes
-                    ParseSgrSequence(sequence);
+                    ParseSgrSequence(text.Substring(start + 2, i - start - 2));
                 }
 
                 return seqLength;
@@ -1812,7 +1801,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
         var contentStart = i;
         var contentEnd = -1;
         var terminatorLength = 0;
-        
+
         // Find the terminator (ST or BEL)
         while (i < text.Length)
         {
@@ -1830,12 +1819,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
             }
             i++;
         }
-        
+
         if (contentEnd < 0)
             return 0; // Incomplete sequence
-        
+
         var content = text.Substring(contentStart, contentEnd - contentStart);
-        
+
         // Parse OSC command number
         var firstSemicolon = content.IndexOf(';');
         if (firstSemicolon < 0)
@@ -1843,21 +1832,21 @@ public class SurfaceRenderContext : Hex1bRenderContext
             // No command parameters, skip
             return contentEnd - start + terminatorLength;
         }
-        
+
         var command = content[..firstSemicolon];
-        
+
         // Handle OSC 8 (hyperlinks)
         if (command == "8")
         {
             // Format: 8;params;URI
             var rest = content[(firstSemicolon + 1)..];
             var secondSemicolon = rest.IndexOf(';');
-            
+
             if (secondSemicolon >= 0)
             {
                 var parameters = rest[..secondSemicolon];
                 var uri = rest[(secondSemicolon + 1)..];
-                
+
                 if (string.IsNullOrEmpty(uri))
                 {
                     // Empty URI ends the hyperlink
@@ -1872,10 +1861,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 }
             }
         }
-        
+
         return contentEnd - start + terminatorLength;
     }
-    
+
     /// <summary>
     /// Skips a DCS sequence (ESC P ... ST).
     /// </summary>

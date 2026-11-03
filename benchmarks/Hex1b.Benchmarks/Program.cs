@@ -20,10 +20,13 @@ switch (benchmarkType)
     case "text":
         BenchmarkSwitcher.FromTypes([typeof(TerminalTextBenchmarks)]).Run(bdnArgs);
         break;
+    case "clipping":
+        BenchmarkSwitcher.FromTypes([typeof(ClippingBenchmarks)]).Run(bdnArgs);
+        break;
     case "all":
     default:
         BenchmarkSwitcher.FromTypes(
-            [typeof(SurfaceBenchmarks), typeof(RenderingModeBenchmarks), typeof(SixelHardeningBenchmarks), typeof(TerminalTextBenchmarks)])
+            [typeof(SurfaceBenchmarks), typeof(RenderingModeBenchmarks), typeof(SixelHardeningBenchmarks), typeof(TerminalTextBenchmarks), typeof(ClippingBenchmarks)])
             .Run(bdnArgs);
         break;
 }
