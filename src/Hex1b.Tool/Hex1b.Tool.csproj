@@ -7,7 +7,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
-    <SkiaSharpVersion>4.153.1</SkiaSharpVersion>
+    <SkiaSharpVersion>4.154.0</SkiaSharpVersion>
 
     <!-- Embed source code for debugging -->
     <EmbedAllSources>true</EmbedAllSources>
