@@ -7,6 +7,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <SkiaSharpVersion>4.153.1</SkiaSharpVersion>
 
     <!-- Embed source code for debugging -->
     <EmbedAllSources>true</EmbedAllSources>
@@ -63,8 +64,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="SkiaSharp" Version="4.153.1" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.153.1" />
+    <PackageReference Include="SkiaSharp" Version="$(SkiaSharpVersion)" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="$(SkiaSharpVersion)" />
     <PackageReference Include="Svg.Skia" Version="5.2.3" />
     <PackageReference Include="System.CommandLine" Version="2.0.12" />
   </ItemGroup>
