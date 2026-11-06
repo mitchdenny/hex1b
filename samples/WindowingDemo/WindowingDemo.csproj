@@ -5,7 +5,7 @@
     <PublishAot>true</PublishAot>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <SkiaSharpVersion>4.153.1</SkiaSharpVersion>
+    <SkiaSharpVersion>4.154.0</SkiaSharpVersion>
   </PropertyGroup>
 
   <ItemGroup>
