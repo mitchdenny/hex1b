@@ -4,7 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <SkiaSharpVersion>4.153.1</SkiaSharpVersion>
+    <SkiaSharpVersion>4.154.0</SkiaSharpVersion>
   </PropertyGroup>
 
   <ItemGroup>
