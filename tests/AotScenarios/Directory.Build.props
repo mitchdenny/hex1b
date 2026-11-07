@@ -1,0 +1,22 @@
+<Project>
+  <Import Project="..\..\Directory.Build.props" />
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+    <PublishAot>true</PublishAot>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <IlcGenerateMapFile>true</IlcGenerateMapFile>
+    <!-- These paths apply only to consumers, never their project references. -->
+    <BaseIntermediateOutputPath Condition="'$(AotScenarioArtifacts)' != ''">$(AotScenarioArtifacts)\obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath Condition="'$(AotScenarioArtifacts)' != ''">$(AotScenarioArtifacts)\bin\</BaseOutputPath>
+    <PublishDir Condition="'$(AotScenarioArtifacts)' != ''">$(AotScenarioArtifacts)\publish\</PublishDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\Shared\EchoWorkload.cs" Link="Shared\EchoWorkload.cs" />
+    <ProjectReference Include="..\..\..\src\Hex1b\Hex1b.csproj" />
+  </ItemGroup>
+</Project>
