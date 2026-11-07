@@ -594,6 +594,22 @@ Not every widget needs every combination, but consider which dimensions are rele
 
 ## Low-Level API Testing (Isolation)
 
+### Native AOT Consumer Scenarios
+
+Use the opt-in managed `tests/Hex1b.Aot.Tests` runner for emitted-code retention
+and native behavior checks, not the ordinary library test project. Each
+`tests/AotScenarios` consumer is an independent native console entry point.
+For a fast parser-only check:
+
+```powershell
+dotnet test --project tests\Hex1b.Aot.Tests\Hex1b.Aot.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~NativeMapTests"
+```
+
+Match declaring `MethodCode` families in compiler XML, not metadata or types
+mentioned in generic signatures. Keep publish/intermediate properties scoped to
+consumers so analyzer and native-helper references retain normal build settings.
+See `tests/AotScenarios/README.md` for prerequisites, full execution and evidence.
+
 ### Output-Pump Allocation Regressions
 
 Measure `GC.GetAllocatedBytesForCurrentThread()` around a synchronous application
