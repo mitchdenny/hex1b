@@ -11,6 +11,45 @@ namespace Hex1b.Tests;
 public class TapePlayerFactoryTests
 {
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Play_PreparationThrows_DoesNotStartOrOwnConfiguredWorkload(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        await using var workload = new TrackingWorkload();
+        var failure = new InvalidOperationException("preparation failed");
+        var parserOptions = new TapeParserOptions();
+        parserOptions.SyntaxExtensions["FailPreparation"] = _ => context =>
+        {
+            if (cancel)
+            {
+                cancellation.Cancel();
+                cancellation.Token.ThrowIfCancellationRequested();
+            }
+            throw failure;
+        };
+        var tape = new TapeParser(parserOptions).Parse("FailPreparation");
+        var options = new TapePlaybackOptions
+        {
+            TerminalFactory = builder => builder.WithWorkload(workload).Build()
+        };
+
+        if (cancel)
+            await Assert.ThrowsAsync<OperationCanceledException>(() =>
+                new TapePlayer().PlayAsync(tape, options, cancellation.Token));
+        else
+        {
+            var error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                new TapePlayer().PlayAsync(tape, options, cancellation.Token));
+            Assert.AreSame(failure, error);
+        }
+
+        Assert.IsFalse(workload.ReadStarted.Task.IsCompleted);
+        Assert.IsFalse(workload.IsDisposed);
+        Assert.AreEqual(default, workload.Size);
+    }
+
+    [TestMethod]
     public async Task Play_ConfiguredApp_ReceivesInputAndPreservesFinalSnapshot()
     {
         var clicks = 0;
