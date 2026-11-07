@@ -7,7 +7,7 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 const pendingStatuses = new Set([
-  'deployment_in_progress', 'syncing_files', 'finished_file_sync', 'updating_pages',
+  'deployment_queued', 'deployment_in_progress', 'syncing_files', 'finished_file_sync', 'updating_pages',
   'purging_cdn', 'deployment_attempt_error',
 ])
 const failedStatuses = new Set([
