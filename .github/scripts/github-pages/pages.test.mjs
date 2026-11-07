@@ -96,11 +96,11 @@ test('missing Actions credentials fail before upload or API access', async t => 
 test('all documented intermediate deployment statuses are polled rather than canceled', async t => {
   const f = await fixture(t)
   f.statuses([
-    'deployment_in_progress', 'syncing_files', 'finished_file_sync',
+    'deployment_queued', 'deployment_in_progress', 'syncing_files', 'finished_file_sync',
     'updating_pages', 'purging_cdn', 'deployment_attempt_error', 'succeed',
   ])
   assert.equal(await publishPages(f.options), 'https://mitchdenny.github.io/hex1b/')
-  assert.equal(f.requests.filter(request => request.url.endsWith('/456')).length, 7)
+  assert.equal(f.requests.filter(request => request.url.endsWith('/456')).length, 8)
   assert.ok(!f.requests.some(request => request.url.endsWith('/cancel')))
 })
 
