@@ -12,6 +12,8 @@
     <PackageVersion Include="GitReader" Version="1.18.0" />
     <PackageVersion Include="Hex1b" Version="0.173.0" />
     <PackageVersion Include="MessagePack" Version="2.5.303" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.14" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.MSTest" Version="1.1.2" />
@@ -42,16 +44,6 @@
   <!-- DocFX's Roslyn dependencies must match the release it was built against. -->
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'Hex1b.DocGenerator'">
     <PackageVersion Update="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
-  </ItemGroup>
-
-  <!-- Keep browser demos on their existing runtime releases until explicitly validated. -->
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'BlazorDemo'">
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.13" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.13" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'BlazorPerfStressDemo'">
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.12" />
   </ItemGroup>
 
   <!-- The native smoke test deliberately bootstraps from an older published package. -->
