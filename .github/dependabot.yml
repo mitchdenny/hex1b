@@ -1,16 +1,21 @@
 version: 2
 updates:
   - package-ecosystem: "nuget"
-    directories:
-    - "/src/**/"
-    - "/tests/**/"
-    - "/samples/**/"
-    - "/benchmarks/**/"
-    - "/.github/skills/**/"
-    exclude-paths:
-      - "samples/BlazorDemo/**"
-      - "samples/BlazorPerfStressDemo/**"
-      - "samples/WasmDemo/**"
+    directory: "/"
+    groups:
+      skiasharp:
+        patterns:
+          - "SkiaSharp*"
+      aspire:
+        patterns:
+          - "Aspire.*"
+    # These versions are compatibility/runtime pins, not routine update targets.
+    ignore:
+      - dependency-name: "Hex1b"
+      - dependency-name: "Docfx.App"
+      - dependency-name: "Microsoft.CodeAnalysis.CSharp.Workspaces"
+      - dependency-name: "Microsoft.CodeAnalysis.Workspaces.MSBuild"
+      - dependency-name: "Microsoft.AspNetCore.Components.WebAssembly*"
     schedule:
       interval: "weekly"
 

@@ -37,14 +37,33 @@ Thank you for your interest in contributing to Hex1b! This document provides gui
    dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj
    ```
 
-### Running Samples
+### Managing NuGet Dependencies
 
-When updating SkiaSharp in `Hex1b.Tool`, `Hex1b.Website`, `TileDemo`, or
-`WindowingDemo`, change the project's `SkiaSharpVersion` property rather than
-updating the individual package references. The managed package and its Linux
-native assets must stay on the same release; a successful restore does not
+Package references use central package management. Add or update versions in
+the root `Directory.Packages.props`, and omit `Version` on project
+`PackageReference` items and file-based app `#:package` directives.
+SDK versions (such as `MSTest.Sdk` and `Aspire.AppHost.Sdk`) are SDK references,
+not centrally managed package references; their shared versions live in
+`global.json` under `msbuild-sdks`.
+
+Dependabot uses `Dependencies.proj` as its root discovery entry point and updates
+the shared manifests instead of opening separate bumps for each project.
+The discovery manifest excludes the browser demos that require WebAssembly
+workloads. SkiaSharp updates are grouped: keep the managed package and both Linux
+native asset packages on the same release. A successful restore does not
 establish native ABI compatibility. Validate the tool's SVG-to-PNG converter
 tests on Linux as well as the affected application's runtime behavior.
+Aspire SDK and hosting-package updates are also grouped so they stay aligned.
+
+Conditional entries preserve the browser demos' runtime releases, DocFX's
+Roslyn compatibility requirement, and the native smoke test's bootstrap
+package. These dependencies are excluded from routine Dependabot updates;
+change their pins only after validating compatibility. The legacy workload
+fixture also stays on a published Hex1b package. Tool packaging in CI uses
+`VersionOverride` to select the freshly built Hex1b package without changing
+these pins.
+
+### Running Samples
 
 Run a sample directly; no separate `make` or native-library copy is needed:
 

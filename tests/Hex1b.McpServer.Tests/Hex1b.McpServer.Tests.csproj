@@ -1,4 +1,4 @@
-<Project Sdk="MSTest.Sdk/4.2.3">
+<Project Sdk="MSTest.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <!-- For in-memory MCP server testing -->
-    <PackageReference Include="ModelContextProtocol" Version="0.5.0-preview.1" />
+    <PackageReference Include="ModelContextProtocol" />
   </ItemGroup>
 
   <ItemGroup>
