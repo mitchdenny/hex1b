@@ -1,6 +1,6 @@
-#:sdk Aspire.AppHost.Sdk@13.6.1
-#:package Aspire.Hosting.JavaScript@13.6.1
-#:package Aspire.Hosting.Azure.AppContainers@13.6.1
+#:sdk Aspire.AppHost.Sdk
+#:package Aspire.Hosting.JavaScript
+#:package Aspire.Hosting.Azure.AppContainers
 #:project ./src/Aspire.Hosting.GitHubPages/Aspire.Hosting.GitHubPages.csproj
 #:property TreatProjectReferencesAsResources=false
 

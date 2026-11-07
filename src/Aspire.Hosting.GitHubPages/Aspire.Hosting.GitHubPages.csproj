@@ -8,8 +8,8 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.6.1" />
-    <PackageReference Include="MessagePack" Version="2.5.303" />
+    <PackageReference Include="Aspire.Hosting.JavaScript" />
+    <PackageReference Include="MessagePack" />
     <InternalsVisibleTo Include="Aspire.Hosting.GitHubPages.Tests" />
   </ItemGroup>
 </Project>

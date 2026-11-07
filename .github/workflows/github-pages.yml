@@ -11,6 +11,7 @@ on:
       - '.github/workflows/github-pages.yml'
       - 'apphost.cs'
       - 'Directory.Build.props'
+      - 'Directory.Packages.props'
       - 'NuGet.config'
       - 'global.json'
   pull_request:
@@ -23,6 +24,7 @@ on:
       - '.github/workflows/github-pages.yml'
       - 'apphost.cs'
       - 'Directory.Build.props'
+      - 'Directory.Packages.props'
       - 'NuGet.config'
       - 'global.json'
   workflow_dispatch:

@@ -13,8 +13,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="GitReader" Version="1.18.0" />
-    <PackageReference Include="System.CommandLine" Version="2.0.12" />
+    <PackageReference Include="GitReader" />
+    <PackageReference Include="System.CommandLine" />
   </ItemGroup>
 
 </Project>
