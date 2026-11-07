@@ -110,7 +110,7 @@ waits for a snapshot containing kitty graphics placements, then checks the exit
 code after the demo reaches its frame limit:
 
 ```bash
-dotnet run .github/scripts/test-native-build.cs
+dotnet run --file .github/scripts/test-native-build.cs
 ```
 
 ### Aspire and Web Samples on Ubuntu
