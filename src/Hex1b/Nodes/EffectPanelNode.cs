@@ -50,7 +50,7 @@ public sealed class EffectPanelNode : Hex1bNode
 
         // 1. Create temp surface sized to our bounds
         var pool = surfaceCtx.SurfacePool;
-        var tempSurface = pool != null
+        var tempSurface = SurfacePooling.IsSupported && pool != null
             ? pool.Rent(Bounds.Width, Bounds.Height, surfaceCtx.CellMetrics)
             : new Surface(Bounds.Width, Bounds.Height, surfaceCtx.CellMetrics);
 
@@ -93,7 +93,7 @@ public sealed class EffectPanelNode : Hex1bNode
         }
         finally
         {
-            if (pool != null)
+            if (SurfacePooling.IsSupported && pool != null)
                 pool.Return(tempSurface);
         }
     }

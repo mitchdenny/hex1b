@@ -982,7 +982,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 var clampedWidth = Math.Min(child.Bounds.Width, MaxSurfaceDimension);
                 var clampedHeight = Math.Min(child.Bounds.Height, MaxSurfaceDimension);
                 var pool = SurfacePool;
-                var childSurface = pool != null
+                var childSurface = SurfacePooling.IsSupported && pool != null
                     ? pool.Rent(clampedWidth, clampedHeight, CellMetrics)
                     : new Surface(clampedWidth, clampedHeight, CellMetrics);
 
@@ -1060,7 +1060,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 }
                 finally
                 {
-                    if (pool != null)
+                    if (SurfacePooling.IsSupported && pool != null)
                         pool.Return(childSurface);
                 }
             }
@@ -1160,14 +1160,14 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 // explicitly release tracked references before letting GC collect it.
                 if (existingBuffer is { } retired)
                 {
-                    if (pool != null)
+                    if (SurfacePooling.IsSupported && pool != null)
                         pool.Return(retired);
                     else
                         retired.ClearAndReleaseTrackedObjects();
                 }
                 child.CachedSurface = null;
                 child.RenderBuffer = null;
-                childSurface = pool != null
+                childSurface = SurfacePooling.IsSupported && pool != null
                     ? pool.Rent(clampedWidth, clampedHeight, CellMetrics)
                     : new Surface(clampedWidth, clampedHeight, CellMetrics);
             }

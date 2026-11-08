@@ -612,6 +612,12 @@ Match declaring `MethodCode` families in compiler XML, not metadata or types
 mentioned in generic signatures. Keep publish/intermediate properties scoped to
 consumers so analyzer and native-helper references retain normal build settings.
 See `tests/Hex1b.Tests/NativeAot/README.md` for prerequisites, full execution and evidence.
+For feature-switch retention tests, put `RuntimeHostConfigurationOption`
+items with `Trim="true"` in the generated consumer only. Use an identical
+program and assembly name across omitted/enabled/disabled variants so size
+observations are comparable. Verify default and explicit runtime options via
+real behavior (for example, surface reference reuse), not reflection that
+would itself root the implementation. See `NativeAotSurfacePoolingTests`.
 
 ### Output-Pump Allocation Regressions
 

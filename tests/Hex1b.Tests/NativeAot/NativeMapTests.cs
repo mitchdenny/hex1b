@@ -108,4 +108,34 @@ public sealed class NativeMapTests
     public void Read_MissingFile_Fails()
         => Assert.ThrowsExactly<FileNotFoundException>(() =>
             NativeMap.Read(Path.Combine(ScenarioRunner.RepositoryRoot, "TestResults", Guid.NewGuid() + ".map.xml")));
+
+    [TestMethod]
+    [DataRow("Hex1b_Hex1b_Surfaces_SurfacePool__Rent")]
+    [DataRow("Hex1b_Hex1b_Surfaces_SurfacePool__Return")]
+    [DataRow("Hex1b_Hex1b_Surfaces_SurfacePool__NextFrame")]
+    [DataRow("Hex1b_Hex1b_Surfaces_SurfacePool_SurfacePoolKey__GetHashCode")]
+    [DataRow("Hex1b_Hex1b_Surfaces_SurfacePool_Bucket___ctor")]
+    public void Validate_PoolingDeclaringFamilyIncludingNestedCode_Fails(string method)
+    {
+        var methods = Read($"""<ObjectNodes><MethodCode Name="{method}" Length="120"/></ObjectNodes>""");
+        var evidence = NativeMap.Measure(methods, [], [Scenario.Pool]);
+        StringAssert.Contains(Assert.ThrowsExactly<InvalidDataException>(() => NativeMap.Validate(evidence)).Message,
+            "surface pooling implementation: forbidden, count=1, length=120");
+    }
+
+    [TestMethod]
+    public void Validate_PoolingMetadataAndGenericMentions_DoNotCountAsImplementation()
+    {
+        var methods = Read("""
+            <ObjectNodes>
+              <EEType Name="Hex1b_Hex1b_Surfaces_SurfacePool_Bucket" Length="80"/>
+              <MethodCode Name="System__Generic&lt;Hex1b_Hex1b_Surfaces_SurfacePool_SurfacePoolKey&gt;__Find" Length="10"/>
+              <MethodCode Name="Hex1b_Hex1b_SurfacePooling__get_IsSupported" Length="20"/>
+              <MethodCode Name="Hex1b_Hex1b_Surfaces_SurfacePoolOther__Rent" Length="30"/>
+            </ObjectNodes>
+            """);
+        NativeMap.Validate(NativeMap.Measure(methods, [], [Scenario.Pool]));
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            NativeMap.Validate(NativeMap.Measure(methods, [Scenario.Pool], [])));
+    }
 }

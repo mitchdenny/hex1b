@@ -153,7 +153,7 @@ public class SceneNode : Hex1bNode
             node.Arrange(new Rect(0, 0, columns, rows));
 
             var pool = surfaceCtx.SurfacePool;
-            var surface = pool != null
+            var surface = SurfacePooling.IsSupported && pool != null
                 ? pool.Rent(columns, rows, surfaceCtx.CellMetrics)
                 : new Surface(columns, rows, surfaceCtx.CellMetrics);
 
@@ -184,7 +184,7 @@ public class SceneNode : Hex1bNode
             }
             finally
             {
-                if (pool != null)
+                if (SurfacePooling.IsSupported && pool != null)
                     pool.Return(surface);
             }
         }

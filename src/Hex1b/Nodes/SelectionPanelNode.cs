@@ -154,7 +154,7 @@ public sealed class SelectionPanelNode : Hex1bNode
         // to rent a child.Bounds-sized surface internally because a
         // layout provider is active).
         var pool = surfaceCtx.SurfacePool;
-        var tempSurface = pool != null
+        var tempSurface = SurfacePooling.IsSupported && pool != null
             ? pool.Rent(visibleTerm.Width, visibleTerm.Height, surfaceCtx.CellMetrics)
             : new Surface(visibleTerm.Width, visibleTerm.Height, surfaceCtx.CellMetrics);
 
@@ -213,7 +213,7 @@ public sealed class SelectionPanelNode : Hex1bNode
         }
         finally
         {
-            if (pool != null)
+            if (SurfacePooling.IsSupported && pool != null)
                 pool.Return(tempSurface);
         }
     }

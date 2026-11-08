@@ -337,7 +337,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         _enableRenderCaching = options.EnableRenderCaching;
         _useSoftWrapEmission = options.UseSoftWrapEmission;
 
-        _surfacePool = options.EnableSurfacePooling
+        _surfacePool = SurfacePooling.IsSupported && options.EnableSurfacePooling
             ? new SurfacePool(options.SurfacePoolMaxSurfacesPerBucket, options.SurfacePoolMaxIdleFrames)
             : null;
     }
@@ -1264,7 +1264,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private bool RenderFrameWithSurfaceCore(int width, int height, TerminalCapabilities caps, out Func<CancellationToken, ValueTask>? asyncWriteWork)
     {
         asyncWriteWork = null;
-        _surfacePool?.NextFrame();
+        if (SurfacePooling.IsSupported)
+            _surfacePool?.NextFrame();
         
         // Get cell metrics from terminal capabilities
         // Use actual (floating-point) cell width for precise sixel sizing
