@@ -175,12 +175,27 @@ public class Hex1bAppOptions
     /// Set to <c>false</c> to opt out — for example, in environments where the
     /// extra retained surfaces would matter more than allocation pressure.
     /// </para>
+    /// <para>
+    /// For a publish-time opt-out, set the application's
+    /// <c>RuntimeHostConfigurationOption</c> named <c>Hex1b.SurfacePooling.IsSupported</c>
+    /// to <c>Value="false" Trim="true"</c>. .NET 9+ trimming and Native AOT tools
+    /// can then remove otherwise-unused pooling implementation, even though this
+    /// library targets .NET 8. The switch defaults to enabled.
+    /// </para>
+    /// <para>
+    /// When the feature switch is disabled, this option is intentionally ignored:
+    /// rendering uses unpooled temporary surfaces for both the default and explicit
+    /// <c>true</c> values. The option still reports its configured value; it does not
+    /// report feature availability. Runtime configuration cannot re-enable pooling
+    /// removed at publish time.
+    /// </para>
     /// </remarks>
     public bool EnableSurfacePooling { get; set; } = true;
 
     /// <summary>
     /// Maximum number of pooled surfaces kept per (width, height, cell metrics) bucket.
-    /// Only applies when <see cref="EnableSurfacePooling"/> is true.
+    /// Only applies when <see cref="EnableSurfacePooling"/> is true and the
+    /// <c>Hex1b.SurfacePooling.IsSupported</c> feature switch is enabled.
     /// Default is 8.
     /// </summary>
     public int SurfacePoolMaxSurfacesPerBucket { get; set; } = 8;
@@ -188,7 +203,8 @@ public class Hex1bAppOptions
     /// <summary>
     /// Number of render cycles after which an unused pool bucket is discarded.
     /// ("Unused" means "not rented" after X render cycles.)
-    /// Only applies when <see cref="EnableSurfacePooling"/> is true.
+    /// Only applies when <see cref="EnableSurfacePooling"/> is true and the
+    /// <c>Hex1b.SurfacePooling.IsSupported</c> feature switch is enabled.
     /// Default is 120.
     /// </summary>
     public int SurfacePoolMaxIdleFrames { get; set; } = 120;

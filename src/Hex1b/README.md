@@ -148,6 +148,41 @@ using var app = new Hex1bApp(
 );
 ```
 
+## Publish-time surface pooling opt-out
+
+Temporary surface pooling is enabled by default. Ordinary builds retain the
+per-app `Hex1bAppOptions.EnableSurfacePooling` option (default `true`); setting
+it to `false` disables reuse but does not by itself remove pooling code.
+
+For short-lived, size-oriented headless text/chart applications, add this item
+to the **consuming application's** project file:
+
+```xml
+<ItemGroup>
+  <RuntimeHostConfigurationOption Include="Hex1b.SurfacePooling.IsSupported"
+                                  Value="false" Trim="true" />
+</ItemGroup>
+```
+
+Publish with .NET 9 or later trimming/Native AOT tooling, for example
+`dotnet publish -c Release -r win-x64 -p:PublishAot=true`.
+Native AOT requires the platform's native compiler/linker prerequisites.
+Hex1b continues to target .NET 8; its internal compatibility attribute lets newer
+publish tools recognize this switch without consumer ILC substitutions.
+
+The application-wide switch defaults to enabled. When disabled, rendering uses
+unpooled temporary surfaces and `EnableSurfacePooling` is an intentional no-op,
+including its default and explicit `true` values. The property still returns its
+configured value, not feature availability. Pool sizing options are also ignored.
+Runtime options or `AppContext.SetSwitch` cannot restore implementation removed
+at publish time. No exception is thrown just for using default options.
+Render caching and unrelated array/token pools are unaffected.
+
+Without trimming, the same AppContext switch can disable pooling, but does not
+remove code; configure it before constructing applications and do not change it
+while they are rendering. Actual native savings depend on the workload and
+toolchain, and apply only to otherwise-unused pooling implementation.
+
 ## Documentation
 
 - [GitHub Repository](https://github.com/hex1b/hex1b)

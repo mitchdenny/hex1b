@@ -11,6 +11,9 @@ namespace Hex1b.Tests.NativeAot;
 internal sealed class ScenarioReport
 {
     public required string Name { get; init; }
+    public required string ConsumerName { get; init; }
+    public required IReadOnlyDictionary<string, bool> FeatureSwitches { get; init; }
+    public string? ConsumerSourceSha256 { get; set; }
     public required string ArtifactDirectory { get; init; }
     public string? Revision { get; set; }
     public bool? Dirty { get; set; }
@@ -80,7 +83,11 @@ internal static class ScenarioRunner
     public static async Task RunAsync(Scenario scenario, string source, TestContext context, CancellationToken cancellationToken)
     {
         var directory = CreateArtifacts(scenario.Name);
-        var report = new ScenarioReport { Name = scenario.Name, ArtifactDirectory = directory };
+        var report = new ScenarioReport
+        {
+            Name = scenario.Name, ConsumerName = scenario.ConsumerName,
+            FeatureSwitches = scenario.FeatureSwitches, ArtifactDirectory = directory
+        };
         var phase = "preflight";
         try
         {
@@ -95,7 +102,8 @@ internal static class ScenarioRunner
                 Path.Combine(directory, "sdk.log"), TimeSpan.FromSeconds(30), cancellationToken);
             report.Sdk = sdk.StandardOutput.Trim();
             report.LibraryProjectSha256 = Hash(Path.Combine(RepositoryRoot, "src", "Hex1b", "Hex1b.csproj"));
-            var project = await CreateProjectAsync(directory, scenario.Name, source, cancellationToken);
+            var project = await CreateProjectAsync(directory, scenario.ConsumerName, source, cancellationToken, scenario.FeatureSwitches);
+            report.ConsumerSourceSha256 = Hash(Path.Combine(directory, "source", "Program.cs"));
             phase = "publish";
             report.PublishOutcome = await TestProcess.RunAsync("dotnet",
                 ["publish", project, "-c", "Release", "-r", report.Rid, "--self-contained", "true",
@@ -110,7 +118,7 @@ internal static class ScenarioRunner
                     .Single(property => property.Name.StartsWith("Microsoft.DotNet.ILCompiler/", StringComparison.Ordinal)).Name;
             }
             var publish = Path.Combine(directory, "publish");
-            var executable = Path.Combine(publish, scenario.Name + (OperatingSystem.IsWindows() ? ".exe" : ""));
+            var executable = Path.Combine(publish, scenario.ConsumerName + (OperatingSystem.IsWindows() ? ".exe" : ""));
             report.ExecutablePath = executable;
             if (!File.Exists(executable) || new FileInfo(executable).Length == 0)
                 throw new InvalidDataException($"Missing or empty native executable: {executable}.");
@@ -119,7 +127,7 @@ internal static class ScenarioRunner
             report.PublishInventory = Directory.EnumerateFiles(publish, "*", SearchOption.AllDirectories)
                 .Select(path => new PublishedFile(Path.GetRelativePath(publish, path), FileKind(path, executable),
                     new FileInfo(path).Length, Hash(path))).OrderBy(file => file.Path, StringComparer.Ordinal).ToArray();
-            if (File.Exists(Path.Combine(publish, scenario.Name + ".dll")))
+            if (File.Exists(Path.Combine(publish, scenario.ConsumerName + ".dll")))
                 throw new InvalidDataException("Publish contains the managed consumer entry assembly; expected Native AOT output only.");
 
             var library = Directory.GetFiles(Path.Combine(directory, "bin"), "Hex1b.dll", SearchOption.AllDirectories);
@@ -142,7 +150,7 @@ internal static class ScenarioRunner
             report.RuntimeOutcome = await TestProcess.RunAsync(executable, [], publish,
                 Path.Combine(directory, "runtime.log"), TimeSpan.FromSeconds(30), cancellationToken);
             if (!report.RuntimeOutcome.StandardOutput.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-                    .Contains("NATIVE_AOT_OK:" + scenario.Name, StringComparer.Ordinal))
+                    .Contains("NATIVE_AOT_OK:" + scenario.ConsumerName, StringComparer.Ordinal))
                 throw new InvalidDataException($"Native program exited without its verified success marker; see {report.RuntimeOutcome.LogPath}.");
             report.Status = "passed";
         }
@@ -183,7 +191,7 @@ internal static class ScenarioRunner
     }
 
     public static async Task<string> CreateProjectAsync(string directory, string name, string source,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, IReadOnlyDictionary<string, bool>? featureSwitches = null)
     {
         var sourceDirectory = Path.Combine(directory, "source");
         Directory.CreateDirectory(sourceDirectory);
@@ -206,6 +214,14 @@ internal static class ScenarioRunner
             new XElement("ItemGroup",
                 new XElement("ProjectReference", new XAttribute("Include",
                     Path.Combine(RepositoryRoot, "src", "Hex1b", "Hex1b.csproj")))));
+        if (featureSwitches is { Count: > 0 })
+        {
+            project.Add(new XElement("ItemGroup", featureSwitches.Select(setting =>
+                new XElement("RuntimeHostConfigurationOption",
+                    new XAttribute("Include", setting.Key),
+                    new XAttribute("Value", setting.Value ? "true" : "false"),
+                    new XAttribute("Trim", "true")))));
+        }
         var projectPath = Path.Combine(sourceDirectory, name + ".csproj");
         await File.WriteAllTextAsync(Path.Combine(sourceDirectory, "Directory.Build.props"), props.ToString(), cancellationToken);
         await File.WriteAllTextAsync(projectPath, project.ToString(), cancellationToken);

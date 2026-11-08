@@ -142,7 +142,7 @@ public sealed class SurfaceNode : Hex1bNode
                     case DrawSurfaceLayer draw:
                         // Create a surface for the draw callback with matching cell metrics.
                         // In SurfaceWidget-heavy apps, this allocation dominates Gen0 GC — rent from pool when available.
-                        var drawSurface = pool != null
+                        var drawSurface = SurfacePooling.IsSupported && pool != null
                             ? pool.Rent(width, height, effectiveMetrics)
                             : new Surface(width, height, effectiveMetrics);
 
@@ -150,7 +150,7 @@ public sealed class SurfaceNode : Hex1bNode
                         composite.AddLayer(drawSurface, draw.OffsetX, draw.OffsetY);
                         layerType = "draw";
 
-                        if (pool != null)
+                        if (SurfacePooling.IsSupported && pool != null)
                             (rentedSurfaces ??= []).Add(drawSurface);
                         break;
 
@@ -182,11 +182,11 @@ public sealed class SurfaceNode : Hex1bNode
 
             // Flatten and render to the context
             var flattenStart = metrics?.SurfaceFlattenDuration != null ? Stopwatch.GetTimestamp() : 0;
-            var flattened = pool != null
+            var flattened = SurfacePooling.IsSupported && pool != null
                 ? (flattenedRented = pool.Rent(width, height, effectiveMetrics))
                 : composite.Flatten();
 
-            if (pool != null)
+            if (SurfacePooling.IsSupported && pool != null)
                 composite.FlattenInto(flattened);
 
             if (metrics?.SurfaceFlattenDuration != null)
@@ -240,7 +240,7 @@ public sealed class SurfaceNode : Hex1bNode
         }
         finally
         {
-            if (pool is not null)
+            if (SurfacePooling.IsSupported && pool is not null)
             {
                 if (flattenedRented is not null)
                     pool.Return(flattenedRented);

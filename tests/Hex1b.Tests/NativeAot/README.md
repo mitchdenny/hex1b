@@ -8,7 +8,7 @@ not Native AOT-published, and there are no checked-in consumer projects.
 
 The normal multi-platform and daily CI test workflows set
 `HEX1B_RUN_NATIVE_AOT_TESTS=1`, so native scenarios run alongside existing tests.
-Locally, the three costly native scenarios are disabled by default with an
+Locally, the costly native scenarios are disabled by default with an
 explicit MSTest condition/skip message. Set the same switch to opt in; merely
 filtering by `NativeAot` does not enable them. Fast parser and infrastructure
 tests run normally without this switch.
@@ -62,7 +62,14 @@ Run only fast map-reader tests, without Native AOT publishing:
 dotnet test --project tests\Hex1b.Tests\Hex1b.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~NativeMapTests"
 ```
 
-`TestCategory=NativeAot` selects all three costly scenarios;
+Run the matched pooling consumers (omitted/enabled/disabled publish switch):
+
+```powershell
+$env:HEX1B_RUN_NATIVE_AOT_TESTS = '1'
+dotnet test --project tests\Hex1b.Tests\Hex1b.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~NativeAotSurfacePoolingTests"
+```
+
+`TestCategory=NativeAot` selects all six costly scenario cases;
 `TestCategory=Infrastructure` selects process/publish diagnostics tests, including
 test-owned OS-shell stall fixtures for timeout/cancellation cleanup.
 To disable native scenarios again in PowerShell:
@@ -90,9 +97,12 @@ their normal shared output paths.
 | `DirectTerminal` | Raw terminal construction, automated input, screen echo, workload disposal | Terminal | Tape player, terminal builder, child-process implementation |
 | `ExistingTerminalTape` | Type/screen-Wait playback, final snapshot, continued terminal use after result disposal, caller cleanup | Terminal and existing-terminal playback | Terminal builder, child-process implementation, `ConfigureOwnedBuilder`, created-terminal playback |
 | `CreatedTerminalTape` | Builder factory called once, Type/screen-Wait playback, final snapshot and owned workload cleanup | Terminal, created-terminal playback, terminal builder | None: other creation-related code may legitimately remain |
+| `SurfacePoolingDefault` / `SurfacePoolingEnabled` | Headless text, exact chart bar geometry, surface layers, effect colors, two-frame snapshots; actual surface reuse with default/true runtime options and no reuse with false, with render caching both off/on | Terminal, app, surfaces, surface layers, bar chart, effect panel, pooling implementation (including nested pool types) | None |
+| `SurfacePoolingDisabled` | Same rendering and snapshots; no temporary surface reuse with default/true/false runtime options, even after `AppContext.SetSwitch(..., true)` | Same rendering controls | Surface pooling implementation (including nested pool types) |
 
-All generated consumers use the same small in-memory echo workload source, not a
-real shell or process. They contain no scenario dispatcher, reflection, MSTest,
+The tape/terminal consumers use the same small in-memory echo workload source, not a
+real shell or process. The pooling consumers use `WithHeadless` and `WithHex1bApp`.
+All contain no scenario dispatcher, reflection, MSTest,
 or assertion-framework dependencies. Each emits its own `NATIVE_AOT_OK:<name>`
 marker only after verifying behavior; an exception/nonzero exit is a failure.
 
@@ -105,6 +115,14 @@ Likewise, only the generated consumer props set intermediate, build, and publish
 paths; no global `BaseIntermediateOutputPath` is applied to library/native-helper
 project references. XML paths are escaped using standard XML APIs. Each project
 has its own entry point; no shared dispatcher or scenario mode is introduced.
+The three pooling cases intentionally use the **same embedded program and
+assembly name** (`HeadlessSurfacePooling`). Their only configuration difference
+is the omitted/true/false `RuntimeHostConfigurationOption` for
+`Hex1b.SurfacePooling.IsSupported`, always with `Trim="true"` when present.
+This item is written into the consumer project, never into the library, analyzer,
+native helper, or global publish arguments. No consumer ILC substitutions are used.
+The report records the consumer name, source hash and feature-switch values;
+an empty switch dictionary means the library's default applies.
 
 Normal library native asset generation and copying remain enabled. The suite
 does not disable PTY helpers or delete runtime assets to reduce measured size.
@@ -141,7 +159,7 @@ Reports, logs, and generated sources/projects are attached with
 diagnostics. Both CI workflows upload `TestResults` including native evidence.
 Reports record the scenario, revision
 and dirty state, SDK/compiler package, host RID/TFM/configuration/publish
-settings, executable bytes/SHA-256, the untrimmed library input hash and assembly
+settings (including consumer-scoped feature switches), executable bytes/SHA-256, the untrimmed library input hash and assembly
 identity (with project/package identity), total MethodCode count/length,
 required/forbidden family counts/lengths, runtime outcome, and evidence paths.
 The full publish inventory records bytes and hashes, distinguishing the main
@@ -155,6 +173,12 @@ SDK/compiler, RID, configuration and publish settings across revisions, using
 the reports and library input hashes. Cross-scenario differences alone do not
 prove an optimization. Dirty checkouts, debug symbols, support assets, and
 compiler changes need to be accounted for separately.
+The pooling cases are matched variants of one program; compare their source and
+library hashes, SDK/compiler, RID and publish settings while accounting for the
+intentional switch difference. Do not compare pooling sizes to the unrelated
+tape consumers to claim savings. Runtime logs include the pooling reuse matrix
+and rendered snapshot text. These tests do not assert removal of console code
+(issue #708), removal of all metadata mentioning pool types, or a byte budget.
 
 ## Adding a scenario
 
