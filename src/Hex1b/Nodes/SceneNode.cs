@@ -152,7 +152,7 @@ public class SceneNode : Hex1bNode
             node.Measure(Constraints.Tight(columns, rows));
             node.Arrange(new Rect(0, 0, columns, rows));
 
-            var pool = surfaceCtx.SurfacePool;
+            var pool = surfaceCtx.SurfaceAllocator;
             var surface = pool != null
                 ? pool.Rent(columns, rows, surfaceCtx.CellMetrics)
                 : new Surface(columns, rows, surfaceCtx.CellMetrics);
@@ -166,7 +166,7 @@ public class SceneNode : Hex1bNode
                     MouseX = surfaceCtx.MouseX,
                     MouseY = surfaceCtx.MouseY,
                     CellMetrics = surfaceCtx.CellMetrics,
-                    SurfacePool = pool
+                    SurfaceAllocator = pool
                 };
 
                 tempContext.SetCursorPosition(node.Bounds.X, node.Bounds.Y);

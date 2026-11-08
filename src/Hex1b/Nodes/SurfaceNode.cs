@@ -95,12 +95,12 @@ public sealed class SurfaceNode : Hex1bNode
         // Get the tracked object store and cell metrics if available (for sixel creation)
         TrackedObjectStore? store = null;
         CellMetrics? cellMetrics = null;
-        SurfacePool? pool = null;
+        ISurfaceAllocator? pool = null;
         if (context is SurfaceRenderContext surfaceCtx)
         {
             store = surfaceCtx.TrackedObjectStore;
             cellMetrics = surfaceCtx.CellMetrics;
-            pool = surfaceCtx.SurfacePool;
+            pool = surfaceCtx.SurfaceAllocator;
         }
         
         var layerContext = new SurfaceLayerContext(

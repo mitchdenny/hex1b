@@ -50,23 +50,28 @@ public class SceneNodeWidgetTextureTests
         return (new SceneWidget(scene, camera), material);
     }
 
-    private static void RenderToSurface(SceneNode node)
+    private static void RenderToSurface(SceneNode node, bool pooling = false)
     {
         node.Measure(new Constraints(0, 40, 0, 20));
         node.Arrange(new Rect(0, 0, 40, 20));
         var surface = new Surface(40, 20);
-        var context = new SurfaceRenderContext(surface);
+        var context = new SurfaceRenderContext(surface)
+        {
+            SurfaceAllocator = pooling ? new SurfacePool(8, 120) : null
+        };
         node.Render(context);
     }
 
     [TestMethod]
-    public async Task Render_WithWidgetSource_PopulatesMaterialTexture()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Render_WithWidgetSource_PopulatesMaterialTexture(bool pooling)
     {
         var (widget, material) = BuildScene(8, 4, new BorderWidget(new TextBlockWidget("Hi")));
         var context = ReconcileContext.CreateRoot();
 
         var node = (SceneNode)await widget.ReconcileAsync(null, context);
-        RenderToSurface(node);
+        RenderToSurface(node, pooling);
 
         Assert.IsNotNull(material.Texture);
         Assert.AreEqual(8 * 2, material.Texture!.Width);
@@ -74,7 +79,9 @@ public class SceneNodeWidgetTextureTests
     }
 
     [TestMethod]
-    public async Task Render_WidgetSourceContent_ProducesNonUniformTexture()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Render_WidgetSourceContent_ProducesNonUniformTexture(bool pooling)
     {
         // A bordered widget draws box-drawing glyphs over a blank interior, so the sampled
         // texture must contain more than a single flat colour.
@@ -82,7 +89,7 @@ public class SceneNodeWidgetTextureTests
         var context = ReconcileContext.CreateRoot();
 
         var node = (SceneNode)await widget.ReconcileAsync(null, context);
-        RenderToSurface(node);
+        RenderToSurface(node, pooling);
 
         var texture = material.Texture!;
         var first = texture.GetPixel(0, 0);

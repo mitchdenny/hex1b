@@ -175,6 +175,11 @@ public class Hex1bAppOptions
     /// Set to <c>false</c> to opt out — for example, in environments where the
     /// extra retained surfaces would matter more than allocation pressure.
     /// </para>
+    /// <para>
+    /// This is a runtime option, not a trimming boundary. For an app-specific construction
+    /// path that lets Native AOT omit unused pooling code, use <c>WithUnpooledHex1bApp</c>
+    /// on <see cref="Hex1bTerminalBuilder"/>. That path starts this option false and rejects true.
+    /// </para>
     /// </remarks>
     public bool EnableSurfacePooling { get; set; } = true;
 

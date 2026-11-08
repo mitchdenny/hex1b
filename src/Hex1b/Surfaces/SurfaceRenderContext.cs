@@ -92,7 +92,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
     /// <summary>
     /// Optional surface pool for reusing temporary surfaces during rendering.
     /// </summary>
-    internal SurfacePool? SurfacePool { get; init; }
+    internal ISurfaceAllocator? SurfaceAllocator { get; init; }
 
     /// <summary>
     /// Gets or sets the KGP image registry for occlusion tracking.
@@ -981,7 +981,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 // preserving the child's full extent (needed for scroll offset rendering).
                 var clampedWidth = Math.Min(child.Bounds.Width, MaxSurfaceDimension);
                 var clampedHeight = Math.Min(child.Bounds.Height, MaxSurfaceDimension);
-                var pool = SurfacePool;
+                var pool = SurfaceAllocator;
                 var childSurface = pool != null
                     ? pool.Rent(clampedWidth, clampedHeight, CellMetrics)
                     : new Surface(clampedWidth, clampedHeight, CellMetrics);
@@ -1008,7 +1008,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         MouseY = MouseY,
                         CellMetrics = CellMetrics,
                         Metrics = Metrics,
-                        SurfacePool = pool,
+                        SurfaceAllocator = pool,
                         _capabilities = _capabilities,
                         _kgpRegistry = _kgpRegistry,
                         _kgpLayer = _kgpLayer,
@@ -1155,7 +1155,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
             }
             else
             {
-                var pool = SurfacePool;
+                var pool = SurfaceAllocator;
                 // The retained buffer no longer fits. Return it to the pool, or
                 // explicitly release tracked references before letting GC collect it.
                 if (existingBuffer is { } retired)
@@ -1185,7 +1185,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 MouseY = MouseY,
                 CellMetrics = CellMetrics,  // Propagate cell metrics for sixel sizing
                 Metrics = Metrics,
-                SurfacePool = SurfacePool, // Propagate the pool so descendants (EffectPanel temp surfaces, nested RenderChild surfaces) reuse buffers instead of falling back to `new Surface`.
+                SurfaceAllocator = SurfaceAllocator,
                 _capabilities = _capabilities,
                 _kgpRegistry = _kgpRegistry,
                 _kgpLayer = _kgpLayer,

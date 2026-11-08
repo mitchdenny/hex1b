@@ -9,7 +9,7 @@ namespace Hex1b.Surfaces;
 /// <c>EffectPanelNode</c>. Buckets are keyed by (width, height, cell metrics) and are evicted
 /// if they haven't been rented in a configurable number of render cycles.
 /// </remarks>
-internal sealed class SurfacePool
+internal sealed class SurfacePool : ISurfaceAllocator
 {
     private readonly Dictionary<SurfacePoolKey, Bucket> _buckets = new();
     private readonly int _maxSurfacesPerBucket;
@@ -97,4 +97,3 @@ internal sealed class SurfacePool
 
     private readonly record struct SurfacePoolKey(int Width, int Height, CellMetrics CellMetrics);
 }
-

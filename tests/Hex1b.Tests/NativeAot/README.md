@@ -8,7 +8,7 @@ not Native AOT-published, and there are no checked-in consumer projects.
 
 The normal multi-platform and daily CI test workflows set
 `HEX1B_RUN_NATIVE_AOT_TESTS=1`, so native scenarios run alongside existing tests.
-Locally, the three costly native scenarios are disabled by default with an
+Locally, the costly native scenarios are disabled by default with an
 explicit MSTest condition/skip message. Set the same switch to opt in; merely
 filtering by `NativeAot` does not enable them. Fast parser and infrastructure
 tests run normally without this switch.
@@ -62,7 +62,7 @@ Run only fast map-reader tests, without Native AOT publishing:
 dotnet test --project tests\Hex1b.Tests\Hex1b.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~NativeMapTests"
 ```
 
-`TestCategory=NativeAot` selects all three costly scenarios;
+`TestCategory=NativeAot` selects all costly scenarios;
 `TestCategory=Infrastructure` selects process/publish diagnostics tests, including
 test-owned OS-shell stall fixtures for timeout/cancellation cleanup.
 To disable native scenarios again in PowerShell:
@@ -90,6 +90,24 @@ their normal shared output paths.
 | `DirectTerminal` | Raw terminal construction, automated input, screen echo, workload disposal | Terminal | Tape player, terminal builder, child-process implementation |
 | `ExistingTerminalTape` | Type/screen-Wait playback, final snapshot, continued terminal use after result disposal, caller cleanup | Terminal and existing-terminal playback | Terminal builder, child-process implementation, `ConfigureOwnedBuilder`, created-terminal playback |
 | `CreatedTerminalTape` | Builder factory called once, Type/screen-Wait playback, final snapshot and owned workload cleanup | Terminal, created-terminal playback, terminal builder | None: other creation-related code may legitimately remain |
+| `UnpooledOnly` | Two-frame text, exact bar geometry, draw-layer and effect colors; no temporary surface reuse, with caching on/off and sync/async builders | Terminal, builder, app, surface renderer, surface/effect/chart nodes | Surface pool, including nested/generated methods |
+| `RuntimeDisabled` | Same rendering, explicitly false runtime option, no temporary surface reuse | Same rendering families and surface pool | None: a runtime false value is not a trimming boundary |
+| `RuntimeConfigurable` | Same rendering; default and true reuse temporary surfaces, false does not | Same rendering families and surface pool | None |
+| `MixedConstruction` | Same rendering with unpooled and ordinary default-enabled apps in one executable | Same rendering families and surface pool | None: another reachable construction path requires pooling |
+
+The pooling scenarios use `WithUnpooledHex1bApp` as a separate construction path,
+not an application-wide feature switch or consumer IL substitutions. Their
+matched rendering programs differ in setup and exercised policies. Only
+`UnpooledOnly` requires zero declaring `SurfacePool` MethodCode entries.
+The ordinary runtime-false control deliberately requires retained pool code;
+the mixed control prevents falsely treating an app-specific choice as a
+process-wide removal. Each native program verifies actual temporary-surface
+reference reuse as well as rendered snapshots. Run just these scenarios with:
+
+```powershell
+$env:HEX1B_RUN_NATIVE_AOT_TESTS = '1'
+dotnet test --project tests\Hex1b.Tests\Hex1b.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~SurfacePoolingScenarioTests"
+```
 
 All generated consumers use the same small in-memory echo workload source, not a
 real shell or process. They contain no scenario dispatcher, reflection, MSTest,

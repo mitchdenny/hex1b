@@ -225,7 +225,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private readonly Kgp.KgpImageRegistry _kgpRegistry = new();
 
     // Optional pool for temporary surfaces (SurfaceWidget layers, effect panels, etc.)
-    private readonly SurfacePool? _surfacePool;
+    private readonly ISurfaceAllocator? _surfaceAllocator;
     
     // Animation timer for RedrawAfter() support
     private readonly AnimationTimer _animationTimer;
@@ -267,6 +267,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     public Hex1bApp(
         Func<RootContext, Task<Hex1bWidget>> builder,
         Hex1bAppOptions? options = null)
+        : this(builder, options, static configuredOptions => configuredOptions.EnableSurfacePooling
+            ? new SurfacePool(configuredOptions.SurfacePoolMaxSurfacesPerBucket, configuredOptions.SurfacePoolMaxIdleFrames)
+            : null)
+    {
+    }
+
+    internal Hex1bApp(
+        Func<RootContext, Task<Hex1bWidget>> builder,
+        Hex1bAppOptions? options,
+        Func<Hex1bAppOptions, ISurfaceAllocator?>? surfaceAllocatorFactory)
     {
         options ??= new Hex1bAppOptions();
         
@@ -337,9 +347,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         _enableRenderCaching = options.EnableRenderCaching;
         _useSoftWrapEmission = options.UseSoftWrapEmission;
 
-        _surfacePool = options.EnableSurfacePooling
-            ? new SurfacePool(options.SurfacePoolMaxSurfacesPerBucket, options.SurfacePoolMaxIdleFrames)
-            : null;
+        _surfaceAllocator = surfaceAllocatorFactory?.Invoke(options);
     }
 
     /// <summary>
@@ -351,6 +359,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         Func<RootContext, Hex1bWidget> builder,
         Hex1bAppOptions? options = null)
         : this(ctx => Task.FromResult(builder(ctx)), options)
+    {
+    }
+
+    internal Hex1bApp(
+        Func<RootContext, Hex1bWidget> builder,
+        Hex1bAppOptions options,
+        Func<Hex1bAppOptions, ISurfaceAllocator?>? surfaceAllocatorFactory)
+        : this(ctx => Task.FromResult(builder(ctx)), options, surfaceAllocatorFactory)
     {
     }
 
@@ -1264,7 +1280,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private bool RenderFrameWithSurfaceCore(int width, int height, TerminalCapabilities caps, out Func<CancellationToken, ValueTask>? asyncWriteWork)
     {
         asyncWriteWork = null;
-        _surfacePool?.NextFrame();
+        _surfaceAllocator?.NextFrame();
         
         // Get cell metrics from terminal capabilities
         // Use actual (floating-point) cell width for precise sixel sizing
@@ -1344,7 +1360,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             CellMetrics = cellMetrics,
             CachingEnabled = _enableRenderCaching,
             Metrics = _metrics.NodeRenderDuration != null ? _metrics : null,
-            SurfacePool = _surfacePool,
+            SurfaceAllocator = _surfaceAllocator,
             KgpRegistry = _kgpRegistry
         };
         surfaceContext.SetCapabilities(caps);

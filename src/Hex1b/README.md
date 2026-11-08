@@ -81,6 +81,46 @@ using var app = new Hex1bApp(ctx =>
 await app.RunAsync();
 ```
 
+## Unpooled Applications and Native AOT
+
+Ordinary `Hex1bApp` construction and `WithHex1bApp` enable temporary surface
+pooling by default. Set `Hex1bAppOptions.EnableSurfacePooling` to `false` to
+disable reuse at runtime; this does **not** make the pooling implementation
+unreachable to Native AOT.
+
+For short-lived or size-oriented applications, use the separate
+`WithUnpooledHex1bApp` construction path:
+
+```csharp
+using Hex1b;
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithUnpooledHex1bApp(
+        options => options.EnableRenderCaching = false,
+        app => ctx => ctx.VStack(v => [
+            v.Text("No temporary surface pooling"),
+            v.Button("Quit").OnClick(_ => app.RequestStop())
+        ]))
+    .Build();
+
+await terminal.RunAsync();
+```
+
+Synchronous and asynchronous widget builders are supported, including simple
+`WithUnpooledHex1bApp(ctx => ctx.Text("Hello"))` configuration without callbacks.
+The options callback runs before app construction with `EnableSurfacePooling`
+already false. Setting it true throws `InvalidOperationException` at `Build()`,
+or at `RunAsync()` if captured options are changed after building.
+
+This choice applies only to this app. Native AOT can eliminate otherwise-unused
+pooling code when only unpooled construction is reachable; another reachable
+ordinary constructor or `WithHex1bApp` call retains it, even if that call sets the
+runtime option false. No application-wide switch or IL substitution is required.
+Executable savings depend on the workload and toolchain.
+
+Render caching and frame double-buffering remain independent of temporary
+surface pooling. Disabling pooling does not disable those reuse mechanisms.
+
 ## Layout System
 
 Hex1b uses a constraint-based layout system with size hints:

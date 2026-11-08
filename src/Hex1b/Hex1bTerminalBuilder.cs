@@ -181,9 +181,131 @@ public sealed class Hex1bTerminalBuilder
         return WithHex1bAppCoreAsync(configureOptions, configureApp);
     }
 
+    /// <summary>
+    /// Configures a Hex1bApp that allocates temporary surfaces without pooling.
+    /// </summary>
+    /// <param name="widgetBuilder">Builds the root widget for each render frame.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// This separate construction path allows Native AOT to omit the pooling implementation
+    /// when no ordinary Hex1bApp construction path is reachable. Render caching remains independent.
+    /// Unlike setting <see cref="Hex1bAppOptions.EnableSurfacePooling"/> to false on
+    /// <c>WithHex1bApp</c>, it does not retain a runtime-selectable pooled construction path.
+    /// </remarks>
+    public Hex1bTerminalBuilder WithUnpooledHex1bApp(Func<RootContext, Hex1bWidget> widgetBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(widgetBuilder);
+        return WithUnpooledHex1bApp(_ => { }, _ => widgetBuilder);
+    }
+
+    /// <summary>
+    /// Configures a Hex1bApp with an asynchronous widget builder and no temporary surface pooling.
+    /// </summary>
+    /// <param name="widgetBuilder">Builds the root widget asynchronously for each render frame.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// Pooling can be trimmed when only unpooled construction is reachable.
+    /// Render caching remains independent.
+    /// </remarks>
+    public Hex1bTerminalBuilder WithUnpooledHex1bApp(Func<RootContext, Task<Hex1bWidget>> widgetBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(widgetBuilder);
+        return WithUnpooledHex1bApp(_ => { }, _ => widgetBuilder);
+    }
+
+    /// <summary>
+    /// Configures options eagerly and captures a Hex1bApp that never pools temporary surfaces.
+    /// </summary>
+    /// <param name="configureOptions">
+    /// Configures options before app construction. EnableSurfacePooling starts false and must remain false.
+    /// </param>
+    /// <param name="configureApp">Called once on the first frame to supply the widget builder.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <exception cref="InvalidOperationException">Surface pooling is enabled in the configured options.</exception>
+    /// <remarks>
+    /// This choice affects only this app, not other apps in the process. Other reachable ordinary
+    /// constructors or <c>WithHex1bApp</c> calls retain the pooling implementation.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// using Hex1b;
+    ///
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithUnpooledHex1bApp(
+    ///         options =&gt; options.EnableRenderCaching = false,
+    ///         app =&gt; ctx =&gt; ctx.Button("Quit").OnClick(_ =&gt; app.RequestStop()))
+    ///     .Build();
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithUnpooledHex1bApp(
+        Action<Hex1bAppOptions> configureOptions,
+        Func<Hex1bApp, Func<RootContext, Hex1bWidget>> configureApp)
+    {
+        ArgumentNullException.ThrowIfNull(configureOptions);
+        ArgumentNullException.ThrowIfNull(configureApp);
+        return WithHex1bAppCore(
+            options => ConfigureUnpooledOptions(options, configureOptions),
+            configureApp,
+            static (builder, options) =>
+            {
+                ValidateUnpooledOptions(options);
+                return new Hex1bApp(builder, options, surfaceAllocatorFactory: null);
+            });
+    }
+
+    /// <summary>
+    /// Configures options eagerly and captures an unpooled Hex1bApp with an asynchronous widget builder.
+    /// </summary>
+    /// <param name="configureOptions">
+    /// Configures options before app construction. EnableSurfacePooling starts false and must remain false.
+    /// </param>
+    /// <param name="configureApp">Called once on the first frame to supply the asynchronous widget builder.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <exception cref="InvalidOperationException">Surface pooling is enabled in the configured options.</exception>
+    /// <remarks>
+    /// Pooling can be trimmed when only unpooled construction is reachable.
+    /// Render caching remains independent.
+    /// </remarks>
+    public Hex1bTerminalBuilder WithUnpooledHex1bApp(
+        Action<Hex1bAppOptions> configureOptions,
+        Func<Hex1bApp, Func<RootContext, Task<Hex1bWidget>>> configureApp)
+    {
+        ArgumentNullException.ThrowIfNull(configureOptions);
+        ArgumentNullException.ThrowIfNull(configureApp);
+        return WithHex1bAppCoreAsync(
+            options => ConfigureUnpooledOptions(options, configureOptions),
+            configureApp,
+            static (builder, options) =>
+            {
+                ValidateUnpooledOptions(options);
+                return new Hex1bApp(builder, options, surfaceAllocatorFactory: null);
+            });
+    }
+
+    private static void ConfigureUnpooledOptions(Hex1bAppOptions options, Action<Hex1bAppOptions> configureOptions)
+    {
+        options.EnableSurfacePooling = false;
+        configureOptions(options);
+        ValidateUnpooledOptions(options);
+    }
+
+    private static void ValidateUnpooledOptions(Hex1bAppOptions options)
+    {
+        if (options.EnableSurfacePooling)
+            throw new InvalidOperationException("WithUnpooledHex1bApp cannot enable surface pooling. Use WithHex1bApp for runtime-configurable pooling.");
+    }
+
     private Hex1bTerminalBuilder WithHex1bAppCore(
         Action<Hex1bAppOptions>? configureOptions,
         Func<Hex1bApp, Func<RootContext, Hex1bWidget>> configureApp)
+        => WithHex1bAppCore(configureOptions, configureApp,
+            static (builder, options) => new Hex1bApp(builder, options));
+
+    private Hex1bTerminalBuilder WithHex1bAppCore(
+        Action<Hex1bAppOptions>? configureOptions,
+        Func<Hex1bApp, Func<RootContext, Hex1bWidget>> configureApp,
+        Func<Func<RootContext, Hex1bWidget>, Hex1bAppOptions, Hex1bApp> createApp)
     {
         SetWorkloadFactory(presentation =>
         {
@@ -222,7 +344,7 @@ public sealed class Hex1bTerminalBuilder
                     return widgetBuilder!(ctx);
                 };
 
-                app = new Hex1bApp(wrappedBuilder, options);
+                app = createApp(wrappedBuilder, options);
                 await using (app)
                 {
                     await app.RunAsync(ct);
@@ -239,6 +361,13 @@ public sealed class Hex1bTerminalBuilder
     private Hex1bTerminalBuilder WithHex1bAppCoreAsync(
         Action<Hex1bAppOptions>? configureOptions,
         Func<Hex1bApp, Func<RootContext, Task<Hex1bWidget>>> configureApp)
+        => WithHex1bAppCoreAsync(configureOptions, configureApp,
+            static (builder, options) => new Hex1bApp(builder, options));
+
+    private Hex1bTerminalBuilder WithHex1bAppCoreAsync(
+        Action<Hex1bAppOptions>? configureOptions,
+        Func<Hex1bApp, Func<RootContext, Task<Hex1bWidget>>> configureApp,
+        Func<Func<RootContext, Task<Hex1bWidget>>, Hex1bAppOptions, Hex1bApp> createApp)
     {
         SetWorkloadFactory(presentation =>
         {
@@ -274,7 +403,7 @@ public sealed class Hex1bTerminalBuilder
                     return await widgetBuilder!(ctx);
                 };
 
-                app = new Hex1bApp(wrappedBuilder, options);
+                app = createApp(wrappedBuilder, options);
                 await using (app)
                 {
                     await app.RunAsync(ct);

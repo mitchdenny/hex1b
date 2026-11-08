@@ -26,15 +26,38 @@ public class SurfaceBenchmarks
     private byte[] _diffTokenBytes = null!;
     private readonly Decoder _terminalDecoder = Encoding.UTF8.GetDecoder();
     private CompositeSurface _compositeSurface = null!;
+    private SurfacePool _concretePool = null!;
+    private ISurfaceAllocator _surfaceAllocator = null!;
 
     private const string ShortText = "Hello";
     private const string MediumText = "The quick brown fox jumps over the lazy dog.";
     private const string LongText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
     private const string WideCharText = "你好世界，这是一个测试。";
 
+    [Benchmark]
+    public void Pool_RentReturnConcrete()
+    {
+        _concretePool.NextFrame();
+        var surface = _concretePool.Rent(80, 24, CellMetrics.Default);
+        _concretePool.Return(surface);
+    }
+
+    [Benchmark]
+    public void Pool_RentReturnAllocator()
+    {
+        _surfaceAllocator.NextFrame();
+        var surface = _surfaceAllocator.Rent(80, 24, CellMetrics.Default);
+        _surfaceAllocator.Return(surface);
+    }
+
     [GlobalSetup]
     public void Setup()
     {
+        _concretePool = new SurfacePool(8, 120);
+        _surfaceAllocator = new SurfacePool(8, 120);
+        _concretePool.Return(_concretePool.Rent(80, 24, CellMetrics.Default));
+        _surfaceAllocator.Return(_surfaceAllocator.Rent(80, 24, CellMetrics.Default));
+
         // Pre-create surfaces for benchmarks
         _smallSurface = new Surface(80, 24);
         _mediumSurface = new Surface(160, 48);

@@ -49,7 +49,7 @@ public sealed class EffectPanelNode : Hex1bNode
             return;
 
         // 1. Create temp surface sized to our bounds
-        var pool = surfaceCtx.SurfacePool;
+        var pool = surfaceCtx.SurfaceAllocator;
         var tempSurface = pool != null
             ? pool.Rent(Bounds.Width, Bounds.Height, surfaceCtx.CellMetrics)
             : new Surface(Bounds.Width, Bounds.Height, surfaceCtx.CellMetrics);
@@ -64,7 +64,7 @@ public sealed class EffectPanelNode : Hex1bNode
                 MouseX = surfaceCtx.MouseX,
                 MouseY = surfaceCtx.MouseY,
                 CellMetrics = surfaceCtx.CellMetrics,
-                SurfacePool = pool
+                SurfaceAllocator = pool
             };
 
             // 3. Render child subtree to temp surface

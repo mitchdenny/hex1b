@@ -153,7 +153,7 @@ public sealed class SelectionPanelNode : Hex1bNode
         // context.RenderChild (which would cause SurfaceRenderContext
         // to rent a child.Bounds-sized surface internally because a
         // layout provider is active).
-        var pool = surfaceCtx.SurfacePool;
+        var pool = surfaceCtx.SurfaceAllocator;
         var tempSurface = pool != null
             ? pool.Rent(visibleTerm.Width, visibleTerm.Height, surfaceCtx.CellMetrics)
             : new Surface(visibleTerm.Width, visibleTerm.Height, surfaceCtx.CellMetrics);
@@ -170,7 +170,7 @@ public sealed class SelectionPanelNode : Hex1bNode
                 MouseX = surfaceCtx.MouseX,
                 MouseY = surfaceCtx.MouseY,
                 CellMetrics = surfaceCtx.CellMetrics,
-                SurfacePool = pool,
+                SurfaceAllocator = pool,
             };
 
             // Push a layout provider clipping to visibleTerm so any
