@@ -145,6 +145,22 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Install Native AOT prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang zlib1g-dev
+
+      - name: Verify Windows Native AOT toolchain
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $installation = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $installation) { throw "Native AOT tests require the Visual C++ x64 toolchain and Windows SDK." }
+
+      - name: Verify macOS Native AOT toolchain
+        if: runner.os == 'macOS'
+        run: xcrun --find clang && xcrun --find ld
+
       - name: Build native library for tests
         if: runner.os != 'Windows'
         working-directory: src/Hex1b/native
@@ -168,11 +184,13 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 45
+        env:
+          HEX1B_RUN_NATIVE_AOT_TESTS: '1'
         run: |
           dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
             --no-build \
             -- --report-trx --report-trx-filename test-results.trx \
-               --timeout 10m --diagnostic --diagnostic-output-directory ./TestResults/diagnostics \
+               --timeout 40m --diagnostic --diagnostic-output-directory ./TestResults/diagnostics \
                --results-directory ./TestResults
           dotnet test tests/Hex1b.Analyzers.Tests/Hex1b.Analyzers.Tests.csproj \
             --no-build \
