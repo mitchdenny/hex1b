@@ -1,10 +1,19 @@
 # Native AOT scenarios
 
-`Hex1b.Aot.Tests` is an **opt-in managed MSTest runner**. It publishes three
-independent console consumers against the current Hex1b project, then starts
-each native executable directly. Neither the ordinary `Hex1b.Tests` workflow
-nor existing CI targets reference or run this suite. The runner itself is not
-Native AOT-published.
+Native AOT scenarios run inside the normal **managed `Hex1b.Tests` MSTest
+runner**. Each test embeds its native program as a raw source string. A helper
+writes a separate temporary console project against the current Hex1b project,
+publishes it, and starts its native executable directly. The runner itself is
+not Native AOT-published, and there are no checked-in consumer projects.
+
+The normal multi-platform and daily CI test workflows set
+`HEX1B_RUN_NATIVE_AOT_TESTS=1`, so native scenarios run alongside existing tests.
+Locally, the three costly native scenarios are disabled by default with an
+explicit MSTest condition/skip message. Set the same switch to opt in; merely
+filtering by `NativeAot` does not enable them. Fast parser and infrastructure
+tests run normally without this switch.
+If a filter selects only disabled scenarios, MTP reports zero executed tests
+(exit code 8); enable the switch before running a native-only filter.
 
 ## Prerequisites
 
@@ -23,8 +32,8 @@ cross-compilation. SDK commands execute from the repository root, respecting its
   and the SDK's Native AOT compiler/runtime packs. `git` and `dotnet` must be on
   `PATH`, and the checkout must retain its Git metadata.
 
-Missing prerequisites, unsupported hosts, publish errors, missing/invalid maps,
-runtime crashes, nonzero exits, missing success markers, and stalls **fail** the
+When enabled, missing prerequisites, unsupported hosts, publish errors,
+missing/invalid maps, runtime crashes, nonzero exits, missing success markers, and stalls **fail** the
 test. They are not skipped. Publish has a ten-minute timeout, executable execution
 has a thirty-second timeout, and native behavior checks have their own bounded
 waits. Test cancellation or timeouts kill only the test-owned process tree and
@@ -32,28 +41,42 @@ retain command/stdout/stderr logs.
 
 ## Running locally
 
-From the repository root (PowerShell):
+From the repository root, normal local tests require no extra switch. To opt
+into native scenarios on a properly configured machine (PowerShell):
 
 ```powershell
-dotnet test --project tests\Hex1b.Aot.Tests\Hex1b.Aot.Tests.csproj -c Release -- --no-progress
+$env:HEX1B_RUN_NATIVE_AOT_TESTS = '1'
+dotnet test --project tests\Hex1b.Tests\Hex1b.Tests.csproj -c Release -- --no-progress --filter "TestCategory=NativeAot"
 ```
 
 Run just the existing-terminal consumer:
 
 ```powershell
-dotnet test --project tests\Hex1b.Aot.Tests\Hex1b.Aot.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~ExistingTerminalTape"
+$env:HEX1B_RUN_NATIVE_AOT_TESTS = '1'
+dotnet test --project tests\Hex1b.Tests\Hex1b.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~NativeAotScenarioTests.ExistingTerminalTape"
 ```
 
 Run only fast map-reader tests, without Native AOT publishing:
 
 ```powershell
-dotnet test --project tests\Hex1b.Aot.Tests\Hex1b.Aot.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~NativeMapTests"
+dotnet test --project tests\Hex1b.Tests\Hex1b.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~NativeMapTests"
 ```
 
 `TestCategory=NativeAot` selects all three costly scenarios;
 `TestCategory=Infrastructure` selects process/publish diagnostics tests, including
 test-owned OS-shell stall fixtures for timeout/cancellation cleanup.
-On Unix, use `/` instead of `\` in command-line project paths.
+To disable native scenarios again in PowerShell:
+
+```powershell
+Remove-Item Env:HEX1B_RUN_NATIVE_AOT_TESTS
+```
+
+On Unix, use `/` instead of `\` in command-line project paths:
+
+```bash
+HEX1B_RUN_NATIVE_AOT_TESTS=1 dotnet test --project tests/Hex1b.Tests/Hex1b.Tests.csproj -c Release -- --no-progress --filter 'TestCategory=NativeAot'
+```
+
 The costly class is `DoNotParallelize`, despite the repository's method-parallel
 MSTest default. Each selected consumer is published once per invocation, with
 serialized reference-project builds. Avoid running multiple native suites
@@ -68,19 +91,20 @@ their normal shared output paths.
 | `ExistingTerminalTape` | Type/screen-Wait playback, final snapshot, continued terminal use after result disposal, caller cleanup | Terminal and existing-terminal playback | Terminal builder, child-process implementation, `ConfigureOwnedBuilder`, created-terminal playback |
 | `CreatedTerminalTape` | Builder factory called once, Type/screen-Wait playback, final snapshot and owned workload cleanup | Terminal, created-terminal playback, terminal builder | None: other creation-related code may legitimately remain |
 
-All consumers use the same small source-linked in-memory echo workload, not a
+All generated consumers use the same small in-memory echo workload source, not a
 real shell or process. They contain no scenario dispatcher, reflection, MSTest,
 or assertion-framework dependencies. Each emits its own `NATIVE_AOT_OK:<name>`
 marker only after verifying behavior; an exception/nonzero exit is a failure.
 
-The common **consumer-scoped** `Directory.Build.props` imports root props and
+The generated **consumer-scoped** `Directory.Build.props` imports root props and
 sets `PublishAot=true`, `OptimizationPreference=Size`, and
 `IlcGenerateMapFile=true`. These are deliberately not global command-line
 properties: global `PublishAot` propagates into the repository's netstandard
 analyzer project and fails with `NETSDK1207`. Root analyzers remain enabled.
-Likewise, only consumers interpret `AotScenarioArtifacts` to set intermediate,
-build, and publish paths; no global `BaseIntermediateOutputPath` is applied to
-library/native-helper project references.
+Likewise, only the generated consumer props set intermediate, build, and publish
+paths; no global `BaseIntermediateOutputPath` is applied to library/native-helper
+project references. XML paths are escaped using standard XML APIs. Each project
+has its own entry point; no shared dispatcher or scenario mode is introduced.
 
 Normal library native asset generation and copying remain enabled. The suite
 does not disable PTY helpers or delete runtime assets to reduce measured size.
@@ -106,13 +130,16 @@ TestResults/NativeAot/<UTC-time-and-unique-run-id>/<scenario>/
   report.json
   revision.log, git-status.log, sdk.log
   publish.log, publish.binlog, runtime.log
+  source/<scenario>.csproj, Directory.Build.props, Program.cs, EchoWorkload.cs
   obj/.../native/<scenario>.map.xml
   bin/...
   publish/...
 ```
 
-Reports and logs are attached with `TestContext.AddResultFile`; the JSON report
-also appears in TestContext diagnostics. Reports record the scenario, revision
+Reports, logs, and generated sources/projects are attached with
+`TestContext.AddResultFile`; the JSON report also appears in TestContext
+diagnostics. Both CI workflows upload `TestResults` including native evidence.
+Reports record the scenario, revision
 and dirty state, SDK/compiler package, host RID/TFM/configuration/publish
 settings, executable bytes/SHA-256, the untrimmed library input hash and assembly
 identity (with project/package identity), total MethodCode count/length,
@@ -131,16 +158,18 @@ compiler changes need to be accounted for separately.
 
 ## Adding a scenario
 
-1. Create a separate folder and SDK console project beside the three consumers,
-   with its own `Program.cs`. Common props provide the project reference and
-   source-linked echo workload. Do not add a shared mode-switching entry point.
-2. Exercise only the intended public API, check real input/output/lifetime
-   behavior with bounded waits, and print a distinct success marker at the end.
+1. Add a test method to `NativeAotScenarioTests` with a raw string containing a
+   complete native program. `ScenarioRunner.RunAsync` generates its project,
+   consumer props, and echo workload source inside the run's evidence directory.
+   Do not add checked-in consumer projects or a shared mode-switching entry point.
+2. Exercise only the intended public API in that source, check real
+   input/output/lifetime behavior with bounded waits, and print a distinct success
+   marker at the end.
 3. Add a `Scenario` with narrowly scoped required/forbidden declaring-code
    families. Add representative map-fragment tests for new matching rules,
    including generated code, metadata-only mentions and generic signatures.
-4. Add one independently filterable method to `NativeAotScenarioTests`, then
-   run parser tests and that scenario on a host with Native AOT prerequisites.
+4. Run parser tests and the independently filterable scenario on a host with
+   Native AOT prerequisites and `HEX1B_RUN_NATIVE_AOT_TESTS=1`.
    Review and retain its report; update this table and document any limitations.
 
 Windows is the initially verified runtime platform for these scenarios.

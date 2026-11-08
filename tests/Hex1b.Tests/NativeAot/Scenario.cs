@@ -1,4 +1,4 @@
-namespace Hex1b.Aot.Tests;
+namespace Hex1b.Tests.NativeAot;
 
 internal sealed record Scenario(string Name, IReadOnlyList<CodeFamily> Required, IReadOnlyList<CodeFamily> Forbidden)
 {

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace Hex1b.Aot.Tests;
+namespace Hex1b.Tests.NativeAot;
 
 internal sealed record ProcessOutcome(string Command, int? ExitCode, string StandardOutput,
     string StandardError, string Status, string LogPath);

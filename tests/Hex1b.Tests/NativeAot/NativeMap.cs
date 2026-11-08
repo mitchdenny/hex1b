@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 
-namespace Hex1b.Aot.Tests;
+namespace Hex1b.Tests.NativeAot;
 
 internal sealed record MethodCode(string Name, long Length);
 internal sealed record CodeFamily(string Name, string Pattern);

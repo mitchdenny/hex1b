@@ -2,7 +2,7 @@ using System.Text;
 using System.Xml;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Hex1b.Aot.Tests;
+namespace Hex1b.Tests.NativeAot;
 
 [TestClass]
 [TestCategory("MapParser")]
