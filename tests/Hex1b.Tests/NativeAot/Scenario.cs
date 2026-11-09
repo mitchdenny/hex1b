@@ -5,6 +5,7 @@ internal sealed record Scenario(string Name, IReadOnlyList<CodeFamily> Required,
     public string ConsumerName { get; init; } = Name;
     public bool UsePty { get; init; }
     public IReadOnlyList<string> PtyStopPrompts { get; init; } = [];
+    public IReadOnlyList<string> Defines { get; init; } = [];
 
     // Anchor on the declaring family: generic arguments can name unretained types.
     public static readonly CodeFamily Terminal = new("terminal", @"^Hex1b_Hex1b_Hex1bTerminal_");

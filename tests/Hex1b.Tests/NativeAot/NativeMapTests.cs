@@ -84,6 +84,39 @@ public sealed class NativeMapTests
     }
 
     [TestMethod]
+    [DataRow("Hex1b_Hex1b_Hex1bApp___RunAsync_d__42__MoveNext", "app implementation")]
+    [DataRow("Hex1b_Hex1b_Hex1bAppOptions___ctor", "app options")]
+    [DataRow("Hex1b_Hex1b_Hex1bAppWorkloadAdapter___c__DisplayClass1_0___Run_b__0", "app workload")]
+    [DataRow("Hex1b_Hex1b_Widgets_TextBlockWidget__ReconcileAsync", "widgets")]
+    [DataRow("Hex1b_Hex1b_Nodes_TextBlockNode__Render", "nodes")]
+    [DataRow("Hex1b_Hex1b_Hex1bRenderContext__Write", "app render context")]
+    [DataRow("Hex1b_Hex1b_Surfaces_SurfacePool__Rent", "surface pool")]
+    public void Validate_AppDeclaringFamilyIncludingGeneratedCode_Fails(string method, string family)
+    {
+        var methods = Read($"""
+            <ObjectNodes>
+              <MethodCode Name="{method}" Length="120" />
+              <MethodCode Name="System__Task&lt;Hex1b_Hex1b_Hex1bApp__RunAsync&gt;__Start" Length="90" />
+            </ObjectNodes>
+            """);
+        var evidence = NativeMap.Measure(methods, [], ConsolePtyTests.AppFamilies);
+        StringAssert.Contains(Assert.ThrowsExactly<InvalidDataException>(() => NativeMap.Validate(evidence)).Message,
+            $"{family}: forbidden, count=1, length=120");
+    }
+
+    [TestMethod]
+    public void Validate_AppGenericMentionWithoutDeclaringCode_Passes()
+    {
+        var methods = Read("""
+            <ObjectNodes>
+              <EEType Name="Hex1b_Hex1b_Hex1bApp" Length="80" />
+              <MethodCode Name="System__Task&lt;Hex1b_Hex1b_Hex1bApp__RunAsync&gt;__Start" Length="90" />
+            </ObjectNodes>
+            """);
+        NativeMap.Validate(NativeMap.Measure(methods, [], ConsolePtyTests.AppFamilies));
+    }
+
+    [TestMethod]
     [DataRow("Hex1b_Hex1b_Hex1bTerminalBuilder___c__DisplayClass1_0___Build_b__0", "terminal builder")]
     [DataRow("Hex1b_Hex1b_Hex1bTerminalChildProcess__StartAsync_d__3__MoveNext", "child-process implementation")]
     [DataRow("Hex1b_Hex1b_WindowsPtyHandle_SECURITY_ATTRIBUTES____GetFieldHelper", "child-process implementation")]

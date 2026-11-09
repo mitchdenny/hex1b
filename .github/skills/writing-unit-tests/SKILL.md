@@ -623,6 +623,16 @@ Match consumer source/assembly identity and toolchain; include an unmodified-sou
 copy control and verify normal library hash/behavior after the experiment. Keep
 pooling, analyzers, native helpers and publish assets unchanged.
 
+For console + PTY native consumers, inherit a snapshot of the parent environment
+into the child-specific PTY environment; do not mutate or log the host environment.
+An empty environment can let a console-only consumer run but break its nested
+Windows proxy PTY with Winsock error 10106. Exercise a real
+child readiness/input/output/exit exchange, not just construction. See
+`ConsolePtyTests` for matched normal/slim builders and optional rendered-app
+positive controls. Keep compilation symbols consumer-local and compare library
+hashes; omitting an explicitly opted-in app measures that feature's cost, not
+automatic retention by the normal builder.
+
 ### Output-Pump Allocation Regressions
 
 Measure `GC.GetAllocatedBytesForCurrentThread()` around a synchronous application

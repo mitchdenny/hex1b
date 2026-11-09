@@ -29,7 +29,13 @@ internal static class TestProcess
         Exception? failure = null;
         try
         {
-            await pty.StartAsync(executable, [], workingDirectory, [], 100, 24, lifetime.Token);
+            var environment = new Dictionary<string, string>();
+            foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables())
+            {
+                if (entry.Key is string key && entry.Value is string value)
+                    environment[key] = value;
+            }
+            await pty.StartAsync(executable, [], workingDirectory, environment, 100, 24, lifetime.Token);
             var decoder = Encoding.UTF8.GetDecoder();
             var chars = new char[4096];
             while (true)

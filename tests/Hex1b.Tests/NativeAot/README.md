@@ -100,6 +100,8 @@ their normal shared output paths.
 | `SlimActualInternalAppNormalBuilder` | Actual adapter-required app with the normal console-default builder, via the same forwarding shim | Same as pre-change | None |
 | `SlimActualSlimCopiedSources` / `SlimActualSlimActualLibrary` | Actual empty slim builder, explicit headless presentation, actual internal app construction and identical snapshots | Terminal, builder, app, chart, pool | Console adapter/construction, Windows/Unix console driver |
 | `SlimActualInteractiveConsole` | Actual default builder and slim builder with explicit console presentation render and stop in a real PTY | Terminal, builder, app, console adapter/construction | None |
+| `ConsolePtySlim` / `ConsolePtyNormal` | Explicit console presentation and a real PTY child exchange readiness, input, output and exit successfully | Terminal, builder, child process, console adapter/construction | App, app options/workload, widgets, nodes, app render context, surface pool |
+| `ConsolePtySlimWithApp` / `ConsolePtyNormalWithApp` | Same PTY exchange, preceded by an explicitly opted-in minimal console app that renders and stops | Same console/PTY code plus every forbidden app family above | None |
 
 The original three consumers use the same small in-memory echo workload source,
 not a real shell or process. Console scenarios use the app workload. The
@@ -475,6 +477,120 @@ untouched for this measurement experiment and will not compile against the
 internal constructors. Some website snippets also show the old API.
 No new friend-assembly grants, public compatibility factories, feature switches,
 or mass test rewrites hide this break. Package validation settings are unchanged.
+
+## Console + PTY without the app infrastructure
+
+`ConsolePtyTests.ConsoleAndPty_NativePublish_ExcludesAppAndMeasuresOptInCost`
+proves that this composition does not retain app implementation code:
+
+```csharp
+Hex1bTerminal.CreateSlimBuilder()
+    .WithPresentation(new ConsolePresentationAdapter())
+    .WithPtyProcess(options => { /* configure child command */ })
+```
+
+Four consumers share identical `Program.cs`, assembly name, current library
+inputs, RID and publish settings. Consumer-local `DEFAULT_BUILDER` selects
+normal versus slim construction; consumer-local `APP_CONTROL` additionally
+renders and stops a minimal text app before running the identical PTY exchange.
+These symbols are generated only in the consumer project, not imported props,
+global MSBuild properties or library references. There are no library source
+substitutions or production changes for this comparison.
+
+Every native program runs inside a test-owned real outer PTY with an inherited,
+child-specific environment. Passing an empty environment previously broke the
+nested Windows proxy PTY with Winsock error 10106; inheriting the environment
+fixes that case without changing production PTY options. Environment values
+are neither logged nor changed in the parent. The inner workload uses the
+default Windows `RequireProxy` mode, not a direct-PTY workaround. Its shell
+announces readiness, accepts `pty-input`, emits `pty-output:pty-input`, and
+exits with code zero. Unix uses `/bin/sh` with echo disabled. App controls
+must render `app-positive-control` before automated Ctrl+C. Cursor-free PTY
+SVGs must be identical across all four consumers; app SVGs must match between
+the two positive controls.
+
+Windows x64 observation against the experimental library at
+`2c5ef41c8a67e86d5cd997e5dbb1828ff64115d2`, SDK **10.0.403**,
+ILCompiler **10.0.14**, net10.0 Release/Size, self-contained Native AOT:
+
+| Consumer | EXE bytes | MethodCode count / bytes |
+|---|---:|---:|
+| Slim console + PTY | 5,555,712 | 15,161 / 2,661,586 |
+| Normal console + PTY | 5,555,712 | 15,163 / 2,661,765 |
+| Slim console + PTY + minimal app control | 6,295,040 | 17,374 / 3,084,784 |
+| Normal console + PTY + minimal app control | 6,295,552 | 17,376 / 3,084,963 |
+
+Omitting the optional app saves **739,328 bytes (11.7446116%)** with slim
+construction, or **739,840 bytes (11.7517892%)** with normal construction.
+Percentages use the corresponding with-app EXE as denominator. This measures
+the incremental cost of this explicitly opted-in, rendered minimal app and
+its control code, **not all possible widgets**, and not a saving from fixing
+automatic app retention. Both app-free builders already trim the app.
+Slim versus normal saves **zero EXE bytes** for console + PTY alone;
+the with-app control differs by 512 bytes (0.0081327%).
+
+Declaring-family evidence is required in both real app controls and forbidden
+in both app-free consumers, including generated closures/state machines:
+
+| App family | With-app methods / bytes | Without-app methods / bytes |
+|---|---:|---:|
+| `Hex1bApp` | 65 / 39,208 | 0 / 0 |
+| `Hex1bAppOptions` | 1 / 61 | 0 / 0 |
+| `Hex1bAppWorkloadAdapter` | 31 / 9,094 | 0 / 0 |
+| Widgets | 158 / 28,726 | 0 / 0 |
+| Nodes | 187 / 31,530 | 0 / 0 |
+| `Hex1bRenderContext` | 8 / 324 | 0 / 0 |
+| `SurfacePool` | 11 / 1,923 | 0 / 0 |
+| **Total direct app families** | **461 / 110,866** | **0 / 0** |
+
+The total map reduction is 2,213 methods / 423,198 code bytes for either
+builder, including transitive dependencies. Method lengths are not EXE
+sections or a byte-for-byte explanation of the 739 KB EXE delta.
+Direct console dependencies deliberately remain: all four retain 42 adapter
+methods / 17,670 bytes, 39 Windows-driver methods / 22,729 bytes, and 100
+child-process-family methods / 39,846 bytes. Unix console-driver methods
+are absent in these Windows maps. Parser tests distinguish app-declaring
+methods from metadata or app types mentioned in generic signatures.
+
+Complete publish inventory, excluding symbols/documentation from EXE savings:
+
+| File | App-free (both builders) | With app (slim) | With app (normal) |
+|---|---:|---:|---:|
+| `ConsolePty.exe` | 5,555,712 | 6,295,040 | 6,295,552 |
+| `ConsolePty.pdb` (symbols) | 24,834,048 | 28,135,424 | 28,135,424 |
+| `Hex1b.xml` (documentation) | 3,138,875 | 3,138,875 | 3,138,875 |
+
+**The EXE is not the whole Windows PTY deployment.** The default proxy resolves
+the normally generated local helper from
+`src/Hex1b/obj/windows-pty-shim/win-x64/native`. Its entire unchanged directory
+is separately inventoried and hash-compared across consumers: 233 files /
+77,988,138 bytes, including four `hex1bpty` helper files totaling 292,474
+bytes and 229 runtime-support files totaling 77,695,664 bytes. This local
+helper is a self-contained managed build (`hex1bpty.exe` is 151,552 bytes and
+`hex1bpty.dll` is 82,432 bytes), not a newly native-published helper.
+No helper/runtime files are deleted, substituted or counted as app savings.
+The inventory is conservative, not a minimal-deployment claim.
+
+Shared consumer source SHA-256:
+`F326054D5232C4B1F0428F071DBDE6B13A7A1F905C4C7484B9063EA58386A158`.
+Shared untrimmed library SHA-256:
+`C60CC1A71275D0328A5B6A35CF5670DCF0DB3D6769D8B8FCB5959063CBB604FA`,
+identity `Hex1b, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null`.
+Pooling behavior and normal analyzer/helper builds remain unchanged.
+
+Reports, maps, generated consumers, runtime logs, SVGs, full per-file
+inventories/hashes and removed app methods are preserved under ignored
+`TestResults/NativeAot`; the comparison is `ConsolePtySlim/pty-app-comparison.json`.
+The final evidence run is
+`20261109T013757052Z-dcc45ea8744b4a6aa8ae18151396add0`; all **56** tests in the
+native namespace passed, with no failures or skips
+(`TestResults/pty-app-full-native-tests.log`). Linux/macOS have not been
+executed for this experiment. Reproduce with:
+
+```powershell
+$env:HEX1B_RUN_NATIVE_AOT_TESTS = '1'
+dotnet test --project tests\Hex1b.Tests\Hex1b.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~NativeAot.ConsolePtyTests"
+```
 
 ## Adding a scenario
 

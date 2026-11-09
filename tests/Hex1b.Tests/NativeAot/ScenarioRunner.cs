@@ -32,6 +32,7 @@ internal sealed class ScenarioReport
     public string? LibraryAssemblyIdentity { get; set; }
     public string? LibraryProjectSha256 { get; set; }
     public string? ConsumerSourceSha256 { get; set; }
+    public IReadOnlyList<string> ConsumerDefines { get; init; } = [];
     public string? Experiment { get; set; }
     public IReadOnlyList<PublishedFile>? SourceOverrides { get; set; }
     public string? CompilerMapPath { get; set; }
@@ -85,7 +86,11 @@ internal static class ScenarioRunner
         string? experiment = null)
     {
         var directory = CreateArtifacts(scenario.Name);
-        var report = new ScenarioReport { Name = scenario.Name, ArtifactDirectory = directory, Experiment = experiment };
+        var report = new ScenarioReport
+        {
+            Name = scenario.Name, ArtifactDirectory = directory, Experiment = experiment,
+            ConsumerDefines = scenario.Defines
+        };
         var phase = "preflight";
         try
         {
@@ -100,7 +105,8 @@ internal static class ScenarioRunner
                 Path.Combine(directory, "sdk.log"), TimeSpan.FromSeconds(30), cancellationToken);
             report.Sdk = sdk.StandardOutput.Trim();
             report.LibraryProjectSha256 = Hash(Path.Combine(RepositoryRoot, "src", "Hex1b", "Hex1b.csproj"));
-            var project = await CreateProjectAsync(directory, scenario.ConsumerName, source, cancellationToken, sourceOverrides);
+            var project = await CreateProjectAsync(directory, scenario.ConsumerName, source, cancellationToken,
+                sourceOverrides, scenario.Defines);
             report.ConsumerSourceSha256 = Hash(Path.Combine(directory, "source", "Program.cs"));
             if (sourceOverrides is not null)
                 report.SourceOverrides = sourceOverrides.Keys.Select(name =>
@@ -207,7 +213,8 @@ internal static class ScenarioRunner
     }
 
     public static async Task<string> CreateProjectAsync(string directory, string name, string source,
-        CancellationToken cancellationToken, IReadOnlyDictionary<string, string>? sourceOverrides = null)
+        CancellationToken cancellationToken, IReadOnlyDictionary<string, string>? sourceOverrides = null,
+        IReadOnlyList<string>? defines = null)
     {
         var sourceDirectory = Path.Combine(directory, "source");
         Directory.CreateDirectory(sourceDirectory);
@@ -230,6 +237,9 @@ internal static class ScenarioRunner
             new XElement("ItemGroup",
                 new XElement("ProjectReference", new XAttribute("Include",
                     Path.Combine(RepositoryRoot, "src", "Hex1b", "Hex1b.csproj")))));
+        if (defines is { Count: > 0 })
+            project.Add(new XElement("PropertyGroup",
+                new XElement("DefineConstants", "$(DefineConstants);" + string.Join(";", defines))));
         if (sourceOverrides is not null)
         {
             var overridesDirectory = Path.Combine(sourceDirectory, "overrides");
@@ -316,7 +326,7 @@ internal static class ScenarioRunner
         return Convert.ToHexString(SHA256.HashData(stream));
     }
 
-    private static string FileKind(string path, string executable)
+    internal static string FileKind(string path, string executable)
         => path == executable ? "main executable" :
             Path.GetExtension(path) is ".pdb" or ".dbg" or ".map" or ".lib" or ".exp" ||
             path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
