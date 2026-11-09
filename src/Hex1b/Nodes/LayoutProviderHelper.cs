@@ -16,49 +16,49 @@ public static class LayoutProviderHelper
     public static Rect GetEffectiveClipRect(ILayoutProvider provider)
     {
         var clipRect = provider.ClipRect;
-        
+
         if (provider.ParentLayoutProvider != null)
         {
             var parentRect = GetEffectiveClipRect(provider.ParentLayoutProvider);
             clipRect = IntersectRects(clipRect, parentRect);
         }
-        
+
         return clipRect;
     }
-    
+
     /// <summary>
     /// Determines if a character at the given absolute position should be rendered,
     /// considering both this provider's clip rect and any parent's.
     /// </summary>
     public static bool ShouldRenderAt(ILayoutProvider provider, int x, int y)
     {
-        if (provider.ClipMode == ClipMode.Overflow && 
+        if (provider.ClipMode == ClipMode.Overflow &&
             (provider.ParentLayoutProvider == null || provider.ParentLayoutProvider.ClipMode == ClipMode.Overflow))
             return true;
-        
+
         var effectiveRect = GetEffectiveClipRect(provider);
-        
-        return x >= effectiveRect.X && 
+
+        return x >= effectiveRect.X &&
                x < effectiveRect.X + effectiveRect.Width &&
-               y >= effectiveRect.Y && 
+               y >= effectiveRect.Y &&
                y < effectiveRect.Y + effectiveRect.Height;
     }
-    
+
     /// <summary>
     /// Clips a string to the effective clip rect (intersection of this provider and parent).
     /// </summary>
     public static (int adjustedX, string clippedText) ClipString(ILayoutProvider provider, int x, int y, string text)
     {
-        if (provider.ClipMode == ClipMode.Overflow && 
+        if (provider.ClipMode == ClipMode.Overflow &&
             (provider.ParentLayoutProvider == null || provider.ParentLayoutProvider.ClipMode == ClipMode.Overflow))
             return (x, text);
-        
+
         var effectiveRect = GetEffectiveClipRect(provider);
-        
+
         // If entire line is outside vertical bounds, return empty
         if (y < effectiveRect.Y || y >= effectiveRect.Y + effectiveRect.Height)
             return (x, "");
-            
+
         var clipLeft = effectiveRect.X;
         var clipRight = effectiveRect.X + effectiveRect.Width;
 
@@ -67,7 +67,7 @@ public static class LayoutProviderHelper
             return (x, "");
 
         // Clip by visible columns (ANSI-aware) so we never cut escape sequences.
-        var visibleLength = AnsiString.VisibleLength(text);
+        var visibleLength = AnsiString.MeasureVisible(text, out var isPlainAscii);
         if (visibleLength <= 0)
             return (x, "");
 
@@ -81,12 +81,17 @@ public static class LayoutProviderHelper
         if (endColumnExclusive <= startColumn)
             return (x, "");
 
+        // Plain ASCII with complete escape sequences that lies wholly inside the clip region comes
+        // back from the slicer exactly as it went in, so skip the slicing and return it as is.
+        if (isPlainAscii && startColumn == 0 && endColumnExclusive == visibleLength)
+            return (x, text);
+
         var sliceLength = endColumnExclusive - startColumn;
-        
+
         // Use SliceByDisplayWidth to properly handle wide characters and get padding info
-        var (slicedText, _, paddingBefore, paddingAfter) = 
+        var (slicedText, _, paddingBefore, paddingAfter) =
             DisplayWidth.SliceByDisplayWidthWithAnsi(text, startColumn, sliceLength);
-        
+
         if (slicedText.Length == 0 && paddingBefore == 0)
             return (x, "");
 
@@ -105,7 +110,7 @@ public static class LayoutProviderHelper
         var adjustedX = x + startColumn;
         return (adjustedX, clippedText);
     }
-    
+
     /// <summary>
     /// Computes the intersection of two rectangles.
     /// Returns a zero-sized rect if they don't overlap.
@@ -116,10 +121,10 @@ public static class LayoutProviderHelper
         var top = Math.Max(a.Y, b.Y);
         var right = Math.Min(a.X + a.Width, b.X + b.Width);
         var bottom = Math.Min(a.Y + a.Height, b.Y + b.Height);
-        
+
         var width = Math.Max(0, right - left);
         var height = Math.Max(0, bottom - top);
-        
+
         return new Rect(left, top, width, height);
     }
 }
