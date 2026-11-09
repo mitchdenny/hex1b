@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.JavaScript" />
     <PackageReference Include="MessagePack" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
     <InternalsVisibleTo Include="Aspire.Hosting.GitHubPages.Tests" />
   </ItemGroup>
 </Project>
