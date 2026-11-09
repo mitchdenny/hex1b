@@ -17,23 +17,21 @@ public class MinimalExample(ILogger<MinimalExample> logger) : ReactiveExample
     public override string Title => "Hello World";
     public override string Description => "The most basic Hex1b application - a complete, runnable example.";
 
-    public override async Task RunAsync(IHex1bAppTerminalWorkloadAdapter workloadAdapter, CancellationToken cancellationToken)
+    public override async Task RunAsync(Hex1bTerminalBuilder builder, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting minimal example");
 
         // --- BEGIN: Code shown on homepage ---
         var clickCount = 0;
 
-        using var app = new Hex1bApp(
+        await using var terminal = builder.WithHex1bApp(
             ctx => ctx.VStack(v => [
                 v.Text("Hello, Hex1b!"),
                 v.Text($"Clicks: {clickCount}"),
                 v.Button("Click me").OnClick(_ => clickCount++)
-            ]),
-            new Hex1bAppOptions { WorkloadAdapter = workloadAdapter }
-        );
+            ])).Build();
 
-        await app.RunAsync(cancellationToken);
+        await terminal.RunAsync(cancellationToken);
         // --- END: Code shown on homepage ---
     }
 }

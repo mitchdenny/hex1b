@@ -24,7 +24,7 @@ namespace Hex1b;
 /// <code>
 /// using Hex1b;
 ///
-/// await using var app = new Hex1bApp(context =&gt;
+/// await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(context =&gt;
 ///     context.Button("Run").OnClick(async e =&gt;
 ///     {
 ///         await e.Context.ProgramStatus.ReportAsync(
@@ -32,8 +32,8 @@ namespace Hex1b;
 ///             e.Context.CancellationToken);
 ///         await Task.Delay(1000, e.Context.CancellationToken);
 ///         await e.Context.ProgramStatus.ReportAsync(new(TerminalProgramStatusState.Done));
-///     }));
-/// await app.RunAsync();
+///     })).Build();
+/// await terminal.RunAsync();
 /// </code>
 /// </example>
 public sealed class TerminalProgramStatusReporter

@@ -29,10 +29,9 @@ namespace Hex1b;
 /// </remarks>
 /// <example>
 /// <code>
-/// var workload = new Hex1bAppWorkloadAdapter();
-/// var terminal = new Hex1bTerminal(workload, 80, 24);
-/// var app = new Hex1bApp(workload, ctx => ctx.Text("Hello"));
-/// await app.RunAsync();
+/// await using var terminal = Hex1bTerminal.CreateBuilder()
+///     .WithHex1bApp(ctx =&gt; ctx.Text("Hello")).Build();
+/// await terminal.RunAsync();
 /// </code>
 /// </example>
 public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IHex1bTerminalTokenWorkloadAdapter, IRepaintableWorkloadAdapter, IDisposable

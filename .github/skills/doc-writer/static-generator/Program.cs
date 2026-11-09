@@ -46,6 +46,7 @@
 // =============================================================================
 
 using Hex1b;
+using Hex1b.Automation;
 using Hex1b.Widgets;
 
 class Program
@@ -99,16 +100,12 @@ class Program
     {
         Console.WriteLine($"  Generating: {name} ({description})");
 
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = new Hex1bTerminal(workload, width, height);
-
-        using var app = new Hex1bApp(
-            ctx => widgetBuilder(ctx),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
-        );
+        await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+            .WithHeadless().WithDimensions(width, height)
+            .WithHex1bApp(widgetBuilder).Build();
 
         using var cts = new CancellationTokenSource();
-        var runTask = app.RunAsync(cts.Token);
+        var runTask = terminal.RunAsync(cts.Token);
 
         // Wait for initial render
         await Task.Delay(100);

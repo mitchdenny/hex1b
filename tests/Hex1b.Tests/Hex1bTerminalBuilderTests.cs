@@ -55,6 +55,32 @@ public class Hex1bTerminalBuilderTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task WithHex1bApp_CustomWorkloadAdapter_RoutesRenderingAndInput(bool asyncBuilder)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        var clicked = false;
+        var builder = Hex1bTerminal.CreateSlimBuilder().WithHeadless().WithDimensions(40, 5);
+        Action<Hex1bAppOptions> configure = options => options.WorkloadAdapter = workload;
+        Func<RootContext, Hex1bWidget> build = ctx =>
+            ctx.Button(clicked ? "override-clicked" : "override-ready").OnClick(_ => clicked = true);
+        if (asyncBuilder)
+            builder.WithHex1bApp(configure, ctx => Task.FromResult(build(ctx)));
+        else
+            builder.WithHex1bApp(configure, build);
+        await using var terminal = builder.Build();
+        var run = terminal.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("override-ready"), TimeSpan.FromSeconds(5), "custom workload rendered")
+            .Enter()
+            .WaitUntil(s => s.ContainsText("override-clicked"), TimeSpan.FromSeconds(5), "custom workload received input")
+            .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
+            .Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await run;
+    }
+
+    [TestMethod]
     public void Hex1bApp_Constructors_AreNotPublic()
         => Assert.IsEmpty(typeof(Hex1bApp).GetConstructors());
 

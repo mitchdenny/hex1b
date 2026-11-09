@@ -21,17 +21,15 @@ Testing a Hex1b app involves:
 
 ```csharp
 // The pattern
-using var terminal = new Hex1bTerminal(80, 24);
-using var app = new Hex1bApp(/* ... */);
-
-var sequence = new Hex1bInputSequenceBuilder()
-    .Type("Hello")
-    .Enter()
-    .Build();
-
-await sequence.ApplyAsync(terminal);
-
-StringAssert.Contains(terminal.GetScreenText(, "Hello"));
+await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+    .WithHeadless().WithDimensions(80, 24)
+    .WithHex1bApp(ctx => ctx.Text("Hello")).Build();
+var run = terminal.RunAsync();
+await new Hex1bTerminalInputSequenceBuilder()
+    .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(5))
+    .Ctrl().Key(Hex1bKey.C)
+    .Build().ApplyAsync(terminal);
+await run;
 ```
 
 ## A Sample Application
@@ -43,21 +41,21 @@ Let's create a simple counter app to test:
 using Hex1b;
 using Hex1b.Widgets;
 
-public static class CounterApp
+public sealed class CounterApp
 {
-    public static Hex1bWidget Build(WidgetContext ctx)
+    private int _count;
+
+    public Hex1bWidget Build(RootContext ctx)
     {
-        var count = ctx.UseState(0);
-        
         return ctx.VStack(v => [
-            v.Text($"Count: {count.Value}"),
+            v.Text($"Count: {_count}"),
             v.HStack(h => [
                 h.Button("Increment")
-                    .OnClick(_ => { count.Value++; return Task.CompletedTask; }),
+                    .OnClick(_ => _count++),
                 h.Button("Decrement")
-                    .OnClick(_ => { count.Value--; return Task.CompletedTask; }),
+                    .OnClick(_ => _count--),
                 h.Button("Reset")
-                    .OnClick(_ => { count.Value = 0; return Task.CompletedTask; })
+                    .OnClick(_ => _count = 0)
             ])
         ]);
     }
@@ -88,6 +86,8 @@ The `MSTest.Sdk` meta-package pulls in MSTest itself plus the Microsoft.Testing.
 using Hex1b;
 using Hex1b.Widgets;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Hex1b.Automation;
+using Hex1b.Input;
 
 [TestClass]
 public class CounterAppTests
@@ -96,23 +96,20 @@ public class CounterAppTests
     public async Task InitialState_ShowsZero()
     {
         // Arrange
-        using var terminal = new Hex1bTerminal(80, 24);
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(CounterApp.Build(ctx)),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
-        );
+        await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+            .WithHeadless().WithDimensions(80, 24)
+            .WithHex1bApp(new CounterApp().Build).Build();
 
         // Act - start app and exit with Ctrl+C
-        var runTask = app.RunAsync();
+        var runTask = terminal.RunAsync();
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Count: 0"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal);
         await runTask;
 
-        // Assert
-        StringAssert.Contains(terminal.GetScreenText(, "Count: 0"));
+        // WaitUntil verifies the screen before shutdown restores the normal screen.
     }
 }
 ```
@@ -121,48 +118,36 @@ public class CounterAppTests
 
 | Component | Purpose |
 |-----------|---------|
-| `Hex1bTerminal(width, height)` | Creates a virtual terminal for headless testing |
-| `terminal.WorkloadAdapter` | Connect the app to the virtual terminal |
+| `CreateSlimBuilder().WithHeadless().WithDimensions(width, height)` | Explicitly configures a virtual terminal |
+| `WithHex1bApp(...)` | Connects the app workload and gives the terminal ownership of its lifetime |
 | `Hex1bTerminalInputSequenceBuilder` | Build input sequences with waits and assertions |
 | `terminal.GetScreenText()` | Get the current screen content as text (auto-flushes) |
 
 ## Testing User Interactions
 
-Use `Hex1bInputSequenceBuilder` to simulate user input:
+Use `Hex1bTerminalInputSequenceBuilder` to simulate user input:
 
 ```csharp
 [TestMethod]
 public async Task ClickIncrement_IncreasesCount()
 {
-    using var terminal = new Hex1bTerminal(80, 24);
-    using var app = new Hex1bApp(
-        ctx => Task.FromResult<Hex1bWidget>(CounterApp.Build(ctx)),
-        new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
-    );
+    await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+        .WithHeadless().WithDimensions(80, 24)
+        .WithHex1bApp(new CounterApp().Build).Build();
 
     // Build the input sequence
-    var sequence = new Hex1bInputSequenceBuilder()
+    var sequence = new Hex1bTerminalInputSequenceBuilder()
+        .WaitUntil(s => s.ContainsText("Count: 0"), TimeSpan.FromSeconds(2))
         .Enter()  // Click the focused "Increment" button
         .Enter()  // Click again
         .Enter()  // And again
+        .WaitUntil(s => s.ContainsText("Count: 3"), TimeSpan.FromSeconds(2))
+        .Ctrl().Key(Hex1bKey.C)
         .Build();
 
-    using var cts = new CancellationTokenSource();
-    var runTask = app.RunAsync(cts.Token);
-
-    // Wait for initial render
-    await Task.Delay(50);
-    
-    // Apply the input sequence
+    var runTask = terminal.RunAsync();
     await sequence.ApplyAsync(terminal);
-    await Task.Delay(50);
-
-    // Stop the app
-    cts.Cancel();
     await runTask;
-
-    // Assert
-    StringAssert.Contains(terminal.GetScreenText(, "Count: 3"));
 }
 ```
 
@@ -171,7 +156,7 @@ public async Task ClickIncrement_IncreasesCount()
 ### Keyboard Input
 
 ```csharp
-var sequence = new Hex1bInputSequenceBuilder()
+var sequence = new Hex1bTerminalInputSequenceBuilder()
     // Basic keys
     .Key(Hex1bKey.A)              // Press 'a'
     .Enter()                       // Press Enter
@@ -211,7 +196,7 @@ var sequence = new Hex1bInputSequenceBuilder()
 ### Mouse Input
 
 ```csharp
-var sequence = new Hex1bInputSequenceBuilder()
+var sequence = new Hex1bTerminalInputSequenceBuilder()
     // Positioning
     .MouseMoveTo(10, 5)           // Move to absolute position
     .MouseMove(5, 0)              // Move relative (delta)
@@ -240,7 +225,7 @@ var sequence = new Hex1bInputSequenceBuilder()
 ### Timing
 
 ```csharp
-var sequence = new Hex1bInputSequenceBuilder()
+var sequence = new Hex1bTerminalInputSequenceBuilder()
     .Type("search query")
     .Wait(100)                     // Wait 100ms
     .Wait(TimeSpan.FromSeconds(1)) // Wait 1 second
@@ -254,31 +239,24 @@ var sequence = new Hex1bInputSequenceBuilder()
 [TestMethod]
 public async Task TabNavigation_MovesBetweenButtons()
 {
-    using var terminal = new Hex1bTerminal(80, 24);
-    using var app = new Hex1bApp(
-        ctx => Task.FromResult<Hex1bWidget>(CounterApp.Build(ctx)),
-        new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
-    );
+    await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+        .WithHeadless().WithDimensions(80, 24)
+        .WithHex1bApp(new CounterApp().Build).Build();
 
-    var sequence = new Hex1bInputSequenceBuilder()
+    var sequence = new Hex1bTerminalInputSequenceBuilder()
+        .WaitUntil(s => s.ContainsText("Count: 0"), TimeSpan.FromSeconds(2))
         .Tab()        // Move to "Decrement" button
         .Tab()        // Move to "Reset" button
         .Enter()      // Click Reset (no effect, count is already 0)
         .Shift().Tab() // Back to "Decrement"
         .Enter()      // Click Decrement
+        .WaitUntil(s => s.ContainsText("Count: -1"), TimeSpan.FromSeconds(2))
+        .Ctrl().Key(Hex1bKey.C)
         .Build();
 
-    using var cts = new CancellationTokenSource();
-    var runTask = app.RunAsync(cts.Token);
-
-    await Task.Delay(50);
+    var runTask = terminal.RunAsync();
     await sequence.ApplyAsync(terminal);
-    await Task.Delay(50);
-
-    cts.Cancel();
     await runTask;
-
-    StringAssert.Contains(terminal.GetScreenText(, "Count: -1"));
 }
 ```
 
@@ -288,11 +266,11 @@ public async Task TabNavigation_MovesBetweenButtons()
 [TestMethod]
 public async Task TextBox_CapturesInput()
 {
-    using var terminal = new Hex1bTerminal(80, 24);
     var capturedText = "";
 
-    using var app = new Hex1bApp(
-        ctx => Task.FromResult<Hex1bWidget>(
+    await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+        .WithHeadless().WithDimensions(80, 24).WithHex1bApp(
+        ctx =>
             ctx.VStack(v => [
                 v.TextBox()
                     .OnTextChanged(args => 
@@ -301,22 +279,17 @@ public async Task TextBox_CapturesInput()
                         return Task.CompletedTask; 
                     })
             ])
-        ),
-        new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
-    );
+        ).Build();
 
-    var sequence = new Hex1bInputSequenceBuilder()
+    var sequence = new Hex1bTerminalInputSequenceBuilder()
+        .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(2))
         .Type("Hello, Hex1b!")
+        .WaitUntil(s => s.ContainsText("Hello, Hex1b!"), TimeSpan.FromSeconds(2))
+        .Ctrl().Key(Hex1bKey.C)
         .Build();
 
-    using var cts = new CancellationTokenSource();
-    var runTask = app.RunAsync(cts.Token);
-
-    await Task.Delay(50);
+    var runTask = terminal.RunAsync();
     await sequence.ApplyAsync(terminal);
-    await Task.Delay(50);
-
-    cts.Cancel();
     await runTask;
 
     Assert.AreEqual("Hello, Hex1b!", capturedText);
@@ -329,11 +302,11 @@ public async Task TextBox_CapturesInput()
 [TestMethod]
 public async Task CtrlS_TriggersSave()
 {
-    using var terminal = new Hex1bTerminal(80, 24);
     var saveTriggered = false;
 
-    using var app = new Hex1bApp(
-        ctx => Task.FromResult<Hex1bWidget>(
+    await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+        .WithHeadless().WithDimensions(80, 24).WithHex1bApp(
+        ctx =>
             ctx.VStack(v => [
                 v.Text("Press Ctrl+S to save")
             ]).InputBindings(bindings =>
@@ -341,26 +314,17 @@ public async Task CtrlS_TriggersSave()
                 bindings.Ctrl().Key(Hex1bKey.S)
                     .Action(_ => saveTriggered = true);
             })
-        ),
-        new Hex1bAppOptions 
-        { 
-            WorkloadAdapter = terminal.WorkloadAdapter,
-            EnableDefaultCtrlCExit = false
-        }
-    );
+        ).Build();
 
-    var sequence = new Hex1bInputSequenceBuilder()
+    var sequence = new Hex1bTerminalInputSequenceBuilder()
+        .WaitUntil(s => s.ContainsText("Press Ctrl+S to save"), TimeSpan.FromSeconds(2))
         .Ctrl().Key(Hex1bKey.S)
+        .WaitUntil(_ => saveTriggered, TimeSpan.FromSeconds(2))
+        .Ctrl().Key(Hex1bKey.C)
         .Build();
 
-    using var cts = new CancellationTokenSource();
-    var runTask = app.RunAsync(cts.Token);
-
-    await Task.Delay(50);
+    var runTask = terminal.RunAsync();
     await sequence.ApplyAsync(terminal);
-    await Task.Delay(50);
-
-    cts.Cancel();
     await runTask;
 
     Assert.IsTrue(saveTriggered);
@@ -401,12 +365,12 @@ terminal.Height                  // Terminal height
 
 ```csharp
 // ❌ Hard to understand
-var sequence = new Hex1bInputSequenceBuilder()
+var sequence = new Hex1bTerminalInputSequenceBuilder()
     .Tab().Tab().Enter().Type("x").Tab().Enter()
     .Build();
 
 // ✅ Clear intent
-var sequence = new Hex1bInputSequenceBuilder()
+var sequence = new Hex1bTerminalInputSequenceBuilder()
     .Tab()                    // Navigate to username field
     .Tab()                    // Navigate to password field
     .Enter()                  // Focus the password input
@@ -431,7 +395,7 @@ await Task.Delay(50);  // After input, before assertions
 
 ```csharp
 using var cts = new CancellationTokenSource();
-var runTask = app.RunAsync(cts.Token);
+var runTask = terminal.RunAsync(cts.Token);
 
 // ... test logic ...
 
@@ -455,7 +419,7 @@ public async Task Counter_WorksCorrectly()
 
 ```csharp
 // For debounced search, autocomplete, etc.
-var sequence = new Hex1bInputSequenceBuilder()
+var sequence = new Hex1bTerminalInputSequenceBuilder()
     .SlowType("search query", TimeSpan.FromMilliseconds(50))
     .Wait(200)  // Wait for debounce
     .Build();
@@ -687,106 +651,87 @@ using Hex1b;
 using Hex1b.Input;
 using Hex1b.Widgets;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Hex1b.Automation;
 
 [TestClass]
 public class CounterAppTests
 {
-    private static Hex1bApp CreateApp(Hex1bTerminal terminal)
+    private static Hex1bTerminal CreateTerminal()
     {
-        return new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(CounterApp.Build(ctx)),
-            new Hex1bAppOptions { WorkloadAdapter = terminal.WorkloadAdapter }
-        );
+        return Hex1bTerminal.CreateSlimBuilder()
+            .WithHeadless().WithDimensions(80, 24)
+            .WithHex1bApp(new CounterApp().Build).Build();
     }
 
     [TestMethod]
     public async Task InitialRender_DisplaysZero()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
-        using var app = CreateApp(terminal);
+        await using var terminal = CreateTerminal();
 
-        var runTask = app.RunAsync();
+        var runTask = terminal.RunAsync();
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Count:"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Count: 0"), TimeSpan.FromSeconds(2))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal);
         await runTask;
 
-        StringAssert.Contains(terminal.GetScreenText(, "Count: 0"));
     }
 
     [TestMethod]
     public async Task Increment_IncreasesCount()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
-        using var app = CreateApp(terminal);
+        await using var terminal = CreateTerminal();
 
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Count: 0"), TimeSpan.FromSeconds(2))
             .Enter()
+            .WaitUntil(s => s.ContainsText("Count: 1"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build();
 
-        using var cts = new CancellationTokenSource();
-        var runTask = app.RunAsync(cts.Token);
-
-        await Task.Delay(50);
+        var runTask = terminal.RunAsync();
         await sequence.ApplyAsync(terminal);
-        await Task.Delay(50);
-
-        cts.Cancel();
         await runTask;
-
-        StringAssert.Contains(terminal.GetScreenText(, "Count: 1"));
     }
 
     [TestMethod]
     public async Task Decrement_DecreasesCount()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
-        using var app = CreateApp(terminal);
+        await using var terminal = CreateTerminal();
 
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Count: 0"), TimeSpan.FromSeconds(2))
             .Tab()      // Move to Decrement button
             .Enter()    // Click it
+            .WaitUntil(s => s.ContainsText("Count: -1"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build();
 
-        using var cts = new CancellationTokenSource();
-        var runTask = app.RunAsync(cts.Token);
-
-        await Task.Delay(50);
+        var runTask = terminal.RunAsync();
         await sequence.ApplyAsync(terminal);
-        await Task.Delay(50);
-
-        cts.Cancel();
         await runTask;
-
-        StringAssert.Contains(terminal.GetScreenText(, "Count: -1"));
     }
 
     [TestMethod]
     public async Task Reset_SetsCountToZero()
     {
-        using var terminal = new Hex1bTerminal(80, 24);
-        using var app = CreateApp(terminal);
+        await using var terminal = CreateTerminal();
 
-        var sequence = new Hex1bInputSequenceBuilder()
+        var sequence = new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Count: 0"), TimeSpan.FromSeconds(2))
             .Enter()            // Increment to 1
             .Enter()            // Increment to 2
+            .WaitUntil(s => s.ContainsText("Count: 2"), TimeSpan.FromSeconds(2))
             .Tab().Tab()        // Move to Reset button
             .Enter()            // Click Reset
+            .WaitUntil(s => s.ContainsText("Count: 0"), TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
             .Build();
 
-        using var cts = new CancellationTokenSource();
-        var runTask = app.RunAsync(cts.Token);
-
-        await Task.Delay(50);
+        var runTask = terminal.RunAsync();
         await sequence.ApplyAsync(terminal);
-        await Task.Delay(50);
-
-        cts.Cancel();
         await runTask;
-
-        StringAssert.Contains(terminal.GetScreenText(, "Count: 0"));
     }
 }
 ```

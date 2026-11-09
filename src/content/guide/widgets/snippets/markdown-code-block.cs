@@ -1,8 +1,8 @@
 ctx.Markdown("""
     ```csharp
-    var app = new Hex1bApp(ctx =>
+    await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
         ctx.Text("Hello, World!")
-    );
-    await app.RunAsync();
+    ).Build();
+    await terminal.RunAsync();
     ```
     """)

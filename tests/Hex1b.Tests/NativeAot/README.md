@@ -91,15 +91,9 @@ their normal shared output paths.
 | `DirectTerminal` | Raw terminal construction, automated input, screen echo, workload disposal | Terminal | Tape player, terminal builder, child-process implementation |
 | `ExistingTerminalTape` | Type/screen-Wait playback, final snapshot, continued terminal use after result disposal, caller cleanup | Terminal and existing-terminal playback | Terminal builder, child-process implementation, `ConfigureOwnedBuilder`, created-terminal playback |
 | `CreatedTerminalTape` | Builder factory called once, Type/screen-Wait playback, final snapshot and owned workload cleanup | Terminal, created-terminal playback, terminal builder | None: other creation-related code may legitimately remain |
-| `HeadlessConsoleBaseline` | Real text and bar-chart rendering, snapshot dimensions/content/colors and SVG export | Terminal, builder, app, chart, console construction and adapter | None: records main's existing retention |
-| `HeadlessConsoleCopiedSourcesBaseline` | Same program and snapshots with unmodified construction files copied into experimental compile inputs | Same as baseline | None: controls for the source-replacement apparatus |
-| `HeadlessConsoleAppFallbackRemoved` | Same program and byte-identical SVGs with only the app fallback removed experimentally | Same as baseline: the builder still roots console code | None |
-| `HeadlessConsoleBothConstructionPathsRemoved` | Same program and byte-identical SVGs with both console construction paths removed experimentally | Terminal, builder, app, chart | Console adapter, console construction, Windows/Unix console driver |
-| `InteractiveConsole` / `InteractiveConsoleAfterExperiment` | Default builder and standalone app render in a real PTY; parent sends Ctrl+C only after each visible marker; both exit normally | Terminal, builder, app, console construction and adapter | None |
-| `SlimActualPreChange` | Identical text/chart consumer using restored pre-change construction and an old-builder forwarding shim | Terminal, builder, app, chart, pool, console adapter/construction | None |
-| `SlimActualInternalAppNormalBuilder` | Actual adapter-required app with the normal console-default builder, via the same forwarding shim | Same as pre-change | None |
-| `SlimActualSlimCopiedSources` / `SlimActualSlimActualLibrary` | Actual empty slim builder, explicit headless presentation, actual internal app construction and identical snapshots | Terminal, builder, app, chart, pool | Console adapter/construction, Windows/Unix console driver |
-| `SlimActualInteractiveConsole` | Actual default builder and slim builder with explicit console presentation render and stop in a real PTY | Terminal, builder, app, console adapter/construction | None |
+| `HeadlessNormal` | Real text/chart rendering, dimensions/content/colors and SVG export through the console-default builder with `WithHeadless()` | Terminal, builder, app, chart, pool, console construction and adapter | None: positive console-retention control |
+| `HeadlessSlim` | Identical text/chart source, current library inputs and byte-identical SVGs through the explicitly configured slim builder | Terminal, builder, app, chart, pool | Console adapter/construction, Windows/Unix console driver |
+| `InteractiveConsole` | Default builder and explicitly configured slim builder render and stop in a real PTY | Terminal, builder, app, console adapter/construction | None |
 | `ConsolePtySlim` / `ConsolePtyNormal` | Explicit console presentation and a real PTY child exchange readiness, input, output and exit successfully | Terminal, builder, child process, console adapter/construction | App, app options/workload, widgets, nodes, app render context, surface pool |
 | `ConsolePtySlimWithApp` / `ConsolePtyNormalWithApp` | Same PTY exchange, preceded by an explicitly opted-in minimal console app that renders and stops | Same console/PTY code plus every forbidden app family above | None |
 
@@ -162,12 +156,20 @@ The full publish inventory records bytes and hashes, distinguishing the main
 executable from symbols, documentation, native helpers, and runtime support.
 Failed runs retain partial reports and command diagnostics too.
 
-The console comparison additionally records the consumer source hash, explicit
-experimental source hashes, and a `console-comparison.json` beside the baseline
-report. Each experiment keeps the same consumer source, assembly name and success
-marker. Text/chart SVGs are preserved beside each report and compared byte for
-byte. The comparison lists removed declaring methods and lengths by console
-family; a generic signature mentioning a console type is not counted.
+The current headless comparison records both reports in
+`headless-comparison.json`, including consumer/library input hashes, executable
+delta/percentage and declaring family counts/lengths. The same consumer source,
+assembly name and success marker are used; only the consumer-local
+`SLIM_BUILDER` define selects the construction path. Text/chart SVGs must match
+byte for byte. There are no library source substitutions or historical-source
+reconstruction in the current runner.
+
+Run the current headless and interactive regression cases:
+
+```powershell
+$env:HEX1B_RUN_NATIVE_AOT_TESTS = '1'
+dotnet test --project tests\Hex1b.Tests\Hex1b.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~HeadlessConsoleTests"
+```
 
 Executable sizes are **observations, not byte budgets**. There are no fixed or
 configurable size limits, historical build database, or automatic baseline
@@ -179,12 +181,14 @@ compiler changes need to be accounted for separately.
 
 ## Headless console isolation experiment (#708)
 
-This section and the boolean/slim prototype section record the **earlier
-measurement-only experiments**. The branch now also contains the actual API
-experiment described below. `ConsoleConstructionBaseline` reconstructs the old
-construction regions for these historical tests; standalone app construction is
-tested only against that reconstructed baseline. Current-library interactive
-controls use the default builder and explicitly configured slim builder.
+This section, the boolean/slim prototypes and the actual-source comparison
+below preserve **historical measurements**, not scenarios run by the current
+suite. The exploratory reconstruction/source-substitution machinery has been
+removed after selecting the production API. Use commit
+`33c0a0f18661fd00131be573e25d02c17aba7bb8` to reproduce those historical
+experiments; the commands within these historical sections apply to that
+revision. Current-library interactive controls use the default builder and
+explicitly configured slim builder.
 
 Run the independently filterable measurement:
 
@@ -384,7 +388,7 @@ longer construct or own a console terminal. Existing adapter disposal behavior
 is unchanged. The public app type, callback APIs, `Invalidate`, `RequestStop`
 and public workload adapter remain available.
 
-Run the actual-source measurement:
+Historical actual-source measurement command (on the revision above):
 
 ```powershell
 $env:HEX1B_RUN_NATIVE_AOT_TESTS = '1'
@@ -461,22 +465,91 @@ The complete native namespace plus managed builder, app lifecycle, scheduling,
 flow, and textbox coverage passed **275 tests**, with no failures or skips.
 The log is `TestResults/slim-actual-final-tests.log`.
 
-### Deliberate experiment boundary
+### Production migration
 
-This is **not a shipping-ready constructor migration**. None of the 712 existing
-direct-construction calls in `Hex1b.Tests` were rewritten; they already supply
-adapters and have internal access. New tests cover the slim configuration
-requirements, rendering, inaccessible public app construction, and missing
-adapter errors.
+The selected API now includes the caller migration. The ten non-friend
+constructor call sites in the website, FloatAlignmentExplorer, PerfDemo,
+WebTerminalDemo and AgenticPromptDemo.Tests use terminal builders. The terminal
+owns the app's run/disposal lifecycle. Options remain configurable, and the
+app-instance callback exposes the public app handle for invalidation and stop
+requests. A configured workload adapter is used by both the app and terminal.
 
-Outside that friend assembly, source inspection finds ten active constructor
-calls needing migration before shipping: six in `Hex1b.Website`, one each in
-`FloatAlignmentExplorer`, `PerfDemo`, and `WebTerminalDemo`, and one shared
-fixture in `AgenticPromptDemo.Tests`. Those callers are intentionally left
-untouched for this measurement experiment and will not compile against the
-internal constructors. Some website snippets also show the old API.
-No new friend-assembly grants, public compatibility factories, feature switches,
-or mass test rewrites hide this break. Package validation settings are unchanged.
+The 712 existing direct-construction calls in the friend test assembly need
+no mass rewrite. New tests cover empty slim configuration, rendering,
+inaccessible public app construction, missing adapters and configured workload
+input/output. Public documentation and generator templates use builders.
+No new friend grants, compatibility factories or feature switches hide the
+constructor break; existing package validation settings are unchanged.
+
+### Production validation (2026-11-09)
+
+The simplified current-library headless comparison gives these matched
+observations with SDK **10.0.403**, ILCompiler **10.0.14**, net10.0 Release/Size:
+
+| Host RID | Normal/headless EXE | Slim/headless EXE | Saved bytes | Saved percent |
+|---|---:|---:|---:|---:|
+| win-x64 | 4,825,600 | 4,680,192 | 145,408 | 3.0132626% |
+| linux-x64 | 5,485,568 | 5,343,952 | 141,616 | 2.5816105% |
+
+These are within-host comparisons, not cross-OS attribution. Both use consumer
+source SHA-256
+`ED3D8260C74A907FC217ACE27E25F55E74506A024D053F40D076AA6464D0E646`.
+Within each comparison, source, toolchain, library input and settings match;
+only the consumer-local builder selection differs. The Windows library input is
+`8761413E1F8EFFB1BC93CED8583723131598307B79CD86BFF6FC0426448EA325`;
+the Linux input is
+`046B99893D0C8485A22E5BAE4F6592AA1A80C6DC50FCA116D41B53BE4669120F`.
+Both retain app/chart/pool positive controls, produce identical text/chart
+SVGs, and pass real interactive console controls. Pooling is unchanged.
+
+The slim maps remove all 42 adapter methods / 17,875 code bytes and all
+39 Windows-driver methods / 22,731 bytes on Windows. Linux removes all
+42 adapter methods / 18,699 bytes and all 23 Unix-driver/interop methods /
+5,425 bytes. Neither slim map contains direct console-adapter MethodCode;
+framework console code is not completely eliminated. These code lengths are
+not the EXE size deltas.
+
+Besides the EXEs above, the complete publish inventories contain:
+
+| RID | File | Kind | Normal bytes | Slim bytes |
+|---|---|---|---:|---:|
+| win-x64 | `HeadlessConsole.pdb` | Symbols/compiler support | 21,590,016 | 21,155,840 |
+| win-x64 | `Hex1b.xml` | Documentation | 3,139,534 | 3,139,534 |
+| linux-x64 | `HeadlessConsole.dbg` | Symbols/compiler support | 9,128,976 | 8,914,368 |
+| linux-x64 | `Hex1b.xml` | Documentation | 3,079,946 | 3,079,946 |
+| linux-x64 | `libhex1binterop.so` | Native helper/support | 21,896 | 21,896 |
+
+No support asset was removed to obtain the EXE reduction. Both hosts' maps,
+per-method console-family inventories, hashes, snapshots and reports remain
+under ignored `TestResults/NativeAot` and `TestResults/LinuxValidation`.
+
+The Linux four-way console/PTY check also passes: both app-free builders are
+4,914,112 bytes, and both app-enabled controls are 5,755,088 bytes. Omitting
+the app avoids 840,976 bytes / 14.6127392%, but slim versus normal saves zero
+in this composition. All seven app families are absent without the app and
+present in the controls, with actual PTY input/output verified.
+
+The Linux native namespace passes **48 tests** in an isolated SDK container.
+Windows main-project coverage completes with 15,462 passed, 105 skipped and
+one unrelated failure: its existing directory-symlink test requires a
+Windows privilege unavailable to this process. The final targeted builder
+and map-parser selection passes **97 tests**. The other three CI test
+projects and AgenticPromptDemo tests pass.
+
+An isolated public `microsoft/aspire` snapshot
+`fbad38832128f625a6a28705236a55a38419acf3` builds its actual CLI against the
+modified Hex1b DLL with zero warnings/errors; the rebuilt CLI's `--help`
+also succeeds. Its required SDK 11 is installed only under ignored
+`TestResults`, with no Hex1b SDK pin or global changes. This is a source/build
+and startup compatibility check, not an interactive Aspire UI test.
+The website and migrated samples build, PerfDemo completes measured frames,
+and all five getting-started programs compile. Eight extracted documentation
+tests and headless rendering/cancellation checks for all five custom website
+examples pass (13 cases total). The terminal example reads the workload's
+dimensions only after terminal construction has resized it, not in the eager
+options callback. API generation plus the direct VitePress build succeeds;
+the Aspire pipeline wrapper stalls during generator execution and was stopped
+without changing AppHost code. macOS remains unverified.
 
 ## Console + PTY without the app infrastructure
 

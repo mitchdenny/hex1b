@@ -13,15 +13,15 @@ using Hex1b;
 
 var items = new List<ItemModel> { /* ... */ };
 
-var app = new Hex1bApp(ctx =>
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.VStack(v => items.Select(item =>
         v.StatePanel(item, sp =>
             sp.Text($"{item.Name}: {item.Value}")
         )
     ).ToArray())
-);
+).Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 ```
 
 ::: tip Reference Identity

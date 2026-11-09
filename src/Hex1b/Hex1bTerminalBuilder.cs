@@ -212,6 +212,10 @@ public sealed class Hex1bTerminalBuilder
             // FrameRateLimitMs which the AnimationTimer captures) actually take
             // effect.
             configureOptions?.Invoke(options);
+            var appWorkloadAdapter = options.WorkloadAdapter
+                ?? throw new ArgumentException("WorkloadAdapter is required.", nameof(configureOptions));
+            if (!ReferenceEquals(appWorkloadAdapter, workloadAdapter))
+                workloadAdapter.Dispose();
 
             Func<CancellationToken, Task<int>> runCallback = async ct =>
             {
@@ -237,7 +241,7 @@ public sealed class Hex1bTerminalBuilder
                 return 0;
             };
 
-            return new Hex1bTerminalBuildContext(workloadAdapter, runCallback);
+            return new Hex1bTerminalBuildContext(appWorkloadAdapter, runCallback);
         });
 
         return this;
@@ -264,6 +268,10 @@ public sealed class Hex1bTerminalBuilder
 
             // See sync overload comment — eager option configuration.
             configureOptions?.Invoke(options);
+            var appWorkloadAdapter = options.WorkloadAdapter
+                ?? throw new ArgumentException("WorkloadAdapter is required.", nameof(configureOptions));
+            if (!ReferenceEquals(appWorkloadAdapter, workloadAdapter))
+                workloadAdapter.Dispose();
 
             Func<CancellationToken, Task<int>> runCallback = async ct =>
             {
@@ -289,7 +297,7 @@ public sealed class Hex1bTerminalBuilder
                 return 0;
             };
 
-            return new Hex1bTerminalBuildContext(workloadAdapter, runCallback);
+            return new Hex1bTerminalBuildContext(appWorkloadAdapter, runCallback);
         });
 
         return this;

@@ -613,15 +613,13 @@ mentioned in generic signatures. Keep publish/intermediate properties scoped to
 consumers so analyzer and native-helper references retain normal build settings.
 See `tests/Hex1b.Tests/NativeAot/README.md` for prerequisites, full execution and evidence.
 
-For source-removal size experiments, use the test-only compile-input replacement
-in `HeadlessConsoleTests`, not edits or switches in the shipped library. Replace
-compile items before `AssignTargetPaths` so incremental dependency hashes change.
-Preserve the original `Compile` item order: appending a replaced partial-class
-file changes field layout and native method sizes. The actual-source slim
-measurement includes a no-op copy control requiring identical MethodCode totals.
-Match consumer source/assembly identity and toolchain; include an unmodified-source
-copy control and verify normal library hash/behavior after the experiment. Keep
-pooling, analyzers, native helpers and publish assets unchanged.
+`HeadlessConsoleTests` compares normal and slim construction against identical
+library inputs and consumer source, with a consumer-local compilation symbol.
+It requires console code in the normal-builder control and forbids it in the
+slim consumer, while verifying matching text/chart snapshots. Historical
+source-substitution experiments remain documented in the Native AOT README,
+not executed in routine CI. Keep pooling, analyzers, native helpers and publish
+assets unchanged; never enforce a machine-specific executable byte budget.
 
 For console + PTY native consumers, inherit a snapshot of the parent environment
 into the child-specific PTY environment; do not mutate or log the host environment.

@@ -164,5 +164,5 @@ public sealed class NativeMapTests
     [TestMethod]
     public void Read_MissingFile_Fails()
         => Assert.ThrowsExactly<FileNotFoundException>(() =>
-            NativeMap.Read(Path.Combine(ScenarioRunner.RepositoryRoot, "TestResults", Guid.NewGuid() + ".map.xml")));
+            NativeMap.Read(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".map.xml")));
 }

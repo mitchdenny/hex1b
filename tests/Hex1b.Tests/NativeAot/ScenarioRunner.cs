@@ -34,7 +34,6 @@ internal sealed class ScenarioReport
     public string? ConsumerSourceSha256 { get; set; }
     public IReadOnlyList<string> ConsumerDefines { get; init; } = [];
     public string? Experiment { get; set; }
-    public IReadOnlyList<PublishedFile>? SourceOverrides { get; set; }
     public string? CompilerMapPath { get; set; }
     public int? MethodCodeCount { get; set; }
     public long? MethodCodeLength { get; set; }
@@ -82,8 +81,7 @@ internal static class ScenarioRunner
     }
 
     public static async Task<ScenarioReport> RunAsync(Scenario scenario, string source, TestContext context,
-        CancellationToken cancellationToken, IReadOnlyDictionary<string, string>? sourceOverrides = null,
-        string? experiment = null)
+        CancellationToken cancellationToken, string? experiment = null)
     {
         var directory = CreateArtifacts(scenario.Name);
         var report = new ScenarioReport
@@ -106,14 +104,8 @@ internal static class ScenarioRunner
             report.Sdk = sdk.StandardOutput.Trim();
             report.LibraryProjectSha256 = Hash(Path.Combine(RepositoryRoot, "src", "Hex1b", "Hex1b.csproj"));
             var project = await CreateProjectAsync(directory, scenario.ConsumerName, source, cancellationToken,
-                sourceOverrides, scenario.Defines);
+                scenario.Defines);
             report.ConsumerSourceSha256 = Hash(Path.Combine(directory, "source", "Program.cs"));
-            if (sourceOverrides is not null)
-                report.SourceOverrides = sourceOverrides.Keys.Select(name =>
-                {
-                    var path = Path.Combine(directory, "source", "overrides", name);
-                    return new PublishedFile(name, "experimental library source", new FileInfo(path).Length, Hash(path));
-                }).ToArray();
             phase = "publish";
             report.PublishOutcome = await TestProcess.RunAsync("dotnet",
                 ["publish", project, "-c", "Release", "-r", report.Rid, "--self-contained", "true",
@@ -213,8 +205,7 @@ internal static class ScenarioRunner
     }
 
     public static async Task<string> CreateProjectAsync(string directory, string name, string source,
-        CancellationToken cancellationToken, IReadOnlyDictionary<string, string>? sourceOverrides = null,
-        IReadOnlyList<string>? defines = null)
+        CancellationToken cancellationToken, IReadOnlyList<string>? defines = null)
     {
         var sourceDirectory = Path.Combine(directory, "source");
         Directory.CreateDirectory(sourceDirectory);
@@ -240,39 +231,6 @@ internal static class ScenarioRunner
         if (defines is { Count: > 0 })
             project.Add(new XElement("PropertyGroup",
                 new XElement("DefineConstants", "$(DefineConstants);" + string.Join(";", defines))));
-        if (sourceOverrides is not null)
-        {
-            var overridesDirectory = Path.Combine(sourceDirectory, "overrides");
-            Directory.CreateDirectory(overridesDirectory);
-            // Compile replacements must precede the SDK's incremental input cache.
-            var target = new XElement("Target", new XAttribute("Name", "NativeAotExperimentalSources"),
-                new XAttribute("BeforeTargets", "AssignTargetPaths"),
-                new XAttribute("Condition", "'$(MSBuildProjectName)' == 'Hex1b'"));
-            var items = new XElement("ItemGroup",
-                new XElement("_NativeAotCompile", new XAttribute("Include", "@(Compile)"),
-                    new XElement("ReplacementPath", "%(Compile.Identity)")));
-            foreach (var (file, content) in sourceOverrides)
-            {
-                if (Path.GetFileName(file) != file || !File.Exists(Path.Combine(RepositoryRoot, "src", "Hex1b", file)))
-                    throw new InvalidDataException($"Experimental overrides must name existing root library source files: {file}.");
-                var path = Path.Combine(overridesDirectory, file);
-                await File.WriteAllTextAsync(path, content, cancellationToken);
-                items.Add(new XElement("_NativeAotCompile", new XAttribute("Condition", $"'%(_NativeAotCompile.Identity)' == '{file}'"),
-                    new XElement("ReplacementPath", path), new XElement("Link", file)));
-            }
-            // Partial-type field layout depends on source order. Replace paths in place
-            // rather than moving entire construction files to the end of Compile.
-            items.Add(new XElement("Compile", new XAttribute("Remove", "@(Compile)")));
-            items.Add(new XElement("Compile", new XAttribute("Include", "@(_NativeAotCompile->'%(ReplacementPath)')")));
-            items.Add(new XElement("_NativeAotCompile", new XAttribute("Remove", "@(_NativeAotCompile)")));
-            target.Add(items);
-            var targetsPath = Path.Combine(sourceDirectory, "ExperimentalSources.targets");
-            await File.WriteAllTextAsync(targetsPath, new XElement("Project", target).ToString(), cancellationToken);
-            project.Element("ItemGroup")!.Element("ProjectReference")!.Add(
-                new XElement("AdditionalProperties", "DirectoryBuildTargetsPath=" + targetsPath));
-            project.Element("ItemGroup")!.Add(new XElement("Compile",
-                new XAttribute("Remove", Path.Combine("overrides", "**", "*.cs"))));
-        }
         var projectPath = Path.Combine(sourceDirectory, name + ".csproj");
         await File.WriteAllTextAsync(Path.Combine(sourceDirectory, "Directory.Build.props"), props.ToString(), cancellationToken);
         await File.WriteAllTextAsync(projectPath, project.ToString(), cancellationToken);

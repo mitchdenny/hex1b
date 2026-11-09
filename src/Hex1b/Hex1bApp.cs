@@ -38,6 +38,9 @@ namespace Hex1b;
 /// 
 /// State management is handled via closures - simply capture your state variables
 /// in the widget builder callback.
+/// Construct apps through <see cref="Hex1bTerminalBuilder.WithHex1bApp(Func{RootContext, Hex1bWidget})"/>
+/// and run the owning terminal. App constructors are internal and never create
+/// a console fallback; the terminal supplies the workload adapter.
 /// </remarks>
 public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 {

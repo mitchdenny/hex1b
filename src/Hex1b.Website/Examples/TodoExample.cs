@@ -17,7 +17,7 @@ public class TodoExample(ILogger<TodoExample> logger) : ReactiveExample
     public override string Title => "Todo List";
     public override string Description => "A simple todo list showing lists, input, and state management.";
 
-    public override async Task RunAsync(IHex1bAppTerminalWorkloadAdapter workloadAdapter, CancellationToken cancellationToken)
+    public override async Task RunAsync(Hex1bTerminalBuilder builder, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting todo example");
 
@@ -32,7 +32,7 @@ public class TodoExample(ILogger<TodoExample> logger) : ReactiveExample
         IReadOnlyList<string> Format() =>
             items.Select(i => $"[{(i.Done ? "✓" : " ")}] {i.Text}").ToList();
 
-        using var app = new Hex1bApp(
+        await using var terminal = builder.WithHex1bApp(
             ctx => ctx.Border(b => [
                 b.HStack(h => [
                     h.Text("New task: "),
@@ -47,11 +47,9 @@ public class TodoExample(ILogger<TodoExample> logger) : ReactiveExample
                 new SeparatorWidget(),
                 b.List(Format()).OnItemActivated(e =>
                     items[e.ActivatedIndex] = (items[e.ActivatedIndex].Text, !items[e.ActivatedIndex].Done))
-            ]).Title("📋 Todo"),
-            new Hex1bAppOptions { WorkloadAdapter = workloadAdapter }
-        );
+            ]).Title("📋 Todo")).Build();
 
-        await app.RunAsync(cancellationToken);
+        await terminal.RunAsync(cancellationToken);
         // --- END: Code shown on homepage ---
     }
 }
