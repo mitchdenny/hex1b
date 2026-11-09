@@ -96,21 +96,18 @@ public class ButtonAsyncExample(ILogger<ButtonAsyncExample> logger) : ReactiveEx
         }
     }
 
-    public override async Task RunAsync(IHex1bAppTerminalWorkloadAdapter workloadAdapter, CancellationToken cancellationToken)
+    public override async Task RunAsync(Hex1bTerminalBuilder builder, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting button async example");
 
         var state = new LoaderState();
 
-        using var app = new Hex1bApp(
-            ctx => BuildUI(ctx, state),
-            new Hex1bAppOptions { WorkloadAdapter = workloadAdapter }
-        );
-
-        // Give the state object access to the app for invalidation
-        state.Initialize(app, cancellationToken);
-
-        await app.RunAsync(cancellationToken);
+        await using var terminal = builder.WithHex1bApp(_ => { }, app =>
+        {
+            state.Initialize(app, cancellationToken);
+            return ctx => BuildUI(ctx, state);
+        }).Build();
+        await terminal.RunAsync(cancellationToken);
     }
 
     private static Hex1bWidget BuildUI(RootContext ctx, LoaderState state)

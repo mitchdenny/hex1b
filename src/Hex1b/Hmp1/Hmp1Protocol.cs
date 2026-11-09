@@ -88,6 +88,7 @@ internal static class Hmp1Protocol
 
         if (length < 0 || length > MaxPayloadSize ||
             (type == Hmp1FrameType.ActivityState && length > Hmp1ActivityState.MaxPayloadSize) ||
+            (type == Hmp1FrameType.ProgramStatusState && length > Hmp1ProgramStatusState.MaxPayloadSize) ||
             (type == Hmp1FrameType.ScrollbackState && length != 8) ||
             (type == Hmp1FrameType.ScrollbackRows && length > Hmp1ScrollbackState.MaxChunkBytes) ||
             (type == Hmp1FrameType.CommandMarkState && length > Hmp1CommandMarkState.MaxPayloadSize))
@@ -138,12 +139,14 @@ internal static class Hmp1Protocol
         IReadOnlyList<HelloPeerInfo> peers,
         CancellationToken ct = default,
         int scrollbackHistoryRows = 0,
-        bool commandMarkHistory = false)
+        bool commandMarkHistory = false,
+        bool programStatus = false)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(
             new HelloPayload
             {
                 Version = Version,
+                ProgramStatusVersion = programStatus ? Hmp1ProgramStatusState.Version : 0,
                 Width = width,
                 Height = height,
                 PeerId = peerId,
@@ -190,12 +193,14 @@ internal static class Hmp1Protocol
         string? defaultRole,
         CancellationToken ct = default,
         int scrollbackHistoryRows = 0,
-        bool commandMarkHistory = false)
+        bool commandMarkHistory = false,
+        bool programStatus = false)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(
             new ClientHelloPayload
             {
                 DisplayName = displayName,
+                ProgramStatusVersion = programStatus ? Hmp1ProgramStatusState.Version : 0,
                 DefaultRole = defaultRole,
                 ScrollbackHistoryVersion = scrollbackHistoryRows > 0 ? Hmp1ScrollbackState.Version : 0,
                 ScrollbackHistoryRows = scrollbackHistoryRows,

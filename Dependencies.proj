@@ -1,0 +1,7 @@
+<Project>
+  <!-- Dependabot needs a root entry point to discover the centrally managed packages. -->
+  <ItemGroup>
+    <ProjectFile Include="src\**\*.csproj;tests\**\*.csproj;samples\**\*.csproj;benchmarks\**\*.csproj;.github\skills\**\*.csproj"
+                 Exclude="**\bin\**;**\obj\**;samples\BlazorDemo\**;samples\BlazorPerfStressDemo\**;samples\WasmDemo\**" />
+  </ItemGroup>
+</Project>

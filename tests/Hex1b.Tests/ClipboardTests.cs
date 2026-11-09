@@ -51,11 +51,10 @@ public class ClipboardTests
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
+        public async ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
         {
-            // Block forever - tests will use the input sequence builder
-            return new ValueTask<ReadOnlyMemory<byte>>(
-                Task.Delay(Timeout.Infinite, ct).ContinueWith(_ => ReadOnlyMemory<byte>.Empty));
+            await Task.Delay(Timeout.Infinite, ct);
+            return ReadOnlyMemory<byte>.Empty;
         }
 
         public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
@@ -69,63 +68,44 @@ public class ClipboardTests
         public void TriggerDisconnect() => Disconnected?.Invoke();
     }
 
-    [TestMethod, Ignore("Integration test needs rework - terminal/app connection issue")]
+    [TestMethod]
     public async Task CopyToClipboard_SendsOsc52Sequence_ToOutput()
     {
-        // Arrange
         var presentation = new CapturingPresentationAdapter();
-        using var workload = new Hex1bAppWorkloadAdapter();
-        
-        var terminalOptions = new Hex1bTerminalOptions
-        {
-            PresentationAdapter = presentation,
-            WorkloadAdapter = workload,
-            Width = 80,
-            Height = 24
-        };
-
-        using var terminal = new Hex1bTerminal(terminalOptions);
-        
-        var copyTriggered = false;
-        var textToCopy = "Test clipboard content";
-        
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(
-                new VStackWidget([
-                    new ButtonWidget("Copy Test")
-                        .OnClick(e =>
-                        {
-                            e.Context.CopyToClipboard(textToCopy);
-                            copyTriggered = true;
-                        })
-                ])
-            ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
-        );
-
-        // Act
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        
-        // Wait for button to be rendered, then press Enter to click it
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Copy Test"), TimeSpan.FromSeconds(5))
-            .Enter()
-            .Wait(TimeSpan.FromMilliseconds(100)) // Wait for clipboard write to process
-            .Ctrl().Key(Hex1bKey.C)
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        
-        await runTask;
-        
-        // Assert
-        Assert.IsTrue(copyTriggered, "Button click should have triggered copy");
-        
-        // Verify the OSC 52 sequence was sent
-        var output = presentation.CapturedOutput;
+        const string textToCopy = "Test clipboard content";
         var expectedBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(textToCopy));
         var expectedOsc52 = $"\x1b]52;c;{expectedBase64}\x07";
-        
-        Assert.Contains(expectedOsc52, output);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(15));
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithPresentation(presentation)
+            .WithDimensions(80, 24)
+            .WithHex1bApp(ctx => new ButtonWidget("Copy Test")
+                .OnClick(e => e.Context.CopyToClipboard(textToCopy)))
+            .Build();
+        var runTask = terminal.RunAsync(cancellation.Token);
+        try
+        {
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("Copy Test"), TimeSpan.FromSeconds(5), "copy button rendered")
+                .Enter()
+                .WaitUntil(_ => presentation.CapturedOutput.Contains(expectedOsc52, StringComparison.Ordinal),
+                    TimeSpan.FromSeconds(5), "OSC 52 reached the presentation adapter")
+                .Build()
+                .ApplyAsync(terminal, cancellation.Token);
+
+            Assert.Contains(expectedOsc52, presentation.CapturedOutput);
+            await new Hex1bTerminalInputSequenceBuilder()
+                .Ctrl().Key(Hex1bKey.C)
+                .Build()
+                .ApplyAsync(terminal, cancellation.Token);
+            Assert.AreEqual(0, await runTask.WaitAsync(TimeSpan.FromSeconds(5), cancellation.Token));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await runTask.WaitAsync(TimeSpan.FromSeconds(5));
+        }
     }
 
     [TestMethod]

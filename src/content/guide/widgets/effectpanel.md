@@ -13,7 +13,7 @@ using Hex1b;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
 
-var app = new Hex1bApp(ctx =>
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.EffectPanel(
         ctx.Text("This text is dimmed"),
         surface =>
@@ -31,9 +31,9 @@ var app = new Hex1bApp(ctx =>
             }
         }
     )
-);
+).Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 ```
 
 You can also create the widget first and chain `.Effect()`:

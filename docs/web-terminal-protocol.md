@@ -183,6 +183,7 @@ delta.
 | `peer` | object | Required complete HMP1 peer/primary state, or standalone defaults, defined below. |
 | `title` | string | Required complete current workload window title on every full/delta frame; `""` means unset or explicitly cleared. At most 4,096 UTF-16 code units, no C0/DEL/C1 controls or unpaired surrogates. |
 | `progress` | object | Required complete OSC 9;4 state: `state` and nullable `percentage`, defined below. |
+| `programStatus` | object | Complete OSC 7501 inventory: `{ "records": [...] }`, including empty inventories. |
 | `shellIntegration` | object | Required complete OSC 133 state: `phase` and nullable `lastExitCode`, defined below. |
 | `workingDirectory` | object | Required complete OSC 7 state: nullable `uri`, `host`, `path`, defined below. |
 | `commandMark` | object or null | Latest OSC 133 marker only (not a history), defined below. |
@@ -236,6 +237,28 @@ Titles remain untrusted workload text, including literal markup and bidi text.
 The component never changes `document.title`, the accessible label, or host
 headers automatically. Hosts must use text rendering such as
 `header.textContent = title || fallback` and apply their own presentation policy.
+
+**Program status:** `programStatus.records` is the complete OSC 7501 inventory
+captured atomically with the screen, in least-recently-updated order. Every
+record carries `id`, `state`, nullable `kind`, nullable `progress`, nullable
+`app`, nullable `effectiveApp`, nullable `title` and nullable `message`.
+States are `idle`, `working`, `blocked`, `done` and `error`; blocked kinds are
+`permission`, `question` and `auth`. Progress, when present, is an integer
+0-100 for working/blocked records only. Root ID is `""`; other IDs follow
+the OSC 7501 path grammar (128 ASCII bytes, eight levels, 32 bytes per segment).
+There are at most 256 unique records. Decoded titles/messages are bounded to
+192/2048 UTF-8 bytes and cannot contain control characters or invalid Unicode.
+`effectiveApp` must match the nearest ancestor's application identity, including
+the record itself. Identity is self-reported, not authenticated.
+
+An empty array clears previously presented records. No deltas or removal
+tombstones are required. Missing `programStatus` from a pre-extension producer
+is interpreted as an empty inventory; an invalid present inventory rejects the
+frame. Program state is terminal-wide even when viewing historical rows.
+Metadata-only changes publish normally, and acknowledgement coalescing can
+skip intermediate reports. Disconnect is not a status clear or program exit.
+Rendering messages outside the terminal grid must not interpret markup and
+should disarm bidi overrides and invisible formatting. The demo does so.
 
 **Activity state:** `progress` is `{ "state": "none", "percentage": null }`
 initially. State is one of `none`, `normal`, `error`, `indeterminate`, `warning`.

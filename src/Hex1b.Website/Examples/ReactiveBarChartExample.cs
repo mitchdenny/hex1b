@@ -95,32 +95,31 @@ public class ReactiveBarChartExample(ILogger<ReactiveBarChartExample> logger) : 
         }
     }
 
-    public override async Task RunAsync(IHex1bAppTerminalWorkloadAdapter workloadAdapter, CancellationToken cancellationToken)
+    public override async Task RunAsync(Hex1bTerminalBuilder builder, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting reactive bar chart example");
 
         var state = new ChartState();
 
-        // Create the app with our observable state
-        using var app = new Hex1bApp(
-            ctx => BuildChart(ctx, state),
-            new Hex1bAppOptions 
-            { 
-                WorkloadAdapter = workloadAdapter,
-                Theme = Hex1bThemes.Ocean
-            }
-        );
-
-        // Start the timer that updates state every 200ms
-        // Since we removed INotifyPropertyChanged auto-subscription, we need to invalidate manually
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(200));
-        var timerTask = RunTimerAsync(timer, state, app, cancellationToken);
-
-        // Run the app (this blocks until cancelled)
-        var appTask = app.RunAsync(cancellationToken);
-
-        // Wait for either to complete
-        await Task.WhenAny(appTask, timerTask);
+        var timerTask = Task.CompletedTask;
+        await using var terminal = builder.WithHex1bApp(
+            options => options.Theme = Hex1bThemes.Ocean,
+            app =>
+            {
+                timerTask = RunTimerAsync(timer, state, app, lifetime.Token);
+                return ctx => BuildChart(ctx, state);
+            }).Build();
+        try
+        {
+            await terminal.RunAsync(lifetime.Token);
+        }
+        finally
+        {
+            await lifetime.CancelAsync();
+            await timerTask;
+        }
     }
 
     private async Task RunTimerAsync(PeriodicTimer timer, ChartState state, Hex1bApp app, CancellationToken cancellationToken)

@@ -165,6 +165,7 @@ async function drawFrame() {
         mouseTracking: metadata.mouseTracking, peer: metadata.peer,
         history: metadata.history, revision: frame.revision, title: metadata.title,
         progress: metadata.progress, shellIntegration: metadata.shellIntegration,
+        programStatus: metadata.programStatus ?? { records: [] },
         workingDirectory: metadata.workingDirectory, commandMark: metadata.commandMark,
         text, hyperlinks: metadata.hyperlinks, lineRenditions: metadata.lineRenditions, ...links.present(cells, metadata)
       });

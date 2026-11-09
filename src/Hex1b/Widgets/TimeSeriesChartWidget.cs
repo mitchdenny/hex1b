@@ -22,11 +22,12 @@ namespace Hex1b.Widgets;
 ///     new ChartItem("Jan", 2), new ChartItem("Feb", 4),
 ///     new ChartItem("Mar", 9), new ChartItem("Apr", 14),
 /// };
-/// var app = new Hex1bApp(ctx =&gt;
+/// await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =&gt;
 ///     ctx.TimeSeriesChart(data)
 ///         .Title("Temperature")
 ///         .ShowGridLines()
-/// );
+/// ).Build();
+/// await terminal.RunAsync();
 /// </code>
 /// </example>
 /// <seealso cref="ScatterChartWidget{T}"/>

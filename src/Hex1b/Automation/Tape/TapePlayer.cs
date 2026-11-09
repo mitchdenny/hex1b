@@ -36,7 +36,7 @@ public sealed class TapePlayer
         TapePlaybackOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(terminal);
-        return PlayCoreAsync(tape, options ?? new(), _ => terminal, ownsTerminal: false, cancellationToken);
+        return PlayWithExistingTerminalAsync(tape, terminal, options ?? new(), cancellationToken);
     }
 
     /// <summary>Validates playback configuration without building a terminal, launching a workload, or creating captures.</summary>
@@ -87,38 +87,48 @@ public sealed class TapePlayer
         TapePlaybackOptions? options = null, CancellationToken cancellationToken = default)
     {
         options ??= new();
-        return PlayCoreAsync(tape, options, options.TerminalFactory ?? (builder => builder.Build()),
-            ownsTerminal: true, cancellationToken);
+        return PlayWithCreatedTerminalAsync(tape, options, options.TerminalFactory ?? (builder => builder.Build()),
+            cancellationToken);
     }
 
-    private static async Task<TapeExecutionResult> PlayCoreAsync(TapeDocument tape, TapePlaybackOptions options,
-        Func<Hex1bTerminalBuilder, Hex1bTerminal> factory, bool ownsTerminal, CancellationToken cancellationToken)
+    private static async Task<TapeExecutionResult> PlayWithExistingTerminalAsync(TapeDocument tape, Hex1bTerminal terminal,
+        TapePlaybackOptions options, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(tape);
+        cancellationToken.ThrowIfCancellationRequested();
+        using var lease = TapePlaybackLease.Acquire(terminal);
+        var prepared = await TapePreparation.PrepareAsync(tape, options, false,
+            terminal.AutomationTimeProvider, cancellationToken);
+        var validation = ValidateTarget(prepared, terminal, tape.SourceName);
+        if (!validation.CanExecute)
+            throw new TapeValidationException(validation.Diagnostics);
+        return await TapeExecution.ExecuteAsync(prepared, terminal, null, null, cancellationToken);
+    }
+
+    private static async Task<TapeExecutionResult> PlayWithCreatedTerminalAsync(TapeDocument tape, TapePlaybackOptions options,
+        Func<Hex1bTerminalBuilder, Hex1bTerminal> factory, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(tape);
         cancellationToken.ThrowIfCancellationRequested();
         var builder = Hex1bTerminal.CreateBuilder().WithHeadless();
-        Hex1bTerminal? terminal = ownsTerminal ? null : factory(builder);
-        using var borrowedLease = terminal is not null ? TapePlaybackLease.Acquire(terminal) : null;
+        Hex1bTerminal? terminal = null;
         var source = await TapePreparation.ResolveAsync(tape, options, cancellationToken);
         TapePreparedRun? prepared = null;
         var buildAttempted = false;
-        if (ownsTerminal)
+        builder.BuildCallback = configured =>
         {
-            builder.BuildCallback = configured =>
-            {
-                if (buildAttempted)
-                    throw new InvalidOperationException("A tape terminal factory must build the supplied builder exactly once.");
-                buildAttempted = true;
-                var ownsShell = configured.GetConfiguredWorkloadAdapter() is null &&
-                    configured.GetConfiguredWorkloadFactory() is null;
-                prepared = TapePreparation.Prepare(source, options, ownsShell, configured.GetConfiguredTimeProvider(), cancellationToken);
-                if (!prepared.Validation.CanExecute)
-                    throw new TapeValidationException(prepared.Diagnostics);
-                ConfigureOwnedBuilder(configured, prepared, ownsShell);
-                terminal = configured.BuildCore(deferStart: true);
-                return terminal;
-            };
-        }
+            if (buildAttempted)
+                throw new InvalidOperationException("A tape terminal factory must build the supplied builder exactly once.");
+            buildAttempted = true;
+            var ownsShell = configured.GetConfiguredWorkloadAdapter() is null &&
+                configured.GetConfiguredWorkloadFactory() is null;
+            prepared = TapePreparation.Prepare(source, options, ownsShell, configured.GetConfiguredTimeProvider(), cancellationToken);
+            if (!prepared.Validation.CanExecute)
+                throw new TapeValidationException(prepared.Diagnostics);
+            ConfigureOwnedBuilder(configured, prepared, ownsShell);
+            terminal = configured.BuildCore(deferStart: true);
+            return terminal;
+        };
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task<int>? workloadTask = null;
         TapeExecutionResult? result = null;
@@ -128,24 +138,21 @@ public sealed class TapePlayer
         var executionStarted = false;
         try
         {
-            if (ownsTerminal)
-            {
-                var returned = factory(builder);
-                if (terminal is null || !ReferenceEquals(returned, terminal))
-                    throw new InvalidOperationException("A tape terminal factory must return the terminal built by its supplied builder.");
-            }
+            var returned = factory(builder);
+            if (terminal is null || !ReferenceEquals(returned, terminal))
+                throw new InvalidOperationException("A tape terminal factory must return the terminal built by its supplied builder.");
             var target = terminal ?? throw new InvalidOperationException("The terminal factory returned no terminal.");
             prepared ??= TapePreparation.Prepare(source, options, false, target.AutomationTimeProvider, cancellationToken);
             var validation = ValidateTarget(prepared, target, tape.SourceName);
             if (!validation.CanExecute)
                 throw new TapeValidationException(validation.Diagnostics);
-            using var ownedLease = ownsTerminal ? TapePlaybackLease.Acquire(target) : null;
+            using var ownedLease = TapePlaybackLease.Acquire(target);
             executionStarted = true;
-            result = await TapeExecution.ExecuteAsync(prepared, target, ownsTerminal ? () =>
+            result = await TapeExecution.ExecuteAsync(prepared, target, () =>
             {
                 workloadTask = target.RunWorkloadAsync(lifetime.Token);
                 return Task.CompletedTask;
-            } : null, () => workloadTask, cancellationToken);
+            }, () => workloadTask, cancellationToken);
             if (workloadTask is { IsCompleted: true })
                 result.ProcessExitCode = await workloadTask;
         }
@@ -180,7 +187,7 @@ public sealed class TapePlayer
         }
         try
         {
-            if (ownsTerminal && terminal is not null)
+            if (terminal is not null)
                 await terminal.DisposeAsync();
         }
         catch (Exception ex)

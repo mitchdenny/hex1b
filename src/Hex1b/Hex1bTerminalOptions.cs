@@ -154,6 +154,12 @@ public sealed class Hex1bTerminalOptions
     /// appropriate when the Kitty keyboard protocol is active, since it sends
     /// unambiguous CSI u sequences for every key including Escape.
     /// </para>
+    /// <para>
+    /// This timeout applies to input tokenization for filters and workloads requesting
+    /// <see cref="Hex1bTerminalInputMode.ParsedEvents"/>.
+    /// Raw-byte workloads receive each original presentation read without waiting
+    /// for an escape sequence or UTF-8 character to complete.
+    /// </para>
     /// </remarks>
     public TimeSpan? EscapeSequenceTimeout { get; set; }
 

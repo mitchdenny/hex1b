@@ -77,6 +77,31 @@ Selections are invalidated by resize. The other generated text/graphics scenes r
 crop behavior. The library's adapter defaults have not changed: consumers must
 [opt in on their producer](../../docs/web-terminal.md#shell-reflow-configuration).
 
+## Try OSC 7501 program status
+
+Open `/?scene=program-status&renderer=webgl2` or choose **Program status (OSC
+7501 TUI)** in Terminal controls. This runs a real `Hex1bApp`, not a shell or
+screen-scraping simulation. Activate **Next status** with Enter or a click to
+step through working, permission/auth/question blocking, completion, error,
+idle, subtree clearing and an empty inventory.
+
+Open **Status** in each view's title bar to inspect the current records.
+Slash-separated IDs form visual groups; a missing parent is labelled **group
+only** and never becomes a synthetic status record. Root and child states stay
+independent. Messages are displayed as untrusted plain text.
+
+Attach another view with **HMP1 relay**, including after advancing the scenario,
+to compare the same inventory through the negotiated reconnect checkpoint.
+**Resync** and closing/re-attaching a view preserve the producer's current state.
+Snapshots and browser callbacks expose current state; intermediate reports may
+coalesce, and transport loss does not imply program completion. The final
+**Clear** operation removes all records; no acknowledgement or attention policy
+is imposed by the renderer.
+
+The browser regression is `tests/program-status.browser.js`. See the
+[core reporting and snapshot APIs](../../docs/program-status.md).
+Aspire integration is intentionally outside this prototype.
+
 ## Try DEC double-height text
 
 Open `/?scene=shell&renderer=webgl2`, then choose **Terminal controls → Tape →

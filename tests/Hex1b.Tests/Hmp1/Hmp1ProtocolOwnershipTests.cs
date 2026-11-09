@@ -160,6 +160,7 @@ public class Hmp1ProtocolOwnershipTests
     [DataRow("\x1b[5n", "\x1b[0n")]
     [DataRow("\x1b[6n", "\x1b[1;1R")]
     [DataRow("\x1b[18t", "\x1b[8;12;40t")]
+    [DataRow("\x1b]7501;?\x07", "\x1b]7501;?:states=idle,working,done,blocked,error:kinds=permission,question,auth\x1b\\")]
     [DataRow("\x1b_Ga=q,i=73,f=32,s=1,v=1;AAAAAA==\x1b\\", "\x1b_Gi=73;OK\x1b\\")]
     public async Task Output_MultipleHopsAndNativeClient_OnlyProducerResponds(string query, string reply)
     {
@@ -316,9 +317,11 @@ public class Hmp1ProtocolOwnershipTests
     }
 
     [TestMethod]
-    [DataRow(false)]
-    [DataRow(true)]
-    public async Task Output_DirectAndRelayedHwt1_ReceiveSameSingleReply(bool relayed)
+    [DataRow(false, "\x1b[c", "\x1b[?62;4c")]
+    [DataRow(true, "\x1b[c", "\x1b[?62;4c")]
+    [DataRow(false, "\x1b]7501;?\x07", "\x1b]7501;?:states=idle,working,done,blocked,error:kinds=permission,question,auth\x1b\\")]
+    [DataRow(true, "\x1b]7501;?\x07", "\x1b]7501;?:states=idle,working,done,blocked,error:kinds=permission,question,auth\x1b\\")]
+    public async Task Output_DirectAndRelayedHwt1_ReceiveSameSingleReply(bool relayed, string query, string reply)
     {
         await using var workload = new QueryWorkload { EchoDuplicateReplies = true };
         await using var view = new Hwt1PresentationAdapter(40, 12);
@@ -335,8 +338,8 @@ public class Hmp1ProtocolOwnershipTests
                 (handle, client) = await ConnectAsync(server);
                 mirror = Hex1bTerminal.CreateBuilder().WithWorkload(client).WithPresentation(view).Build();
             }
-            workload.Emit("\x1b[cDONE");
-            Assert.AreEqual("\x1b[?62;4c", await workload.ReadInputAsync());
+            workload.Emit(query + "DONE");
+            Assert.AreEqual(reply, await workload.ReadInputAsync());
             await WaitForTextAsync(mirror ?? producer, "DONE");
             await view.HandleMessageAsync("""{"type":"input","text":"barrier"}"""u8.ToArray());
             Assert.AreEqual("barrier", await workload.ReadInputAsync());

@@ -1,7 +1,8 @@
 import type { InputModifiers, PointerButton, SelectionMode, SelectionRange, TerminalLinkUnderlineStyle,
   TerminalBuffer, TerminalFont, TerminalGeometry, TerminalPeer, TerminalSize, TerminalStats,
   TerminalRendererPreference, TerminalStatusLevel, TerminalProgress, TerminalShellIntegration,
-  TerminalWorkingDirectory, TerminalCommandMark, TerminalTransportCloseDetails } from "./types.js";
+  TerminalWorkingDirectory, TerminalCommandMark, TerminalTransportCloseDetails,
+  TerminalProgramStatusInventory } from "./types.js";
 import type { LinkDetectionSnapshot } from "./link-detection.js";
 import type { TerminalPalette } from "./terminal-palette.js";
 import type { MarkerResult, TerminalMarker } from "./scrollbar-types.js";
@@ -47,6 +48,7 @@ export interface FrameMetadata extends TerminalGeometry {
   peer: TerminalPeer; history: HistoryMetadata | null;
   title: string;
   progress: TerminalProgress;
+  programStatus?: TerminalProgramStatusInventory;
   shellIntegration: TerminalShellIntegration;
   workingDirectory: TerminalWorkingDirectory;
   commandMark: TerminalCommandMark | null;
@@ -117,6 +119,7 @@ export type WorkerOutputMessage =
   | ({ type: "geometry"; peer: TerminalPeer; history: HistoryMetadata | null;
        lineRenditions?: number[];
        revision: number; title: string; progress: TerminalProgress; shellIntegration: TerminalShellIntegration;
+       programStatus: TerminalProgramStatusInventory;
        workingDirectory: TerminalWorkingDirectory; commandMark: TerminalCommandMark | null;
        linkGeneration?: number; linkSnapshot?: LinkDetectionSnapshot;
        text: string; hyperlinks: HyperlinkRange[] } & TerminalGeometry)

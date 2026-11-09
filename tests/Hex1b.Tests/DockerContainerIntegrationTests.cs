@@ -87,78 +87,101 @@ public class DockerContainerIntegrationTests
     [DockerAvailableCondition]
     public async Task WithDockerContainer_RunsShellInContainer()
     {
-        await using var terminal = Hex1bTerminal.CreateBuilder()
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(30));
+        var terminal = Hex1bTerminal.CreateBuilder()
             .WithHeadless()
             .WithDimensions(120, 24)
             .WithDockerContainer(c =>
             {
                 c.Image = "ubuntu:24.04";
+                c.Environment["PS1"] = "hex1b-docker> ";
                 c.Shell = "/bin/bash";
-                c.ShellArgs = ["--norc", "--noprofile"];
+                c.ShellArgs = ["--norc", "--noprofile", "-i"];
             })
             .Build();
 
-        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var runTask = Task.Run(() => terminal.RunAsync(cancellation.Token));
+        try
+        {
+            using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("hex1b-docker>"), TimeSpan.FromSeconds(15), "container shell ready")
+                .Type("uname -s").Enter()
+                .WaitUntil(s => s.GetNonEmptyLines().Any(line => line.Trim() == "Linux"),
+                    TimeSpan.FromSeconds(10), "uname output from container")
+                .Build()
+                .ApplyAsync(terminal, cancellation.Token);
 
-        var linuxPattern = new CellPatternSearcher().Find("Linux");
-
-        await new Hex1bTerminalInputSequenceBuilder()
-            .Wait(TimeSpan.FromSeconds(3))
-            .Type("uname -s").Enter()
-            .WaitUntil(s => linuxPattern.Search(s).Count > 0, TimeSpan.FromSeconds(10))
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        // Verify pattern was found (WaitUntil would have thrown on timeout)
-        var snapshot = terminal.CreateSnapshot();
-        var found = linuxPattern.Search(snapshot);
-        Assert.IsTrue(found.Count > 0, "Expected 'Linux' in terminal output");
-
-        await new Hex1bTerminalInputSequenceBuilder()
-            .Type("exit").Enter()
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        await runTask;
+            Assert.IsTrue(snapshot.GetNonEmptyLines().Any(line => line.Trim() == "Linux"));
+            await new Hex1bTerminalInputSequenceBuilder()
+                .Type("exit").Enter()
+                .Build()
+                .ApplyAsync(terminal, cancellation.Token);
+            Assert.AreEqual(0, await runTask.WaitAsync(TimeSpan.FromSeconds(5), cancellation.Token));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await terminal.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            try
+            {
+                await runTask.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (OperationCanceledException) when (runTask.IsCanceled && cancellation.IsCancellationRequested)
+            {
+            }
+        }
     }
 
     [TestMethod]
     [DockerAvailableCondition]
     public async Task WithDockerContainer_EnvironmentVariablesPassedToContainer()
     {
-        await using var terminal = Hex1bTerminal.CreateBuilder()
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(30));
+        var terminal = Hex1bTerminal.CreateBuilder()
             .WithHeadless()
             .WithDimensions(120, 24)
             .WithDockerContainer(c =>
             {
                 c.Image = "ubuntu:24.04";
                 c.Environment["HEX1B_TEST_VAR"] = "hello_from_hex1b";
+                c.Environment["PS1"] = "hex1b-env> ";
                 c.Shell = "/bin/bash";
-                c.ShellArgs = ["--norc", "--noprofile"];
+                c.ShellArgs = ["--norc", "--noprofile", "-i"];
             })
             .Build();
 
-        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var runTask = Task.Run(() => terminal.RunAsync(cancellation.Token));
+        try
+        {
+            using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("hex1b-env>"), TimeSpan.FromSeconds(15), "container shell ready")
+                .Type("echo $HEX1B_TEST_VAR").Enter()
+                .WaitUntil(s => s.GetNonEmptyLines().Any(line => line.Trim() == "hello_from_hex1b"),
+                    TimeSpan.FromSeconds(10), "environment variable expanded in the container")
+                .Build()
+                .ApplyAsync(terminal, cancellation.Token);
 
-        var envPattern = new CellPatternSearcher().Find("hello_from_hex1b");
-
-        await new Hex1bTerminalInputSequenceBuilder()
-            .Wait(TimeSpan.FromSeconds(3))
-            .Type("echo $HEX1B_TEST_VAR").Enter()
-            .WaitUntil(s => envPattern.Search(s).Count > 0, TimeSpan.FromSeconds(10))
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        var snapshot = terminal.CreateSnapshot();
-        var found = envPattern.Search(snapshot);
-        Assert.IsTrue(found.Count > 0, "Expected environment variable value in output");
-
-        await new Hex1bTerminalInputSequenceBuilder()
-            .Type("exit").Enter()
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        await runTask;
+            Assert.IsTrue(snapshot.GetNonEmptyLines().Any(line => line.Trim() == "hello_from_hex1b"));
+            await new Hex1bTerminalInputSequenceBuilder()
+                .Type("exit").Enter()
+                .Build()
+                .ApplyAsync(terminal, cancellation.Token);
+            Assert.AreEqual(0, await runTask.WaitAsync(TimeSpan.FromSeconds(5), cancellation.Token));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await terminal.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            try
+            {
+                await runTask.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (OperationCanceledException) when (runTask.IsCanceled && cancellation.IsCancellationRequested)
+            {
+            }
+        }
     }
 
     [TestMethod]
@@ -212,26 +235,49 @@ public class DockerContainerIntegrationTests
     [DockerAvailableCondition]
     public async Task WithDockerContainer_DefaultOptions_UsesDefaultImage()
     {
-        await using var terminal = Hex1bTerminal.CreateBuilder()
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(45));
+        var terminal = Hex1bTerminal.CreateBuilder()
             .WithHeadless()
             .WithDimensions(120, 24)
             .WithDockerContainer()
             .Build();
 
-        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var runTask = Task.Run(() => terminal.RunAsync(cancellation.Token));
+        try
+        {
+            using var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.GetNonEmptyLines().Any(line =>
+                    System.Text.RegularExpressions.Regex.IsMatch(line.Trim(), @"^bash-\d+\.\d+[#$]$")),
+                    TimeSpan.FromSeconds(30), "default bash --norc prompt ready")
+                .Type("dotnet --version").Enter()
+                .WaitUntil(s => s.GetNonEmptyLines().Any(IsDotnet10Version),
+                    TimeSpan.FromSeconds(10), "standalone dotnet 10 SDK version")
+                .Build()
+                .ApplyAsync(terminal, cancellation.Token);
 
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .Wait(TimeSpan.FromSeconds(5))
-            .Type("dotnet --version").Enter()
-            .Wait(TimeSpan.FromSeconds(3))
-            .Type("exit").Enter()
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            Assert.IsTrue(snapshot.GetNonEmptyLines().Any(IsDotnet10Version),
+                "Expected a standalone dotnet 10 SDK version from the default image");
+            await new Hex1bTerminalInputSequenceBuilder()
+                .Type("exit").Enter()
+                .Build()
+                .ApplyAsync(terminal, cancellation.Token);
+            Assert.AreEqual(0, await runTask.WaitAsync(TimeSpan.FromSeconds(5), cancellation.Token));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Task.Run(async () => await terminal.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            try
+            {
+                await runTask.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (OperationCanceledException) when (runTask.IsCanceled && cancellation.IsCancellationRequested)
+            {
+            }
+        }
 
-        await runTask;
-
-        // Default image is dotnet/sdk:10.0, so dotnet should be available
-        var found = new CellPatternSearcher().Find("10.").Search(snapshot);
-        Assert.IsTrue(found.Count > 0, "Expected dotnet version output in container");
+        static bool IsDotnet10Version(string line)
+            => System.Text.RegularExpressions.Regex.IsMatch(line.Trim(), @"^10\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$");
     }
 }

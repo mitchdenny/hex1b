@@ -39,15 +39,19 @@ internal sealed class TerminalInstance
         Presentation = new Hmp1PresentationAdapter(request.Columns, request.Rows);
         if (request.GetReflowProvider() is { } reflow)
             Presentation.WithReflow(reflow);
-        _demo = _scene == "shell" ? null : new DemoWorkload(_scene, request.Columns, request.Rows);
-        var child = _demo is null ? new Hex1bTerminalChildProcess(
+        _demo = _scene is "shell" or "program-status" ? null : new DemoWorkload(_scene, request.Columns, request.Rows);
+        var child = _scene == "shell" ? new Hex1bTerminalChildProcess(
             OperatingSystem.IsWindows() ? "cmd.exe" : Environment.GetEnvironmentVariable("SHELL") ?? "/bin/sh",
             [], environment: OperatingSystem.IsWindows() ? null : new()
             {
                 ["TERM"] = "xterm-256color",
                 ["COLORTERM"] = "truecolor"
             }, initialWidth: request.Columns, initialHeight: request.Rows) : null;
-        _terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        _terminal = _scene == "program-status"
+            ? ProgramStatusDemo.Configure(Hex1bTerminal.CreateSlimBuilder()
+                .WithDimensions(request.Columns, request.Rows)
+                .WithPresentation(Presentation)).Build()
+            : new Hex1bTerminal(new Hex1bTerminalOptions
         {
             Width = request.Columns,
             Height = request.Rows,

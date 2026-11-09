@@ -1,4 +1,4 @@
-#:package Hex1b@0.172.0
+#:package Hex1b
 #:property ImportDirectoryBuildProps=false
 
 using Hex1b;

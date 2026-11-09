@@ -30,4 +30,7 @@ namespace Hex1b.Tokens;
 /// </para>
 /// </remarks>
 /// <param name="UseEscBackslash">If true, use ESC \ as terminator instead of BEL.</param>
-public sealed record OscToken(string Command, string Parameters, string Payload, bool UseEscBackslash = false) : AnsiToken;
+public sealed record OscToken(string Command, string Parameters, string Payload, bool UseEscBackslash = false) : AnsiToken
+{
+    internal int? OriginalSequenceByteCount { get; init; }
+}

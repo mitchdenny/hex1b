@@ -34,10 +34,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             ## Code Example
 
             \\\`\\\`\\\`csharp
-            var app = new Hex1bApp(ctx =>
+            await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
                 ctx.Markdown("# Hello, World!")
-            );
-            await app.RunAsync();
+            ).Build();
+            await terminal.RunAsync();
             \\\`\\\`\\\`
 
             > The MarkdownWidget parses CommonMark-compatible

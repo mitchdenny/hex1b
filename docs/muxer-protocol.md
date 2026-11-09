@@ -61,6 +61,7 @@ Maximum payload size: 16 MB.
 | ScrollbackState | `0x0E` | Server → Client | Negotiated retained-history header following ActivityState |
 | ScrollbackRows | `0x0F` | Server → Client | Negotiated binary history rows, in chunks of at most 1 MiB |
 | CommandMarkState | `0x10` | Server → Client | Independently negotiated retained OSC 133 marks after activity and optional scrollback |
+| ProgramStatusState | `0x11` | Server → Client | Negotiated OSC 7501 inventory after activity, and ordered live lifecycle checkpoints |
 
 ## Peer IDs
 
@@ -148,6 +149,9 @@ role hint, and an optional retained-history request.
   extension version, currently `1`. Omit it to disable the request. This is
   independent of scrollback negotiation; screen-backed marks can transfer even
   when text-history transfer is disabled.
+- `programStatusVersion` — Optional `program-status-v1` inventory extension,
+  currently `1`. The .NET client requests it automatically. Omission or an
+  unsupported request means no program-status checkpoints.
 
 The .NET `Hmp1ClientOptions.ScrollbackHistoryRows` setting defaults to 10,000,
 accepts 0 through 100,000, and uses `0` to opt out (omitting both JSON fields).
@@ -199,6 +203,9 @@ Sent once by the server after it has received the client's `ClientHello`.
 - `commandMarkHistoryVersion` — Present as `1` only when a version-1 request is
   accepted by an enabled server with an attached terminal. It does not require
   scrollback storage. Without acknowledgement, send no `CommandMarkState` frames.
+- `programStatusVersion` — Present as `1` only when a version-1 request is
+  accepted. Without acknowledgement, no `ProgramStatusState` frames are sent
+  or expected. Unknown selected versions fail the connection.
 
 `Hmp1ServerOptions.EnableScrollbackHistory` and the directly configured
 `Hmp1PresentationAdapter.EnableScrollbackHistory` both default to `true`.
@@ -224,11 +231,12 @@ after painting so subsequent output retains its original link state. Sixel damag
 repaint also preserves cell links without changing that active state.
 
 Every `StateSync` is immediately followed by `ActivityState`, including an empty
-screen replay. When history is negotiated, `ScrollbackState` and all declared
+screen replay. When program status is negotiated, `ProgramStatusState` follows
+activity, including an empty inventory. When history is negotiated, `ScrollbackState` and all declared
 `ScrollbackRows` immediately follow. If command marks are negotiated,
-`CommandMarkState` follows those rows (or directly follows `ActivityState` when
+`CommandMarkState` follows those rows (or activity and optional program status when
 scrollback is not negotiated). The receiver validates the complete
-checkpoint before atomically applying screen, activity, history, and command marks as one state
+checkpoint before atomically applying screen, activity, program status, history, and command marks as one state
 transaction and exposing the connected baseline. This also applies to later
 `StateSync` frames. A relay preserves these as control frames, not ordinary live
 output. Without either optional negotiation, the transaction remains screen plus activity.
@@ -245,6 +253,10 @@ the complete activity/history/command-mark checkpoint and before subsequent live
 frames because their encoded data may exceed the maximum size of one HMP frame.
 An unfinished ANSI parser prefix follows graphics replay and precedes live output,
 so a late-attaching replica can finish a fragmented OSC sequence without losing it.
+If an oversized OSC 7501 is already being discarded, the continuation uses a
+bounded inert overflow prefix instead of retaining the discarded body. It restores
+the discard state, including a pending ESC of a split string terminator, without
+creating a report or allowing the remaining body to leak into viewport text.
 
 KGP animation replay sends the root and all fully composed frames, timing gaps,
 current-frame selection, placements, and playback controls. A subsequent
@@ -279,6 +291,85 @@ events. Identical resyncs do not publish changed-state notifications; later real
 OSC 9;4 and OSC 133 output is parsed normally. Browser presentations may coalesce
 transitions. Disconnect and workload exit retain the last reported state; they do
 not synthesize a command completion or progress clear.
+
+### ProgramStatusState (0x11)
+
+This independently negotiated `program-status-v1` extension transfers the
+terminal's current OSC 7501 inventory. It does **not** extend the strict 1 KiB
+`ActivityState` schema or change the HMP1 version. A supporting client requests
+`"programStatusVersion":1` in `ClientHello`; the server acknowledges the same
+field in `Hello`. An old peer omits the acknowledgement and retains the existing
+screen/activity handshake and ordinary live ANSI output.
+
+The payload is UTF-8 JSON, bounded to **4 MiB** before allocation, with at most
+**256 records**:
+
+```json
+{
+  "records": [
+    {
+      "id": "",
+      "state": 1,
+      "kind": null,
+      "progress": 42,
+      "app": "agent",
+      "title": "Indexing",
+      "message": null,
+      "effectiveApp": "agent"
+    },
+    {
+      "id": "tools/search",
+      "state": 2,
+      "kind": 0,
+      "progress": null,
+      "app": null,
+      "title": "Allow search?",
+      "message": "Permission is required",
+      "effectiveApp": "agent"
+    }
+  ]
+}
+```
+
+States are 0 (idle), 1 (working), 2 (blocked), 3 (done), and 4 (error).
+Kinds are null, 0 (permission), 1 (question), or 2 (auth), and are valid only
+for blocked records. Progress is null or an integer from 0 to 100, valid only
+for working/blocked records. `id` and `state` are required; other record fields
+may be omitted or null. The root id is `""`; other ids use the bounded
+OSC 7501 slash-separated grammar. App identifiers and decoded title/message
+text have the same validation and bounds as OSC 7501 (32, 192, and 2,048 UTF-8
+bytes respectively). Titles and messages are decoded text, **not base64**.
+`effectiveApp` is derived again from the complete hierarchy when restored.
+Records appear in least-recently-updated order, not hierarchy or lexical order;
+preserving this order preserves the next eviction. Duplicate ids, duplicate
+JSON fields, unknown fields, invalid enums, and out-of-range or oversized data
+fail the connection.
+
+Exactly one checkpoint immediately follows `ActivityState` after each
+`StateSync`, before any history, graphics, continuation, or live frames.
+The receiver validates the complete baseline before applying any of it.
+It parses the screen replay with changed-state events suppressed, then replaces
+the inventory with this authoritative checkpoint. No intermediate RIS clear or
+replayed report becomes observable. Identical inventories emit no duplicate
+changed-state event. `{"records":[]}` authoritatively clears stale reports,
+including on initial attach or reconnect.
+
+During live operation, OSC 7501 reports still travel in ordinary ordered ANSI
+`Output` frames. Changes already represented by a live ANSI batch do not also
+enqueue intermediate inventories: doing so could rewind the state after the
+batch has been parsed and duplicate observable events. Outside ANSI application,
+a producer sends ordered full-replacement checkpoints so lifetime changes
+without output bytes propagate, including local workload exit and explicit
+inventory replacement or reset. Prompt expiry and RIS ordinarily travel as live
+ANSI, but direct state changes without a workload write also get checkpoints.
+Clients deduplicate identical inventory replacements. Relays
+forward a StateSync checkpoint as part of that transaction, not as synthesized
+OSC reports or intermediate clears; live checkpoints follow the same output
+queue and propagate across multiple hops.
+
+EOF, transport disconnect, and peer removal are **not workload exit**. They
+retain working/blocked reports without synthesizing completion or expiry.
+Expiry is driven by the authoritative producer's actual workload lifecycle.
 
 ### ScrollbackState (0x0E) and ScrollbackRows (0x0F)
 
@@ -700,6 +791,7 @@ Client                              Server
   |  ← ─ ─ Hello ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ |  version + dims + peerId + roster
   |  ← ─ ─ StateSync ─ ─ ─ ─ ─ ─ ─ ─ |  Full screen snapshot
   |  ← ─ ─ ActivityState ─ ─ ─ ─ ─ ─ |  Mandatory activity baseline
+  |  ← ─ ─ ProgramStatusState ─ ─ ─ ─|  Only if independently negotiated
   |  ← ─ ─ ScrollbackState ─ ─ ─ ─ ─ |  Only if negotiated
   |  ← ─ ─ ScrollbackRows ─ ─ ─ ─ ─ ─|  Zero or more chunks, exact row count
   |  ← ─ ─ CommandMarkState ─ ─ ─ ─ ─|  Only if independently negotiated
@@ -724,12 +816,12 @@ Client                              Server
 
 1. Client establishes a bidirectional stream (e.g., connects to a Unix domain socket).
 2. Client sends **ClientHello** with its display name, optional role hint, and
-   optional scrollback and command-mark requests.
+   optional program-status, scrollback, and command-mark requests.
 3. Server replies with **Hello** carrying the protocol version, current PTY
    dimensions, the assigned `peerId`, the current `primaryPeerId`, and the
-   roster of other attached peers, plus independent history/command-mark acknowledgements.
+   roster of other attached peers, plus independent program-status/history/command-mark acknowledgements.
 4. Server sends **StateSync** with the full current text screen content, followed
-   by mandatory **ActivityState**, then negotiated **ScrollbackState** and
+   by mandatory **ActivityState**, then negotiated **ProgramStatusState**, **ScrollbackState** and
    **ScrollbackRows**, and independently negotiated **CommandMarkState**.
    The complete baseline is validated and atomically applied.
    Ordered graphics **Output** frames and, for KGP animation,
@@ -829,10 +921,10 @@ The protocol version is communicated in the Hello frame. Clients **must** reject
 > place rather than versioned. The `version` field still reads `1` after the
 > multi-head primary/secondary additions; the protocol identity has not
 > changed, but those baseline changes were incompatible with prior implementations.
-> The optional scrollback extension instead uses capability fields in
+> The optional scrollback, command-mark, and program-status extensions instead use capability fields in
 > `ClientHello` and `Hello`. It preserves compatibility with the current
 > mandatory-`ActivityState` baseline: without acknowledgement, neither peer
-> expects history frames. It does not make pre-`ActivityState` peers compatible.
+> expects those checkpoint frames. They do not make pre-`ActivityState` peers compatible.
 
 Future versions may add:
 - Additional negotiated capabilities in the Hello frame
@@ -842,6 +934,10 @@ Future versions may add:
 
 ## Changelog
 
+- **(optional, HMP1 version unchanged)** Negotiated `program-status-v1` with
+  `ProgramStatusState (0x11)`. Transfers bounded, ordered OSC 7501 inventories
+  atomically with attach/resync and carries byte-free live lifecycle changes
+  through relays. Empty inventories clear stale state; transport EOF is not exit.
 - **(optional, HMP1 version unchanged)** Independently negotiated retained OSC 133
   command marks, version `1`, with `CommandMarkState (0x10)`. Preserves raw details,
   status, phases, positions, IDs, and the ID high-water mark without replaying

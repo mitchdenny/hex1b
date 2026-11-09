@@ -9,6 +9,8 @@ public sealed partial class Hex1bTerminal
     // Scoped to one output-state transaction. HMP presentations, including ones
     // inside a composite, must forward replay as control frames rather than live OSC.
     internal Hmp1ActivityState? Hmp1ReplayActivityState { get; private set; }
+    internal TerminalProgramStatusSnapshot? Hmp1ReplayProgramStatusState { get; private set; }
+    internal bool Hmp1ApplyingWorkloadOutput { get; private set; }
 
     private bool _deferHmp1ReplayCallbacks;
 
@@ -31,19 +33,23 @@ public sealed partial class Hex1bTerminal
 
     private async Task ApplyHmp1ReplayAsync(
         ReadOnlyMemory<byte> bytes, Hmp1TerminalState? state, Hmp1ActivityState? activity,
-        Hmp1ScrollbackState? scrollback, Hmp1CommandMarkState? commands, CancellationToken ct)
+        Hmp1ScrollbackState? scrollback, Hmp1CommandMarkState? commands,
+        TerminalProgramStatusSnapshot? programStatus, CancellationToken ct)
     {
         if (activity is null)
             throw new InvalidDataException("StateSync requires an activity checkpoint.");
         Hmp1ReplayActivityState = activity;
         Hmp1ReplayScrollbackState = scrollback;
         Hmp1ReplayCommandMarkState = commands;
+        Hmp1ReplayProgramStatusState = programStatus;
         var rawPassthrough = _presentationFilters.Count == 0 &&
             _presentation is not ICellImpactAwarePresentationAdapter;
         var fastPath = _workloadFilters.Count == 0 && rawPassthrough;
 
         // The new baseline supersedes any unfinished prefix from the previous stream.
         _incompleteSequenceBuffer = "";
+        _discardingProgramStatus = false;
+        _discardedProgramStatusEscape = false;
         _utf8Decoder.Reset();
         _pendingUtf8OutputLength = 0;
         _dcsByteStreamParser.Complete();
@@ -85,6 +91,7 @@ public sealed partial class Hex1bTerminal
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             var previous = _activityState;
+            var previousProgramStatus = ProgramStatus;
             var previousTitle = _windowTitle;
             var previousIcon = _iconName;
             _deferHmp1ReplayCallbacks = true;
@@ -113,6 +120,8 @@ public sealed partial class Hex1bTerminal
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 RestoreHmp1Scrollback(scrollback);
                 RestoreHmp1CommandMarks(commands);
+                if (programStatus is not null)
+                    RestoreProgramStatus(programStatus);
                 RestoreActivityState(
                     new TerminalProgress((TerminalProgressState)activity.Progress.State, activity.Progress.Percentage),
                     new TerminalShellIntegration((TerminalShellIntegrationPhase)activity.ShellIntegration.Phase,
@@ -126,6 +135,7 @@ public sealed partial class Hex1bTerminal
                 // Failed application must not install an unrendered checkpoint or emit
                 // intermediate activity from a partially applied replay.
                 SetActivityState(previous);
+                RestoreProgramStatus(previousProgramStatus);
                 throw;
             }
             finally

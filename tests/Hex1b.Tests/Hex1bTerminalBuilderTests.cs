@@ -11,6 +11,87 @@ namespace Hex1b.Tests;
 [TestClass]
 public class Hex1bTerminalBuilderTests
 {
+    [TestMethod]
+    public void CreateSlimBuilder_WithoutWorkload_Throws()
+    {
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => Hex1bTerminal.CreateSlimBuilder().Build());
+        Assert.Contains("No workload configured", ex.Message);
+    }
+
+    [TestMethod]
+    public void CreateSlimBuilder_WithWorkloadOnly_RequiresExplicitPresentation()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            Hex1bTerminal.CreateSlimBuilder().WithWorkload(workload).Build());
+        Assert.Contains("No presentation configured", ex.Message);
+    }
+
+    [TestMethod]
+    public void CreateSlimBuilder_WithHeadlessOnly_RequiresExplicitWorkload()
+    {
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            Hex1bTerminal.CreateSlimBuilder().WithHeadless().Build());
+        Assert.Contains("No workload configured", ex.Message);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task CreateSlimBuilder_WithExplicitPresentationAndApp_Renders(bool customPresentation)
+    {
+        var builder = Hex1bTerminal.CreateSlimBuilder().WithDimensions(40, 5);
+        if (customPresentation)
+            builder.WithPresentation(new HeadlessPresentationAdapter(40, 5));
+        else
+            builder.WithHeadless();
+        await using var terminal = builder.WithHex1bApp(ctx => ctx.Text("slim-builder-render")).Build();
+        var run = terminal.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("slim-builder-render"), TimeSpan.FromSeconds(5), "slim app rendered")
+            .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
+            .Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await run;
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task WithHex1bApp_CustomWorkloadAdapter_RoutesRenderingAndInput(bool asyncBuilder)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        var clicked = false;
+        var builder = Hex1bTerminal.CreateSlimBuilder().WithHeadless().WithDimensions(40, 5);
+        Action<Hex1bAppOptions> configure = options => options.WorkloadAdapter = workload;
+        Func<RootContext, Hex1bWidget> build = ctx =>
+            ctx.Button(clicked ? "override-clicked" : "override-ready").OnClick(_ => clicked = true);
+        if (asyncBuilder)
+            builder.WithHex1bApp(configure, ctx => Task.FromResult(build(ctx)));
+        else
+            builder.WithHex1bApp(configure, build);
+        await using var terminal = builder.Build();
+        var run = terminal.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("override-ready"), TimeSpan.FromSeconds(5), "custom workload rendered")
+            .Enter()
+            .WaitUntil(s => s.ContainsText("override-clicked"), TimeSpan.FromSeconds(5), "custom workload received input")
+            .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
+            .Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await run;
+    }
+
+    [TestMethod]
+    public void Hex1bApp_Constructors_AreNotPublic()
+        => Assert.IsEmpty(typeof(Hex1bApp).GetConstructors());
+
+    [TestMethod]
+    public void Hex1bApp_WithoutWorkloadAdapter_ThrowsInsteadOfCreatingConsole()
+    {
+        var ex = Assert.ThrowsExactly<ArgumentException>(() => new Hex1bApp(ctx => ctx.Text("not rendered")));
+        Assert.AreEqual("options", ex.ParamName);
+        Assert.Contains("WorkloadAdapter is required", ex.Message);
+    }
+
     private static string GetTempRecordingPath()
     {
         return Path.Combine(Path.GetTempPath(), $"hex1b_test_{Guid.NewGuid():N}.cast");

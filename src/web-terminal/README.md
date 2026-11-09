@@ -604,6 +604,37 @@ The per-title bound is not a limit on all parser buffering or saved-stack depth.
 An HMP1 snapshot with too much saved title state fails its 16 MiB replay limit
 rather than silently discarding saved titles.
 
+### Program status (OSC 7501)
+
+`terminal.programStatus` is an immutable snapshot of the last presented
+inventory. Its `records` contain `id`, `state`, nullable `kind`, `progress`,
+`app`, `effectiveApp`, `title` and `message`. The empty ID addresses the root;
+other IDs are slash-separated paths. `find(id)` looks up a record and
+`getDescendants(id)` returns existing descendants, excluding the addressed
+record. Parents need not exist, and their states do not aggregate.
+
+Supply `onProgramStatusChange(snapshot)` to receive the initial authoritative
+inventory before mount resolves, then distinct presented updates. The getter
+updates before callbacks. The snapshot and all its records are frozen; older
+snapshots retain their values. Metadata-only updates repaint without cell
+changes. Reports can coalesce between frames: this is current state, not an
+event log. Disconnect/disposal retains the last inventory; check `connected`
+separately.
+
+The states are `idle`, `working`, `blocked`, `done` and `error`. A blocked record
+may specify `permission`, `question` or `auth`. Progress is nullable (indeterminate)
+and applies only to working/blocked records. `effectiveApp` resolves the nearest
+ancestor's reported `app`; `app` retains the record's own reported value.
+Clearing replaces the inventory accordingly, rather than exposing a `clear` state.
+Messages and titles are untrusted plain text, not markup or authenticated identity.
+
+The paired server emits full inventory in every frame. Frames from a
+pre-extension HWT1 server without this field are treated as an empty inventory;
+malformed present inventories are rejected, never converted to empty state.
+No status UI, notifications, approval operations or automatic acknowledgement
+are supplied by the component. A host can build those on this API. See the
+[WebTerminalDemo scenario](../../samples/WebTerminalDemo/README.md#try-osc-7501-program-status).
+
 ### Application progress and shell activity
 
 `terminal.progress` exposes OSC 9;4 state as `{ state, percentage }`.

@@ -294,6 +294,19 @@ var result = await TestHelpers.CreateTerminalAndRunScenario(
 
 ---
 
+## Presentation Escape Timeout Tests
+
+Use queued in-memory presentation reads with `Hex1bAppWorkloadAdapter`. Observe
+the escape timer's finite `ITimer.Change` before firing its callback; observing
+`CreateTimer` alone is insufficient because it is initially disabled. Keep other
+timers (such as synchronized output) independent in the controlled provider.
+For example, `Hex1bTerminalTests.PresentationInput_PasteEscapeAcrossTimeout_PreservesLiteralContent`
+queues `"\x1b[200~a\x1b"`, waits for arming, fires expiry, then queues
+`"\rb\x1b[201~z"`. Read through the post-paste `z` sentinel before asserting
+exact completed paste text and no surplus events. This avoids sleeps and makes
+read-boundary/timeout bugs reproducible. At app level, bind on the focused widget
+and prove the same Escape binding fires for an ordinary Escape after the paste.
+
 ## Network Test Fixtures
 
 Let the server reserve its listening port atomically. Random port selection and
@@ -357,6 +370,34 @@ output before awaiting `RunAsync` in a drain regression, since that hides the ra
 For echo/transport tests, use an already-available executable (`cmd /d /c echo` on
 Windows, `/bin/echo` on Unix). Runtime-compiling a temporary C# program with
 `dotnet run` puts SDK startup and compilation inside the output deadline.
+
+## Unix PTY Read Reliability
+
+Use `/bin/sh` with `stty -echo`, a newline-free readiness marker, and input-gated
+output to test the real PTY without interactive shell startup or echo ambiguity.
+Accumulate reads until the exact expected marker or EOF: one child write need not
+equal one parent read. Drain large output concurrently with the child writing;
+also exercise `WaitForExitAsync` concurrently with draining to cover reaping.
+See `UnixPtyReadTests` for exact 64 KB payloads and repeated idle handshakes.
+Include teardown without reading any child output, not only disposal after a
+readiness handshake. On macOS, a child can remain in exit while its PTY output
+is undrained; disposal must release the master before blocking on reaping.
+
+Cancellation is not a native-hang watchdog. Bound reads and teardown independently
+with `WaitAsync`; run potentially synchronous native writes/disposal on a worker:
+
+```csharp
+await Task.Run(async () => await process.DisposeAsync())
+    .WaitAsync(TimeSpan.FromSeconds(10));
+```
+
+Cancel outstanding reads and dispose the child in `finally`. For disposal tests,
+leave the pending read uncanceled so disposal itself must unblock it. An explicit
+idle interval spanning poll timeouts may assert that a read remains pending; do
+not use a sleep to guess when output arrived. High-descriptor tests must measure
+the actual PTY descriptor and release every dummy handle even on failure. Only
+the native descriptor-limit error is grounds for an explicit inconclusive result;
+other open/start/read failures must fail the test.
 
 ## HMP1 Shutdown Compatibility
 
@@ -553,6 +594,43 @@ Not every widget needs every combination, but consider which dimensions are rele
 
 ## Low-Level API Testing (Isolation)
 
+### Native AOT Consumer Scenarios
+
+Native AOT retention/behavior tests live in `tests/Hex1b.Tests/NativeAot`.
+Each scenario embeds its native source in the test; the helper writes an
+independent temporary project and preserves it alongside compiler evidence.
+CI enables native scenarios with `HEX1B_RUN_NATIVE_AOT_TESTS=1`; local runs
+skip the costly scenarios unless the same switch is set. Enabled prerequisite
+failures are test failures, not skips.
+For a fast parser-only check:
+
+```powershell
+dotnet test --project tests\Hex1b.Tests\Hex1b.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~NativeMapTests"
+```
+
+Match declaring `MethodCode` families in compiler XML, not metadata or types
+mentioned in generic signatures. Keep publish/intermediate properties scoped to
+consumers so analyzer and native-helper references retain normal build settings.
+See `tests/Hex1b.Tests/NativeAot/README.md` for prerequisites, full execution and evidence.
+
+`HeadlessConsoleTests` compares normal and slim construction against identical
+library inputs and consumer source, with a consumer-local compilation symbol.
+It requires console code in the normal-builder control and forbids it in the
+slim consumer, while verifying matching text/chart snapshots. Historical
+source-substitution experiments remain documented in the Native AOT README,
+not executed in routine CI. Keep pooling, analyzers, native helpers and publish
+assets unchanged; never enforce a machine-specific executable byte budget.
+
+For console + PTY native consumers, inherit a snapshot of the parent environment
+into the child-specific PTY environment; do not mutate or log the host environment.
+An empty environment can let a console-only consumer run but break its nested
+Windows proxy PTY with Winsock error 10106. Exercise a real
+child readiness/input/output/exit exchange, not just construction. See
+`ConsolePtyTests` for matched normal/slim builders and optional rendered-app
+positive controls. Keep compilation symbols consumer-local and compare library
+hashes; omitting an explicitly opted-in app measures that feature's cost, not
+automatic retention by the normal builder.
+
 ### Output-Pump Allocation Regressions
 
 Measure `GC.GetAllocatedBytesForCurrentThread()` around a synchronous application
@@ -577,6 +655,17 @@ matrix and completeness checks that fail when an enum grows. Include modifier
 reset, overlap, ordering, and replay after mode changes; constructing a sequence
 must not freeze its wire encoding. Keep physical layout, AltGr/IME, and negotiated
 keyboard protocols distinct from this logical-key encoding contract.
+
+### Workload Binary Compatibility
+
+Compile a separate fixture against a pinned published Hex1b package, not the
+current project, and load that unchanged adapter assembly against the current
+library. Assert that its implemented interface resolves to the current assembly
+and that newly added default members preserve raw input delivery. Recompiling a
+test adapter against the new interface proves source compatibility, not binary
+compatibility. `tests/Fixtures/LegacyWorkloadAdapter` also provides a build-time
+stdin probe: it reports exact bytes read by a child process, without runtime
+compilation or depending on the child's text encoding.
 
 ### Native Windows Console Probes
 

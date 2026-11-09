@@ -1189,26 +1189,36 @@ public sealed class TerminalWidgetHandle :
     /// </summary>
     private void EnsureCopyModeCursorVisible()
     {
-        if (_selection == null) return;
+        var selection = _selection;
+        if (selection == null) return;
         var previousOffset = _scrollbackOffset;
-        int cursorRow = _selection.Cursor.Row;
-        int scrollbackCount = ScrollbackCount;
+        _scrollbackOffset = GetScrollbackOffsetForCursor(selection, ScrollbackCount);
+        if (_scrollbackOffset != previousOffset)
+            _terminal?.RefreshKgpAnimationPlayback(_scrollbackOffset);
+    }
+    
+    /// <summary>
+    /// Computes the scrollback offset that places the cursor of <paramref name="selection"/>
+    /// within the visible viewport, starting from the current offset.
+    /// </summary>
+    private int GetScrollbackOffsetForCursor(TerminalSelection selection, int scrollbackCount)
+    {
+        int offset = _scrollbackOffset;
+        int cursorRow = selection.Cursor.Row;
         
         // Visible virtual row range: [viewStart, viewStart + _height - 1]
-        int viewStart = scrollbackCount - _scrollbackOffset;
+        int viewStart = scrollbackCount - offset;
         int viewEnd = viewStart + _height - 1;
         
         if (cursorRow < viewStart)
         {
-            _scrollbackOffset = scrollbackCount - cursorRow;
+            offset = scrollbackCount - cursorRow;
         }
         else if (cursorRow > viewEnd)
         {
-            _scrollbackOffset = scrollbackCount - (cursorRow - _height + 1);
+            offset = scrollbackCount - (cursorRow - _height + 1);
         }
-        _scrollbackOffset = Math.Max(0, _scrollbackOffset);
-        if (_scrollbackOffset != previousOffset)
-            _terminal?.RefreshKgpAnimationPlayback(_scrollbackOffset);
+        return Math.Max(0, offset);
     }
     
     // Pending mouse selection anchor — set on Down, used on first Drag
@@ -1315,17 +1325,49 @@ public sealed class TerminalWidgetHandle :
     
     private void DragScrollTick(object? state)
     {
-        if (!_inCopyMode || _selection == null || _dragScrollDirection == 0) 
+        // Disposing the timer does not wait for a running callback, so copy mode can end
+        // between this guard and the step below. Take the state once; the step revalidates it.
+        var selection = _selection;
+        int direction = _dragScrollDirection;
+        if (!_inCopyMode || selection == null || direction == 0) 
         {
             StopDragScrollTimer();
             return;
         }
         
-        // Move cursor one row in the scroll direction
-        var pos = _selection.Cursor;
-        int newRow = Math.Clamp(pos.Row + _dragScrollDirection, 0, VirtualBufferHeight - 1);
-        _selection.MoveCursor(new BufferPosition(newRow, _dragLastColumn));
-        EnsureCopyModeCursorVisible();
+        ApplyDragScrollStep(selection, direction);
+    }
+    
+    /// <summary>
+    /// Moves the copy mode cursor one row in the scroll direction and keeps it visible, unless
+    /// <paramref name="selection"/> is no longer the active selection (copy mode ended or was
+    /// restarted since the caller observed it), in which case nothing changes.
+    /// </summary>
+    internal void ApplyDragScrollStep(TerminalSelection selection, int direction)
+    {
+        // Terminal calls can take the terminal lock, which must never be acquired while
+        // holding the buffer lock, so read the scrollback count before the state change.
+        int scrollbackCount = ScrollbackCount;
+        int bufferHeight = scrollbackCount + _height;
+        Hex1bTerminal? terminal;
+        int previousOffset;
+        int newOffset;
+        
+        lock (_bufferLock)
+        {
+            if (!_inCopyMode || !ReferenceEquals(_selection, selection)) return;
+            
+            int newRow = Math.Clamp(selection.Cursor.Row + direction, 0, bufferHeight - 1);
+            selection.MoveCursor(new BufferPosition(newRow, _dragLastColumn));
+            
+            terminal = _terminal;
+            previousOffset = _scrollbackOffset;
+            newOffset = GetScrollbackOffsetForCursor(selection, scrollbackCount);
+            _scrollbackOffset = newOffset;
+        }
+        
+        if (newOffset != previousOffset)
+            terminal?.RefreshKgpAnimationPlayback(newOffset);
         OutputReceived?.Invoke();
     }
     

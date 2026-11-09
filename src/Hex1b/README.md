@@ -20,14 +20,14 @@ A minimal application that displays text and a quit button:
 ```csharp
 using Hex1b;
 
-using var app = new Hex1bApp(ctx =>
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.VStack(b => [
         b.Text("Hello, Terminal!"),
         b.Button("Quit").OnClick(e => e.Context.RequestStop())
     ])
-);
+).Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 ```
 
 ### Counter with State
@@ -40,7 +40,7 @@ using Hex1b;
 // State persists outside the builder function
 var count = 0;
 
-using var app = new Hex1bApp(ctx =>
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.VStack(b => [
         b.Text($"Count: {count}"),
         b.Button("Increment").OnClick(_ => count++),
@@ -48,9 +48,9 @@ using var app = new Hex1bApp(ctx =>
         b.Text(""),
         b.Button("Quit").OnClick(e => e.Context.RequestStop())
     ])
-);
+).Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 ```
 
 ### Counter with Custom Key Bindings
@@ -63,7 +63,7 @@ using Hex1b.Input;
 
 var count = 0;
 
-using var app = new Hex1bApp(ctx =>
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.VStack(b => [
         b.Text($"Count: {count}"),
         b.Text(""),
@@ -76,9 +76,9 @@ using var app = new Hex1bApp(ctx =>
         bindings.Ctrl().Key(Hex1bKey.D).Action(() => count--, "Decrement counter");
         bindings.Ctrl().Key(Hex1bKey.Q).Action(ctx => ctx.RequestStop(), "Quit");
     })
-);
+).Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 ```
 
 ## Layout System
@@ -142,11 +142,34 @@ Apply built-in themes or create your own:
 ```csharp
 using Hex1b.Theming;
 
-using var app = new Hex1bApp(
-    builder,
-    new Hex1bAppOptions { Theme = Hex1bThemes.Sunset }
-);
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp(options => options.Theme = Hex1bThemes.Sunset, builder)
+    .Build();
+await terminal.RunAsync();
 ```
+
+## Construction and Native AOT
+
+Construct applications through `Hex1bTerminal`; `Hex1bApp` constructors are
+internal. The terminal owns the app lifetime. Use the `WithHex1bApp` options
+callback for app configuration and its app-instance callback when you need
+`Invalidate()` or `RequestStop()` outside widget event handlers.
+
+`CreateBuilder()` keeps the normal interactive console defaults.
+`CreateSlimBuilder()` registers neither presentation nor workload; explicitly
+configure both. For headless Native AOT applications:
+
+```csharp
+await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+    .WithHeadless()
+    .WithHex1bApp(ctx => ctx.Text("Hello"))
+    .Build();
+await terminal.RunAsync();
+```
+
+Calling `WithHeadless()` on the normal builder replaces its presentation at
+runtime but can retain console code in a Native AOT binary. The slim entry
+point avoids registering that console factory in the first place.
 
 ## Documentation
 

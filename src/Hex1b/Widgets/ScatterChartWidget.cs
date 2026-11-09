@@ -17,13 +17,14 @@ namespace Hex1b.Widgets;
 /// <example>
 /// <para>Create a scatter chart with grouped series:</para>
 /// <code>
-/// var app = new Hex1bApp(ctx =&gt;
+/// await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =&gt;
 ///     ctx.ScatterChart(data)
 ///         .X(d =&gt; d.Height)
 ///         .Y(d =&gt; d.Weight)
 ///         .GroupBy(d =&gt; d.Category)
 ///         .Title("Height vs Weight")
-/// );
+/// ).Build();
+/// await terminal.RunAsync();
 /// </code>
 /// </example>
 /// <seealso cref="TimeSeriesChartWidget{T}"/>

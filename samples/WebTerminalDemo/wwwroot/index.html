@@ -121,6 +121,16 @@
     .view-role { flex: none; font-size: 11px; color: var(--cp-text-muted); }
     .view-marker-details { flex: none; overflow: visible; max-height: none; color: var(--cp-text); font-size: 11px; cursor: auto; }
     .view-marker-details > summary { padding: 3px 6px; border: 1px solid var(--cp-border-strong); border-radius: 6px; background: var(--cp-bg-elevated); white-space: nowrap; }
+    .view-program-status { flex: none; font-size: 11px; cursor: auto; }
+    .view-program-status > summary { padding: 3px 6px; border: 1px solid var(--cp-border-strong); border-radius: 6px; background: var(--cp-bg-elevated); white-space: nowrap; }
+    .program-status-panel { position: absolute; top: 36px; right: 8px; z-index: 5; width: min(440px, calc(100% - 16px)); max-height: min(420px, 65dvh); overflow: auto; padding: 12px; border: 1px solid var(--cp-border-strong); border-radius: 8px; background: var(--cp-surface); box-shadow: var(--cp-shadow); user-select: text; cursor: auto; }
+    .program-status-panel p { margin: 0 0 8px; white-space: normal; }
+    .program-status-record { margin: 6px 0; padding-left: 10px; border-left: 2px solid var(--cp-border); overflow-wrap: anywhere; unicode-bidi: isolate; }
+    .program-status-record[data-state=blocked] { border-left-color: var(--cp-warning); }
+    .program-status-record[data-state=error] { border-left-color: var(--cp-danger); }
+    .program-status-record[data-state=done] { border-left-color: var(--cp-success); }
+    .program-status-record[data-group=true] > .program-status-label, .program-status-message { color: var(--cp-text-muted); }
+    .program-status-record progress { width: 100px; height: 8px; accent-color: var(--cp-accent); }
     .marker-panel { position: absolute; top: 36px; right: 8px; z-index: 4; width: min(360px, calc(100% - 16px)); max-height: min(320px, 55dvh); overflow: auto; padding: 12px; border: 1px solid var(--cp-border-strong); border-radius: 8px; background: var(--cp-surface); box-shadow: var(--cp-shadow); user-select: text; cursor: auto; }
     .marker-panel p { margin: 0 0 8px; white-space: normal; font-size: 12px; }
     .marker-list { display: grid; gap: 4px; }
@@ -280,6 +290,7 @@
           <option value="kgp">Kitty graphics</option>
           <option value="animation">Graphics animation</option>
           <option value="activity">Progress and shell activity</option>
+          <option value="program-status">Program status (OSC 7501 TUI)</option>
           <option value="marks">Long scrollback (48 marks)</option>
           <option value="shell">Interactive shell</option>
         </select>

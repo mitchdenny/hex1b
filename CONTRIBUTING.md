@@ -11,6 +11,7 @@ Thank you for your interest in contributing to Hex1b! This document provides gui
 - A code editor (VS Code recommended)
 - A terminal emulator with good ANSI escape sequence support
 - Native build tools on Unix: `sudo apt install build-essential` on Ubuntu/Debian,
+  `apk add build-base` on Alpine Linux (x64/ARM64),
   or `xcode-select --install` on macOS.
 
 ### Setting Up Your Development Environment
@@ -36,6 +37,32 @@ Thank you for your interest in contributing to Hex1b! This document provides gui
    dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj
    ```
 
+### Managing NuGet Dependencies
+
+Package references use central package management. Add or update versions in
+the root `Directory.Packages.props`, and omit `Version` on project
+`PackageReference` items and file-based app `#:package` directives.
+SDK versions (such as `MSTest.Sdk` and `Aspire.AppHost.Sdk`) are SDK references,
+not centrally managed package references; their shared versions live in
+`global.json` under `msbuild-sdks`.
+
+Dependabot uses `Dependencies.proj` as its root discovery entry point and updates
+the shared manifests instead of opening separate bumps for each project.
+The discovery manifest excludes the browser demos that require WebAssembly
+workloads. SkiaSharp updates are grouped: keep the managed package and both Linux
+native asset packages on the same release. A successful restore does not
+establish native ABI compatibility. Validate the tool's SVG-to-PNG converter
+tests on Linux as well as the affected application's runtime behavior.
+Aspire SDK and hosting-package updates are also grouped so they stay aligned.
+
+Conditional entries preserve the browser demos' runtime releases, DocFX's
+Roslyn compatibility requirement, and the native smoke test's bootstrap
+package. These dependencies are excluded from routine Dependabot updates;
+change their pins only after validating compatibility. The legacy workload
+fixture also stays on a published Hex1b package. Tool packaging in CI uses
+`VersionOverride` to select the freshly built Hex1b package without changing
+these pins.
+
 ### Running Samples
 
 Run a sample directly; no separate `make` or native-library copy is needed:
@@ -54,13 +81,36 @@ An explicit `--runtime` selects the matching native library. Cross-publishing
 requires that runtime's library in `src/Hex1b/runtimes/<rid>/native/` when the host
 cannot compile it; macOS supports building both macOS architectures locally.
 
-The native CI jobs use a file-based C# app pinned to a released Hex1b package to
-launch the repository's KgpCloudDemo in a PTY with `dotnet run`. The smoke test
+Alpine x64 and ARM64 builds select `linux-musl-x64` and `linux-musl-arm64`
+automatically, keeping their native libraries separate from the glibc assets.
+To build just the native library on Alpine, run `make -C src/Hex1b/native`.
+When using a musl cross-compiler on a glibc host, specify both the compiler and libc:
+`make -C src/Hex1b/native CC=musl-gcc TARGET_ARCH=x86_64 TARGET_LIBC=musl`.
+Changing the output RID alone does not make a glibc binary musl-compatible.
+
+The musl CI matrix builds the native library in architecture-matched x64 and
+ARM64 Alpine containers and checks the ELF dependencies and exports. These legs
+do not run the native or managed test suites. Both packaging jobs consume the
+native artifacts, and the existing package-content checks require both musl
+assets. Build locally on Alpine with Docker (use `linux/arm64` for ARM64):
+
+```bash
+docker run --rm --platform linux/amd64 \
+  -v "$PWD:/repo" -w /repo alpine:3 \
+  sh -ec 'apk add --no-cache build-base bash binutils; make -C src/Hex1b/native all check-exports'
+```
+
+For an interactive .NET environment where you can run samples manually, see
+the [musl sandbox](samples/MuslSandbox/README.md). It is not part of CI.
+
+The glibc Linux and macOS ARM64 CI jobs use a file-based C# app pinned to a
+released Hex1b package to launch the repository's KgpCloudDemo in a PTY with
+`dotnet run`. The smoke test
 waits for a snapshot containing kitty graphics placements, then checks the exit
 code after the demo reaches its frame limit:
 
 ```bash
-dotnet run .github/scripts/test-native-build.cs
+dotnet run --file .github/scripts/test-native-build.cs
 ```
 
 ### Aspire and Web Samples on Ubuntu

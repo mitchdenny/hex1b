@@ -12,6 +12,12 @@ public sealed class InputBindingActionContext
     private readonly Action? _requestStop;
     private readonly Action<string>? _copyToClipboard;
     private readonly Action? _invalidate;
+    private readonly TerminalProgramStatusReporter? _programStatus;
+
+    /// <summary>Gets the application's program-status reporting service.</summary>
+    /// <exception cref="InvalidOperationException">This context is not attached to an application.</exception>
+    public TerminalProgramStatusReporter ProgramStatus => _programStatus
+        ?? throw new InvalidOperationException("This context is not attached to a Hex1bApp.");
 
     /// <summary>
     /// Cancellation token from the application run loop.
@@ -41,13 +47,15 @@ public sealed class InputBindingActionContext
         int mouseY = -1,
         Action<string>? copyToClipboard = null,
         Action? invalidate = null,
-        WindowManagerRegistry? windowManagerRegistry = null)
+        WindowManagerRegistry? windowManagerRegistry = null,
+        TerminalProgramStatusReporter? programStatus = null)
     {
         _focusRing = focusRing;
         _requestStop = requestStop;
         _copyToClipboard = copyToClipboard;
         _invalidate = invalidate;
         _windowManagerRegistry = windowManagerRegistry;
+        _programStatus = programStatus;
         CancellationToken = cancellationToken;
         MouseX = mouseX;
         MouseY = mouseY;

@@ -484,9 +484,9 @@ public class SlashCommandPromptWidgetTests
         Action<string>? onSubmit = null)
         where THost : Hex1bWidget, new()
     {
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithWorkload(workload)
+        await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+            .WithMouse()
+            .WithHex1bApp(ctx => new THost())
             .WithHeadless()
             .WithDimensions(80, 24)
             .Build();
@@ -495,12 +495,8 @@ public class SlashCommandPromptWidgetTests
         // host implementation reads it from this static slot.
         SubmitSink.Set(onSubmit);
 
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(new THost()),
-            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true });
-
         var ct = TestContext.Current.CancellationToken;
-        var runTask = app.RunAsync(ct);
+        var runTask = terminal.RunAsync(ct);
 
         // Run the user's script and snapshot the final state BEFORE Ctrl+C
         // tears down the alternate screen (which would leave us with a blank

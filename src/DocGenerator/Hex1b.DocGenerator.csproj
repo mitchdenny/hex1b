@@ -9,11 +9,11 @@
 
   <ItemGroup>
     <!-- DocFX as a library - see https://dotnet.github.io/docfx/ -->
-    <PackageReference Include="Docfx.App" Version="2.78.4" />
+    <PackageReference Include="Docfx.App" />
     <!-- The versions of Microsoft.CodeAnalysis.* must match exactly what Docfx.App was built against -->
-    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.14.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
-    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="YamlDotNet" />
   </ItemGroup>
 
 </Project>

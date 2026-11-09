@@ -89,8 +89,8 @@ public interface IHex1bTerminalPresentationAdapter : IAsyncDisposable
     /// <summary>
     /// Whether the upstream endpoint behind this presentation is a real terminal
     /// emulator that autonomously answers protocol queries — such as Primary Device
-    /// Attributes (<c>CSI c</c>) and window operations (<c>CSI Ps t</c>) — because raw
-    /// bytes flow through to it unmodified.
+    /// Attributes (<c>CSI c</c>), window operations (<c>CSI Ps t</c>), and OSC 7501
+    /// capability detection — because raw bytes flow through to it unmodified.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -112,9 +112,9 @@ public interface IHex1bTerminalPresentationAdapter : IAsyncDisposable
     /// </para>
     /// <para>
     /// <see cref="ConsolePresentationAdapter"/> overrides this to <see langword="true"/>
-    /// because it connects Hex1b directly to a real terminal's raw stdin/stdout: any DA1
-    /// or window operation query a hosted workload writes reaches the real terminal
-    /// untouched, and the real terminal's reply is forwarded back untouched in turn.
+    /// because it connects Hex1b directly to a real terminal's raw stdin/stdout: any DA1,
+    /// window operation, or OSC 7501 capability query a hosted workload writes reaches
+    /// the real terminal untouched, and its reply is forwarded back untouched in turn.
     /// </para>
     /// </remarks>
     bool AnswersProtocolQueriesDirectly => false;

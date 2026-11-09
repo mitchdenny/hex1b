@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using System.Threading.Channels;
 using WebTerminalDemo;
 
@@ -170,8 +171,8 @@ public class Hmp1BuilderExtensionsTests
     [DataRow(false)]
     public async Task WithHmp1UdsServer_WithDimensions_AdvertisesConfiguredSize(bool dimensionsFirst)
     {
-        if (OperatingSystem.IsWindows())
-            Assert.Inconclusive("Unix domain socket regression runs on Unix.");
+        if (!Socket.OSSupportsUnixDomainSockets)
+            Assert.Inconclusive("The operating system does not support Unix domain sockets.");
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         cts.CancelAfter(TestTimeout);
@@ -194,8 +195,9 @@ public class Hmp1BuilderExtensionsTests
             await client.ConnectAsync(cts.Token);
             Assert.AreEqual(82, client.CurrentWidth);
             Assert.AreEqual(28, client.CurrentHeight);
-            Assert.AreEqual(82, terminal.CreateSnapshot().Width);
-            Assert.AreEqual(28, terminal.CreateSnapshot().Height);
+            using var snapshot = terminal.CreateSnapshot();
+            Assert.AreEqual(82, snapshot.Width);
+            Assert.AreEqual(28, snapshot.Height);
         }
 
         Assert.IsFalse(File.Exists(socketPath), "Disposal should release the listener socket.");
@@ -231,8 +233,8 @@ public class Hmp1BuilderExtensionsTests
         if (!dimensionsFirst)
             builder.WithDimensions(width, height);
 
-        await using var terminal = builder.Build();
-        var runTask = terminal.RunAsync(cts.Token);
+        var terminal = builder.Build();
+        var runTask = Task.Run(() => terminal.RunAsync(cts.Token));
         try
         {
             await new Hex1bTerminalInputSequenceBuilder()
@@ -244,16 +246,17 @@ public class Hmp1BuilderExtensionsTests
                 .Type("exit").Enter()
                 .Build()
                 .ApplyAsync(terminal, cts.Token);
-            Assert.AreEqual(0, await runTask.WaitAsync(cts.Token));
+            Assert.AreEqual(0, await runTask.WaitAsync(TimeSpan.FromSeconds(30), cts.Token));
         }
         finally
         {
             await cts.CancelAsync();
+            await Task.Run(async () => await terminal.DisposeAsync()).WaitAsync(TestTimeout);
             try
             {
                 await runTask.WaitAsync(TestTimeout);
             }
-            catch (OperationCanceledException) when (cts.IsCancellationRequested)
+            catch (OperationCanceledException) when (runTask.IsCanceled && cts.IsCancellationRequested)
             {
             }
         }

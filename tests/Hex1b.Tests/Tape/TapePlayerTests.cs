@@ -10,6 +10,54 @@ namespace Hex1b.Tests;
 public class TapePlayerTests
 {
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Play_PreparationFails_ReleasesBorrowedLeaseWithoutSideEffects(bool cancel)
+    {
+        using var files = new CaptureDirectory();
+        using var cancellation = new CancellationTokenSource();
+        var failure = new InvalidOperationException("preparation failed");
+        var parserOptions = new TapeParserOptions();
+        parserOptions.SyntaxExtensions["FailPreparation"] = _ => context =>
+        {
+            if (cancel)
+            {
+                cancellation.Cancel();
+                cancellation.Token.ThrowIfCancellationRequested();
+            }
+            throw failure;
+        };
+        var workload = new RecordingWorkload();
+        await using var terminal = CreateTerminal(workload);
+        var resizeCount = workload.ResizeCount;
+        var player = new TapePlayer();
+        var playback = new TapePlaybackOptions
+        {
+            TerminalSize = new Size(30, 6),
+            Capture = new TapeCaptureOptions { AsciinemaPath = files.File("blocked.cast") }
+        };
+        var tape = new TapeParser(parserOptions).Parse("Type 'blocked' FailPreparation");
+
+        if (cancel)
+            await Assert.ThrowsAsync<OperationCanceledException>(() =>
+                player.PlayAsync(tape, terminal, playback, cancellation.Token));
+        else
+        {
+            var error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                player.PlayAsync(tape, terminal, playback, cancellation.Token));
+            Assert.AreSame(failure, error);
+        }
+
+        Assert.AreEqual("", workload.Input.ToString());
+        Assert.AreEqual(resizeCount, workload.ResizeCount);
+        Assert.IsFalse(workload.Disposed);
+        Assert.IsFalse(System.IO.File.Exists(files.File("blocked.cast")));
+        using var result = await player.PlayAsync(
+            new TapeParser().Parse("Set TypingSpeed 0 Type 'after' Wait+Screen /after/"), terminal);
+        Assert.AreEqual("after", workload.Input.ToString());
+    }
+
+    [TestMethod]
     public async Task Play_UnsupportedLaterCommand_HasNoInputResizeOrFileEffects()
     {
         using var files = new CaptureDirectory();

@@ -2647,7 +2647,8 @@ public class TextBoxNodeTests
             .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Key(Hex1bKey.UpArrow) // cursor to line 1 (B line)
             .Key(Hex1bKey.End)     // cursor to end of B line
-            .WaitUntil(s => !s.ContainsText("CCCCCCCCCCCCCCCCCCCCC"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("AAAAAAAAAAAAAAA") && s.ContainsText("CCCCCCCCCCCCCCC"),
+                TimeSpan.FromSeconds(5), "non-cursor lines show their full viewport")
             .Capture("independent")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

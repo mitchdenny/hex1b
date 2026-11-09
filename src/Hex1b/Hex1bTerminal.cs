@@ -37,25 +37,28 @@ namespace Hex1b;
 /// <example>
 /// <para>Production usage:</para>
 /// <code>
-/// var presentation = new ConsolePresentationAdapter();
-/// var workload = new Hex1bAppWorkloadAdapter(presentation.Width, presentation.Height);
-/// var terminal = new Hex1bTerminal(presentation, workload);
-/// var app = new Hex1bApp(workload, ctx => ctx.Text("Hello"));
-/// await app.RunAsync();
+/// await using var terminal = Hex1bTerminal.CreateBuilder()
+///     .WithHex1bApp(ctx =&gt; ctx.Text("Hello")).Build();
+/// await terminal.RunAsync();
 /// </code>
 /// <para>Testing usage:</para>
 /// <code>
-/// var workload = new Hex1bAppWorkloadAdapter(80, 24);
-/// var terminal = new Hex1bTerminal(workload);  // headless
-/// var app = new Hex1bApp(workload, ctx => ctx.Text("Hello"));
-/// // ... run and test ...
-/// Assert.True(terminal.ContainsText("Hello"));
+/// await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+///     .WithHeadless().WithDimensions(80, 24)
+///     .WithHex1bApp(ctx =&gt; ctx.Text("Hello")).Build();
+/// var run = terminal.RunAsync();
+/// await new Hex1b.Automation.Hex1bTerminalInputSequenceBuilder()
+///     .WaitUntil(s =&gt; s.ContainsText("Hello"), TimeSpan.FromSeconds(5))
+///     .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
+///     .Build().ApplyAsync(terminal);
+/// await run;
 /// </code>
 /// </example>
 public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 {
     private readonly IHex1bTerminalPresentationAdapter _presentation;
     private readonly IHex1bTerminalWorkloadAdapter _workload;
+    private readonly Hex1bTerminalInputMode _workloadInputMode;
     private readonly Func<CancellationToken, Task<int>>? _runCallback;
     private readonly IReadOnlyList<IHex1bTerminalWorkloadFilter> _workloadFilters;
     private readonly IReadOnlyList<IHex1bTerminalPresentationFilter> _presentationFilters;
@@ -318,6 +321,29 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </example>
     public static Hex1bTerminalBuilder CreateBuilder() => new();
 
+    /// <summary>
+    /// Creates a terminal builder without a default presentation or workload.
+    /// </summary>
+    /// <returns>A new builder requiring explicit presentation and workload configuration.</returns>
+    /// <remarks>
+    /// Configure presentation with <see cref="Hex1bTerminalBuilder.WithHeadless()"/> or
+    /// <see cref="Hex1bTerminalBuilder.WithPresentation"/>, and configure a workload before building.
+    /// Unlike <see cref="CreateBuilder"/>, this entry point does not register console presentation.
+    /// Terminal dimensions and other option defaults are unchanged.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+    ///     .WithHeadless()
+    ///     .WithDimensions(80, 24)
+    ///     .WithHex1bApp(ctx => ctx.Text("Hello"))
+    ///     .Build();
+    ///
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public static Hex1bTerminalBuilder CreateSlimBuilder() => Hex1bTerminalBuilder.CreateSlim();
+
     // === Constructor ===
 
     /// <summary>
@@ -330,11 +356,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var workload = options.WorkloadAdapter ??
             throw new ArgumentNullException(nameof(options), "WorkloadAdapter is required");
         options.Validate();
+
+        var inputMode = workload.InputMode;
+        if (inputMode is not Hex1bTerminalInputMode.RawBytes and not Hex1bTerminalInputMode.ParsedEvents)
+            throw new ArgumentOutOfRangeException(nameof(options), inputMode, "WorkloadAdapter.InputMode must be RawBytes or ParsedEvents.");
         
         var presentation = options.PresentationAdapter ?? new HeadlessPresentationAdapter(options.Width, options.Height);
         
         _presentation = presentation;
         _workload = workload;
+        _workloadInputMode = inputMode;
         _runCallback = options.RunCallback;
         _workloadFilters = options.WorkloadFilters?.ToList() ?? [];
         _presentationFilters = options.PresentationFilters?.ToList() ?? [];
@@ -682,6 +713,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             _outputProcessingTask is not null)
             await _outputProcessingTask.WaitAsync(ct);
 
+        if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess)
+            await ExpireLocalProgramStatusAsync(ct);
+
         return exitCode;
     }
 
@@ -797,6 +831,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 if (item.IsTimeout)
                 {
+                    // A paste owns its pending prefix until more data arrives. Flushing
+                    // here would emit a key or destroy a split paste-end/protocol marker.
+                    if (_inBracketedPaste)
+                        continue;
+
                     // Timer fired — flush the incomplete buffer as a bare Escape key
                     // (or whatever partial sequence was pending).  Guard against a
                     // spurious timeout that arrives after data already cleared the buffer.
@@ -804,7 +843,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     {
                         var flushed = _incompleteInputSequenceBuffer;
                         _incompleteInputSequenceBuffer = "";
-                        await DispatchCompleteInputTextAsync(flushed, ReadOnlyMemory<byte>.Empty, ct);
+                        await DispatchCompleteInputTextAsync(flushed, ct);
                     }
                     continue;
                 }
@@ -848,7 +887,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 if (!string.IsNullOrEmpty(completeText))
                 {
-                    await DispatchCompleteInputTextAsync(completeText, data, ct);
+                    await DispatchCompleteInputTextAsync(completeText, ct);
+                }
+
+                // Token buffering belongs to event decoding and filter notifications,
+                // not the raw transport. Forward each original read exactly once;
+                // timeout dispatch must not replay bytes already sent to the workload.
+                if (_workloadInputMode == Hex1bTerminalInputMode.RawBytes)
+                {
+                    await WriteWorkloadInputAsync(data, ct);
                 }
 
                 // If there is an incomplete escape sequence and the timeout is enabled,
@@ -873,9 +920,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
     
     /// <summary>
-    /// Tokenizes complete input text and dispatches it to the appropriate workload.
+    /// Tokenizes complete input text, notifies filters, and dispatches app events.
     /// </summary>
-    private async Task DispatchCompleteInputTextAsync(string completeText, ReadOnlyMemory<byte> rawData, CancellationToken ct)
+    private async Task DispatchCompleteInputTextAsync(string completeText, CancellationToken ct)
     {
         var tokens = AnsiTokenizer.Tokenize(completeText);
 
@@ -887,33 +934,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Notify workload filters of input going TO workload
         await NotifyWorkloadFiltersInputAsync(tokens);
 
-        // For Hex1bAppWorkloadAdapter, convert tokens to events and dispatch
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
+        if (_workloadInputMode == Hex1bTerminalInputMode.ParsedEvents)
         {
-            await DispatchTokensAsEventsAsync(tokens, appWorkload, ct);
-        }
-        else
-        {
-            // For other workloads, forward raw bytes
-            if (!rawData.IsEmpty)
-            {
-                await WriteWorkloadInputAsync(rawData, ct);
-            }
-            else
-            {
-                // Flushed from incomplete buffer — re-encode to bytes
-                var bytes = Encoding.UTF8.GetBytes(completeText);
-                await WriteWorkloadInputAsync(bytes, ct);
-            }
+            await DispatchTokensAsEventsAsync(tokens, _workload, ct);
         }
     }
     
     /// <summary>
-    /// Dispatches tokenized input as high-level events to the Hex1bApp workload.
+    /// Dispatches tokenized input as high-level events to a parsed-input workload.
     /// Handles bracketed paste accumulation: detects ESC[200~ (start) and ESC[201~ (end)
     /// markers, streaming paste data through a PasteContext instead of individual key events.
     /// </summary>
-    private async Task DispatchTokensAsEventsAsync(IReadOnlyList<AnsiToken> tokens, Hex1bAppWorkloadAdapter workload, CancellationToken ct)
+    private async Task DispatchTokensAsEventsAsync(IReadOnlyList<AnsiToken> tokens, IHex1bTerminalWorkloadAdapter workload, CancellationToken ct)
     {
         foreach (var token in tokens)
         {
@@ -992,6 +1024,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 '\t' => "\t",
                 _ => ctrl.Character.ToString()
             },
+            // ESC CR / ESC LF decode to Alt+Enter outside a paste; inside a paste they are content.
+            UnrecognizedSequenceToken { Sequence: "\x1b\r" or "\x1b\n" } unrec => unrec.Sequence,
             _ => null
         };
     }
@@ -1223,6 +1257,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 return new Hex1bKeyEvent(
                     KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.D0 + (c - '0'))), c, Hex1bModifiers.Alt);
             }
+
+            // Alt+Enter: terminals send ESC CR (or ESC LF) for Alt/Option+Enter
+            if (c is '\r' or '\n')
+            {
+                return new Hex1bKeyEvent(Hex1bKey.Enter, c, Hex1bModifiers.Alt);
+            }
         }
         
         return null;
@@ -1284,6 +1324,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     
     private async Task PumpWorkloadOutputAsync(CancellationToken ct)
     {
+        var localWorkloadEnded = false;
         try
         {
             while (!ct.IsCancellationRequested)
@@ -1293,6 +1334,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 Hmp1TerminalState? remoteState = null;
                 Hmp1KgpAnimationState? animationState = null;
                 Hmp1ActivityState? activityState = null;
+                TerminalProgramStatusSnapshot? programStatusState = null;
                 Hmp1ScrollbackState? scrollbackState = null;
                 Hmp1CommandMarkState? commandMarkState = null;
                 Hmp1WorkloadAdapter? remoteSource = null;
@@ -1307,6 +1349,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     remoteState = item.State;
                     animationState = item.AnimationState;
                     activityState = item.ActivityState;
+                    programStatusState = item.ProgramStatusState;
                     scrollbackState = item.ScrollbackState;
                     commandMarkState = item.CommandMarkState;
                     remoteSource = item.Source;
@@ -1327,7 +1370,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     data = await _workload.ReadOutputAsync(ct);
                 }
                 
-                if (data.IsEmpty && remoteState is null && animationState is null)
+                if (data.IsEmpty && remoteState is null && animationState is null &&
+                    activityState is null && programStatusState is null && scrollbackState is null && commandMarkState is null)
                 {
                     if (pooledItemBuffer is not null)
                         System.Buffers.ArrayPool<byte>.Shared.Return(pooledItemBuffer);
@@ -1341,7 +1385,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Other workloads can return empty between frames and must keep pumping.
                     if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess ||
                         _workload is Hmp1WorkloadAdapter { OutputCompleted: true })
+                    {
+                        if (_workload is Hex1bTerminalChildProcess { HasExited: false } child)
+                            await child.WaitForExitAsync(ct);
+                        localWorkloadEnded = _workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess;
                         break;
+                    }
                     
                     // Small delay to prevent busy-waiting in headless mode
                     await Task.Delay(10, ct);
@@ -1363,7 +1412,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // transaction. A browser must not become ready on the empty replica.
                 if (isStateSync)
                 {
-                    await ApplyHmp1ReplayAsync(data, remoteState, activityState, scrollbackState, commandMarkState, ct);
+                    await ApplyHmp1ReplayAsync(data, remoteState, activityState, scrollbackState, commandMarkState,
+                        programStatusState, ct);
                     remoteSource?.CompleteInitialReplay(null);
                     continue;
                 }
@@ -1371,6 +1421,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     await ApplyHmp1StateAsync(remoteState);
                 if (animationState is not null)
                     ApplyHmp1KgpAnimationState(animationState);
+                if (programStatusState is not null)
+                    RestoreProgramStatus(programStatusState);
                 if (data.IsEmpty)
                     continue;
                 var rawPresentationPassthrough =
@@ -1394,6 +1446,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 IReadOnlyDictionary<DcsToken, DcsFrame>? framedDcs = null;
 
                 if (preTokenizedTokens != null &&
+                    !_discardingProgramStatus &&
                     !_dcsByteStreamParser.HasPendingInput &&
                     string.IsNullOrEmpty(_incompleteSequenceBuffer))
                 {
@@ -1414,7 +1467,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (rawProcessingFastPath)
                 {
                     // Still apply tokens to internal buffer so CreateSnapshot() works
+                    Hmp1ApplyingWorkloadOutput = true;
                     ApplyTokens(tokens, framedDcs);
+                    Hmp1ApplyingWorkloadOutput = false;
                     continue;
                 }
                 
@@ -1422,8 +1477,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 await NotifyWorkloadFiltersOutputAsync(tokens);
                 
                 // HWT reads authoritative snapshots but still needs its per-batch callback.
+                Hmp1ApplyingWorkloadOutput = true;
                 var appliedTokens = ApplyTokensWithImpacts(tokens, framedDcs,
                     collectImpacts: PresentationRequiresAppliedTokens);
+                Hmp1ApplyingWorkloadOutput = false;
                 if (_disposed)
                     continue;
                 
@@ -1462,7 +1519,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 finally
                 {
+                    Hmp1ApplyingWorkloadOutput = false;
                     Hmp1ReplayActivityState = null;
+                    Hmp1ReplayProgramStatusState = null;
                     Hmp1ReplayScrollbackState = null;
                     Hmp1ReplayCommandMarkState = null;
                     if (outputStateLockTaken)
@@ -1488,6 +1547,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             foreach (var boundary in _dcsByteStreamParser.Complete().Frames)
                 RecordDcsFrame(boundary.Frame);
+            if (localWorkloadEnded)
+                await ExpireLocalProgramStatusAsync(ct);
         }
     }
 
@@ -1502,12 +1563,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Restore decoder bytes before the byte framer's held ESC, which may be
         // the first byte of ST. Neither is represented by the decoded OSC prefix.
         // The caller holds Hmp1OutputStateLock.
-        var prefixBytes = Encoding.UTF8.GetByteCount(_incompleteSequenceBuffer);
+        // An oversized OSC has no retained body, but a new replica must still
+        // discard its continuation. This bounded, inert seed re-enters exactly
+        // that framing state without carrying any untrusted discarded content.
+        var prefix = _discardingProgramStatus
+            ? "\x1b]7501;" + new string('x', TerminalProgramStatusCodec.MaximumSequenceBytes - 7 + 1)
+            : _incompleteSequenceBuffer;
+        var pendingEscape = _dcsByteStreamParser.HasPendingGroundEscape ||
+            _discardingProgramStatus && _discardedProgramStatusEscape;
+        var prefixBytes = Encoding.UTF8.GetByteCount(prefix);
         var pending = new byte[prefixBytes + _pendingUtf8OutputLength +
-            (_dcsByteStreamParser.HasPendingGroundEscape ? 1 : 0)];
-        Encoding.UTF8.GetBytes(_incompleteSequenceBuffer, pending);
+            (pendingEscape ? 1 : 0)];
+        Encoding.UTF8.GetBytes(prefix, pending);
         _pendingUtf8Output.AsSpan(0, _pendingUtf8OutputLength).CopyTo(pending.AsSpan(prefixBytes));
-        if (_dcsByteStreamParser.HasPendingGroundEscape)
+        if (pendingEscape)
             pending[^1] = 0x1b;
         return pending;
     }
@@ -1563,11 +1632,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         var text = _incompleteSequenceBuffer + decodedText;
         _incompleteSequenceBuffer = "";
+        text = FilterProgramStatusFraming(text, flushAtBoundary);
 
         var extracted = ExtractIncompleteEscapeSequence(text, recognizeC1Dcs: false);
         if (flushAtBoundary)
         {
             _utf8Decoder.Reset();
+            _discardingProgramStatus = false;
+            _discardedProgramStatusEscape = false;
         }
         else
         {
@@ -1874,7 +1946,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         return true;
     }
 
-    private async Task ParseAndDispatchInputAsync(ReadOnlyMemory<byte> data, Hex1bAppWorkloadAdapter workload, CancellationToken ct)
+    private async Task ParseAndDispatchInputAsync(ReadOnlyMemory<byte> data, IHex1bTerminalWorkloadAdapter workload, CancellationToken ct)
     {
         var message = Encoding.UTF8.GetString(data.Span);
         var i = 0;
@@ -2200,7 +2272,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _activityState.WorkingDirectory,
                 [.. _commandMarks])
             {
-                LineRenditions = lineRenditions
+                LineRenditions = lineRenditions,
+                ProgramStatus = _programStatus
             };
         }
     }
@@ -2359,15 +2432,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <summary>
     /// Sends any input event to the terminal (for testing).
     /// This is the unified API for injecting keyboard, mouse, and other events.
-    /// Only works with Hex1bAppWorkloadAdapter.
+    /// Parsed-input workloads receive the original event; raw workloads receive encoded bytes.
     /// </summary>
     /// <param name="evt">The event to send.</param>
     internal void SendEvent(Hex1bEvent evt)
     {
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
+        if (_workloadInputMode == Hex1bTerminalInputMode.ParsedEvents)
         {
-            // Direct event dispatch for Hex1bApp workloads
-            appWorkload.TryWriteInputEvent(evt);
+            if (!_workload.TryWriteInputEvent(evt))
+                throw new InvalidOperationException("The workload did not accept the input event. Use asynchronous input injection to wait for capacity.");
         }
         else
         {
@@ -2382,17 +2455,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     
     /// <summary>
     /// Sends an input event to the workload asynchronously.
-    /// For Hex1bApp workloads, this dispatches the event directly.
-    /// For child process workloads, this serializes the event to ANSI bytes.
+    /// Parsed-input workloads receive the original event; raw workloads receive encoded bytes.
     /// </summary>
     /// <param name="evt">The event to send.</param>
     /// <param name="ct">Cancellation token.</param>
     internal async Task SendEventAsync(Hex1bEvent evt, CancellationToken ct = default)
     {
-        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
+        if (_workloadInputMode == Hex1bTerminalInputMode.ParsedEvents)
         {
-            // Direct event dispatch for Hex1bApp workloads
-            await appWorkload.WriteInputEventAsync(evt, ct);
+            await _workload.WriteInputEventAsync(evt, ct);
         }
         else
         {
@@ -3376,7 +3447,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
                 
             case OscToken oscToken:
-                ProcessOscSequence(oscToken.Command, oscToken.Parameters, oscToken.Payload);
+                ProcessOscSequence(oscToken.Command, oscToken.Parameters, oscToken.Payload,
+                    oscToken.OriginalSequenceByteCount ?? Encoding.UTF8.GetByteCount(
+                        oscToken.Command + ";" + (oscToken.Parameters.Length == 0 ? oscToken.Payload :
+                            oscToken.Parameters + ";" + oscToken.Payload)) + 2 + (oscToken.UseEscBackslash ? 2 : 1));
                 break;
                 
             case DcsToken dcsToken:
@@ -3532,6 +3606,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _savedMainTextRowIds = null;
                 _savedMainTextHistoryRowIds = null;
                 SetActivityState(TerminalActivityState.Default);
+                SetProgramStatus(new([]));
                 SetSynchronizedOutputMode(false);
                 InvalidateTextCoordinates();
                 // RIS (ESC c): Full terminal reset — clear screen, reset all state
@@ -6444,7 +6519,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// what changes were made with 0/1/2 in between.
     /// </para>
     /// </remarks>
-    private void ProcessOscSequence(string command, string parameters, string payload)
+    private void ProcessOscSequence(string command, string parameters, string payload, int sequenceBytes = 0)
     {
         switch (command)
         {
@@ -6472,8 +6547,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             case "7":
             case "9":
             case "133":
+                if (command == "133" && TerminalActivityState.TryParseMarker(parameters, payload,
+                        out var phase, out _, out _) && phase == TerminalShellIntegrationPhase.Prompt)
+                    ExpireProgramStatus();
                 SetActivityState(_activityState.ApplyOsc(command, parameters, payload));
                 RecordCommandMarkIfPresent(command, parameters, payload);
+                break;
+
+            case "7501":
+                ProcessProgramStatus(parameters.Length == 0 ? payload : parameters + ";" + payload, sequenceBytes);
                 break;
                 
             case "22":

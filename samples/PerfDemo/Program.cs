@@ -61,7 +61,7 @@ static async Task<PerfResult> RunOnceAsync(bool enableCaching, PerfOptions optio
     using var collector = new MetricsCollector();
 
     Hex1bApp? app = null;
-    app = new Hex1bApp(ctx =>
+    Hex1bWidget BuildWidgets(RootContext ctx)
     {
         frame++;
 
@@ -105,29 +105,40 @@ static async Task<PerfResult> RunOnceAsync(bool enableCaching, PerfOptions optio
             });
         renderedFrames++;
         return root;
-    }, new Hex1bAppOptions
+    }
+
+    System.Threading.Timer? invalidateTimer = null;
+    await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+        .WithHeadless()
+        .WithDimensions(options.Width, options.Height)
+        .WithMetrics(metrics)
+        .WithHex1bApp(appOptions =>
+        {
+            appOptions.WorkloadAdapter = adapter;
+            appOptions.Theme = theme;
+            appOptions.EnableRenderCaching = enableCaching;
+            appOptions.EnableSurfacePooling = options.EnableSurfacePooling;
+            appOptions.EnableDefaultCtrlCExit = false;
+            appOptions.EnableInputCoalescing = false;
+            appOptions.EnableRescue = false;
+            appOptions.FrameRateLimitMs = 1;
+        }, instance =>
+        {
+            app = instance;
+            // Invalidation inside the widget builder can be consumed in the same frame.
+            invalidateTimer = new System.Threading.Timer(
+                static state => ((Hex1bApp)state!).Invalidate(), instance,
+                dueTime: TimeSpan.Zero, period: TimeSpan.FromMilliseconds(1));
+            return BuildWidgets;
+        }).Build();
+    try
     {
-        WorkloadAdapter = adapter,
-        Theme = theme,
-        Metrics = metrics,
-        EnableRenderCaching = enableCaching,
-        EnableSurfacePooling = options.EnableSurfacePooling,
-        EnableDefaultCtrlCExit = false,
-        EnableInputCoalescing = false,
-        EnableRescue = false,
-        FrameRateLimitMs = 1
-    });
-
-    // Drive the app using invalidation signals. Triggering invalidation from within the widget
-    // builder can be drained as part of the same render loop iteration, so we poke invalidation
-    // from a timer instead.
-    using var invalidateTimer = new System.Threading.Timer(
-        static state => ((Hex1bApp)state!).Invalidate(),
-        app,
-        dueTime: TimeSpan.Zero,
-        period: TimeSpan.FromMilliseconds(1));
-
-    await app.RunAsync();
+        await terminal.RunAsync();
+    }
+    finally
+    {
+        invalidateTimer?.Dispose();
+    }
 
     var elapsed = (startTimestamp == 0 || endTimestamp == 0)
         ? TimeSpan.Zero

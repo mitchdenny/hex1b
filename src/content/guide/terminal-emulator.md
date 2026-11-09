@@ -162,17 +162,30 @@ See [Presentation Adapters](./presentation-adapters) for details.
 Combine the terminal emulator with Hex1b's TUI framework:
 
 ```csharp
-var terminal = new Hex1bTerminalBuilder()
-    .WithSize(80, 24)
+using var childLifetime = new CancellationTokenSource();
+await using var child = Hex1bTerminal.CreateSlimBuilder()
+    .WithPtyProcess("pwsh")
+    .WithTerminalWidget(out var childHandle)
+    .WithDimensions(80, 24)
     .Build();
 
-var app = new Hex1bApp(ctx =>
+await using var display = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.VStack(v => [
         v.Text("My Terminal App"),
-        v.Terminal(terminal).Fill(),
-        v.InfoBar("Ctrl+D: Exit")
+        v.Terminal(childHandle).Fill(),
+        v.InfoBar("Ctrl+C: Exit")
     ])
-);
+).Build();
+var childRun = child.RunAsync(childLifetime.Token);
+try
+{
+    await display.RunAsync();
+}
+finally
+{
+    childLifetime.Cancel();
+    await childRun;
+}
 ```
 
 ### Building Dev Tools
@@ -180,16 +193,33 @@ var app = new Hex1bApp(ctx =>
 Create development tools with integrated terminals:
 
 ```csharp
-var app = new Hex1bApp(ctx =>
-    ctx.Splitter(
-        left: ctx.Border(b => [
+using var childLifetime = new CancellationTokenSource();
+await using var child = Hex1bTerminal.CreateSlimBuilder()
+    .WithPtyProcess("pwsh").WithTerminalWidget(out var childHandle).Build();
+await using var display = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
+    ctx.HSplitter(
+        ctx.Border(b => [
             b.Text("Files"),
-            b.List(files)
+            b.List(["README.md", "Program.cs"])
         ]),
-        right: ctx.Terminal(terminal)
-    )
-);
+        ctx.Terminal(childHandle))
+).Build();
+var childRun = child.RunAsync(childLifetime.Token);
+try
+{
+    await display.RunAsync();
+}
+finally
+{
+    childLifetime.Cancel();
+    await childRun;
+}
 ```
+
+These examples start `pwsh` as the child shell; choose a command installed on
+your platform. Start the child workload explicitly and cancel/join it when
+the display exits. The outer terminal owns the app and console presentation;
+the caller owns the child.
 
 ### Automation & Testing
 

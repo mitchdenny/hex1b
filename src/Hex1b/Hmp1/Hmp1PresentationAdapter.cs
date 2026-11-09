@@ -245,6 +245,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         // The same gate spans a producer output read's forwarding AND application.
         // Composite presentations participate through this lifecycle callback too.
         _ = terminal.Hmp1OutputStateLock;
+        terminal.ProgramStatusChanged += BroadcastProgramStatus;
     }
 
     /// <inheritdoc />
@@ -315,6 +316,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
         try
         {
+            session.ProgramStatus = clientHello.ProgramStatusVersion == Hmp1ProgramStatusState.Version;
             session.CommandMarkHistory = clientHello.CommandMarkHistoryVersion == Hmp1CommandMarkState.Version &&
                 EnableCommandMarkHistory && _terminal is not null;
             if (clientHello.ScrollbackHistoryVersion == Hmp1ScrollbackState.Version &&
@@ -428,6 +430,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         Hmp1ClientSession[] existingPeers;
         byte[] syncBytes;
         Hmp1ActivityState activityState;
+        TerminalProgramStatusSnapshot programStatusState;
         Hmp1ScrollbackState? scrollbackState = null;
         Hmp1CommandMarkState? commandMarkState = null;
         IReadOnlyList<KgpPlacement> kgpPlacements;
@@ -480,6 +483,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                 }, includeHyperlinks: true, preserveSoftWrap: true);
                 var suffix = BuildStateReplaySuffix(snap);
                 activityState = Hmp1ActivityState.Capture(snap);
+                programStatusState = snap.ProgramStatus;
                 var progress = activityState.BuildProgressReplay();
                 var titles = Hmp1TitleStateReplay.Build(snap,
                     Hmp1Protocol.MaxPayloadSize - Encoding.UTF8.GetByteCount(prefix) -
@@ -500,6 +504,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                 widthSnapshot = _width;
                 heightSnapshot = _height;
                 activityState = Hmp1ActivityState.Default;
+                programStatusState = new TerminalProgramStatusSnapshot([]);
                 syncBytes = [];
                 kgpPlacements = [];
                 kgpImages = new Dictionary<uint, KgpImageData>();
@@ -613,10 +618,12 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         // hasn't yet received a handle.
         await Hmp1Protocol.WriteHelloAsync(
             stream, widthSnapshot, heightSnapshot, peerId, primarySnapshot, roster, ct,
-            session.ScrollbackHistoryRows, session.CommandMarkHistory).ConfigureAwait(false);
+            session.ScrollbackHistoryRows, session.CommandMarkHistory, session.ProgramStatus).ConfigureAwait(false);
 
         await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.StateSync, syncBytes, ct).ConfigureAwait(false);
         await Hmp1Protocol.WriteActivityStateAsync(stream, activityState, ct).ConfigureAwait(false);
+        if (session.ProgramStatus)
+            await Hmp1ProgramStatusState.WriteAsync(stream, programStatusState, ct).ConfigureAwait(false);
         if (scrollbackState is not null)
             await scrollbackState.WriteAsync(stream, session.ScrollbackHistoryRows, ct).ConfigureAwait(false);
         if (commandMarkState is not null)
@@ -768,6 +775,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
         var replayActivity = _terminal?.Hmp1ReplayActivityState;
+        var replayProgramStatus = _terminal?.Hmp1ReplayProgramStatusState;
         var replayScrollback = _terminal?.Hmp1ReplayScrollbackState ?? Hmp1ScrollbackState.Unavailable;
         var replayCommands = _terminal?.Hmp1ReplayCommandMarkState ?? Hmp1CommandMarkState.Unavailable;
         if (_disposed || (data.IsEmpty && replayActivity is null)) return ValueTask.CompletedTask;
@@ -799,6 +807,10 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                             .ConfigureAwait(false);
                         await Hmp1Protocol.WriteActivityStateAsync(stream, replayActivity, session.Cts.Token)
                             .ConfigureAwait(false);
+                        if (session.ProgramStatus)
+                            await Hmp1ProgramStatusState.WriteAsync(stream,
+                                replayProgramStatus ?? new TerminalProgramStatusSnapshot([]), session.Cts.Token)
+                                .ConfigureAwait(false);
                         if (session.ScrollbackHistoryRows > 0)
                             await replayScrollback.WriteAsync(stream, session.ScrollbackHistoryRows, session.Cts.Token)
                                 .ConfigureAwait(false);
@@ -817,6 +829,32 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         }
 
         return ValueTask.CompletedTask;
+    }
+
+    private void BroadcastProgramStatus(TerminalProgramStatusSnapshot snapshot)
+    {
+        // StateSync already carries the authoritative value. Do not echo the commit
+        // event as a second live checkpoint while forwarding that transaction.
+        if (_disposed || _terminal?.Hmp1ReplayActivityState is not null ||
+            _terminal?.Hmp1ApplyingWorkloadOutput == true)
+            return;
+        var payload = Hmp1ProgramStatusState.Encode(snapshot);
+        lock (_sessionsLock)
+        {
+            for (var i = _sessions.Count - 1; i >= 0; i--)
+            {
+                var session = _sessions[i];
+                if (!session.ProgramStatus || session.BrowserView is not null)
+                    continue;
+                if (!session.OutputChannel.Writer.TryWrite(new Hmp1OutboundWork(default, stream =>
+                    Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.ProgramStatusState,
+                        payload, session.Cts.Token).AsTask())))
+                {
+                    _sessions.RemoveAt(i);
+                    _ = DisposeSessionAsync(session);
+                }
+            }
+        }
     }
 
     /// <inheritdoc />
@@ -856,6 +894,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     {
         if (_disposed) return;
         _disposed = true;
+        if (_terminal is not null)
+            _terminal.ProgramStatusChanged -= BroadcastProgramStatus;
 
         Hmp1ClientSession[] snapshot;
         lock (_sessionsLock)
@@ -1320,6 +1360,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         public int RemoteWidth { get; set; }
         public int RemoteHeight { get; set; }
         public int ScrollbackHistoryRows { get; set; }
+        public bool ProgramStatus { get; set; }
         public bool CommandMarkHistory { get; set; }
 
         /// <summary>

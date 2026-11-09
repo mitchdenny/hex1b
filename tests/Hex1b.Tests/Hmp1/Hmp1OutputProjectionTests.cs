@@ -16,6 +16,9 @@ public class Hmp1OutputProjectionTests
     [DataRow("\x1b_Ga=q,i=1,f=32,s=1,v=1;AAAAAA==\x1b\\")]
     [DataRow("\x1b_Ga=q,i=1\x1b\\")]
     [DataRow("\u009fGa=q,i=1;AAAAAA==\u009c")]
+    [DataRow("\x1b]7501;?\a")]
+    [DataRow("\x1b]7501;?\x1b\\")]
+    [DataRow("\u009d7501;?\u009c")]
     public void Process_QueryAtEveryByteBoundary_ConsumesOnlyQuery(string query)
     {
         var bytes = Encoding.UTF8.GetBytes("before" + query + "after");
@@ -41,6 +44,9 @@ public class Hmp1OutputProjectionTests
     [DataRow("\u00dc\u00df\u041c\U0001f31c")]
     [DataRow("\x1b[123\x18ordinary\x1b[456\x1aordinary")]
     [DataRow("\x1b_Ga=invalid,i=1;AAAAAA==\x1b\\")]
+    [DataRow("\x1b]7501;state=working:id=job\a")]
+    [DataRow("\x1b]7501;?:states=idle,working\x1b\\")]
+    [DataRow("\u009d7501;state=blocked:kind=question\u009c")]
     public void Process_NonQueries_PreservesBytes(string text)
     {
         Assert.AreEqual(text, ProjectOneByteAtATime(Encoding.UTF8.GetBytes(text)));
@@ -72,6 +78,7 @@ public class Hmp1OutputProjectionTests
 
     [TestMethod]
     [DataRow("\x1b[c", "")]
+    [DataRow("\x1b]7501;?\x1b\\", "")]
     [DataRow("\x1b[16t", "")]
     [DataRow("\x1b_Ga=q,i=1;AAAAAA==\x1b\\", "")]
     [DataRow("\x1b[4;8H", "\x1b[4;8H")]

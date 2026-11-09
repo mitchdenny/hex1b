@@ -63,15 +63,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="SkiaSharp" Version="4.153.1" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.153.1" />
-    <PackageReference Include="Svg.Skia" Version="5.2.3" />
-    <PackageReference Include="System.CommandLine" Version="2.0.12" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
+    <PackageReference Include="Svg.Skia" />
+    <PackageReference Include="System.CommandLine" />
   </ItemGroup>
 
   <!-- Use the packed Hex1b package when validating the published tool layout in CI. -->
   <ItemGroup Condition="'$(UseHex1bPackageReference)' == 'true'">
-    <PackageReference Include="Hex1b" Version="$(Hex1bPackageVersion)" />
+    <PackageReference Include="Hex1b" VersionOverride="$(Hex1bPackageVersion)" />
   </ItemGroup>
 
   <!-- Keep local development on a project reference so changes flow through without packing. -->

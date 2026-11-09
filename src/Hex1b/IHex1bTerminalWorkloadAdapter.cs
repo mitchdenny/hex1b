@@ -1,19 +1,26 @@
+using Hex1b.Input;
+
 namespace Hex1b;
 
 /// <summary>
 /// Terminal-side interface: What Hex1bTerminal needs from any workload.
-/// Raw byte streams for maximum flexibility.
+/// Provides raw output with a choice of raw or parsed input.
 /// </summary>
 /// <remarks>
 /// <para>
 /// This interface represents the "workload side" of the terminal - the process
-/// or application connected to the terminal. It deals with raw bytes only.
+/// or application connected to the terminal.
+/// </para>
+/// <para>
+/// Input defaults to original raw bytes. Return <see cref="Hex1bTerminalInputMode.ParsedEvents"/>
+/// from <see cref="InputMode"/> and implement event delivery
+/// to use the terminal's input decoding without depending on <see cref="Hex1bApp"/>.
 /// </para>
 /// <para>
 /// Data flow:
 /// <list type="bullet">
 ///   <item><see cref="ReadOutputAsync"/> - Terminal reads output FROM the workload (ANSI to display)</item>
-///   <item><see cref="WriteInputAsync"/> - Terminal writes input TO the workload (keystrokes, mouse)</item>
+///   <item><see cref="WriteInputAsync"/> or <see cref="WriteInputEventAsync"/> - Terminal writes input TO the workload</item>
 /// </list>
 /// </para>
 /// <para>
@@ -28,6 +35,23 @@ namespace Hex1b;
 /// </remarks>
 public interface IHex1bTerminalWorkloadAdapter : IAsyncDisposable
 {
+    /// <summary>
+    /// Gets the input representation requested by this workload.
+    /// Defaults to <see cref="Hex1bTerminalInputMode.RawBytes"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The terminal captures this value at construction. Parsed-event workloads must
+    /// implement <see cref="WriteInputEventAsync"/> and <see cref="TryWriteInputEvent"/>.
+    /// Selecting parsed input does not also deliver the original presentation bytes.
+    /// </para>
+    /// <para>
+    /// Explicit raw input sent through <see cref="Hex1bTerminal.SendInputAsync"/> and
+    /// terminal protocol responses still use <see cref="WriteInputAsync"/>.
+    /// </para>
+    /// </remarks>
+    Hex1bTerminalInputMode InputMode => Hex1bTerminalInputMode.RawBytes;
+
     /// <summary>
     /// Gets whether the workload's upstream terminal owns protocol query responses.
     /// </summary>
@@ -48,9 +72,29 @@ public interface IHex1bTerminalWorkloadAdapter : IAsyncDisposable
     
     /// <summary>
     /// Write input TO the workload (raw bytes from keyboard/mouse).
-    /// The terminal calls this when it receives input from the presentation layer.
+    /// The terminal calls this for presentation input when <see cref="InputMode"/> is
+    /// <see cref="Hex1bTerminalInputMode.RawBytes"/>. Explicit raw input still uses this method.
     /// </summary>
     ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default);
+
+    /// <summary>
+    /// Writes a parsed input event to the workload, waiting for capacity if necessary.
+    /// </summary>
+    /// <param name="evt">The input event to deliver.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A task that completes when the event has been accepted.</returns>
+    /// <exception cref="NotSupportedException">The workload has not implemented parsed-event delivery.</exception>
+    ValueTask WriteInputEventAsync(Hex1bEvent evt, CancellationToken ct = default)
+        => throw new NotSupportedException("Implement WriteInputEventAsync when InputMode is ParsedEvents.");
+
+    /// <summary>
+    /// Attempts to write an input event without waiting, for synchronous input injection.
+    /// </summary>
+    /// <param name="evt">The input event to deliver.</param>
+    /// <returns>True if the event was accepted; otherwise, false.</returns>
+    /// <exception cref="NotSupportedException">The workload has not implemented parsed-event delivery.</exception>
+    bool TryWriteInputEvent(Hex1bEvent evt)
+        => throw new NotSupportedException("Implement TryWriteInputEvent when InputMode is ParsedEvents.");
     
     /// <summary>
     /// Notify workload of terminal resize.

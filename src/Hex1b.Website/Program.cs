@@ -399,29 +399,19 @@ async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example,
     // Create the presentation adapter for WebSocket I/O
     await using var presentation = new WebSocketPresentationAdapter(webSocket, 80, 24, enableMouse: example.EnableMouse);
     
-    // Create the workload adapter that Hex1bApp will use
-    var workload = new Hex1bAppWorkloadAdapter(presentation);
-    
-    // Create terminal options
     var metricsOptions = new Hex1bMetricsOptions();
 #if DEBUG
     metricsOptions.EnablePerNodeMetrics = true;
 #endif
-    var metrics = new Hex1bMetrics(options: metricsOptions);
-
-    var terminalOptions = new Hex1bTerminalOptions
-    {
-        PresentationAdapter = presentation,
-        WorkloadAdapter = workload,
-        Metrics = metrics
-    };
-    
-    // Create the terminal that bridges presentation ↔ workload
-    // Terminal auto-starts I/O pumps when presentation is provided
-    using var terminal = new Hex1bTerminal(terminalOptions);
+    using var metrics = new Hex1bMetrics(options: metricsOptions);
+    var builder = Hex1bTerminal.CreateSlimBuilder()
+        .WithPresentation(presentation)
+        .WithDimensions(80, 24)
+        .WithMouse(example.EnableMouse)
+        .WithMetrics(metrics);
     
     // Check if the example manages its own app lifecycle
-    var runTask = example.RunAsync(workload, cts.Token);
+    var runTask = example.RunAsync(builder, cts.Token);
     
     Task appTask;
     if (runTask != null)
@@ -434,16 +424,15 @@ async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example,
         // Use the traditional widget builder pattern
         var widgetBuilder = example.CreateWidgetBuilder()!;
         var themeProvider = example.CreateThemeProvider();
-        var options = new Hex1bAppOptions 
-        { 
-            WorkloadAdapter = workload,
-            ThemeProvider = themeProvider,
-            EnableMouse = example.EnableMouse,
-            Metrics = metrics
-        };
-        var hex1bApp = new Hex1bApp(ctx => widgetBuilder(), options);
-        
-        appTask = hex1bApp.RunAsync(cts.Token);
+        appTask = RunWidgetExampleAsync();
+
+        async Task RunWidgetExampleAsync()
+        {
+            await using var terminal = builder
+                .WithHex1bApp(options => options.ThemeProvider = themeProvider, _ => widgetBuilder())
+                .Build();
+            await terminal.RunAsync(cts.Token);
+        }
     }
     
     try

@@ -25,6 +25,9 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Install Native AOT prerequisites
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang zlib1g-dev
+
       - name: Build native library for tests
         working-directory: src/Hex1b/native
         run: make
@@ -42,17 +45,25 @@ jobs:
       - name: Run tests
         id: test
         continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 45
+        env:
+          HEX1B_RUN_NATIVE_AOT_TESTS: '1'
         run: |
           dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
             --no-build \
             -- --report-trx --report-trx-filename test-results.trx \
-               --results-directory ./TestResults \
-               --filter "FullyQualifiedName!~EditorFuzzTests"
+               --results-directory ./TestResults
           dotnet test tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj \
             --no-build \
             -- --report-trx --report-trx-filename mcp-test-results.trx \
                --results-directory ./TestResults
+
+      - name: Upload test results and Native AOT evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: daily-test-results
+          path: ./TestResults/
 
       - name: Process test results
         if: always()
