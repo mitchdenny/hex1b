@@ -37,19 +37,21 @@ namespace Hex1b;
 /// <example>
 /// <para>Production usage:</para>
 /// <code>
-/// var presentation = new ConsolePresentationAdapter();
-/// var workload = new Hex1bAppWorkloadAdapter(presentation.Width, presentation.Height);
-/// var terminal = new Hex1bTerminal(presentation, workload);
-/// var app = new Hex1bApp(workload, ctx => ctx.Text("Hello"));
-/// await app.RunAsync();
+/// await using var terminal = Hex1bTerminal.CreateBuilder()
+///     .WithHex1bApp(ctx =&gt; ctx.Text("Hello")).Build();
+/// await terminal.RunAsync();
 /// </code>
 /// <para>Testing usage:</para>
 /// <code>
-/// var workload = new Hex1bAppWorkloadAdapter(80, 24);
-/// var terminal = new Hex1bTerminal(workload);  // headless
-/// var app = new Hex1bApp(workload, ctx => ctx.Text("Hello"));
-/// // ... run and test ...
-/// Assert.True(terminal.ContainsText("Hello"));
+/// await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+///     .WithHeadless().WithDimensions(80, 24)
+///     .WithHex1bApp(ctx =&gt; ctx.Text("Hello")).Build();
+/// var run = terminal.RunAsync();
+/// await new Hex1b.Automation.Hex1bTerminalInputSequenceBuilder()
+///     .WaitUntil(s =&gt; s.ContainsText("Hello"), TimeSpan.FromSeconds(5))
+///     .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
+///     .Build().ApplyAsync(terminal);
+/// await run;
 /// </code>
 /// </example>
 public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
@@ -318,6 +320,29 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </code>
     /// </example>
     public static Hex1bTerminalBuilder CreateBuilder() => new();
+
+    /// <summary>
+    /// Creates a terminal builder without a default presentation or workload.
+    /// </summary>
+    /// <returns>A new builder requiring explicit presentation and workload configuration.</returns>
+    /// <remarks>
+    /// Configure presentation with <see cref="Hex1bTerminalBuilder.WithHeadless()"/> or
+    /// <see cref="Hex1bTerminalBuilder.WithPresentation"/>, and configure a workload before building.
+    /// Unlike <see cref="CreateBuilder"/>, this entry point does not register console presentation.
+    /// Terminal dimensions and other option defaults are unchanged.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+    ///     .WithHeadless()
+    ///     .WithDimensions(80, 24)
+    ///     .WithHex1bApp(ctx => ctx.Text("Hello"))
+    ///     .Build();
+    ///
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public static Hex1bTerminalBuilder CreateSlimBuilder() => Hex1bTerminalBuilder.CreateSlim();
 
     // === Constructor ===
 

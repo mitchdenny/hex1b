@@ -5,11 +5,11 @@ namespace WebTerminalDemo;
 
 internal static class ProgramStatusDemo
 {
-    internal static async Task RunAsync(IHex1bAppTerminalWorkloadAdapter workload, CancellationToken ct)
+    internal static Hex1bTerminalBuilder Configure(Hex1bTerminalBuilder builder)
     {
         var step = 0;
         var description = "No reports yet. Activate Next status to start.";
-        await using var app = new Hex1bApp(ctx => ctx.VStack(v =>
+        return builder.WithHex1bApp(ctx => ctx.VStack(v =>
         [
             v.Text("OSC 7501: real Hex1bApp callback -> terminal -> HMP1/HWT1"),
             v.Text("Open Status in this view's title bar to inspect the inventory."),
@@ -99,7 +99,6 @@ internal static class ProgramStatusDemo
                 }
             }),
             v.Button("Quit").OnClick(e => e.Context.RequestStop())
-        ]), new Hex1bAppOptions { WorkloadAdapter = workload });
-        await app.RunAsync(ct);
+        ]));
     }
 }

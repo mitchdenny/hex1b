@@ -27,7 +27,7 @@ public class TerminalBasicExample(ILogger<TerminalBasicExample> logger) : Reacti
     // Terminal session tracking
     private record TerminalSession(int Id, Hex1bTerminal Terminal, TerminalWidgetHandle Handle);
 
-    public override async Task RunAsync(IHex1bAppTerminalWorkloadAdapter workloadAdapter, CancellationToken cancellationToken)
+    public override async Task RunAsync(Hex1bTerminalBuilder builder, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Creating terminal widget demo");
 
@@ -40,6 +40,7 @@ public class TerminalBasicExample(ILogger<TerminalBasicExample> logger) : Reacti
 
         // References
         Hex1bApp? displayApp = null;
+        IHex1bAppTerminalWorkloadAdapter? workloadAdapter = null;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         // Helper to create a new terminal
@@ -48,7 +49,7 @@ public class TerminalBasicExample(ILogger<TerminalBasicExample> logger) : Reacti
             var id = nextTerminalId++;
             
             var terminal = Hex1bTerminal.CreateBuilder()
-                .WithDimensions(workloadAdapter.Width - 4, workloadAdapter.Height - 8)
+                .WithDimensions(workloadAdapter!.Width - 4, workloadAdapter.Height - 8)
                 .WithDiagnosticShell()
                 .WithTerminalWidget(out var handle)
                 .Build();
@@ -143,9 +144,6 @@ public class TerminalBasicExample(ILogger<TerminalBasicExample> logger) : Reacti
             displayApp?.RequestFocus(node => node is TerminalNode tn && tn.Handle == preservedSession.Handle);
             displayApp?.Invalidate();
         }
-
-        // Create initial terminal
-        AddTerminal();
 
         // Build widget tree
         Hex1bWidget BuildWidget(RootContext ctx)
@@ -257,19 +255,21 @@ public class TerminalBasicExample(ILogger<TerminalBasicExample> logger) : Reacti
         }
 
         // Create and run the display app
-        await using var app = new Hex1bApp(
-            ctx => BuildWidget(ctx),
-            new Hex1bAppOptions
+        await using var terminal = builder.WithMouse().WithHex1bApp(
+            options =>
             {
-                WorkloadAdapter = workloadAdapter,
-                EnableMouse = true
-            });
-
-        displayApp = app;
+                workloadAdapter = options.WorkloadAdapter;
+            },
+            app =>
+            {
+                displayApp = app;
+                AddTerminal();
+                return ctx => BuildWidget(ctx);
+            }).Build();
 
         try
         {
-            await app.RunAsync(cts.Token);
+            await terminal.RunAsync(cts.Token);
         }
         finally
         {

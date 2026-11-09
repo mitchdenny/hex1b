@@ -46,7 +46,7 @@ public interface IGalleryExample
     /// Override this for examples that need to manage their own app (e.g., reactive/timer-based).
     /// Returns null if CreateWidgetBuilder should be used instead.
     /// </summary>
-    Task? RunAsync(IHex1bAppTerminalWorkloadAdapter workloadAdapter, CancellationToken cancellationToken) => null;
+    Task? RunAsync(Hex1bTerminalBuilder builder, CancellationToken cancellationToken) => null;
 }
 
 /// <summary>
@@ -79,5 +79,5 @@ public abstract class ReactiveExample : IGalleryExample
     public abstract string Title { get; }
     public abstract string Description { get; }
 
-    public abstract Task RunAsync(IHex1bAppTerminalWorkloadAdapter workloadAdapter, CancellationToken cancellationToken);
+    public abstract Task RunAsync(Hex1bTerminalBuilder builder, CancellationToken cancellationToken);
 }

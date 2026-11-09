@@ -57,7 +57,7 @@ namespace Hex1b.Widgets;
 /// <example>
 /// <para>A complete notification-enabled application:</para>
 /// <code>
-/// var app = new Hex1bApp(ctx =&gt; ctx.ZStack(z =&gt; [
+/// await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =&gt; ctx.ZStack(z =&gt; [
 ///     z.VStack(v =&gt; [
 ///         v.HStack(bar =&gt; [
 ///             bar.Button("File"),
@@ -74,7 +74,8 @@ namespace Hex1b.Widgets;
 ///             })
 ///         ).Fill()
 ///     ])
-/// ]));
+/// ])).Build();
+/// await terminal.RunAsync();
 /// </code>
 /// </example>
 /// <seealso cref="Notification"/>

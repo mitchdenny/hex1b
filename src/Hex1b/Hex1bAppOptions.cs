@@ -9,11 +9,9 @@ namespace Hex1b;
 /// </summary>
 public class Hex1bAppOptions
 {
-    // === New way (preferred) ===
-    
     /// <summary>
-    /// Custom workload adapter. When set, the app uses this directly.
-    /// This is the preferred way to provide custom terminal infrastructure.
+    /// The workload adapter used by the app. Terminal builders supply this automatically;
+    /// app construction requires a non-null adapter and never creates console presentation.
     /// </summary>
     public IHex1bAppTerminalWorkloadAdapter? WorkloadAdapter { get; set; }
     

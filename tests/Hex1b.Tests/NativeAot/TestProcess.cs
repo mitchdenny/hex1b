@@ -16,6 +16,78 @@ internal sealed class TestProcessException(ProcessOutcome outcome, Exception? in
 
 internal static class TestProcess
 {
+    public static async Task<ProcessOutcome> RunPtyAsync(string executable, string workingDirectory,
+        string logPath, IReadOnlyList<string> stopPrompts, CancellationToken cancellationToken)
+    {
+        IPtyHandle pty = OperatingSystem.IsWindows() ? new WindowsProxyPtyHandle() : new UnixPtyHandle();
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        lifetime.CancelAfter(TimeSpan.FromSeconds(30));
+        var output = new StringBuilder();
+        int? exitCode = null;
+        var status = "running in PTY";
+        var prompt = 0;
+        Exception? failure = null;
+        try
+        {
+            var environment = new Dictionary<string, string>();
+            foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables())
+            {
+                if (entry.Key is string key && entry.Value is string value)
+                    environment[key] = value;
+            }
+            await pty.StartAsync(executable, [], workingDirectory, environment, 100, 24, lifetime.Token);
+            var decoder = Encoding.UTF8.GetDecoder();
+            var chars = new char[4096];
+            while (true)
+            {
+                var bytes = await pty.ReadAsync(lifetime.Token);
+                if (bytes.IsEmpty)
+                    break;
+                var remaining = bytes;
+                while (!remaining.IsEmpty)
+                {
+                    decoder.Convert(remaining.Span, chars, false, out var used, out var count, out _);
+                    output.Append(chars, 0, count);
+                    remaining = remaining[used..];
+                }
+                if (prompt < stopPrompts.Count && output.ToString().Contains(stopPrompts[prompt], StringComparison.Ordinal))
+                {
+                    await pty.WriteAsync(new byte[] { 3 }, lifetime.Token);
+                    prompt++;
+                }
+            }
+            exitCode = await pty.WaitForExitAsync(lifetime.Token);
+            status = "exited";
+            if (exitCode != 0 || prompt != stopPrompts.Count)
+                throw new InvalidOperationException($"Native console control exited with code {exitCode}, rendered {prompt}/{stopPrompts.Count} prompts.");
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+            status = "PTY execution failed";
+        }
+        finally
+        {
+            try
+            {
+                await Task.Run(async () => await pty.DisposeAsync()).WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (Exception ex)
+            {
+                failure = failure is null ? ex : new AggregateException(failure, ex);
+                status += "; PTY cleanup failed";
+            }
+            await File.WriteAllTextAsync(logPath,
+                $"Command: {executable}\nWorking directory: {workingDirectory}\nStatus: {status}\nExit code: {exitCode}\n" +
+                $"Rendered prompts: {prompt}/{stopPrompts.Count}\nFailure: {failure}\n--- PTY output ---\n{output}",
+                CancellationToken.None);
+        }
+        var outcome = new ProcessOutcome(executable, exitCode, output.ToString(), "", status, logPath);
+        if (failure is not null)
+            throw new TestProcessException(outcome, failure);
+        return outcome;
+    }
+
     public static async Task<ProcessOutcome> RunAsync(string executable, IReadOnlyList<string> arguments,
         string workingDirectory, string logPath, TimeSpan timeout, CancellationToken cancellationToken)
     {

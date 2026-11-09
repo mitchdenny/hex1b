@@ -9,6 +9,20 @@ public sealed class ScenarioInfrastructureTests
     public TestContext TestContext { get; set; } = null!;
 
     [TestMethod]
+    public async Task CreateProject_ConsumerDefines_DoesNotChangeLibraryReferenceOrImportedProps()
+    {
+        var directory = ScenarioRunner.CreateArtifacts("ConsumerDefines");
+        var projectPath = await ScenarioRunner.CreateProjectAsync(directory, "Probe", "Console.WriteLine(1);",
+            TestContext.CancellationToken, defines: ["DEFAULT_BUILDER", "APP_CONTROL"]);
+        var project = XDocument.Load(projectPath).Root!;
+        Assert.AreEqual("$(DefineConstants);DEFAULT_BUILDER;APP_CONTROL",
+            project.Element("PropertyGroup")!.Element("DefineConstants")!.Value);
+        Assert.IsNull(project.Element("ItemGroup")!.Element("ProjectReference")!.Element("AdditionalProperties"));
+        Assert.IsFalse(XDocument.Load(Path.Combine(directory, "source", "Directory.Build.props"))
+            .Descendants("DefineConstants").Any());
+    }
+
+    [TestMethod]
     [DataRow(null, false)]
     [DataRow("", false)]
     [DataRow("0", false)]
@@ -46,4 +60,5 @@ public sealed class ScenarioInfrastructureTests
         TestContext.AddResultFile(projectPath);
         TestContext.AddResultFile(propsPath);
     }
+
 }

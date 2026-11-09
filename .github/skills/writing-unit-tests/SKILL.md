@@ -613,6 +613,24 @@ mentioned in generic signatures. Keep publish/intermediate properties scoped to
 consumers so analyzer and native-helper references retain normal build settings.
 See `tests/Hex1b.Tests/NativeAot/README.md` for prerequisites, full execution and evidence.
 
+`HeadlessConsoleTests` compares normal and slim construction against identical
+library inputs and consumer source, with a consumer-local compilation symbol.
+It requires console code in the normal-builder control and forbids it in the
+slim consumer, while verifying matching text/chart snapshots. Historical
+source-substitution experiments remain documented in the Native AOT README,
+not executed in routine CI. Keep pooling, analyzers, native helpers and publish
+assets unchanged; never enforce a machine-specific executable byte budget.
+
+For console + PTY native consumers, inherit a snapshot of the parent environment
+into the child-specific PTY environment; do not mutate or log the host environment.
+An empty environment can let a console-only consumer run but break its nested
+Windows proxy PTY with Winsock error 10106. Exercise a real
+child readiness/input/output/exit exchange, not just construction. See
+`ConsolePtyTests` for matched normal/slim builders and optional rendered-app
+positive controls. Keep compilation symbols consumer-local and compare library
+hashes; omitting an explicitly opted-in app measures that feature's cost, not
+automatic retention by the normal builder.
+
 ### Output-Pump Allocation Regressions
 
 Measure `GC.GetAllocatedBytesForCurrentThread()` around a synchronous application

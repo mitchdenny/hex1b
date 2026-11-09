@@ -1,22 +1,23 @@
 <script setup>
 const step1Code = `using Hex1b;
 
-var app = new Hex1bApp(ctx => ctx.Text("Hello, Hex1b!"));
-await app.RunAsync();`
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp(ctx => ctx.Text("Hello, Hex1b!")).Build();
+await terminal.RunAsync();`
 
 const step2Code = `using Hex1b;
 
 var state = new CounterState();
 
-var app = new Hex1bApp(ctx =>
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.Border(b => [
         b.Text($"Button pressed {state.Count} times"),
         b.Text(""),
         b.Button("Click me!").OnClick(_ => state.Count++)
-    ], title: "Counter Demo")
-);
+    ]).Title("Counter Demo")
+).Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 // Define a simple state class to hold our counter
 class CounterState
@@ -28,18 +29,18 @@ const step3Code = `using Hex1b;
 
 var state = new TodoState();
 
-var app = new Hex1bApp(ctx =>
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.VStack(v => [
         v.Border(b => [
             b.Text("📋 My Todos"),
             b.Text(""),
             b.List(state.FormatItems()).OnItemActivated(e => state.ToggleItem(e.ActivatedIndex))
-        ], title: "Todo List").Fill(),
+        ]).Title("Todo List").Fill(),
         v.InfoBar("↑↓ Navigate  Space: Toggle")
     ])
-);
+).Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class TodoState
 {
@@ -65,7 +66,7 @@ using Hex1b.Widgets;
 
 var state = new TodoState();
 
-var app = new Hex1bApp(ctx =>
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.VStack(v => [
         v.Border(b => [
             b.HStack(h => [
@@ -75,12 +76,12 @@ var app = new Hex1bApp(ctx =>
             ]),
             new SeparatorWidget(),
             b.List(state.FormatItems()).OnItemActivated(e => state.ToggleItem(e.ActivatedIndex))
-        ], title: "📋 Todo").Fill(),
+        ]).Title("📋 Todo").Fill(),
         v.InfoBar("Tab: Focus next  Space: Toggle")
     ])
-);
+).Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class TodoState
 {
@@ -116,7 +117,7 @@ using Hex1b.Widgets;
 
 var state = new TodoState();
 
-var app = new Hex1bApp(ctx =>
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.VStack(v => [
         v.Border(b => [
             b.Text($"📋 Todo List ({state.RemainingCount} remaining)"),
@@ -132,12 +133,12 @@ var app = new Hex1bApp(ctx =>
                 .OnItemActivated(e => state.ToggleItem(e.ActivatedIndex)),
             b.Text(""),
             b.Button("Delete Selected").OnClick(_ => state.DeleteItem(state.SelectedIndex))
-        ], title: "My Todos").Fill(),
+        ]).Title("My Todos").Fill(),
         v.InfoBar("↑↓: Navigate  Space: Toggle  Tab: Focus  Del: Delete")
     ])
-);
+).Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class TodoState
 {

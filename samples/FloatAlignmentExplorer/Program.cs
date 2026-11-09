@@ -10,7 +10,8 @@ string[] horizontalOptions = ["(none)", "AlignLeft", "AlignRight", "ExtendLeft",
 string[] verticalOptions = ["(none)", "AlignTop", "AlignBottom", "ExtendTop", "ExtendBottom"];
 string[] offsetOptions = ["0", "-2", "-1", "1", "2", "3", "4"];
 
-var app = new Hex1bApp(ctx => ctx.VStack(v =>
+await using var terminal = Hex1bTerminal.CreateBuilder().WithMouse()
+    .WithHex1bApp(ctx => ctx.VStack(v =>
 {
     // Anchor — the inner border is the alignment target
     var anchorBorder = v.Border(b => [
@@ -52,9 +53,9 @@ var app = new Hex1bApp(ctx => ctx.VStack(v =>
         anchorDisplay,
         floated,
     ];
-}), new Hex1bAppOptions { EnableMouse = true });
+})).Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 FloatWidget ApplyAlignment(FloatWidget floated, Hex1bWidget anchor)
 {

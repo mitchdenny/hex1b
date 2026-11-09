@@ -107,14 +107,14 @@ Use `<example>` and `<code>` tags for key APIs within the Hex1b framework. Examp
 /// <code>
 /// using Hex1b;
 /// 
-/// var app = new Hex1bApp(ctx =&gt;
+/// await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =&gt;
 ///     ctx.VStack(v => [
 ///         v.Text("Hello, Hex1b!"),
-///         v.Button("Quit", e => e.Context.RequestStop())
+///         v.Button("Quit").OnClick(e => e.Context.RequestStop())
 ///     ])
-/// );
+/// ).Build();
 /// 
-/// await app.RunAsync();
+/// await terminal.RunAsync();
 /// </code>
 /// </example>
 ```
@@ -233,14 +233,14 @@ using Hex1b;
 
 var state = new CounterState();
 
-var app = new Hex1bApp(ctx =>
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.Border(b => [
         b.Text($"Button pressed {state.Count} times"),
         b.Button("Click me!").OnClick(_ => state.Count++)
-    ], title: "Counter Demo")
-);
+    ]).Title("Counter Demo")
+).Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 
 class CounterState
 {
@@ -508,13 +508,13 @@ This is NOT optional. Documentation without working interactive demos is incompl
 const basicCode = \`using Hex1b;
 using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.VStack(v => [
         v.WidgetMethod("example")
     ])
-));
+).Build();
 
-await app.RunAsync();\`
+await terminal.RunAsync();\`
 </script>
 
 # WidgetName
@@ -569,21 +569,22 @@ public class WidgetBasicExample(ILogger<WidgetBasicExample> logger) : Hex1bExamp
 using Hex1b;
 using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.Text("Hello, World!")
-));
+).Build();
 
-await app.RunAsync();
+await terminal.RunAsync();
 ```
 
 **Show widgets in context** - Demonstrate usage within layout containers:
 ```csharp
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.VStack(v => [
         v.Text("Title"),
         v.Text("Description")
     ])
-));
+).Build();
+await terminal.RunAsync();
 ```
 
 ##### Template Structure
@@ -595,11 +596,11 @@ The following template shows the recommended structure. Adapt it based on the wi
 const basicCode = \`using Hex1b;
 using Hex1b.Widgets;
 
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.WidgetMethod("example")
-));
+).Build();
 
-await app.RunAsync();\`
+await terminal.RunAsync();\`
 </script>
 
 # WidgetName
@@ -1036,9 +1037,10 @@ state while keeping your UI responsive.
 ✅ **Do provide complete, runnable examples**
 ```csharp
 var state = new CounterState();
-var app = new Hex1bApp(ctx =>
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =>
     ctx.Button("Increment").OnClick(_ => state.Count++)
-);
+).Build();
+await terminal.RunAsync();
 ```
 
 ## Tools and Resources

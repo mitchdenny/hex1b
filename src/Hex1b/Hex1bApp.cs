@@ -22,14 +22,14 @@ namespace Hex1b;
 /// <code>
 /// using Hex1b;
 /// 
-/// var app = new Hex1bApp(ctx =&gt;
+/// await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx =&gt;
 ///     ctx.VStack(v => [
 ///         v.Text("Hello, Hex1b!"),
 ///         v.Button("Quit", e => e.Context.RequestStop())
 ///     ])
-/// );
+/// ).Build();
 /// 
-/// await app.RunAsync();
+/// await terminal.RunAsync();
 /// </code>
 /// </example>
 /// <remarks>
@@ -38,13 +38,15 @@ namespace Hex1b;
 /// 
 /// State management is handled via closures - simply capture your state variables
 /// in the widget builder callback.
+/// Construct apps through <see cref="Hex1bTerminalBuilder.WithHex1bApp(Func{RootContext, Hex1bWidget})"/>
+/// and run the owning terminal. App constructors are internal and never create
+/// a console fallback; the terminal supplies the workload adapter.
 /// </remarks>
 public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 {
     private readonly Func<RootContext, Task<Hex1bWidget>> _rootComponent;
     private readonly Func<Hex1bTheme>? _themeProvider;
     private readonly IHex1bAppTerminalWorkloadAdapter _adapter;
-    private readonly Hex1bTerminal? _ownedTerminal; // Terminal we created and should dispose
     private readonly Hex1bRenderContext _context;
     private readonly RootContext _rootContext = new();
     private readonly SemaphoreSlim _outputGate = new(1, 1);
@@ -264,11 +266,13 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// </summary>
     /// <param name="builder">A function that builds the widget tree.</param>
     /// <param name="options">Optional configuration options.</param>
-    public Hex1bApp(
+    internal Hex1bApp(
         Func<RootContext, Task<Hex1bWidget>> builder,
         Hex1bAppOptions? options = null)
     {
         options ??= new Hex1bAppOptions();
+        _adapter = options.WorkloadAdapter
+            ?? throw new ArgumentException("WorkloadAdapter is required. Create apps with Hex1bTerminal.CreateBuilder().WithHex1bApp().", nameof(options));
         
         _rootComponent = builder;
         _themeProvider = options.ThemeProvider;
@@ -284,26 +288,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // Check if mouse is enabled in options
         _mouseEnabled = options.EnableMouse;
         
-        // Create or use provided adapter
-        if (options.WorkloadAdapter != null)
-        {
-            // Use provided adapter directly
-            _adapter = options.WorkloadAdapter;
-            _ownedTerminal = null;
-        }
-        else
-        {
-            // Default: create console terminal using new architecture
-            var presentation = new ConsolePresentationAdapter(enableMouse: _mouseEnabled);
-            var workload = new Hex1bAppWorkloadAdapter(presentation) { EnableMouse = _mouseEnabled };
-            _ownedTerminal = new Hex1bTerminal(new Hex1bTerminalOptions
-            {
-                PresentationAdapter = presentation,
-                WorkloadAdapter = workload
-            });
-            _adapter = workload;
-        }
-
         // Propagate the app's mouse-enabled option into a pre-built Hex1bAppWorkloadAdapter
         // so it doesn't emit DECSET 1003h/1006h in EnterTuiMode unless this app actually
         // wants mouse input. Important for embedded scenarios (e.g. placeholder inside a
@@ -347,7 +331,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// </summary>
     /// <param name="builder">A function that builds the widget tree.</param>
     /// <param name="options">Optional configuration options.</param>
-    public Hex1bApp(
+    internal Hex1bApp(
         Func<RootContext, Hex1bWidget> builder,
         Hex1bAppOptions? options = null)
         : this(ctx => Task.FromResult(builder(ctx)), options)
@@ -2549,10 +2533,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         _stopRequested = true;
         _invalidateChannel.Writer.TryComplete();
         
-        // Dispose the owned terminal if we created it
-        // The terminal handles writing mouse disable sequences directly to the console
-        _ownedTerminal?.Dispose();
-        
         // Dispose the adapter
         if (_adapter is IDisposable disposable)
         {
@@ -2567,13 +2547,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // Signal RunAsync to exit immediately
         _stopRequested = true;
         _invalidateChannel.Writer.TryComplete();
-        
-        // Dispose the owned terminal if we created it
-        // The terminal handles writing mouse disable sequences directly to the console
-        if (_ownedTerminal != null)
-        {
-            await _ownedTerminal.DisposeAsync();
-        }
         
         // Dispose the adapter asynchronously
         await _adapter.DisposeAsync();

@@ -1157,20 +1157,22 @@ When testing documentation, verify that code examples follow these style convent
 
 ✅ **Correct** - Use the synchronous overload:
 ```csharp
-var app = new Hex1bApp(ctx => ctx.VStack(v => [
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx => ctx.VStack(v => [
     v.Text("Hello"),
     v.Button("Click me")
-]));
+])).Build();
+await terminal.RunAsync();
 ```
 
 ❌ **Incorrect** - Don't use `Task.FromResult` unless async is required:
 ```csharp
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
+await using var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx => Task.FromResult<Hex1bWidget>(
     ctx.VStack(v => [
         v.Text("Hello"),
         v.Button("Click me")
     ])
-));
+)).Build();
+await terminal.RunAsync();
 ```
 
 **When async IS required:**
@@ -1182,7 +1184,7 @@ var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(
 | Rule | Correct | Incorrect |
 |------|---------|-----------|
 | Use collection expressions | `v => [v.Text("A"), v.Text("B")]` | `v => new[] { v.Text("A"), v.Text("B") }` |
-| Prefer `var` | `var app = new Hex1bApp(...)` | `Hex1bApp app = new Hex1bApp(...)` |
+| Prefer `var` | `var terminal = Hex1bTerminal.CreateBuilder()...` | `Hex1bTerminal terminal = Hex1bTerminal.CreateBuilder()...` |
 | Include required `using` statements | Always show imports | Omit imports |
 | Use file-scoped classes for state | `class MyState { ... }` at end | Inline anonymous types |
 
@@ -1202,11 +1204,11 @@ Example report entry:
 **Rule:** Prefer synchronous Hex1bApp callbacks
 **Current:**
 \`\`\`csharp
-var app = new Hex1bApp(ctx => Task.FromResult<Hex1bWidget>(ctx.Button("Click")));
+var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx => Task.FromResult<Hex1bWidget>(ctx.Button("Click"))).Build();
 \`\`\`
 **Should be:**
 \`\`\`csharp
-var app = new Hex1bApp(ctx => ctx.Button("Click"));
+var terminal = Hex1bTerminal.CreateBuilder().WithHex1bApp(ctx => ctx.Button("Click")).Build();
 \`\`\`
 ```
 
