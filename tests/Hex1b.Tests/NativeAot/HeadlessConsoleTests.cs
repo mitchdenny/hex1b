@@ -75,6 +75,71 @@ public sealed class HeadlessConsoleTests
                     $"Snapshot changed in {report.Name}: {snapshot}.");
         }
 
+        await WriteComparisonAsync(reports, "console-comparison.json");
+    }
+
+    [TestMethod]
+    [TestCategory("NativeAot")]
+    [NativeAotEnabled]
+    public Task CreateBuilder_HeadlessTrue_NativePublish_MeasuresConstructorBranch()
+        => RunBuilderExperimentAsync(slim: false);
+
+    [TestMethod]
+    [TestCategory("NativeAot")]
+    [NativeAotEnabled]
+    public Task CreateSlimBuilder_NativePublish_MeasuresSeparateConstructor()
+        => RunBuilderExperimentAsync(slim: true);
+
+    private async Task RunBuilderExperimentAsync(bool slim)
+    {
+        var source = HeadlessSource.Replace("CreateBuilder()", slim ? "CreateSlimBuilder()" : "CreateBuilder(headless: true)", StringComparison.Ordinal)
+            .Replace(".WithHeadless().WithDimensions", ".WithDimensions", StringComparison.Ordinal);
+        var prefix = slim ? "HeadlessSlim" : "HeadlessBool";
+        var reports = new List<ScenarioReport>();
+        var variants = slim
+            ? new[] { "RuntimeReplacement", "SeparateConstruction", "SeparateConstructionWithoutAppFallback" }
+            : ["RuntimeReplacement", "ConstructorSelection", "ConstructorSelectionWithoutAppFallback"];
+        foreach (var variant in variants)
+        {
+            var separate = variant != "RuntimeReplacement";
+            var removeFallback = variant.EndsWith("WithoutAppFallback", StringComparison.Ordinal);
+            var consoleRemoved = slim && removeFallback;
+            reports.Add(await ScenarioRunner.RunAsync(new Scenario(prefix + variant,
+                consoleRemoved ? [Scenario.Terminal, Scenario.Builder, App, Chart, Pool]
+                    : [Scenario.Terminal, Scenario.Builder, App, Chart, Pool, ConsoleAdapter, ConsoleConstruction],
+                consoleRemoved ? [ConsoleAdapter, ConsoleConstruction, WindowsConsole, UnixConsole] : [])
+            {
+                ConsumerName = "HeadlessConsole"
+            }, source, TestContext, TestContext.CancellationToken,
+                slim ? CreateSlimOverrides(separate, removeFallback) : CreateBoolOverrides(separate, removeFallback),
+                $"Test-only {(slim ? "CreateSlimBuilder()" : "CreateBuilder(headless: true)")} prototype: {variant}."));
+        }
+        await RunInteractiveControlAsync(prefix + "DefaultInteractiveControl",
+            slim ? CreateSlimOverrides(true, false) : CreateBoolOverrides(true, false));
+        if (!slim)
+            await RunInteractiveControlAsync(prefix + "FalseInteractiveControl", CreateBoolOverrides(true, false),
+                explicitHeadlessFalse: true);
+        await RunInteractiveControlAsync(prefix + "RestoredInteractiveControl");
+        var baseline = reports[0];
+        foreach (var report in reports.Skip(1))
+        {
+            Assert.AreEqual(baseline.ConsumerSourceSha256, report.ConsumerSourceSha256);
+            Assert.AreEqual(baseline.Sdk, report.Sdk);
+            Assert.AreEqual(baseline.IlCompilerPackage, report.IlCompilerPackage);
+            Assert.AreEqual(baseline.Rid, report.Rid);
+            Assert.AreEqual(baseline.LibraryAssemblyIdentity, report.LibraryAssemblyIdentity);
+            Assert.AreEqual(baseline.LibraryProjectSha256, report.LibraryProjectSha256);
+            foreach (var snapshot in new[] { "text.svg", "chart.svg" })
+                Assert.AreEqual(File.ReadAllText(Path.Combine(baseline.ArtifactDirectory, snapshot)),
+                    File.ReadAllText(Path.Combine(report.ArtifactDirectory, snapshot)),
+                    $"Snapshot changed in {report.Name}: {snapshot}.");
+        }
+        await WriteComparisonAsync(reports, slim ? "headless-slim-comparison.json" : "headless-bool-comparison.json");
+    }
+
+    private async Task WriteComparisonAsync(IReadOnlyList<ScenarioReport> reports, string fileName)
+    {
+        var baseline = reports[0];
         var baselineMethods = NativeMap.Read(baseline.CompilerMapPath!);
         var comparison = reports.Select(report =>
         {
@@ -115,7 +180,7 @@ public sealed class HeadlessConsoleTests
                 report.PublishInventory
             };
         }).ToArray();
-        var path = Path.Combine(baseline.ArtifactDirectory, "console-comparison.json");
+        var path = Path.Combine(baseline.ArtifactDirectory, fileName);
         var json = JsonSerializer.Serialize(comparison, new JsonSerializerOptions { WriteIndented = true });
         await File.WriteAllTextAsync(path, json, TestContext.CancellationToken);
         TestContext.WriteLine(json);
@@ -128,14 +193,19 @@ public sealed class HeadlessConsoleTests
     public Task InteractiveConsole_NativePublish_PreservesDefaultBuilderAndStandaloneApp()
         => RunInteractiveControlAsync("InteractiveConsole");
 
-    private Task<ScenarioReport> RunInteractiveControlAsync(string name)
+    private Task<ScenarioReport> RunInteractiveControlAsync(string name,
+        IReadOnlyDictionary<string, string>? sourceOverrides = null, bool explicitHeadlessFalse = false)
         => ScenarioRunner.RunAsync(new Scenario(name,
             [Scenario.Terminal, Scenario.Builder, App, ConsoleAdapter, ConsoleConstruction], [])
         {
             UsePty = true,
             ConsumerName = "InteractiveConsole",
             PtyStopPrompts = ["builder-console-control", "standalone-console-control"]
-        }, """
+        }, explicitHeadlessFalse
+            ? InteractiveSource.Replace("CreateBuilder()", "CreateBuilder(headless: false)", StringComparison.Ordinal)
+            : InteractiveSource, TestContext, TestContext.CancellationToken, sourceOverrides);
+
+    private const string InteractiveSource = """
             using Hex1b;
 
             using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(15));
@@ -149,7 +219,7 @@ public sealed class HeadlessConsoleTests
                 await standalone.RunAsync(cancellation.Token);
             }
             Console.WriteLine("NATIVE_AOT_OK:InteractiveConsole");
-            """, TestContext, TestContext.CancellationToken);
+            """;
 
     [TestMethod]
     public void CreateOverrides_ConsoleExperiments_ChangeOnlyConstructionRegions()
@@ -208,6 +278,119 @@ public sealed class HeadlessConsoleTests
             ["Hex1bApp.cs"] = app,
             ["Hex1bTerminalBuilder.cs"] = builder
         };
+    }
+
+    [TestMethod]
+    public void CreateBoolOverrides_ConstructorSelection_RemovesSharedConsoleInitializer()
+    {
+        var baseline = CreateBoolOverrides(false, false);
+        var constructor = CreateBoolOverrides(true, false);
+        var isolated = CreateBoolOverrides(true, true);
+        Assert.AreEqual(baseline["Hex1bApp.cs"], constructor["Hex1bApp.cs"]);
+        Assert.AreEqual(constructor["Hex1bTerminalBuilder.cs"], isolated["Hex1bTerminalBuilder.cs"]);
+        StringAssert.Contains(constructor["Hex1bTerminalBuilder.cs"],
+            "private Func<Hex1bTerminalBuilder, IHex1bTerminalPresentationAdapter> _presentationFactory;");
+        StringAssert.Contains(constructor["Hex1bTerminalBuilder.cs"], "public Hex1bTerminalBuilder(bool headless)");
+        StringAssert.Contains(constructor["Hex1bTerminalBuilder.cs"], "_presentationFactory = headless");
+        StringAssert.Contains(constructor["Hex1bTerminalBuilder.cs"], "new ConsolePresentationAdapter");
+        StringAssert.Contains(constructor["Hex1bTerminal.cs"], "CreateBuilder(bool headless) => new(headless);");
+        Assert.IsFalse(isolated["Hex1bApp.cs"].Contains("new ConsolePresentationAdapter", StringComparison.Ordinal));
+    }
+
+    private static IReadOnlyDictionary<string, string> CreateBoolOverrides(bool selectInConstructor, bool removeAppFallback)
+    {
+        var sources = CreateOverrides(removeAppFallback, false).ToDictionary(pair => pair.Key, pair => pair.Value);
+        var terminal = File.ReadAllText(Path.Combine(ScenarioRunner.RepositoryRoot, "src", "Hex1b", "Hex1bTerminal.cs"))
+            .ReplaceLineEndings("\n");
+        const string createBuilder = "public static Hex1bTerminalBuilder CreateBuilder() => new();";
+        terminal = ReplaceRequired(terminal, createBuilder, createBuilder + "\n\n    " + (selectInConstructor
+            ? "public static Hex1bTerminalBuilder CreateBuilder(bool headless) => new(headless);"
+            : """
+              public static Hex1bTerminalBuilder CreateBuilder(bool headless)
+                  {
+                      var builder = new Hex1bTerminalBuilder();
+                      return headless ? builder.WithHeadless() : builder;
+                  }
+              """.ReplaceLineEndings("\n")));
+        sources["Hex1bTerminal.cs"] = terminal;
+        if (selectInConstructor)
+        {
+            var builder = sources["Hex1bTerminalBuilder.cs"];
+            builder = ReplaceRequired(builder,
+                "private Func<Hex1bTerminalBuilder, IHex1bTerminalPresentationAdapter> _presentationFactory = \n" +
+                "        builder => new ConsolePresentationAdapter(enableMouse: builder._enableMouse, preserveOPost: builder._preserveOPost);",
+                "private Func<Hex1bTerminalBuilder, IHex1bTerminalPresentationAdapter> _presentationFactory;");
+            builder = ReplaceRequired(builder, "public Hex1bTerminalBuilder()\n    {\n    }", BoolConstructors.ReplaceLineEndings("\n"));
+            sources["Hex1bTerminalBuilder.cs"] = builder;
+        }
+        return sources;
+    }
+
+    private const string BoolConstructors = """
+                public Hex1bTerminalBuilder() : this(headless: false)
+                    {
+                    }
+
+                    public Hex1bTerminalBuilder(bool headless)
+                    {
+                        _presentationFactory = headless
+                            ? builder => new HeadlessPresentationAdapter(builder._width, builder._height,
+                                (builder._workloadAdapter as IHex1bAppTerminalWorkloadAdapter)?.Capabilities)
+                            : builder => new ConsolePresentationAdapter(enableMouse: builder._enableMouse, preserveOPost: builder._preserveOPost);
+                    }
+                """;
+
+    private static IReadOnlyDictionary<string, string> CreateSlimOverrides(bool separateConstruction, bool removeAppFallback)
+    {
+        var sources = CreateBoolOverrides(separateConstruction, removeAppFallback).ToDictionary(pair => pair.Key, pair => pair.Value);
+        if (!separateConstruction)
+        {
+            sources["Hex1bTerminal.cs"] = ReplaceRequired(sources["Hex1bTerminal.cs"],
+                "public static Hex1bTerminalBuilder CreateBuilder(bool headless)", "public static Hex1bTerminalBuilder CreateSlimBuilder()");
+            sources["Hex1bTerminal.cs"] = ReplaceRequired(sources["Hex1bTerminal.cs"],
+                "return headless ? builder.WithHeadless() : builder;", "return builder.WithHeadless();");
+        }
+        else
+        {
+            sources["Hex1bTerminal.cs"] = ReplaceRequired(sources["Hex1bTerminal.cs"],
+                "public static Hex1bTerminalBuilder CreateBuilder(bool headless) => new(headless);",
+                "public static Hex1bTerminalBuilder CreateSlimBuilder() => Hex1bTerminalBuilder.CreateSlim();");
+            sources["Hex1bTerminalBuilder.cs"] = ReplaceRequired(sources["Hex1bTerminalBuilder.cs"],
+                BoolConstructors.ReplaceLineEndings("\n"), """
+                public Hex1bTerminalBuilder()
+                        : this(builder => new ConsolePresentationAdapter(enableMouse: builder._enableMouse, preserveOPost: builder._preserveOPost))
+                    {
+                    }
+
+                    private Hex1bTerminalBuilder(Func<Hex1bTerminalBuilder, IHex1bTerminalPresentationAdapter> presentationFactory)
+                    {
+                        _presentationFactory = presentationFactory;
+                    }
+
+                    internal static Hex1bTerminalBuilder CreateSlim()
+                        => new(builder => new HeadlessPresentationAdapter(builder._width, builder._height,
+                            (builder._workloadAdapter as IHex1bAppTerminalWorkloadAdapter)?.Capabilities));
+                """.ReplaceLineEndings("\n"));
+        }
+        return sources;
+    }
+
+    [TestMethod]
+    public void CreateSlimOverrides_SeparateConstruction_HasNoBooleanFactorySelection()
+    {
+        var sources = CreateSlimOverrides(true, false);
+        StringAssert.Contains(sources["Hex1bTerminal.cs"], "CreateSlimBuilder() => Hex1bTerminalBuilder.CreateSlim();");
+        StringAssert.Contains(sources["Hex1bTerminalBuilder.cs"], "private Hex1bTerminalBuilder(Func<");
+        StringAssert.Contains(sources["Hex1bTerminalBuilder.cs"], "internal static Hex1bTerminalBuilder CreateSlim()");
+        Assert.IsFalse(sources["Hex1bTerminalBuilder.cs"].Contains("_presentationFactory = headless", StringComparison.Ordinal));
+        StringAssert.Contains(sources["Hex1bApp.cs"], "new ConsolePresentationAdapter");
+    }
+
+    private static string ReplaceRequired(string source, string before, string after)
+    {
+        if (source.Split(before, StringSplitOptions.None).Length != 2)
+            throw new InvalidDataException("Construction source changed; review the boolean headless experiment.");
+        return source.Replace(before, after, StringComparison.Ordinal);
     }
 
     private const string HeadlessSource = """

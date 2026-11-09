@@ -274,6 +274,78 @@ comparable to or attributable from this current-main result. This experiment
 does not quantify that older version, Kusto's application, or a constructor-body
 ILC substitution. Linux/macOS execution and savings have not been verified.
 
+### Boolean and slim-builder follow-up
+
+Two additional test-only prototypes measure the suggested construction shapes:
+
+```powershell
+$env:HEX1B_RUN_NATIVE_AOT_TESTS = '1'
+dotnet test --project tests\Hex1b.Tests\Hex1b.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~HeadlessConsoleTests.CreateBuilder_HeadlessTrue|FullyQualifiedName~HeadlessConsoleTests.CreateSlimBuilder_NativePublish"
+```
+
+The boolean prototype adds `CreateBuilder(bool headless)` forwarding to a
+builder constructor that selects the initial factory with a runtime boolean.
+Its native consumer passes literal `headless: true` and does not subsequently
+call `WithHeadless()`. The parameterless builder delegates with `false`.
+
+The slim prototype adds `CreateSlimBuilder()` forwarding to a separate
+factory-supplied constructor. The normal parameterless constructor supplies
+the console factory; the slim entry point supplies only a headless factory.
+There is no boolean factory-selection branch in that shared constructor.
+Headless defaults are an experimental choice here, not a finalized slim API.
+
+Each prototype has its **own matched consumer source** across three variants:
+a baseline wrapper using the old builder followed by `WithHeadless`, the actual
+prototype with the normal app fallback, and the prototype with the app fallback
+experimentally removed. The last variant isolates the builder's behavior; it
+does not constitute a supported app-construction solution. No production source
+or public API is changed by these tests.
+
+Observed on revision `079f61e1d7729bc886ed1de12753853d674ff10c` with test-only
+working-tree changes, using the same SDK 10.0.403 / ILCompiler 10.0.14,
+Windows x64, Release/Size settings and unchanged pooling/native assets as above:
+
+| Prototype / variant | EXE bytes | Saved vs its matched wrapper | MethodCode count / bytes |
+|---|---:|---:|---:|
+| Boolean: old-builder wrapper | 4,825,600 | 0 (0%) | 12,781 / 2,307,173 |
+| Boolean: constructor selection | 4,825,600 | 0 (0%) | 12,780 / 2,307,135 |
+| Boolean: constructor selection, app fallback removed | 4,825,600 | 0 (0%) | 12,780 / 2,306,960 |
+| Slim: old-builder wrapper | 4,825,600 | 0 (0%) | 12,781 / 2,307,173 |
+| Slim: separate construction | 4,825,600 | 0 (0%) | 12,780 / 2,306,991 |
+| Slim: separate construction, app fallback removed | 4,680,192 | 145,408 (3.0132626%) | 12,406 / 2,216,960 |
+
+**The tested boolean does not trim console.** Even without the app fallback,
+both generated constructor factory methods remain emitted (78 and 90 bytes),
+alongside the shared 278-byte constructor and all 42 adapter / 39 Windows-driver
+methods. A literal `true` did not eliminate that console factory in this shape
+and toolchain. This is not a claim about every possible compiler or forced
+inlining configuration.
+
+**The slim shape removes the builder root**, but the normal app fallback still
+retains console. Once that fallback is removed in isolation, the slim map has
+only the headless factory (78 bytes) and factory-supplied constructor
+(153 bytes); adapter and Windows-driver declaring MethodCode both drop to zero.
+The removed console families are the same 42 methods / 17,875 bytes and
+39 methods / 22,731 bytes as the earlier experiment. `System.Console` again
+drops from 80 / 9,223 to 74 / 8,143, rather than disappearing entirely.
+
+All six inventories contain only `HeadlessConsole.exe`, `HeadlessConsole.pdb`
+and `Hex1b.xml`. PDB size is 21,598,208 bytes except for the isolated slim result
+(21,155,840); XML is always 3,137,542 bytes. Symbols are excluded from EXE
+savings. Full consumer/library hashes, inventories, generated source, maps and
+removed-method lists are in `headless-bool-comparison.json`,
+`headless-slim-comparison.json` and their reports.
+
+Every variant produces byte-identical verified text/chart SVGs within its
+matched group. Real PTY controls exercise default interactive construction for
+both prototypes and explicit `headless: false` for the boolean prototype, plus
+standalone apps and restored unmodified construction. Every control renders
+both prompts and exits normally after input-gated Ctrl+C. The complete native,
+map and infrastructure suite passed 45 tests on Windows. Linux/macOS remain
+unverified. A production slim path would still need adapter-supplied app
+construction separated from the interactive fallback, with explicit behavior
+for option overrides and ownership.
+
 ## Adding a scenario
 
 1. Add a test method to `NativeAotScenarioTests` with a raw string containing a
