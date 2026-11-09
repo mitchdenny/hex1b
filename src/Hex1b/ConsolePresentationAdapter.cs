@@ -26,6 +26,7 @@ public sealed class ConsolePresentationAdapter :
     // ST (where ST is either ESC \ or BEL). Most modern terminals support this
     // (xterm, iTerm2, kitty, WezTerm, Alacritty, Windows Terminal, VS Code).
     private static readonly byte[] BackgroundProbeQuery = Encoding.ASCII.GetBytes("\x1b]11;?\x1b\\");
+    private static readonly byte[] MouseProbeQuery = "\x1b[?1003$p\x1b[?1006$p"u8.ToArray();
     private static readonly TimeSpan DefaultKgpProbeTimeout = TimeSpan.FromMilliseconds(150);
 
     // Sixel capability/metrics probe queries (#455). All are safe, universally
@@ -67,7 +68,11 @@ public sealed class ConsolePresentationAdapter :
     /// <summary>
     /// Creates a new console presentation adapter with raw mode support.
     /// </summary>
-    /// <param name="enableMouse">Whether to enable mouse tracking.</param>
+    /// <param name="enableMouse">
+    /// Whether to advertise mouse support to the app when terminal mode queries
+    /// do not explicitly reject it. Defaults to false on every platform.
+    /// The workload controls actual reporting through escape sequences.
+    /// </param>
     /// <param name="preserveOPost">
     /// If true, preserve output post-processing (LF→CRLF conversion) in raw mode.
     /// This is useful for WithProcess scenarios where child programs expect normal output handling.
@@ -445,6 +450,7 @@ public sealed class ConsolePresentationAdapter :
         // already declared directly) the Sixel discovery queries, on the same bounded
         // probe pass rather than opening a second competing reader.
         _driver.Write(BackgroundProbeQuery);
+        _driver.Write(MouseProbeQuery);
         if (sixelProbeNeeded)
         {
             _driver.Write(Da1ProbeQuery);
@@ -458,6 +464,8 @@ public sealed class ConsolePresentationAdapter :
         var bufferedInput = new List<byte>();
         var readBuffer = new byte[256];
         var kgpDone = false;
+        int? mouseTrackingStatus = null;
+        int? mouseEncodingStatus = null;
 
         bool? da1DeclaresSixel = null;
         var da1Done = !sixelProbeNeeded;
@@ -505,6 +513,17 @@ public sealed class ConsolePresentationAdapter :
                     _backgroundProbeCompleted = true;
                 }
 
+                if (mouseTrackingStatus is null &&
+                    TryConsumeMouseModeResponse(bufferedInput, 1003, out var trackingStatus))
+                {
+                    mouseTrackingStatus = trackingStatus;
+                }
+                if (mouseEncodingStatus is null &&
+                    TryConsumeMouseModeResponse(bufferedInput, 1006, out var encodingStatus))
+                {
+                    mouseEncodingStatus = encodingStatus;
+                }
+
                 if (sixelProbeNeeded)
                 {
                     if (!da1Done && TryConsumeDeviceAttributesResponse(bufferedInput, out var sixelDeclared, out var da1Bad))
@@ -548,7 +567,8 @@ public sealed class ConsolePresentationAdapter :
                 }
 
                 if (kgpDone && _backgroundProbeCompleted &&
-                    da1Done && csi16Done && csi14Done && csi18Done && osc1337Done)
+                    da1Done && csi16Done && csi14Done && csi18Done && osc1337Done &&
+                    mouseTrackingStatus is not null && mouseEncodingStatus is not null)
                     break;
             }
         }
@@ -558,6 +578,16 @@ public sealed class ConsolePresentationAdapter :
         }
         finally
         {
+            _capabilities = _capabilities with
+            {
+                SupportsMouse = _enableMouse &&
+                    mouseTrackingStatus is not (0 or 4) &&
+                    mouseEncodingStatus is not (0 or 4)
+            };
+            System.Diagnostics.Trace.WriteLine(
+                $"Mouse mode probe: 1003={mouseTrackingStatus?.ToString() ?? "unknown"}, " +
+                $"1006={mouseEncodingStatus?.ToString() ?? "unknown"}.");
+
             if (sixelProbeNeeded)
             {
                 ResolveSixelCapabilities(
@@ -573,6 +603,29 @@ public sealed class ConsolePresentationAdapter :
                 AppendPrefetchedInput(CollectionsMarshal.AsSpan(bufferedInput));
             }
         }
+    }
+
+    private static bool TryConsumeMouseModeResponse(List<byte> buffer, int mode, out int status)
+    {
+        status = 0;
+        var prefix = Encoding.ASCII.GetBytes($"\x1b[?{mode};");
+        var span = CollectionsMarshal.AsSpan(buffer);
+        for (var start = 0; start <= span.Length - prefix.Length - 3; start++)
+        {
+            if (!span[start..].StartsWith(prefix))
+                continue;
+
+            var valueOffset = start + prefix.Length;
+            if (span[valueOffset] is < (byte)'0' or > (byte)'4' ||
+                span[valueOffset + 1] != (byte)'$' ||
+                span[valueOffset + 2] != (byte)'y')
+                continue;
+
+            status = span[valueOffset] - (byte)'0';
+            buffer.RemoveRange(start, prefix.Length + 3);
+            return true;
+        }
+        return false;
     }
 
     private const double MaxPlausibleWindowPixelDimension = 1_000_000d;

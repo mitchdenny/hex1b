@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
+using Hex1b.Input;
 
 namespace Hex1b;
 
@@ -13,7 +14,7 @@ namespace Hex1b;
 /// while also processing keyboard and mouse input.
 /// 
 /// Key events are converted to UTF-8 bytes (with VT sequences for special keys).
-/// Mouse events are converted to SGR mouse encoding sequences.
+/// Native mouse events are encoded only while workload-requested mouse tracking is active.
 /// Resize events fire the Resized event immediately.
 /// 
 /// Requirements: Windows 10 1809+ or Windows 11.
@@ -123,6 +124,8 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     
     // Track previous mouse state for generating proper events
     private uint _lastMouseButtonState;
+    private readonly object _mouseModeLock = new();
+    private readonly ConsoleMouseModeState _mouseModes = new();
     
     public WindowsConsoleDriver()
     {
@@ -211,19 +214,18 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         
         // Use console input mode with VT input enabled when available:
         // - Enable window input for resize events
-        // - Enable mouse input for classic console mouse events
+        // - Mouse input is enabled later by workload DECSET requests
         // - Enable VT input so nested Hex1b apps running under ConPTY can receive
         //   forwarded CSI/SGR mouse sequences from an outer terminal widget.
         // - Disable quick edit (via ENABLE_EXTENDED_FLAGS with no ENABLE_QUICK_EDIT_MODE)
         var newInputMode = ENABLE_WINDOW_INPUT |
-                           ENABLE_MOUSE_INPUT |
                            ENABLE_EXTENDED_FLAGS |
                            ENABLE_VIRTUAL_TERMINAL_INPUT;
 
         if (!SetConsoleMode(_inputHandle, newInputMode))
         {
             var error = Marshal.GetLastWin32Error();
-            var fallbackInputMode = ENABLE_WINDOW_INPUT | ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS;
+            var fallbackInputMode = ENABLE_WINDOW_INPUT | ENABLE_EXTENDED_FLAGS;
             if (!SetConsoleMode(_inputHandle, fallbackInputMode))
             {
                 throw new InvalidOperationException($"SetConsoleMode failed for input (error {error}).");
@@ -260,6 +262,11 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
             }
         }
         
+        lock (_mouseModeLock)
+        {
+            _mouseModes.Reset();
+            _lastMouseButtonState = 0;
+        }
         _inRawMode = true;
         Console.TreatControlCAsInput = true;
     }
@@ -394,7 +401,11 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
                 break;
                 
             case MOUSE_EVENT:
-                ProcessMouseEvent(ref record.MouseEvent);
+                lock (_mouseModeLock)
+                {
+                    if (_mouseModes.Tracking != TerminalMouseTracking.None)
+                        ProcessMouseEvent(ref record.MouseEvent);
+                }
                 break;
                 
             case WINDOW_BUFFER_SIZE_EVENT:
@@ -756,8 +767,8 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     
     private void ProcessMouseEvent(ref MOUSE_EVENT_RECORD mouse)
     {
-        var x = mouse.dwMousePosition.X + 1;  // 1-based
-        var y = mouse.dwMousePosition.Y + 1;  // 1-based
+        var x = mouse.dwMousePosition.X;
+        var y = mouse.dwMousePosition.Y;
         var buttons = mouse.dwButtonState;
         var flags = mouse.dwEventFlags;
         var ctrl = mouse.dwControlKeyState;
@@ -766,21 +777,16 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         bool hasAlt = (ctrl & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) != 0;
         bool hasShift = (ctrl & SHIFT_PRESSED) != 0;
         
-        int modifiers = 0;
-        if (hasShift) modifiers |= 4;
-        if (hasAlt) modifiers |= 8;
-        if (hasCtrl) modifiers |= 16;
+        var modifiers = Hex1bModifiers.None;
+        if (hasShift) modifiers |= Hex1bModifiers.Shift;
+        if (hasAlt) modifiers |= Hex1bModifiers.Alt;
+        if (hasCtrl) modifiers |= Hex1bModifiers.Control;
         
         if ((flags & MOUSE_WHEELED) != 0)
         {
             int delta = (short)(buttons >> 16);
-            int button = delta > 0 ? 64 : 65;
-            button |= modifiers;
-            var seq = $"\x1b[<{button};{x};{y}M";
-            foreach (var b in Encoding.ASCII.GetBytes(seq))
-            {
-                _pendingBytes.Enqueue(b);
-            }
+            var button = delta > 0 ? TerminalMouseButton.WheelUp : TerminalMouseButton.WheelDown;
+            EnqueueMouse(new TerminalMouseInput(button, MouseAction.Down, x, y, modifiers));
             return;
         }
         
@@ -798,47 +804,40 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
             
             if (pressed != 0)
             {
-                int button = GetButtonNumber(pressed) | modifiers;
-                var seq = $"\x1b[<{button};{x};{y}M";
-                foreach (var b in Encoding.ASCII.GetBytes(seq))
-                {
-                    _pendingBytes.Enqueue(b);
-                }
+                EnqueueMouse(new TerminalMouseInput(
+                    GetMouseButton(pressed), MouseAction.Down, x, y, modifiers));
             }
             
             if (released != 0)
             {
-                int button = GetButtonNumber(released) | modifiers;
-                var seq = $"\x1b[<{button};{x};{y}m";
-                foreach (var b in Encoding.ASCII.GetBytes(seq))
-                {
-                    _pendingBytes.Enqueue(b);
-                }
+                EnqueueMouse(new TerminalMouseInput(
+                    GetMouseButton(released), MouseAction.Up, x, y, modifiers));
             }
         }
         else if (isMove)
         {
-            // Motion event: button code 32 = motion flag, 3 = no button (so 35 for motion with no button)
-            // If button is held, use that button number + 32
-            int button = currentButtons != 0 
-                ? GetButtonNumber(currentButtons) | 32 | modifiers
-                : 35 | modifiers;  // 35 = 32 (motion) + 3 (no button)
-            var seq = $"\x1b[<{button};{x};{y}M";
-            foreach (var b in Encoding.ASCII.GetBytes(seq))
-            {
-                _pendingBytes.Enqueue(b);
-            }
+            var button = currentButtons != 0
+                ? GetMouseButton(currentButtons)
+                : TerminalMouseButton.None;
+            EnqueueMouse(new TerminalMouseInput(
+                button, currentButtons != 0 ? MouseAction.Drag : MouseAction.Move, x, y, modifiers));
         }
         
         _lastMouseButtonState = buttons;
     }
-    
-    private static int GetButtonNumber(uint buttonState)
+
+    private void EnqueueMouse(TerminalMouseInput input)
     {
-        if ((buttonState & FROM_LEFT_1ST_BUTTON_PRESSED) != 0) return 0;
-        if ((buttonState & FROM_LEFT_2ND_BUTTON_PRESSED) != 0) return 1;
-        if ((buttonState & RIGHTMOST_BUTTON_PRESSED) != 0) return 2;
-        return 0;
+        foreach (var value in TerminalInputEncoder.EncodeMouse(input, _mouseModes.InputModes(_lastWidth, _lastHeight)))
+            _pendingBytes.Enqueue(value);
+    }
+    
+    private static TerminalMouseButton GetMouseButton(uint buttonState)
+    {
+        if ((buttonState & FROM_LEFT_1ST_BUTTON_PRESSED) != 0) return TerminalMouseButton.Left;
+        if ((buttonState & FROM_LEFT_2ND_BUTTON_PRESSED) != 0) return TerminalMouseButton.Middle;
+        if ((buttonState & RIGHTMOST_BUTTON_PRESSED) != 0) return TerminalMouseButton.Right;
+        return TerminalMouseButton.None;
     }
     
     private void ProcessResizeEvent(ref WINDOW_BUFFER_SIZE_RECORD resize)
@@ -854,6 +853,25 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     }
     
     public void Write(ReadOnlySpan<byte> data)
+    {
+        lock (_mouseModeLock)
+        {
+            WriteCore(data);
+            var trackingChanged = _mouseModes.Observe(data);
+            if (_inRawMode && trackingChanged)
+            {
+                _lastMouseButtonState = 0;
+                if (!GetConsoleMode(_inputHandle, out var mode))
+                    throw new InvalidOperationException($"GetConsoleMode failed for mouse input: {Marshal.GetLastWin32Error()}");
+                mode = _mouseModes.Tracking == TerminalMouseTracking.None
+                    ? mode & ~ENABLE_MOUSE_INPUT : mode | ENABLE_MOUSE_INPUT;
+                if (!SetConsoleMode(_inputHandle, mode))
+                    throw new InvalidOperationException($"SetConsoleMode failed for mouse input: {Marshal.GetLastWin32Error()}");
+            }
+        }
+    }
+
+    private void WriteCore(ReadOnlySpan<byte> data)
     {
         unsafe
         {

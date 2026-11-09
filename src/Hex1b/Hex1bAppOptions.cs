@@ -30,7 +30,9 @@ public class Hex1bAppOptions
     /// <summary>
     /// Whether to enable mouse support. When enabled, the terminal will track mouse
     /// movement and clicks, rendering a visible cursor at the mouse position.
-    /// Default is false.
+    /// Default is false on every platform. Enabling this requests terminal mouse
+    /// reporting; it does not override an explicit rejection of the required modes
+    /// by a console terminal's capability replies.
     /// </summary>
     public bool EnableMouse { get; set; }
     

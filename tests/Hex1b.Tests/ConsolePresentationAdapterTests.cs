@@ -8,6 +8,99 @@ namespace Hex1b.Tests;
 public class ConsolePresentationAdapterTests
 {
     [TestMethod]
+    [DataRow("0", "2", false)]
+    [DataRow("1", "1", true)]
+    [DataRow("2", "2", true)]
+    [DataRow("3", "3", true)]
+    [DataRow("4", "1", false)]
+    [DataRow("2", "0", false)]
+    [DataRow("2", "4", false)]
+    [DataRow(null, null, true)]
+    [DataRow(null, "2", true)]
+    [DataRow("0", null, false)]
+    [DataRow("9", "2", true)]
+    [DataRow("", "2", true)]
+    [DataRow("12", "2", true)]
+    [DataRow("2;1", "2", true)]
+    [DataRow("-1", "2", true)]
+    public async Task MouseProbe_ModeReplies_DistinguishesUnsupportedFromUnknown(
+        string? tracking, string? encoding, bool expected)
+    {
+        var trackingReply = tracking is null ? "" : $"\x1b[?1003;{tracking}$y";
+        var encodingReply = encoding is null ? "" : $"\x1b[?1006;{encoding}$y";
+        using var driver = new FakeConsoleDriver("a" + trackingReply + "b" + encodingReply + "c");
+        await using var adapter = new ConsolePresentationAdapter(
+            driver, enableMouse: true, kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+
+        Assert.AreEqual(expected, adapter.Capabilities.SupportsMouse);
+        StringAssert.Contains(driver.WrittenText, "\x1b[?1003$p\x1b[?1006$p");
+        Assert.DoesNotContain("\x1b[?1003h", driver.WrittenText);
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+        Assert.AreEqual(
+            tracking is not null and not ("0" or "1" or "2" or "3" or "4")
+                ? "a" + trackingReply + "bc" : "abc",
+            Encoding.ASCII.GetString(input.Span));
+    }
+
+    [TestMethod]
+    public async Task MouseProbe_CancelledByCaller_PreservesPrefetchedInputAndUnknownSupport()
+    {
+        using var driver = new FakeConsoleDriver("keyboard");
+        await using var adapter = new ConsolePresentationAdapter(
+            driver, enableMouse: true, kgpProbeTimeout: TimeSpan.FromSeconds(10));
+        using var cancellation = new CancellationTokenSource();
+        var probe = adapter.EnterRawModeAsync(cancellation.Token);
+        cancellation.Cancel();
+        // The fake driver reports cancellation as EOF, like native console reads.
+        await probe;
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+        Assert.AreEqual("keyboard", Encoding.ASCII.GetString(input.Span));
+        Assert.IsTrue(adapter.Capabilities.SupportsMouse);
+    }
+
+    [TestMethod]
+    public async Task MouseProbe_FragmentedReplies_PreservesOtherModesAndKeyboardInput()
+    {
+        using var driver = new FakeConsoleDriver(
+            "a\x1b[?100", "3;2$", "yb\x1b[?1006;", "1$yc\x1b[?1000;2$y");
+        await using var adapter = new ConsolePresentationAdapter(
+            driver, enableMouse: true, kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+
+        Assert.IsTrue(adapter.Capabilities.SupportsMouse);
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+        Assert.AreEqual("abc\x1b[?1000;2$y", Encoding.ASCII.GetString(input.Span));
+    }
+
+    [TestMethod]
+    public async Task MouseProbe_SupportedWithoutOptIn_DoesNotEnableMouse()
+    {
+        using var driver = new FakeConsoleDriver("\x1b[?1003;2$y\x1b[?1006;2$y");
+        await using var adapter = new ConsolePresentationAdapter(
+            driver, kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        Assert.IsFalse(adapter.Capabilities.SupportsMouse);
+        Assert.DoesNotContain("\x1b[?1003h", driver.WrittenText);
+    }
+
+    [TestMethod]
+    public async Task MouseProbe_ExplicitRejection_SuppressesAppModeRequests()
+    {
+        using var driver = new FakeConsoleDriver("\x1b[?1003;0$y\x1b[?1006;2$y");
+        await using var adapter = new ConsolePresentationAdapter(
+            driver, enableMouse: true, kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        using var workload = new Hex1bAppWorkloadAdapter(adapter) { EnableMouse = true };
+        workload.EnterTuiMode();
+        var output = new StringBuilder();
+        while (workload.TryReadOutput(out var bytes))
+            output.Append(Encoding.ASCII.GetString(bytes.Span));
+        Assert.DoesNotContain("\x1b[?1003h", output.ToString());
+        Assert.DoesNotContain("\x1b[?1006h", output.ToString());
+    }
+
+    [TestMethod]
     [DataRow(0x45, '\0', false, false, false, "e")]
     [DataRow(0x45, '\0', false, false, true, "E")]
     [DataRow(0x31, '\0', false, false, false, "1")]
