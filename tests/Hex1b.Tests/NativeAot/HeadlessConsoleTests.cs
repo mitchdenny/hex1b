@@ -31,8 +31,70 @@ public sealed class HeadlessConsoleTests
     [TestMethod]
     [TestCategory("NativeAot")]
     [NativeAotEnabled]
+    public async Task CreateSlimBuilder_CurrentLibrary_MeasuresActualConstructionChanges()
+    {
+        var source = HeadlessSource.Replace("CreateBuilder()", "CreateSlimBuilder()", StringComparison.Ordinal);
+        var baseline = ConsoleConstructionBaseline.ReadAll();
+        baseline["Hex1bTerminal.cs"] = ReplaceRequired(baseline["Hex1bTerminal.cs"],
+            "public static Hex1bTerminalBuilder CreateBuilder() => new();",
+            """
+            public static Hex1bTerminalBuilder CreateBuilder() => new();
+
+                public static Hex1bTerminalBuilder CreateSlimBuilder() => CreateBuilder();
+            """);
+        var normalBuilder = ConsoleConstructionBaseline.ReadCurrent();
+        normalBuilder["Hex1bTerminal.cs"] = ReplaceRequired(normalBuilder["Hex1bTerminal.cs"],
+            "CreateSlimBuilder() => Hex1bTerminalBuilder.CreateSlim();", "CreateSlimBuilder() => CreateBuilder();");
+        var variants = new (string Name, IReadOnlyDictionary<string, string>? Sources, bool ConsoleRemoved)[]
+        {
+            ("PreChange", baseline, false),
+            ("InternalAppNormalBuilder", normalBuilder, false),
+            ("SlimCopiedSources", ConsoleConstructionBaseline.ReadCurrent(), true),
+            ("SlimActualLibrary", null, true)
+        };
+        var reports = new List<ScenarioReport>();
+        foreach (var (name, sources, consoleRemoved) in variants)
+        {
+            reports.Add(await ScenarioRunner.RunAsync(new Scenario("SlimActual" + name,
+                consoleRemoved ? [Scenario.Terminal, Scenario.Builder, App, Chart, Pool]
+                    : [Scenario.Terminal, Scenario.Builder, App, Chart, Pool, ConsoleAdapter, ConsoleConstruction],
+                consoleRemoved ? [ConsoleAdapter, ConsoleConstruction, WindowsConsole, UnixConsole] : [])
+            {
+                ConsumerName = "HeadlessConsole"
+            }, source, TestContext, TestContext.CancellationToken, sources,
+                name == "PreChange"
+                    ? "Pre-change construction regions restored; CreateSlimBuilder forwards to the old CreateBuilder. Explicit WithHeadless in identical consumer."
+                    : name == "InternalAppNormalBuilder"
+                        ? "Actual internal adapter-required app; CreateSlimBuilder forwards to current normal CreateBuilder to isolate app change."
+                        : "Actual empty slim builder and internal adapter-required app. No console-removal substitutions."));
+        }
+        foreach (var report in reports.Skip(1))
+        {
+            Assert.AreEqual(reports[0].ConsumerSourceSha256, report.ConsumerSourceSha256);
+            Assert.AreEqual(reports[0].Sdk, report.Sdk);
+            Assert.AreEqual(reports[0].IlCompilerPackage, report.IlCompilerPackage);
+            Assert.AreEqual(reports[0].Rid, report.Rid);
+            Assert.AreEqual(reports[0].LibraryAssemblyIdentity, report.LibraryAssemblyIdentity);
+            Assert.AreEqual(reports[0].LibraryProjectSha256, report.LibraryProjectSha256);
+            foreach (var snapshot in new[] { "text.svg", "chart.svg" })
+                Assert.AreEqual(File.ReadAllText(Path.Combine(reports[0].ArtifactDirectory, snapshot)),
+                    File.ReadAllText(Path.Combine(report.ArtifactDirectory, snapshot)));
+        }
+        Assert.AreEqual(reports[2].ExecutableBytes, reports[3].ExecutableBytes);
+        Assert.AreEqual(reports[2].MethodCodeCount, reports[3].MethodCodeCount);
+        Assert.AreEqual(reports[2].MethodCodeLength, reports[3].MethodCodeLength);
+        var interactive = await RunInteractiveControlAsync("SlimActualInteractiveConsole", actualLibrary: true);
+        Assert.AreEqual(reports[3].LibraryInputSha256, interactive.LibraryInputSha256,
+            "The unmodified actual library must be used by both headless and interactive consumers.");
+        await WriteComparisonAsync(reports, "slim-actual-comparison.json");
+    }
+
+    [TestMethod]
+    [TestCategory("NativeAot")]
+    [NativeAotEnabled]
     public async Task HeadlessTextAndChart_NativePublish_MeasuresIsolatedConsoleRemoval()
     {
+        var original = await RunInteractiveControlAsync("InteractiveConsoleBeforeExperiment", actualLibrary: true);
         var reports = new List<ScenarioReport>();
         foreach (var variant in new[] { "Baseline", "CopiedSourcesBaseline", "AppFallbackRemoved", "BothConstructionPathsRemoved" })
         {
@@ -45,16 +107,16 @@ public sealed class HeadlessConsoleTests
                 ConsumerName = "HeadlessConsole"
             };
             reports.Add(await ScenarioRunner.RunAsync(scenario, HeadlessSource, TestContext,
-                TestContext.CancellationToken, variant == "Baseline" ? null : CreateOverrides(
+                TestContext.CancellationToken, CreateOverrides(
                     removeAppFallback: variant is "AppFallbackRemoved" or "BothConstructionPathsRemoved",
                     removeBuilderDefault: variant == "BothConstructionPathsRemoved"),
-                variant == "Baseline" ? "Unmodified main library and existing headless API."
+                variant == "Baseline" ? "Reconstructed pre-experiment main construction and existing headless API."
                     : $"Measurement only: {variant}. Patched library compile inputs; not a supported construction path."));
         }
-        var restored = await RunInteractiveControlAsync("InteractiveConsoleAfterExperiment");
+        var restored = await RunInteractiveControlAsync("InteractiveConsoleAfterExperiment", actualLibrary: true);
 
         var baseline = reports[0];
-        Assert.AreEqual(baseline.LibraryInputSha256, restored.LibraryInputSha256,
+        Assert.AreEqual(original.LibraryInputSha256, restored.LibraryInputSha256,
             "The normal library build must be restored after experimental compile inputs.");
         Assert.AreEqual(baseline.ExecutableBytes, reports[1].ExecutableBytes,
             "Copying unmodified sources must not manufacture executable savings.");
@@ -68,7 +130,8 @@ public sealed class HeadlessConsoleTests
             Assert.AreEqual(baseline.Rid, report.Rid);
             Assert.AreEqual(baseline.LibraryAssemblyIdentity, report.LibraryAssemblyIdentity);
             Assert.AreEqual(baseline.LibraryProjectSha256, report.LibraryProjectSha256);
-            Assert.AreNotEqual(baseline.LibraryInputSha256, report.LibraryInputSha256);
+            if (report.Name != "HeadlessConsoleCopiedSourcesBaseline")
+                Assert.AreNotEqual(baseline.LibraryInputSha256, report.LibraryInputSha256);
             foreach (var snapshot in new[] { "text.svg", "chart.svg" })
                 Assert.AreEqual(File.ReadAllText(Path.Combine(baseline.ArtifactDirectory, snapshot)),
                     File.ReadAllText(Path.Combine(report.ArtifactDirectory, snapshot)),
@@ -119,7 +182,7 @@ public sealed class HeadlessConsoleTests
         if (!slim)
             await RunInteractiveControlAsync(prefix + "FalseInteractiveControl", CreateBoolOverrides(true, false),
                 explicitHeadlessFalse: true);
-        await RunInteractiveControlAsync(prefix + "RestoredInteractiveControl");
+        await RunInteractiveControlAsync(prefix + "RestoredInteractiveControl", actualLibrary: true);
         var baseline = reports[0];
         foreach (var report in reports.Skip(1))
         {
@@ -190,20 +253,44 @@ public sealed class HeadlessConsoleTests
     [TestMethod]
     [TestCategory("NativeAot")]
     [NativeAotEnabled]
-    public Task InteractiveConsole_NativePublish_PreservesDefaultBuilderAndStandaloneApp()
-        => RunInteractiveControlAsync("InteractiveConsole");
+    public async Task InteractiveConsole_NativePublish_PreservesDefaultBuilderAndStandaloneApp()
+    {
+        await RunInteractiveControlAsync("InteractiveConsole");
+        await RunInteractiveControlAsync("InteractiveConsoleCurrentLibrary", actualLibrary: true);
+    }
 
     private Task<ScenarioReport> RunInteractiveControlAsync(string name,
-        IReadOnlyDictionary<string, string>? sourceOverrides = null, bool explicitHeadlessFalse = false)
+        IReadOnlyDictionary<string, string>? sourceOverrides = null, bool explicitHeadlessFalse = false,
+        bool actualLibrary = false)
         => ScenarioRunner.RunAsync(new Scenario(name,
             [Scenario.Terminal, Scenario.Builder, App, ConsoleAdapter, ConsoleConstruction], [])
         {
             UsePty = true,
             ConsumerName = "InteractiveConsole",
-            PtyStopPrompts = ["builder-console-control", "standalone-console-control"]
-        }, explicitHeadlessFalse
+            PtyStopPrompts = actualLibrary ? ["builder-console-control", "slim-console-control"]
+                : ["builder-console-control", "standalone-console-control"]
+        }, actualLibrary ? ActualInteractiveSource : explicitHeadlessFalse
             ? InteractiveSource.Replace("CreateBuilder()", "CreateBuilder(headless: false)", StringComparison.Ordinal)
-            : InteractiveSource, TestContext, TestContext.CancellationToken, sourceOverrides);
+            : InteractiveSource, TestContext, TestContext.CancellationToken,
+                actualLibrary ? null : sourceOverrides ?? ConsoleConstructionBaseline.ReadAll());
+
+    private const string ActualInteractiveSource = """
+            using Hex1b;
+
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await using (var terminal = Hex1bTerminal.CreateBuilder()
+                .WithHex1bApp(ctx => ctx.Text("builder-console-control")).Build())
+            {
+                await terminal.RunAsync(cancellation.Token);
+            }
+            await using (var terminal = Hex1bTerminal.CreateSlimBuilder()
+                .WithPresentation(new ConsolePresentationAdapter())
+                .WithHex1bApp(ctx => ctx.Text("slim-console-control")).Build())
+            {
+                await terminal.RunAsync(cancellation.Token);
+            }
+            Console.WriteLine("NATIVE_AOT_OK:InteractiveConsole");
+            """;
 
     private const string InteractiveSource = """
             using Hex1b;
@@ -246,8 +333,9 @@ public sealed class HeadlessConsoleTests
 
     internal static IReadOnlyDictionary<string, string> CreateOverrides(bool removeAppFallback, bool removeBuilderDefault)
     {
-        var app = File.ReadAllText(Path.Combine(ScenarioRunner.RepositoryRoot, "src", "Hex1b", "Hex1bApp.cs")).ReplaceLineEndings("\n");
-        var builder = File.ReadAllText(Path.Combine(ScenarioRunner.RepositoryRoot, "src", "Hex1b", "Hex1bTerminalBuilder.cs")).ReplaceLineEndings("\n");
+        var sources = ConsoleConstructionBaseline.ReadAll();
+        var app = sources["Hex1bApp.cs"];
+        var builder = sources["Hex1bTerminalBuilder.cs"];
         if (removeAppFallback)
         {
             const string start = "        // Create or use provided adapter\n";
@@ -273,11 +361,9 @@ public sealed class HeadlessConsoleTests
                 "builder => { _ = builder._preserveOPost; throw new InvalidOperationException(\"Measurement-only builder requires explicit presentation.\"); };",
                 StringComparison.Ordinal);
         }
-        return new Dictionary<string, string>
-        {
-            ["Hex1bApp.cs"] = app,
-            ["Hex1bTerminalBuilder.cs"] = builder
-        };
+        sources["Hex1bApp.cs"] = app;
+        sources["Hex1bTerminalBuilder.cs"] = builder;
+        return sources;
     }
 
     [TestMethod]
@@ -300,8 +386,7 @@ public sealed class HeadlessConsoleTests
     private static IReadOnlyDictionary<string, string> CreateBoolOverrides(bool selectInConstructor, bool removeAppFallback)
     {
         var sources = CreateOverrides(removeAppFallback, false).ToDictionary(pair => pair.Key, pair => pair.Value);
-        var terminal = File.ReadAllText(Path.Combine(ScenarioRunner.RepositoryRoot, "src", "Hex1b", "Hex1bTerminal.cs"))
-            .ReplaceLineEndings("\n");
+        var terminal = sources["Hex1bTerminal.cs"];
         const string createBuilder = "public static Hex1bTerminalBuilder CreateBuilder() => new();";
         terminal = ReplaceRequired(terminal, createBuilder, createBuilder + "\n\n    " + (selectInConstructor
             ? "public static Hex1bTerminalBuilder CreateBuilder(bool headless) => new(headless);"

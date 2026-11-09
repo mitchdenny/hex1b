@@ -96,6 +96,10 @@ their normal shared output paths.
 | `HeadlessConsoleAppFallbackRemoved` | Same program and byte-identical SVGs with only the app fallback removed experimentally | Same as baseline: the builder still roots console code | None |
 | `HeadlessConsoleBothConstructionPathsRemoved` | Same program and byte-identical SVGs with both console construction paths removed experimentally | Terminal, builder, app, chart | Console adapter, console construction, Windows/Unix console driver |
 | `InteractiveConsole` / `InteractiveConsoleAfterExperiment` | Default builder and standalone app render in a real PTY; parent sends Ctrl+C only after each visible marker; both exit normally | Terminal, builder, app, console construction and adapter | None |
+| `SlimActualPreChange` | Identical text/chart consumer using restored pre-change construction and an old-builder forwarding shim | Terminal, builder, app, chart, pool, console adapter/construction | None |
+| `SlimActualInternalAppNormalBuilder` | Actual adapter-required app with the normal console-default builder, via the same forwarding shim | Same as pre-change | None |
+| `SlimActualSlimCopiedSources` / `SlimActualSlimActualLibrary` | Actual empty slim builder, explicit headless presentation, actual internal app construction and identical snapshots | Terminal, builder, app, chart, pool | Console adapter/construction, Windows/Unix console driver |
+| `SlimActualInteractiveConsole` | Actual default builder and slim builder with explicit console presentation render and stop in a real PTY | Terminal, builder, app, console adapter/construction | None |
 
 The original three consumers use the same small in-memory echo workload source,
 not a real shell or process. Console scenarios use the app workload. The
@@ -173,6 +177,13 @@ compiler changes need to be accounted for separately.
 
 ## Headless console isolation experiment (#708)
 
+This section and the boolean/slim prototype section record the **earlier
+measurement-only experiments**. The branch now also contains the actual API
+experiment described below. `ConsoleConstructionBaseline` reconstructs the old
+construction regions for these historical tests; standalone app construction is
+tested only against that reconstructed baseline. Current-library interactive
+controls use the default builder and explicitly configured slim builder.
+
 Run the independently filterable measurement:
 
 ```powershell
@@ -181,8 +192,8 @@ dotnet test --project tests\Hex1b.Tests\Hex1b.Tests.csproj -c Release -- --no-pr
 ```
 
 This is **test-only measurement**, not a new supported construction path.
-Production library files, public signatures, interactive defaults and surface
-pooling are unchanged (pooling remains enabled with the default 8 surfaces per
+In the original measurements, production library files, public signatures,
+interactive defaults and surface pooling were unchanged (pooling remains enabled with the default 8 surfaces per
 bucket and 120 idle frames; emitted pool code is a positive control). The test copies `Hex1bApp.cs` and
 `Hex1bTerminalBuilder.cs` under the ignored evidence directory. A generated,
 library-only MSBuild target substitutes these compile inputs before
@@ -202,10 +213,10 @@ intact, letting Native AOT decide whether it remains reachable.
 
 Unmodified main is measured first, followed by a no-op copied-source control,
 app-only removal and both-path removal. The copy control must have identical
-executable size and MethodCode totals to main. Finally, a native interactive
-control is built without replacement inputs: it must render both default
-construction paths, respond to Ctrl+C and use the exact original untrimmed
-library hash. This also guards against incremental-build contamination.
+executable size and MethodCode totals to main. Current reruns reconstruct those inputs rather than reverting production
+files. Native interactive controls before and after the historical experiment
+use the actual library and must have the same untrimmed library hash. This
+guards against incremental-build contamination.
 
 ### Windows observation
 
@@ -345,6 +356,125 @@ map and infrastructure suite passed 45 tests on Windows. Linux/macOS remain
 unverified. A production slim path would still need adapter-supplied app
 construction separated from the interactive fallback, with explicit behavior
 for option overrides and ownership.
+
+## Actual slim-builder and internal-app experiment
+
+The source experiment adds `Hex1bTerminal.CreateSlimBuilder()` with **no
+presentation or workload registration**. Callers must explicitly opt into both:
+
+```csharp
+await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+    .WithHeadless()
+    .WithHex1bApp(ctx => ctx.Text("Hello"))
+    .Build();
+await terminal.RunAsync();
+```
+
+`CreateBuilder()` and the public parameterless builder constructor retain their
+console defaults. The default constructor alone registers the console factory;
+the shared factory-supplied constructor does not reference console construction.
+Slim builders reject missing presentation rather than silently defaulting to
+headless or console. Dimensions and ordinary terminal option defaults remain.
+
+Both `Hex1bApp` constructors become internal, retain their existing argument
+shape for friend-assembly tests, require a supplied workload adapter, and no
+longer construct or own a console terminal. Existing adapter disposal behavior
+is unchanged. The public app type, callback APIs, `Invalidate`, `RequestStop`
+and public workload adapter remain available.
+
+Run the actual-source measurement:
+
+```powershell
+$env:HEX1B_RUN_NATIVE_AOT_TESTS = '1'
+dotnet test --project tests\Hex1b.Tests\Hex1b.Tests.csproj -c Release -- --no-progress --filter "FullyQualifiedName~HeadlessConsoleTests.CreateSlimBuilder_CurrentLibrary"
+```
+
+All four variants compile the **same consumer source** (SHA-256
+`FA7C3ECF52C0C7EFC3901E6435C89EF1B061ACFD30F2F039BAF894CD18695B9F`),
+including explicit `WithHeadless()`. The pre-change and normal-builder controls
+provide a `CreateSlimBuilder()` shim that forwards to their normal builder;
+the final consumer uses the real API without any source overrides. A no-op
+current-source copy control must have identical EXE bytes and MethodCode totals
+to the unmodified actual library.
+
+Compile replacements preserve **original source order** as well as running
+before `AssignTargetPaths`. Appending a replaced partial-class file changes
+field layout and hundreds of method lengths despite identical source. The
+no-op control caught this; the order-preserving implementation gives identical
+MethodCode counts and lengths. Earlier historical figures above predate this
+apparatus correction and remain labeled with their original revisions.
+
+Windows x64 observation, SDK **10.0.403**, ILCompiler **10.0.14**,
+net10.0 Release/Size, self-contained Native AOT, on parent revision
+`3fc4bbc8a61750274ef23bb09c6b60307d7b38a3` with this source experiment:
+
+| Construction | EXE bytes | Saved vs pre-change | MethodCode count / bytes |
+|---|---:|---:|---:|
+| Pre-change app and builder, forwarding shim | 4,825,600 | 0 | 12,781 / 2,307,009 |
+| Actual internal app, normal builder via shim | 4,826,112 | -512 (-0.0106101%) | 12,782 / 2,306,596 |
+| Actual app and slim builder, copied sources | 4,680,192 | 145,408 (3.0132626%) | 12,406 / 2,216,584 |
+| Actual app and slim builder, no overrides | 4,680,192 | 145,408 (3.0132626%) | 12,406 / 2,216,584 |
+
+The app-only row includes the real builder refactor and validation, so it is
+not the earlier isolated fallback-body-removal experiment. Its 512-byte
+increase illustrates why mapped code length alone is not executable size.
+
+The real slim path removes all 42 `ConsolePresentationAdapter` methods
+(17,875 bytes) and all 39 `WindowsConsoleDriver` methods (22,731 bytes).
+Unix families were absent in both Windows builds. `System.Console` falls
+from 80 methods / 9,223 bytes to 74 / 8,143, removing 6 / 1,080 rather than all
+console support. The builder still contains its direct adapter type-check and
+`WithReflow` call, but no adapter MethodCode survives. No constant propagation
+of mutable options is assumed. The actual headless consumer and actual
+interactive control use the exact same untrimmed library hash; both default
+console and explicitly opted-in slim console presentation render and stop
+normally under a real PTY.
+
+Full inventory, with symbols and documentation excluded from EXE savings:
+
+| Asset | Pre-change | Actual app / normal builder | Actual copied slim | Actual slim |
+|---|---:|---:|---:|---:|
+| `HeadlessConsole.exe` | 4,825,600 | 4,826,112 | 4,680,192 | 4,680,192 |
+| `HeadlessConsole.pdb` (symbols) | 21,598,208 | 21,598,208 | 21,164,032 | 21,155,840 |
+| `Hex1b.xml` (documentation) | 3,137,654 | 3,138,875 | 3,138,875 | 3,138,875 |
+
+These are the complete publish inventories; no native helpers or runtime
+support assets were copied, and normal generation remained enabled. Pooling
+is unchanged and emitted pool methods are required positive controls.
+Both text/chart 100x24 snapshots verify rendering and have byte-identical SVGs
+in every variant, with the same SVG hashes as the original experiment.
+Reports, maps, full source/library identities, all removed methods, inventories,
+and `slim-actual-comparison.json` are under ignored `TestResults/NativeAot`.
+Linux/macOS and an Aspire application build have not been executed.
+
+The final run retained evidence at
+`TestResults/NativeAot/20261109T011031647Z-7d73ff7ac24d491482d4b387bd92150d`.
+The shared assembly identity is
+`Hex1b, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null`.
+The actual headless and interactive library input SHA-256 is
+`D691AFBF939141B9B8C20BD0B981A61F460563C1B575433BA36A809C80030825`;
+the reconstructed baseline is
+`7493DB335708F5CCA64052251FF095D4E30ECE940A75EB439CA943C49CAF389A`.
+The complete native namespace plus managed builder, app lifecycle, scheduling,
+flow, and textbox coverage passed **275 tests**, with no failures or skips.
+The log is `TestResults/slim-actual-final-tests.log`.
+
+### Deliberate experiment boundary
+
+This is **not a shipping-ready constructor migration**. None of the 712 existing
+direct-construction calls in `Hex1b.Tests` were rewritten; they already supply
+adapters and have internal access. New tests cover the slim configuration
+requirements, rendering, inaccessible public app construction, and missing
+adapter errors.
+
+Outside that friend assembly, source inspection finds ten active constructor
+calls needing migration before shipping: six in `Hex1b.Website`, one each in
+`FloatAlignmentExplorer`, `PerfDemo`, and `WebTerminalDemo`, and one shared
+fixture in `AgenticPromptDemo.Tests`. Those callers are intentionally left
+untouched for this measurement experiment and will not compile against the
+internal constructors. Some website snippets also show the old API.
+No new friend-assembly grants, public compatibility factories, feature switches,
+or mass test rewrites hide this break. Package validation settings are unchanged.
 
 ## Adding a scenario
 

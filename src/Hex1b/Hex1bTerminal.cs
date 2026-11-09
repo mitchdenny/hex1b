@@ -319,6 +319,29 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </example>
     public static Hex1bTerminalBuilder CreateBuilder() => new();
 
+    /// <summary>
+    /// Creates a terminal builder without a default presentation or workload.
+    /// </summary>
+    /// <returns>A new builder requiring explicit presentation and workload configuration.</returns>
+    /// <remarks>
+    /// Configure presentation with <see cref="Hex1bTerminalBuilder.WithHeadless()"/> or
+    /// <see cref="Hex1bTerminalBuilder.WithPresentation"/>, and configure a workload before building.
+    /// Unlike <see cref="CreateBuilder"/>, this entry point does not register console presentation.
+    /// Terminal dimensions and other option defaults are unchanged.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateSlimBuilder()
+    ///     .WithHeadless()
+    ///     .WithDimensions(80, 24)
+    ///     .WithHex1bApp(ctx => ctx.Text("Hello"))
+    ///     .Build();
+    ///
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public static Hex1bTerminalBuilder CreateSlimBuilder() => Hex1bTerminalBuilder.CreateSlim();
+
     // === Constructor ===
 
     /// <summary>

@@ -238,16 +238,23 @@ internal static class ScenarioRunner
             var target = new XElement("Target", new XAttribute("Name", "NativeAotExperimentalSources"),
                 new XAttribute("BeforeTargets", "AssignTargetPaths"),
                 new XAttribute("Condition", "'$(MSBuildProjectName)' == 'Hex1b'"));
-            var items = new XElement("ItemGroup");
+            var items = new XElement("ItemGroup",
+                new XElement("_NativeAotCompile", new XAttribute("Include", "@(Compile)"),
+                    new XElement("ReplacementPath", "%(Compile.Identity)")));
             foreach (var (file, content) in sourceOverrides)
             {
                 if (Path.GetFileName(file) != file || !File.Exists(Path.Combine(RepositoryRoot, "src", "Hex1b", file)))
                     throw new InvalidDataException($"Experimental overrides must name existing root library source files: {file}.");
                 var path = Path.Combine(overridesDirectory, file);
                 await File.WriteAllTextAsync(path, content, cancellationToken);
-                items.Add(new XElement("Compile", new XAttribute("Remove", file)));
-                items.Add(new XElement("Compile", new XAttribute("Include", path), new XElement("Link", file)));
+                items.Add(new XElement("_NativeAotCompile", new XAttribute("Condition", $"'%(_NativeAotCompile.Identity)' == '{file}'"),
+                    new XElement("ReplacementPath", path), new XElement("Link", file)));
             }
+            // Partial-type field layout depends on source order. Replace paths in place
+            // rather than moving entire construction files to the end of Compile.
+            items.Add(new XElement("Compile", new XAttribute("Remove", "@(Compile)")));
+            items.Add(new XElement("Compile", new XAttribute("Include", "@(_NativeAotCompile->'%(ReplacementPath)')")));
+            items.Add(new XElement("_NativeAotCompile", new XAttribute("Remove", "@(_NativeAotCompile)")));
             target.Add(items);
             var targetsPath = Path.Combine(sourceDirectory, "ExperimentalSources.targets");
             await File.WriteAllTextAsync(targetsPath, new XElement("Project", target).ToString(), cancellationToken);

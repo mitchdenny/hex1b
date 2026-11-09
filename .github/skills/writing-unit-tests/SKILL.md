@@ -616,6 +616,9 @@ See `tests/Hex1b.Tests/NativeAot/README.md` for prerequisites, full execution an
 For source-removal size experiments, use the test-only compile-input replacement
 in `HeadlessConsoleTests`, not edits or switches in the shipped library. Replace
 compile items before `AssignTargetPaths` so incremental dependency hashes change.
+Preserve the original `Compile` item order: appending a replaced partial-class
+file changes field layout and native method sizes. The actual-source slim
+measurement includes a no-op copy control requiring identical MethodCode totals.
 Match consumer source/assembly identity and toolchain; include an unmodified-source
 copy control and verify normal library hash/behavior after the experiment. Keep
 pooling, analyzers, native helpers and publish assets unchanged.

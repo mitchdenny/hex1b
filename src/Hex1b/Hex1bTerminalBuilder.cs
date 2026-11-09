@@ -40,8 +40,7 @@ public sealed class Hex1bTerminalBuilder
     private Func<IHex1bTerminalPresentationAdapter?, Hex1bTerminalBuildContext>? _workloadFactory;
     private readonly List<IHex1bTerminalWorkloadFilter> _workloadFilters = [];
     private readonly List<IHex1bTerminalPresentationFilter> _presentationFilters = [];
-    private Func<Hex1bTerminalBuilder, IHex1bTerminalPresentationAdapter> _presentationFactory = 
-        builder => new ConsolePresentationAdapter(enableMouse: builder._enableMouse, preserveOPost: builder._preserveOPost);
+    private Func<Hex1bTerminalBuilder, IHex1bTerminalPresentationAdapter>? _presentationFactory;
     private int _width = 80;
     private int _height = 24;
     private TimeProvider? _timeProvider;
@@ -60,8 +59,16 @@ public sealed class Hex1bTerminalBuilder
     /// Creates a new terminal builder.
     /// </summary>
     public Hex1bTerminalBuilder()
+        : this(builder => new ConsolePresentationAdapter(enableMouse: builder._enableMouse, preserveOPost: builder._preserveOPost))
     {
     }
+
+    private Hex1bTerminalBuilder(Func<Hex1bTerminalBuilder, IHex1bTerminalPresentationAdapter>? presentationFactory)
+    {
+        _presentationFactory = presentationFactory;
+    }
+
+    internal static Hex1bTerminalBuilder CreateSlim() => new(presentationFactory: null);
 
     /// <summary>
     /// Configures the terminal to run a Hex1bApp that renders the widget tree
@@ -1473,7 +1480,7 @@ public sealed class Hex1bTerminalBuilder
     /// Builds the terminal with the configured options.
     /// </summary>
     /// <returns>A configured <see cref="Hex1bTerminal"/> instance.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when no workload has been configured.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when no workload or presentation has been configured.</exception>
     public Hex1bTerminal Build() => BuildCallback is { } build
         ? build(this)
         : BuildCore(deferStart: false);
@@ -1486,7 +1493,12 @@ public sealed class Hex1bTerminalBuilder
                 "No workload configured. Call WithWorkload(), WithHex1bApp(), WithShellProcess(), or WithProcess() before Build().");
         }
 
-        // Create presentation adapter via factory
+        if (_presentationFactory is null)
+        {
+            throw new InvalidOperationException(
+                "No presentation configured. Call WithPresentation() or WithHeadless() before Build().");
+        }
+
         var presentation = _presentationFactory(this);
 
         // Apply reflow configuration if enabled
