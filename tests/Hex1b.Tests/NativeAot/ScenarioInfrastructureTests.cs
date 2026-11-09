@@ -46,4 +46,40 @@ public sealed class ScenarioInfrastructureTests
         TestContext.AddResultFile(projectPath);
         TestContext.AddResultFile(propsPath);
     }
+
+    [TestMethod]
+    public async Task CreateProject_ExperimentalSources_ScopesCompileReplacementToLibrary()
+    {
+        var directory = ScenarioRunner.CreateArtifacts("ExperimentalSources");
+        var overrides = HeadlessConsoleTests.CreateOverrides(true, true);
+        var projectPath = await ScenarioRunner.CreateProjectAsync(directory, "Probe", """Console.WriteLine("probe");""",
+            TestContext.CancellationToken, overrides);
+        var reference = XDocument.Load(projectPath).Root!.Element("ItemGroup")!.Element("ProjectReference")!;
+        var targetsPath = Path.Combine(directory, "source", "ExperimentalSources.targets");
+        Assert.AreEqual("DirectoryBuildTargetsPath=" + targetsPath, (string?)reference.Element("AdditionalProperties"));
+        Assert.AreEqual(Path.Combine("overrides", "**", "*.cs"),
+            (string?)XDocument.Load(projectPath).Root!.Element("ItemGroup")!.Element("Compile")!.Attribute("Remove"));
+        var target = XDocument.Load(targetsPath).Root!.Element("Target")!;
+        Assert.AreEqual("'$(MSBuildProjectName)' == 'Hex1b'", (string?)target.Attribute("Condition"));
+        Assert.AreEqual("AssignTargetPaths", (string?)target.Attribute("BeforeTargets"));
+        var items = target.Element("ItemGroup")!.Elements("Compile").ToArray();
+        Assert.AreEqual(4, items.Length);
+        foreach (var (name, source) in overrides)
+        {
+            Assert.IsTrue(items.Any(item => (string?)item.Attribute("Remove") == name));
+            Assert.IsTrue(items.Any(item => (string?)item.Attribute("Include") ==
+                Path.Combine(directory, "source", "overrides", name)));
+            Assert.AreEqual(source, await File.ReadAllTextAsync(
+                Path.Combine(directory, "source", "overrides", name), TestContext.CancellationToken));
+        }
+    }
+
+    [TestMethod]
+    public async Task CreateProject_ExperimentalSources_RejectsOutsideLibraryPaths()
+    {
+        var directory = ScenarioRunner.CreateArtifacts("InvalidExperimentalSources");
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() =>
+            ScenarioRunner.CreateProjectAsync(directory, "Probe", "", TestContext.CancellationToken,
+                new Dictionary<string, string> { [Path.Combine("..", "Outside.cs")] = "" }));
+    }
 }

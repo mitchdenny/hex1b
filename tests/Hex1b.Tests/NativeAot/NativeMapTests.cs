@@ -60,6 +60,30 @@ public sealed class NativeMapTests
     }
 
     [TestMethod]
+    public void Measure_ConsoleDeclaringFamilies_IncludesClosuresButNotGenericMentions()
+    {
+        var methods = Read("""
+            <ObjectNodes>
+              <EEType Name="Hex1b_Hex1b_ConsolePresentationAdapter" Length="80" />
+              <MethodCode Name="Hex1b_Hex1b_ConsolePresentationAdapter___ctor" Length="40" />
+              <MethodCode Name="Hex1b_Hex1b_ConsolePresentationAdapter___ProbeCapabilitiesAsync_d__42__MoveNext" Length="120" />
+              <MethodCode Name="Hex1b_Hex1b_WindowsConsoleDriver_INPUT_RECORD____GetFieldHelper" Length="20" />
+              <MethodCode Name="Hex1b_Hex1b_UnixConsoleDriver___c__DisplayClass1_0___ReadAsync_b__0" Length="30" />
+              <MethodCode Name="System__Task&lt;Hex1b_Hex1b_ConsolePresentationAdapter&gt;__Start" Length="90" />
+            </ObjectNodes>
+            """);
+        var evidence = NativeMap.Measure(methods,
+            [HeadlessConsoleTests.ConsoleAdapter, HeadlessConsoleTests.ConsoleConstruction,
+             HeadlessConsoleTests.WindowsConsole, HeadlessConsoleTests.UnixConsole], []);
+        NativeMap.Validate(evidence);
+        Assert.AreEqual(160L, evidence[0].Length);
+        Assert.AreEqual(2, evidence[0].Count);
+        Assert.AreEqual(40L, evidence[1].Length);
+        Assert.AreEqual(20L, evidence[2].Length);
+        Assert.AreEqual(30L, evidence[3].Length);
+    }
+
+    [TestMethod]
     [DataRow("Hex1b_Hex1b_Hex1bTerminalBuilder___c__DisplayClass1_0___Build_b__0", "terminal builder")]
     [DataRow("Hex1b_Hex1b_Hex1bTerminalChildProcess__StartAsync_d__3__MoveNext", "child-process implementation")]
     [DataRow("Hex1b_Hex1b_WindowsPtyHandle_SECURITY_ATTRIBUTES____GetFieldHelper", "child-process implementation")]

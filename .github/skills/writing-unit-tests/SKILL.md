@@ -613,6 +613,13 @@ mentioned in generic signatures. Keep publish/intermediate properties scoped to
 consumers so analyzer and native-helper references retain normal build settings.
 See `tests/Hex1b.Tests/NativeAot/README.md` for prerequisites, full execution and evidence.
 
+For source-removal size experiments, use the test-only compile-input replacement
+in `HeadlessConsoleTests`, not edits or switches in the shipped library. Replace
+compile items before `AssignTargetPaths` so incremental dependency hashes change.
+Match consumer source/assembly identity and toolchain; include an unmodified-source
+copy control and verify normal library hash/behavior after the experiment. Keep
+pooling, analyzers, native helpers and publish assets unchanged.
+
 ### Output-Pump Allocation Regressions
 
 Measure `GC.GetAllocatedBytesForCurrentThread()` around a synchronous application
