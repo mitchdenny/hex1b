@@ -138,6 +138,7 @@ public sealed record TerminalWidget(TerminalWidgetHandle Handle) : Hex1bWidget
         {
             node.SetInvalidateCallback(context.InvalidateCallback);
         }
+        node.SetPresentationInvalidateCallback(context.TerminalPresentationInvalidateCallback);
         
         // Set the capture callbacks so the node can manage input capture
         node.SetCaptureCallbacks(context.CaptureInputCallback, context.ReleaseCaptureCallback);

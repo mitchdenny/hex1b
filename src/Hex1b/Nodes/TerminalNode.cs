@@ -11,7 +11,7 @@ namespace Hex1b.Nodes;
 /// <remarks>
 /// <para>
 /// The TerminalNode renders the screen buffer from a <see cref="TerminalWidgetHandle"/>.
-/// It subscribes to the handle's OutputReceived event to trigger re-renders when
+/// It subscribes to the handle's output notifications to trigger re-renders when
 /// new output arrives.
 /// </para>
 /// <para>
@@ -30,8 +30,9 @@ public sealed class TerminalNode : Hex1bNode
 {
     private TerminalWidgetHandle? _handle;
     private bool _isBound;
-    private Action? _outputReceivedHandler;
+    private Action<bool>? _outputReceivedHandler;
     private Action? _invalidateCallback;
+    private Action<TerminalWidgetHandle>? _presentationInvalidateCallback;
     private Action<Hex1bNode>? _captureInputCallback;
     private Action? _releaseCaptureCallback;
     private bool _isFocused;
@@ -163,6 +164,15 @@ public sealed class TerminalNode : Hex1bNode
     internal void SetInvalidateCallback(Action callback)
     {
         _invalidateCallback = callback;
+    }
+
+    /// <summary>
+    /// Sets the callback for content-only output that may be presented without rebuilding
+    /// the host tree. When unset, all output uses the full invalidate callback.
+    /// </summary>
+    internal void SetPresentationInvalidateCallback(Action<TerminalWidgetHandle>? callback)
+    {
+        _presentationInvalidateCallback = callback;
     }
     
     /// <summary>
@@ -432,7 +442,7 @@ public sealed class TerminalNode : Hex1bNode
     /// Binds this node to the current handle, subscribing to output events.
     /// </summary>
     /// <remarks>
-    /// After subscribing to the handle's OutputReceived event, we immediately
+    /// After subscribing to the handle's output notifications, we immediately
     /// mark the node dirty and trigger an invalidation. This ensures that any
     /// output that arrived before binding (e.g., bash prompt) will be rendered
     /// on the next frame. Without this, the terminal would appear empty until
@@ -442,8 +452,9 @@ public sealed class TerminalNode : Hex1bNode
     {
         if (_isBound || _handle == null) return;
         
-        _outputReceivedHandler = OnOutputReceived;
-        _handle.OutputReceived += _outputReceivedHandler;
+        var handle = _handle;
+        _outputReceivedHandler = contentOnly => OnOutputReceived(handle, contentOnly);
+        _handle.TerminalInvalidated += _outputReceivedHandler;
         _isBound = true;
         
         // Mark dirty and invalidate to render any output that arrived before binding.
@@ -464,7 +475,7 @@ public sealed class TerminalNode : Hex1bNode
         
         if (_outputReceivedHandler != null)
         {
-            _handle.OutputReceived -= _outputReceivedHandler;
+            _handle.TerminalInvalidated -= _outputReceivedHandler;
             _outputReceivedHandler = null;
         }
         _isBound = false;
@@ -495,7 +506,7 @@ public sealed class TerminalNode : Hex1bNode
         _copyModeHelper.SetDefaultClipboard(defaultClipboard);
     }
     
-    private void OnOutputReceived()
+    private void OnOutputReceived(TerminalWidgetHandle handle, bool contentOnly)
     {
         // Increment output version to track that new content arrived
         // This is checked in NeedsRender to ensure we don't miss content
@@ -503,7 +514,10 @@ public sealed class TerminalNode : Hex1bNode
         System.Threading.Interlocked.Increment(ref _outputVersion);
         
         MarkDirty();
-        _invalidateCallback?.Invoke();
+        if (contentOnly && _presentationInvalidateCallback is { } presentationInvalidate)
+            presentationInvalidate(handle);
+        else
+            _invalidateCallback?.Invoke();
     }
     
     /// <summary>
