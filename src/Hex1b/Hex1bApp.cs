@@ -229,16 +229,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private readonly AnimationTimer _animationTimer;
     private readonly TimeProvider _timeProvider;
     private long _frameTimestamp;
-
-    // Terminal presentation-only frames (content-only embedded terminal output).
-    private readonly object _terminalPresentationLock = new();
-    private readonly HashSet<TerminalWidgetHandle> _pendingTerminalPresentations = new(ReferenceEqualityComparer.Instance);
-    private IReadOnlySet<TerminalWidgetHandle>? _observedTerminalHandles;
-    private int _layoutWidth = -1;
-    private int _layoutHeight = -1;
-    private TerminalCapabilities? _layoutCapabilities;
-    private int _fullFrameCount;
-    private int _presentationFrameCount;
     // Window manager registry for accessing WindowManagers from anywhere
     private readonly WindowManagerRegistry _windowManagerRegistry = new();
     
@@ -721,8 +711,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
                 // Every frame returns through input/timer servicing. Acquiring the frame
                 // consumes only prior requests; output during rendering stays pending.
-                if (_frameScheduler.TryBeginFrame(bypassPacing: inputReady || _stopRequested, out var presentationOnly))
-                    await RenderFrameAsync(cancellationToken, presentationOnly);
+                if (_frameScheduler.TryBeginFrame(bypassPacing: inputReady || _stopRequested))
+                    await RenderFrameAsync(cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -959,25 +949,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             (Stopwatch.GetTimestamp() - inputStart) * 1000.0 / Stopwatch.Frequency);
     }
 
-    private async Task RenderFrameAsync(CancellationToken cancellationToken, bool presentationOnly = false)
+    private async Task RenderFrameAsync(CancellationToken cancellationToken)
     {
-        var frameStart = Stopwatch.GetTimestamp();
-
-        // Content-only terminal output reuses the existing tree: no build, reconcile, layout,
-        // focus, or animation redraw epoch. Anything that may change the tree falls back.
-        if (presentationOnly && TryBeginPresentationFrame(out var presentationWidth, out var presentationHeight, out var presentationCapabilities))
-        {
-            Interlocked.Increment(ref _presentationFrameCount);
-            await RenderFrameOutputAsync(presentationWidth, presentationHeight, presentationCapabilities,
-                frameStart, rebuilt: false, buildTicks: 0, reconcileTicks: 0, cancellationToken);
-            return;
-        }
-
-        Interlocked.Increment(ref _fullFrameCount);
-        lock (_terminalPresentationLock)
-            _pendingTerminalPresentations.Clear();
-
         // Preserve pending animation deadlines across unrelated frames.
+        
+        var frameStart = Stopwatch.GetTimestamp();
         _frameTimestamp = _timeProvider.GetTimestamp();
         _animationTimer.BeginRedrawFrame();
         
@@ -1005,10 +981,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         Exception? buildException = null;
         
         long buildStart = Stopwatch.GetTimestamp();
-
-        // Handles whose content the host reads while building its tree cannot use
-        // presentation-only frames: their output must rebuild.
-        var observation = TerminalHostObservation.Begin();
         
         try
         {
@@ -1085,10 +1057,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             _rootNode.Measure(constraints);
             _rootNode.Arrange(Rect.FromSize(terminalSize));
         }
-        Volatile.Write(ref _observedTerminalHandles, observation.End());
-        _layoutWidth = frameWidth;
-        _layoutHeight = frameHeight;
-        _layoutCapabilities = frameCapabilities;
 
         // Step 5: Rebuild focus ring from the current node tree
         _focusRing.Rebuild(_rootNode);
@@ -1102,57 +1070,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         
         _focusRing.EnsureFocus();
 
-        await RenderFrameOutputAsync(frameWidth, frameHeight, frameCapabilities,
-            frameStart, rebuilt: true, buildTicks, reconcileTicks, cancellationToken);
-    }
-
-    private bool TryBeginPresentationFrame(out int width, out int height, out TerminalCapabilities capabilities)
-    {
-        width = _adapter.Width;
-        height = _adapter.Height;
-        capabilities = _adapter.Capabilities;
-        if (_rootNode is null || _isFirstFrame || _kgpRetransmitPendingAfterResize || _pendingFocusPredicate is not null
-            || width != _layoutWidth || height != _layoutHeight || !Equals(capabilities, _layoutCapabilities))
-            return false;
-        if (_themeProvider is not null && !ReferenceEquals(_themeProvider(), _previousTheme))
-            return false;
-
-        lock (_terminalPresentationLock)
-        {
-            // A handle observed by the latest build may have requested presentation before
-            // that observation was published; such output still needs a rebuild.
-            var observed = Volatile.Read(ref _observedTerminalHandles);
-            if (observed is not null && _pendingTerminalPresentations.Overlaps(observed))
-                return false;
-            _pendingTerminalPresentations.Clear();
-        }
-        return true;
-    }
-
-    /// <summary>
-    /// Requests a frame for content-only output from an embedded terminal. Output from a
-    /// handle whose content the host read during its latest build still rebuilds the tree.
-    /// </summary>
-    internal void InvalidateTerminalPresentation(TerminalWidgetHandle handle)
-    {
-        var observed = Volatile.Read(ref _observedTerminalHandles);
-        if (observed is not null && observed.Contains(handle))
-        {
-            _frameScheduler.RequestFrame();
-            return;
-        }
-
-        lock (_terminalPresentationLock)
-            _pendingTerminalPresentations.Add(handle);
-        _frameScheduler.RequestPresentationFrame();
-    }
-
-    internal int FullFrameCount => Volatile.Read(ref _fullFrameCount);
-    internal int PresentationFrameCount => Volatile.Read(ref _presentationFrameCount);
-
-    private async Task RenderFrameOutputAsync(int frameWidth, int frameHeight, TerminalCapabilities frameCapabilities,
-        long frameStart, bool rebuilt, long buildTicks, long reconcileTicks, CancellationToken cancellationToken)
-    {
         // Step 6: Update render context with mouse position for hover rendering
         _context.MouseX = _mouseX;
         _context.MouseY = _mouseY;
@@ -1230,11 +1147,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             
             // Record metrics for this frame
             var freq = (double)Stopwatch.Frequency;
-            if (rebuilt)
-            {
-                _metrics.FrameBuildDuration.Record(buildTicks * 1000.0 / freq);
-                _metrics.FrameReconcileDuration.Record(reconcileTicks * 1000.0 / freq);
-            }
+            _metrics.FrameBuildDuration.Record(buildTicks * 1000.0 / freq);
+            _metrics.FrameReconcileDuration.Record(reconcileTicks * 1000.0 / freq);
             if (needsRender)
             {
                 _metrics.FrameRenderDuration.Record(renderTicks * 1000.0 / freq);
@@ -2482,7 +2396,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         context.AnimationTimer = _animationTimer;
         context.TimeProvider = _timeProvider;
         context.FrameTimestamp = _frameTimestamp;
-        context.TerminalPresentationInvalidateCallback = InvalidateTerminalPresentation;
         context.IsNew = existingNode is null || existingNode.GetType() != widget.GetExpectedNodeType();
         context.DiagnosticTimingEnabled = _diagnosticTimingEnabled;
         context.Metrics = _metrics.NodeReconcileDuration != null ? _metrics : null;

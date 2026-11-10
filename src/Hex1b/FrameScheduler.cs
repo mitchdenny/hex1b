@@ -12,21 +12,8 @@ internal sealed class FrameScheduler(TimeSpan interval, TimeProvider timeProvide
     private bool _hasStarted;
     private long _lastStarted;
     private bool _disposed;
-    private bool _fullPending;
 
-    // Full requests dominate presentation-only requests until the next frame starts.
     internal void RequestFrame()
-    {
-        lock (_lock)
-        {
-            if (_disposed)
-                return;
-            _fullPending = true;
-            _requests.Writer.TryWrite(true);
-        }
-    }
-
-    internal void RequestPresentationFrame()
     {
         lock (_lock)
         {
@@ -65,19 +52,14 @@ internal sealed class FrameScheduler(TimeSpan interval, TimeProvider timeProvide
         }
     }
 
-    internal bool TryBeginFrame(bool bypassPacing = false) => TryBeginFrame(bypassPacing, out _);
-
-    internal bool TryBeginFrame(bool bypassPacing, out bool presentationOnly)
+    internal bool TryBeginFrame(bool bypassPacing = false)
     {
         lock (_lock)
         {
-            presentationOnly = false;
             if (_disposed || (!bypassPacing && GetRemaining() > TimeSpan.Zero) ||
                 !_requests.Reader.TryRead(out _))
                 return false;
 
-            presentationOnly = !_fullPending;
-            _fullPending = false;
             _lastStarted = timeProvider.GetTimestamp();
             _hasStarted = true;
             return true;

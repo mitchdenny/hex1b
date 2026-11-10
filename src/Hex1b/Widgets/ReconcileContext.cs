@@ -105,12 +105,6 @@ public sealed class ReconcileContext
     internal long? FrameTimestamp { get; set; }
 
     /// <summary>
-    /// Callback for content-only terminal output that can be presented without rebuilding
-    /// the host tree. Null means terminal output uses <see cref="InvalidateCallback"/>.
-    /// </summary>
-    internal Action<TerminalWidgetHandle>? TerminalPresentationInvalidateCallback { get; set; }
-
-    /// <summary>
     /// Callback to request focus on a node after the focus ring is rebuilt.
     /// The predicate identifies the target node; focus is set post-Rebuild
     /// with correct focusable state.
@@ -189,7 +183,7 @@ public sealed class ReconcileContext
         {
             AnimationTimer = AnimationTimer,
             TimeProvider = TimeProvider,
-            FrameTimestamp = FrameTimestamp, TerminalPresentationInvalidateCallback = TerminalPresentationInvalidateCallback,
+            FrameTimestamp = FrameTimestamp,
             DiagnosticTimingEnabled = DiagnosticTimingEnabled,
             Metrics = Metrics,
             _inputOverrides = _inputOverrides
@@ -205,7 +199,7 @@ public sealed class ReconcileContext
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), axis, InvalidateCallback,
             CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback,
             CopyToClipboardCallback)
-        { IsNew = IsNew, AnimationTimer = AnimationTimer, TimeProvider = TimeProvider, FrameTimestamp = FrameTimestamp, TerminalPresentationInvalidateCallback = TerminalPresentationInvalidateCallback,
+        { IsNew = IsNew, AnimationTimer = AnimationTimer, TimeProvider = TimeProvider, FrameTimestamp = FrameTimestamp,
             DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = _inputOverrides };
     }
     
@@ -218,7 +212,7 @@ public sealed class ReconcileContext
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), LayoutAxis, InvalidateCallback,
             CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback,
             CopyToClipboardCallback)
-        { IsNew = IsNew, AnimationTimer = AnimationTimer, TimeProvider = TimeProvider, FrameTimestamp = FrameTimestamp, TerminalPresentationInvalidateCallback = TerminalPresentationInvalidateCallback,
+        { IsNew = IsNew, AnimationTimer = AnimationTimer, TimeProvider = TimeProvider, FrameTimestamp = FrameTimestamp,
             ChildIndex = index, ChildCount = count, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = _inputOverrides };
     }
 
@@ -231,7 +225,7 @@ public sealed class ReconcileContext
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), LayoutAxis, InvalidateCallback,
             CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback,
             CopyToClipboardCallback)
-        { IsNew = IsNew, AnimationTimer = AnimationTimer, TimeProvider = TimeProvider, FrameTimestamp = FrameTimestamp, TerminalPresentationInvalidateCallback = TerminalPresentationInvalidateCallback,
+        { IsNew = IsNew, AnimationTimer = AnimationTimer, TimeProvider = TimeProvider, FrameTimestamp = FrameTimestamp,
             ChildIndex = ChildIndex, ChildCount = ChildCount, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = overrides };
     }
 

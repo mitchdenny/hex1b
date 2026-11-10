@@ -63,10 +63,6 @@ public sealed class TerminalWidgetHandle :
     
     // Cursor shape (from CursorShapeToken)
     private CursorShape _cursorShape = CursorShape.Default;
-
-    // Set when output changes handle state a host may observe through events without reading
-    // it during build (mouse/alt-screen modes, RIS, titles); the next notification is then full.
-    private bool _hostStateChanged;
     
     // Terminal title (OSC 0/2) and icon name (OSC 0/1)
     private string _windowTitle = "";
@@ -124,35 +120,35 @@ public sealed class TerminalWidgetHandle :
     /// <summary>
     /// Gets the current cursor X position (0-based).
     /// </summary>
-    public int CursorX { get { TerminalHostObservation.Record(this); return _cursorX; } }
+    public int CursorX => _cursorX;
     
     /// <summary>
     /// Gets the current cursor Y position (0-based).
     /// </summary>
-    public int CursorY { get { TerminalHostObservation.Record(this); return _cursorY; } }
+    public int CursorY => _cursorY;
     
     /// <summary>
     /// Gets whether the cursor is currently visible.
     /// </summary>
-    public bool CursorVisible { get { TerminalHostObservation.Record(this); return _cursorVisible; } }
+    public bool CursorVisible => _cursorVisible;
     
     /// <summary>
     /// Gets the current cursor shape requested by the child process.
     /// </summary>
-    public CursorShape CursorShape { get { TerminalHostObservation.Record(this); return _cursorShape; } }
+    public CursorShape CursorShape => _cursorShape;
     
     /// <summary>
     /// Gets whether the child process has enabled mouse tracking.
     /// Mouse events are only forwarded to the child when this is true.
     /// </summary>
-    public bool MouseTrackingEnabled { get { TerminalHostObservation.Record(this); return _mouseTrackingEnabled; } }
+    public bool MouseTrackingEnabled => _mouseTrackingEnabled;
     
     /// <summary>
     /// Gets whether the child process is currently using the alternate screen buffer (mode 1049).
     /// When true, scrollback viewing is disabled because alternate screen programs (vim, less, etc.)
     /// manage their own scrolling.
     /// </summary>
-    public bool InAlternateScreen { get { TerminalHostObservation.Record(this); return _inAlternateScreen; } }
+    public bool InAlternateScreen => _inAlternateScreen;
     
     /// <summary>
     /// Gets the current lifecycle state of the terminal session.
@@ -236,13 +232,13 @@ public sealed class TerminalWidgetHandle :
     /// </summary>
     /// <remarks>Empty means no title. Uses the same control-free, 4096 UTF-16 code-unit
     /// normalization as <see cref="Hex1bTerminal.WindowTitle"/>. Render as untrusted text.</remarks>
-    public string WindowTitle { get { TerminalHostObservation.Record(this); return _windowTitle; } }
+    public string WindowTitle => _windowTitle;
 
     /// <summary>
     /// Gets the current icon name set by OSC 0 or OSC 1 sequences from the child process.
     /// </summary>
     /// <remarks>Uses the same text normalization and length bound as <see cref="WindowTitle"/>.</remarks>
-    public string IconName { get { TerminalHostObservation.Record(this); return _iconName; } }
+    public string IconName => _iconName;
 
     /// <summary>Gets the current progress reported by the child workload.</summary>
     /// <remarks>
@@ -297,19 +293,6 @@ public sealed class TerminalWidgetHandle :
     /// TerminalNode subscribes to this to trigger re-renders.
     /// </summary>
     public event Action? OutputReceived;
-
-    /// <summary>
-    /// Internal classified form of <see cref="OutputReceived"/> raised immediately before it.
-    /// The argument is true only for cell or graphics output that changed no host-visible
-    /// handle state (modes, titles, lifecycle, activity, or copy mode).
-    /// </summary>
-    internal event Action<bool>? TerminalInvalidated;
-
-    private void RaiseOutputReceived(bool contentOnly)
-    {
-        TerminalInvalidated?.Invoke(contentOnly);
-        OutputReceived?.Invoke();
-    }
     
     /// <summary>
     /// Event raised when the window title changes (OSC 0 or OSC 2 from child process).
@@ -363,7 +346,7 @@ public sealed class TerminalWidgetHandle :
     void IHex1bTerminalPresentationAdapter.InvalidatePresentation()
     {
         if (!_disposed)
-            RaiseOutputReceived(contentOnly: false);
+            OutputReceived?.Invoke();
     }
     
     /// <inheritdoc />
@@ -373,7 +356,7 @@ public sealed class TerminalWidgetHandle :
         {
             _state = TerminalState.Running;
             StateChanged?.Invoke(_state);
-            RaiseOutputReceived(contentOnly: false); // Trigger re-render to switch from fallback to terminal
+            OutputReceived?.Invoke(); // Trigger re-render to switch from fallback to terminal
         }
     }
     
@@ -385,7 +368,7 @@ public sealed class TerminalWidgetHandle :
             _exitCode = exitCode;
             _state = TerminalState.Completed;
             StateChanged?.Invoke(_state);
-            RaiseOutputReceived(contentOnly: false); // Trigger re-render to switch from terminal to fallback
+            OutputReceived?.Invoke(); // Trigger re-render to switch from terminal to fallback
         }
     }
     
@@ -432,7 +415,7 @@ public sealed class TerminalWidgetHandle :
         if (wasInCopyMode)
             CopyModeChanged?.Invoke(false);
         StateChanged?.Invoke(_state);
-        RaiseOutputReceived(contentOnly: false);
+        OutputReceived?.Invoke();
     }
 
     private void SetActivityState(TerminalActivityState activity)
@@ -459,7 +442,7 @@ public sealed class TerminalWidgetHandle :
         if (previous.WorkingDirectory != activity.WorkingDirectory)
             WorkingDirectoryChanged?.Invoke(activity.WorkingDirectory);
         if (!_disposed)
-            RaiseOutputReceived(contentOnly: false);
+            OutputReceived?.Invoke();
     }
     
     /// <summary>
@@ -491,7 +474,6 @@ public sealed class TerminalWidgetHandle :
     /// </summary>
     private void HandleRisToken()
     {
-        _hostStateChanged = true;
         _mouseTrackingEnabled = false;
         _sgrMouseModeEnabled = false;
         _inAlternateScreen = false;
@@ -515,19 +497,16 @@ public sealed class TerminalWidgetHandle :
             case 1000: // X11 mouse - basic button tracking
             case 1002: // Button event tracking (motion while button held)
             case 1003: // Any event tracking (all motion)
-                _hostStateChanged |= _mouseTrackingEnabled != pm.Enable;
                 _mouseTrackingEnabled = pm.Enable;
                 break;
             
             // SGR extended mouse mode (extended coordinates)
             case 1006:
-                _hostStateChanged |= _sgrMouseModeEnabled != pm.Enable;
                 _sgrMouseModeEnabled = pm.Enable;
                 break;
             
             // Alternate screen buffer
             case 1049:
-                _hostStateChanged |= _inAlternateScreen != pm.Enable;
                 _inAlternateScreen = pm.Enable;
                 break;
         }
@@ -577,7 +556,6 @@ public sealed class TerminalWidgetHandle :
         if (_windowTitle != title)
         {
             _windowTitle = title;
-            _hostStateChanged = true;
             WindowTitleChanged?.Invoke(title);
         }
     }
@@ -591,7 +569,6 @@ public sealed class TerminalWidgetHandle :
         if (_iconName != name)
         {
             _iconName = name;
-            _hostStateChanged = true;
             IconNameChanged?.Invoke(name);
         }
     }
@@ -639,7 +616,6 @@ public sealed class TerminalWidgetHandle :
     /// <returns>A copy of the screen buffer cells.</returns>
     public TerminalCell[,] GetScreenBuffer()
     {
-        TerminalHostObservation.Record(this);
         // Prefer the terminal's authoritative buffer when available
         if (_terminal is { } terminal)
         {
@@ -668,7 +644,6 @@ public sealed class TerminalWidgetHandle :
     /// <returns>A tuple containing the buffer copy, width, and height.</returns>
     public (TerminalCell[,] Buffer, int Width, int Height) GetScreenBufferSnapshot()
     {
-        TerminalHostObservation.Record(this);
         // Prefer the terminal's authoritative buffer when available.
         // The handle's local buffer can be stale after resize/reflow because:
         // 1. Handle.Resize() does a simple copy of old content
@@ -721,7 +696,6 @@ public sealed class TerminalWidgetHandle :
     /// </summary>
     public TerminalCell GetCell(int x, int y)
     {
-        TerminalHostObservation.Record(this);
         lock (_bufferLock)
         {
             if (x < 0 || x >= _width || y < 0 || y >= _height)
@@ -738,7 +712,6 @@ public sealed class TerminalWidgetHandle :
     /// <returns>Array of scrollback rows, or empty if scrollback is not enabled.</returns>
     public ScrollbackRow[] GetScrollbackSnapshot(int count)
     {
-        TerminalHostObservation.Record(this);
         return _terminal?.GetScrollbackRows(count) ?? [];
     }
     
@@ -746,7 +719,7 @@ public sealed class TerminalWidgetHandle :
     /// Gets the number of rows currently in the scrollback buffer.
     /// Returns 0 if scrollback is not enabled.
     /// </summary>
-    public int ScrollbackCount { get { TerminalHostObservation.Record(this); return _terminal?.ScrollbackCount ?? 0; } }
+    public int ScrollbackCount => _terminal?.ScrollbackCount ?? 0;
     
     private void ClearBuffer()
     {
@@ -785,7 +758,7 @@ public sealed class TerminalWidgetHandle :
         // For now, just notify that something happened (display may be incomplete).
         if (!_disposed && !data.IsEmpty)
         {
-            RaiseOutputReceived(contentOnly: false);
+            OutputReceived?.Invoke();
         }
         return ValueTask.CompletedTask;
     }
@@ -841,8 +814,6 @@ public sealed class TerminalWidgetHandle :
     {
         int maxY = -1;
         var hasPresentationChanges = false;
-        var notify = false;
-        var hostStateChanged = false;
         lock (_bufferLock)
         {
             foreach (var applied in appliedTokens)
@@ -885,20 +856,13 @@ public sealed class TerminalWidgetHandle :
                 _cursorX = Math.Clamp(applied.CursorXAfter, 0, _width - 1);
                 _cursorY = Math.Clamp(applied.CursorYAfter, 0, _height - 1);
             }
-
-            notify = maxY >= 0 || hasPresentationChanges;
-            if (notify)
-            {
-                hostStateChanged = _hostStateChanged;
-                _hostStateChanged = false;
-            }
         }
         
         // Graphics and synchronized-output completion can change the presented frame
         // without changing any cells, including an end marker in a separate read.
-        if (notify)
+        if (maxY >= 0 || hasPresentationChanges)
         {
-            RaiseOutputReceived(contentOnly: !hostStateChanged);
+            OutputReceived?.Invoke();
         }
     }
     
@@ -1013,7 +977,7 @@ public sealed class TerminalWidgetHandle :
         }
         
         CopyModeChanged?.Invoke(true);
-        RaiseOutputReceived(contentOnly: false); // trigger re-render to show copy mode cursor
+        OutputReceived?.Invoke(); // trigger re-render to show copy mode cursor
     }
     
     /// <summary>
@@ -1048,7 +1012,7 @@ public sealed class TerminalWidgetHandle :
         }
         
         CopyModeChanged?.Invoke(false);
-        RaiseOutputReceived(contentOnly: false);
+        OutputReceived?.Invoke();
     }
     
     /// <summary>
@@ -1116,7 +1080,7 @@ public sealed class TerminalWidgetHandle :
             Math.Clamp(pos.Column + colDelta, 0, maxCol));
         _selection.MoveCursor(newPos);
         EnsureCopyModeCursorVisible();
-        RaiseOutputReceived(contentOnly: false);
+        OutputReceived?.Invoke();
     }
     
     /// <summary>
@@ -1132,7 +1096,7 @@ public sealed class TerminalWidgetHandle :
             Math.Clamp(row, 0, maxRow),
             Math.Clamp(column, 0, maxCol)));
         EnsureCopyModeCursorVisible();
-        RaiseOutputReceived(contentOnly: false);
+        OutputReceived?.Invoke();
     }
     
     /// <summary>
@@ -1148,7 +1112,7 @@ public sealed class TerminalWidgetHandle :
             _selection.ToggleMode(mode);
         else
             _selection.StartSelection(mode);
-        RaiseOutputReceived(contentOnly: false);
+        OutputReceived?.Invoke();
     }
     
     /// <summary>
@@ -1181,7 +1145,7 @@ public sealed class TerminalWidgetHandle :
         
         _selection.MoveCursor(new BufferPosition(Math.Min(row, maxRow), col));
         EnsureCopyModeCursorVisible();
-        RaiseOutputReceived(contentOnly: false);
+        OutputReceived?.Invoke();
     }
     
     /// <summary>
@@ -1195,7 +1159,7 @@ public sealed class TerminalWidgetHandle :
         
         col--;
         if (col < 0) { col = _width - 1; row--; }
-        if (row < 0) { _selection.MoveCursor(new BufferPosition(0, 0)); RaiseOutputReceived(contentOnly: false); return; }
+        if (row < 0) { _selection.MoveCursor(new BufferPosition(0, 0)); OutputReceived?.Invoke(); return; }
         
         // Skip whitespace
         while (row >= 0)
@@ -1217,7 +1181,7 @@ public sealed class TerminalWidgetHandle :
         
         _selection.MoveCursor(new BufferPosition(Math.Max(row, 0), Math.Clamp(col, 0, _width - 1)));
         EnsureCopyModeCursorVisible();
-        RaiseOutputReceived(contentOnly: false);
+        OutputReceived?.Invoke();
     }
     
     /// <summary>
@@ -1313,7 +1277,7 @@ public sealed class TerminalWidgetHandle :
                     }
                     _selection.MoveCursor(new BufferPosition(virtualRow, column));
                     EnsureCopyModeCursorVisible();
-                    RaiseOutputReceived(contentOnly: false);
+                    OutputReceived?.Invoke();
                     
                     // Start/stop auto-scroll timer based on whether mouse is out of bounds
                     if (localY < 0)
@@ -1335,7 +1299,7 @@ public sealed class TerminalWidgetHandle :
                 _pendingMouseAnchor = null;
                 StopDragScrollTimer();
                 // Selection stays active — user can refine with keyboard or press y to copy
-                RaiseOutputReceived(contentOnly: false);
+                OutputReceived?.Invoke();
                 break;
         }
     }
@@ -1404,7 +1368,7 @@ public sealed class TerminalWidgetHandle :
         
         if (newOffset != previousOffset)
             terminal?.RefreshKgpAnimationPlayback(newOffset);
-        RaiseOutputReceived(contentOnly: false);
+        OutputReceived?.Invoke();
     }
     
     /// <summary>
@@ -1430,7 +1394,6 @@ public sealed class TerminalWidgetHandle :
     /// <returns>The cell at that position, or null if out of bounds.</returns>
     public TerminalCell? GetVirtualCell(int virtualRow, int column)
     {
-        TerminalHostObservation.Record(this);
         var terminal = _terminal;
         var scrollbackCount = terminal?.ScrollbackCount ?? 0;
         var rows = virtualRow >= 0 && virtualRow < scrollbackCount
