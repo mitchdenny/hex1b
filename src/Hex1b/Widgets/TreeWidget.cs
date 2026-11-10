@@ -84,6 +84,7 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TreeNode ?? new TreeNode();
+        node.SetTimeProvider(context.TimeProvider);
         var isNewNode = existingNode == null;
 
         node.MultiSelect = IsMultiSelect;

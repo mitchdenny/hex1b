@@ -93,11 +93,12 @@ public abstract record Hex1bWidget
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When set, a one-shot timer is scheduled during reconciliation that will
-    /// trigger a re-render after the specified delay. Use this for animations.
+    /// Requests a redraw after the specified delay from the start of the frame.
+    /// Reconciliation preserves an earlier pending deadline instead of accumulating timers.
     /// </para>
     /// <para>
-    /// The delay is clamped to a minimum of 16ms (60 FPS cap).
+    /// The delay is clamped to a minimum of 1ms. Rendering still respects the
+    /// application's frame-rate limit. Removing the widget cancels its pending redraw.
     /// For continuous animation, call <c>.RedrawAfter()</c> on each build.
     /// </para>
     /// </remarks>

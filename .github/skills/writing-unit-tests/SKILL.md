@@ -356,6 +356,14 @@ For nested output races, gate later child redraws: their extra notifications can
 mask a lost first-frame notification. These controlled cases supplement, rather
 than prove, responsiveness under arbitrary real-world load.
 
+Include simulated rendering time in cadence tests: a 16 ms interval with 10 ms
+of frame work must request only the remaining 6 ms. Startup also consumes a
+frame budget. For animation integration, observe finite `ITimer.Change` calls
+before advancing fake time; the reusable wake timer is initially disabled.
+Verify both visual animation values and bounded per-node redraw registrations,
+including removal when an animation completes. See
+`Hex1bAppSchedulingTests.RunAsync_AnimationAndInvalidation_ShareClockAndFrameBudget`.
+
 ## Process Output Completion
 
 Process exit and terminal output consumption are separate events. For a controlled

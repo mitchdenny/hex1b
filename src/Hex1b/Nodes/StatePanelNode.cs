@@ -29,10 +29,10 @@ public sealed class StatePanelNode : Hex1bNode
     public Hex1bNode? Child { get; set; }
 
     /// <summary>
-    /// Stopwatch ticks at the last reconciliation. Used to compute elapsed time
+    /// App-clock timestamp at the last reconciliation. Used to compute elapsed time
     /// between reconciliation frames.
     /// </summary>
-    internal long LastReconcileTicks { get; set; }
+    internal long? LastReconcileTicks { get; set; }
 
     /// <summary>
     /// Gets or creates a state object of the specified type. The factory is called once

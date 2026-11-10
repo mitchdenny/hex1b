@@ -79,6 +79,7 @@ public sealed record SpinnerWidget : Hex1bWidget
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as SpinnerNode ?? new SpinnerNode();
+        node.SetTimeProvider(context.TimeProvider);
 
         // Mark dirty if properties changed
         if (node.Style != Style || node.ExplicitFrameIndex != FrameIndex)

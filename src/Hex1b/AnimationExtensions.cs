@@ -31,7 +31,8 @@ public static class AnimationExtensions
     /// <typeparam name="TWidget">The widget type.</typeparam>
     /// <param name="widget">The widget to redraw.</param>
     /// <param name="delay">
-    /// The delay before redrawing. Clamped to minimum of 16ms (60 FPS cap).
+    /// The delay from the start of the current frame before requesting another redraw.
+    /// Values below 1ms are clamped to 1ms. Rendering respects the app's frame-rate limit.
     /// </param>
     /// <returns>The widget with the redraw delay set.</returns>
     /// <remarks>
@@ -40,8 +41,9 @@ public static class AnimationExtensions
     /// marked dirty and a re-render is triggered.
     /// </para>
     /// <para>
-    /// For continuous animation, call this method on each widget tree build.
-    /// The timer only fires once per call.
+    /// For continuous animation, keep this setting on each widget tree build.
+    /// Rebuilding the same node retains its pending deadline rather than adding timers
+    /// or postponing the redraw. Removing the setting or the node cancels its request.
     /// </para>
     /// </remarks>
     public static TWidget RedrawAfter<TWidget>(this TWidget widget, TimeSpan delay)
@@ -54,7 +56,8 @@ public static class AnimationExtensions
     /// <typeparam name="TWidget">The widget type.</typeparam>
     /// <param name="widget">The widget to redraw.</param>
     /// <param name="milliseconds">
-    /// The delay in milliseconds before redrawing. Clamped to minimum of 16ms (60 FPS cap).
+    /// The delay in milliseconds from the current frame's start before requesting a redraw.
+    /// Values below 1ms are clamped to 1ms. Rendering respects the app's frame-rate limit.
     /// </param>
     /// <returns>The widget with the redraw delay set.</returns>
     public static TWidget RedrawAfter<TWidget>(this TWidget widget, int milliseconds)

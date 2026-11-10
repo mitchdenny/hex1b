@@ -64,9 +64,9 @@ public sealed record StatePanelWidget(
         }
 
         // 3. Compute elapsed time since last reconciliation
-        var now = System.Diagnostics.Stopwatch.GetTimestamp();
-        var elapsed = node.LastReconcileTicks > 0
-            ? System.Diagnostics.Stopwatch.GetElapsedTime(node.LastReconcileTicks, now)
+        var now = context.FrameTimestamp ?? context.TimeProvider.GetTimestamp();
+        var elapsed = node.LastReconcileTicks is { } previous
+            ? context.TimeProvider.GetElapsedTime(previous, now)
             : TimeSpan.Zero;
         node.LastReconcileTicks = now;
 
@@ -84,17 +84,7 @@ public sealed record StatePanelWidget(
         node.SweepUnvisited();
 
         // 7. Schedule re-render if any stored state is still active
-        if (node.HasActiveState && context.ScheduleTimerCallback is not null)
-        {
-            var capturedNode = node;
-            var capturedInvalidate = context.InvalidateCallback;
-            context.ScheduleTimerCallback(TimeSpan.FromMilliseconds(16), () =>
-            {
-                capturedNode.MarkDirty();
-                capturedNode.Parent?.MarkDirty();
-                capturedInvalidate?.Invoke();
-            });
-        }
+        context.ScheduleRedraw(node, node.HasActiveState ? TimeSpan.FromMilliseconds(16) : null, activeState: true);
 
         if (isNew)
             node.MarkDirty();

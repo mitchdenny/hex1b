@@ -787,7 +787,7 @@ public sealed class TreeNode : Hex1bNode
     private string GetSpinnerFrame(SpinnerNode spinnerNode, Hex1bTheme theme)
     {
         var style = spinnerNode.Style ?? theme.Get(SpinnerTheme.Style);
-        var elapsed = DateTime.UtcNow - _spinnerStartTime;
+        var elapsed = _spinnerClock.Elapsed;
         var intervalMs = style.Interval.TotalMilliseconds;
         if (intervalMs <= 0) intervalMs = 80;
         var frameIndex = (int)(elapsed.TotalMilliseconds / intervalMs) % style.Frames.Count;
@@ -804,14 +804,15 @@ public sealed class TreeNode : Hex1bNode
     }
     
     // Track when loading started for spinner animation
-    private DateTime _spinnerStartTime = DateTime.UtcNow;
+    private Animation.AnimationClock _spinnerClock = new(TimeProvider.System);
+    internal void SetTimeProvider(TimeProvider timeProvider) => _spinnerClock.Use(timeProvider);
     
     /// <summary>
     /// Resets the spinner animation when loading starts.
     /// </summary>
     internal void ResetSpinnerAnimation()
     {
-        _spinnerStartTime = DateTime.UtcNow;
+        _spinnerClock.Restart();
     }
 
     /// <summary>

@@ -139,12 +139,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     // Render optimization - track if this is the first frame (needs full clear)
     private bool _isFirstFrame = true;
     
-    // Channel for signaling that a re-render is needed (from Invalidate() calls)
-    private readonly Channel<bool> _invalidateChannel = Channel.CreateBounded<bool>(
-        new BoundedChannelOptions(1) 
-        { 
-            FullMode = BoundedChannelFullMode.DropOldest 
-        });
+    private readonly FrameScheduler _frameScheduler;
+    private TaskCompletionSource _stopSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
     
     // Rescue (error boundary) support
     private readonly bool _rescueEnabled;
@@ -231,15 +227,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     
     // Animation timer for RedrawAfter() support
     private readonly AnimationTimer _animationTimer;
-
-    // Minimum interval between rendered frames (paces the render loop, not just Schedule()).
-    private readonly TimeSpan _frameRateLimit;
-    private readonly TimeProvider _frameTimeProvider;
-    // Timestamp of the last frame actually rendered. Used by the render loop
-    // to enforce _frameRateLimit so invalidations triggered faster than the
-    // configured cadence get coalesced into a single render.
-    private long _lastRenderTimestamp;
-    
+    private readonly TimeProvider _timeProvider;
+    private long _frameTimestamp;
     // Window manager registry for accessing WindowManagers from anywhere
     private readonly WindowManagerRegistry _windowManagerRegistry = new();
     
@@ -281,9 +270,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         
         // Create animation timer with configured frame rate limit
         var frameRateLimitMs = Math.Max(1, options.FrameRateLimitMs);
-        _animationTimer = new AnimationTimer(TimeSpan.FromMilliseconds(frameRateLimitMs));
-        _frameRateLimit = TimeSpan.FromMilliseconds(frameRateLimitMs);
-        _frameTimeProvider = options.FrameTimeProvider;
+        _timeProvider = options.FrameTimeProvider;
+        _animationTimer = new AnimationTimer(TimeSpan.FromMilliseconds(frameRateLimitMs), _timeProvider);
+        _frameScheduler = new FrameScheduler(TimeSpan.FromMilliseconds(frameRateLimitMs), _timeProvider);
         
         // Check if mouse is enabled in options
         _mouseEnabled = options.EnableMouse;
@@ -348,8 +337,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// </remarks>
     public void Invalidate()
     {
-        // TryWrite with DropOldest ensures we don't block and coalesce rapid invalidations
-        _invalidateChannel.Writer.TryWrite(true);
+        _frameScheduler.RequestFrame();
     }
 
     /// <summary>
@@ -359,8 +347,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     public void RequestStop()
     {
         _stopRequested = true;
-        // Also signal invalidation to wake up the main loop immediately
         Invalidate();
+        _stopSignal.TrySetResult();
     }
     
     /// <summary>
@@ -552,6 +540,13 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// </summary>
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
+        _stopSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var waitLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task<bool>? frameWaitTask = null;
+        var timerSignals = Channel.CreateBounded<bool>(
+            new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite });
+        using var animationWakeTimer = _timeProvider.CreateTimer(
+            _ => timerSignals.Writer.TryWrite(true), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         // Register this app as the diagnostic tree provider if the adapter supports it
         if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
         {
@@ -583,49 +578,60 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         }
         try
         {
-            // Initial render
+            // Count startup against the same start-to-start budget as later frames.
+            Invalidate();
+            _frameScheduler.TryBeginFrame(bypassPacing: true);
             await RenderFrameAsync(cancellationToken);
 
             // Use an explicit shutdown signal task so normal wakeups do not rely on cancellation exceptions.
-            var shutdownSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             using var cancellationRegistration = cancellationToken.Register(static state =>
             {
                 var tcs = (TaskCompletionSource)state!;
                 tcs.TrySetResult();
-            }, shutdownSignal);
-            var shutdownTask = shutdownSignal.Task;
+            }, _stopSignal);
+            var shutdownTask = _stopSignal.Task;
 
             Task<bool>? inputWaitTask = null;
-            Task<bool>? invalidateWaitTask = null;
+            Task<bool>? timerWaitTask = null;
 
             // React to input events, invalidation signals, and animation timers
             while (!shutdownTask.IsCompleted && !_stopRequested)
             {
                 // Fire any due animation timers before waiting
-                _animationTimer.FireDue();
+                if (_animationTimer.FireDue() > 0)
+                    Invalidate();
 
                 inputWaitTask ??= _adapter.InputEvents.WaitToReadAsync().AsTask();
-                invalidateWaitTask ??= _invalidateChannel.Reader.WaitToReadAsync().AsTask();
+                frameWaitTask ??= _frameScheduler.WaitForFrameAsync(waitLifetime.Token);
+                timerWaitTask ??= timerSignals.Reader.WaitToReadAsync().AsTask();
 
                 var timeUntilTimer = _animationTimer.GetTimeUntilNextDue();
-                Task completedTask;
+                animationWakeTimer.Change(timeUntilTimer ?? Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                var completedTask = await Task.WhenAny(inputWaitTask, frameWaitTask, timerWaitTask, shutdownTask);
 
-                if (timeUntilTimer.HasValue)
-                {
-                    // Keep timer waits non-cancelable so steady-state render pacing doesn't throw cancellations.
-                    var timerWaitTask = Task.Delay(timeUntilTimer.Value);
-                    completedTask = await Task.WhenAny(inputWaitTask, invalidateWaitTask, timerWaitTask, shutdownTask);
-                }
-                else
-                {
-                    completedTask = await Task.WhenAny(inputWaitTask, invalidateWaitTask, shutdownTask);
-                }
-
-                if (completedTask == shutdownTask || cancellationToken.IsCancellationRequested)
+                if (cancellationToken.IsCancellationRequested)
                     break;
+                if (completedTask == shutdownTask)
+                {
+                    // A requested stop retains the final reconciliation that callers use
+                    // to publish their last state. Cancellation/disposal do not render.
+                    if (_stopRequested && Volatile.Read(ref _disposed) == 0)
+                    {
+                        Invalidate();
+                        if (_frameScheduler.TryBeginFrame(bypassPacing: true))
+                            await RenderFrameAsync(cancellationToken);
+                    }
+                    break;
+                }
 
                 // Fire any timers that are now due (may have triggered the wake-up)
-                _animationTimer.FireDue();
+                if (_animationTimer.FireDue() > 0)
+                    Invalidate();
+                if (timerWaitTask.IsCompleted)
+                {
+                    timerSignals.Reader.TryRead(out _);
+                    timerWaitTask = null;
+                }
 
                 // Consume completion state from non-throwing wait tasks.
                 var inputReady = false;
@@ -633,11 +639,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 {
                     inputReady = await inputWaitTask;
                     inputWaitTask = null;
+                    if (!inputReady)
+                        break;
                 }
-                if (invalidateWaitTask.IsCompleted)
+                if (frameWaitTask.IsCompleted)
                 {
-                    _ = await invalidateWaitTask;
-                    invalidateWaitTask = null;
+                    if (!await frameWaitTask)
+                        break;
+                    frameWaitTask = null;
                 }
 
                 // Process input - the approach depends on whether input was ready
@@ -647,6 +656,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     if (_adapter.InputEvents.TryRead(out var inputEvent))
                     {
                         await ProcessInputEventAsync(inputEvent, cancellationToken);
+                        Invalidate();
                     }
 
                     // Input coalescing: batch rapid inputs together before rendering.
@@ -689,63 +699,20 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     while (_adapter.InputEvents.TryRead(out var pendingInput))
                     {
                         await ProcessInputEventAsync(pendingInput, cancellationToken);
+                        inputReady = true;
+                        Invalidate();
                         if (_stopRequested || cancellationToken.IsCancellationRequested)
                             break;
                     }
                 }
 
-                // Re-render after handling input or invalidation (state may have changed).
-                // Skip the frame-rate pace whenever input was processed - inputs are user-driven
-                // and shouldn't be rate-limited (would starve a fast typist at one keystroke
-                // per FrameRateLimitMs). Pacing applies only to timer/invalidation-driven frames.
-                if (!inputReady)
-                {
-                    await PaceFrameAsync(cancellationToken);
-                }
+                if (cancellationToken.IsCancellationRequested || Volatile.Read(ref _disposed) != 0)
+                    break;
 
-                // The capacity-one channel coalesces pending invalidations. Consume the
-                // signal before building/rendering so invalidations raised during this
-                // frame wake the next iteration, which handles input and frame pacing.
-                _invalidateChannel.Reader.TryRead(out _);
-                await RenderFrameAsync(cancellationToken);
-                _lastRenderTimestamp = _frameTimeProvider.GetTimestamp();
-
-                // IMPORTANT: Handle race condition where output arrived during render.
-                // If invalidation was signaled while we were rendering, we need to re-render
-                // before blocking on WhenAny, otherwise content may not appear until next input.
-                // Limit to 2 extra renders to prevent animation timer cascades from starving input.
-                int extraRenders = 0;
-                const int maxExtraRenders = 2;
-
-                while (extraRenders < maxExtraRenders)
-                {
-                    // Check the budget before consuming the signal. A deferred render
-                    // must leave its invalidation queued to wake the next iteration.
-                    var elapsedSinceLastRender = _frameTimeProvider.GetElapsedTime(_lastRenderTimestamp);
-                    if (elapsedSinceLastRender < _frameRateLimit)
-                        break;
-
-                    if (!_invalidateChannel.Reader.TryRead(out _))
-                        break;
-
-                    // ALWAYS process pending input before each re-render to prevent starvation
-                    while (_adapter.InputEvents.TryRead(out var pendingEvent))
-                    {
-                        await ProcessInputEventAsync(pendingEvent, cancellationToken);
-                        if (_stopRequested || cancellationToken.IsCancellationRequested)
-                            break;
-                    }
-
-                    if (_stopRequested || cancellationToken.IsCancellationRequested)
-                        break;
-
-                    // Fire any timers that became due
-                    _animationTimer.FireDue();
-
+                // Every frame returns through input/timer servicing. Acquiring the frame
+                // consumes only prior requests; output during rendering stays pending.
+                if (_frameScheduler.TryBeginFrame(bypassPacing: inputReady || _stopRequested))
                     await RenderFrameAsync(cancellationToken);
-                    _lastRenderTimestamp = _frameTimeProvider.GetTimestamp();
-                    extraRenders++;
-                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -758,6 +725,17 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         }
         finally
         {
+            waitLifetime.Cancel();
+            if (frameWaitTask is not null)
+            {
+                try
+                {
+                    await frameWaitTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (waitLifetime.IsCancellationRequested)
+                {
+                }
+            }
             // Always exit alternate buffer, even on error
             await _outputGate.WaitAsync().ConfigureAwait(false);
             try
@@ -971,39 +949,13 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             (Stopwatch.GetTimestamp() - inputStart) * 1000.0 / Stopwatch.Frequency);
     }
 
-    /// <summary>
-    /// Sleeps until the configured per-frame minimum interval has elapsed since
-    /// the last rendered frame, so invalidations triggered faster than
-    /// <see cref="Hex1bAppOptions.FrameRateLimitMs"/> are coalesced.
-    /// </summary>
-    private async Task PaceFrameAsync(CancellationToken cancellationToken)
-    {
-        if (_lastRenderTimestamp == 0)
-            return;
-        var elapsed = _frameTimeProvider.GetElapsedTime(_lastRenderTimestamp);
-        var remaining = _frameRateLimit - elapsed;
-        if (remaining > TimeSpan.Zero)
-        {
-            try
-            {
-                await Task.Delay(remaining, _frameTimeProvider, cancellationToken);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                // Caller handles cancellation
-            }
-        }
-    }
-
     private async Task RenderFrameAsync(CancellationToken cancellationToken)
     {
-        // NOTE: We intentionally do NOT clear animation timers here.
-        // Clearing would reset any pending timers, and if renders happen frequently
-        // (e.g., mouse movement), the timers would never become due - they'd keep
-        // getting pushed forward. Let timers accumulate and fire naturally.
-        // The callback will mark nodes dirty, which is idempotent.
+        // Preserve pending animation deadlines across unrelated frames.
         
         var frameStart = Stopwatch.GetTimestamp();
+        _frameTimestamp = _timeProvider.GetTimestamp();
+        _animationTimer.BeginRedrawFrame();
         
         // Update theme if we have a dynamic theme provider
         if (_themeProvider != null)
@@ -1077,6 +1029,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             long reconcileFrameStart = Stopwatch.GetTimestamp();
             
             _rootNode = await ReconcileAsync(_rootNode, widgetTree, cancellationToken);
+            _animationTimer.EndRedrawFrame();
             
             // Ensure the drag-drop manager is set on the root ZStack for overlay rendering.
             // It's set after reconciliation here, but since ZStackNode persists across frames,
@@ -2440,6 +2393,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         var context = ReconcileContext.CreateRoot(_focusRing, cancellationToken, Invalidate,
             CaptureInput, ReleaseCapture, ScheduleTimer, _windowManagerRegistry, RequestFocus,
             CopyToClipboard);
+        context.AnimationTimer = _animationTimer;
+        context.TimeProvider = _timeProvider;
+        context.FrameTimestamp = _frameTimestamp;
         context.IsNew = existingNode is null || existingNode.GetType() != widget.GetExpectedNodeType();
         context.DiagnosticTimingEnabled = _diagnosticTimingEnabled;
         context.Metrics = _metrics.NodeReconcileDuration != null ? _metrics : null;
@@ -2505,17 +2461,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         node.WidthHint = widget.WidthHint ?? widget.DefaultWidthHint;
         node.HeightHint = widget.HeightHint ?? widget.DefaultHeightHint;
         
-        // Schedule animation timer if widget has RedrawDelay (for root widget)
-        var effectiveDelay = widget.GetEffectiveRedrawDelay();
-        if (effectiveDelay.HasValue)
-        {
-            var capturedNode = node;
-            ScheduleTimer(effectiveDelay.Value, () =>
-            {
-                capturedNode.MarkDirty();
-                Invalidate();
-            });
-        }
+        context.ScheduleRedraw(node, widget.GetEffectiveRedrawDelay());
 
         return node;
     }
@@ -2531,7 +2477,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         _programStatusLifetime.Cancel();
         // Signal RunAsync to exit immediately
         _stopRequested = true;
-        _invalidateChannel.Writer.TryComplete();
+        _stopSignal.TrySetResult();
+        _frameScheduler.Dispose();
         
         // Dispose the adapter
         if (_adapter is IDisposable disposable)
@@ -2546,7 +2493,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         _programStatusLifetime.Cancel();
         // Signal RunAsync to exit immediately
         _stopRequested = true;
-        _invalidateChannel.Writer.TryComplete();
+        _stopSignal.TrySetResult();
+        _frameScheduler.Dispose();
         
         // Dispose the adapter asynchronously
         await _adapter.DisposeAsync();
