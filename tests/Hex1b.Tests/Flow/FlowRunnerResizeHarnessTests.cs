@@ -28,6 +28,150 @@ namespace Hex1b.Tests.Flow;
 public class FlowRunnerResizeHarnessTests
 {
     [TestMethod]
+    public async Task ResizeWithinWidthSlack_DoesNotWriteOrRepaintActiveStep()
+    {
+        var adapter = new RecordingParentAdapter(width: 80, height: 24);
+
+        var stepStarted = new TaskCompletionSource();
+        FlowStep? step = null;
+
+        var runner = new Hex1bFlowRunner(
+            flowCallback: async flow =>
+            {
+                step = flow.Step(ctx => ctx.Text("ACTIVE"));
+                stepStarted.SetResult();
+                await step.WaitForCompletionAsync();
+            },
+            options: new Hex1bFlowOptions
+            {
+                ResizeWidthSlack = 2,
+                InitialCursorRow = 0,
+            },
+            parentAdapter: adapter);
+
+        var runTask = runner.RunAsync(CancellationToken.None);
+        await stepStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await Task.Delay(50);
+
+        var beforeResize = adapter.SnapshotWrites();
+        adapter.SetSize(79, 24);
+        await adapter.PushEventAsync(new Hex1bResizeEvent(79, 24));
+        await Task.Delay(50);
+
+        Assert.AreEqual(0, adapter.SnapshotWritesSince(beforeResize).Count,
+            "A resize inside the reserved width must not clear or repaint the step.");
+
+        adapter.SetSize(90, 24);
+        await adapter.PushEventAsync(new Hex1bResizeEvent(90, 24));
+        await Task.Delay(50);
+        Assert.AreEqual(0, adapter.SnapshotWritesSince(beforeResize).Count,
+            "Widening must not expand or repaint the active step.");
+
+        step!.Complete();
+        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [TestMethod]
+    public async Task ResizePastWidthSlack_RelayoutsAtNarrowerContentWidth()
+    {
+        var adapter = new RecordingParentAdapter(width: 80, height: 24);
+
+        var stepStarted = new TaskCompletionSource();
+        FlowStep? step = null;
+
+        var runner = new Hex1bFlowRunner(
+            flowCallback: async flow =>
+            {
+                step = flow.Step(ctx => ctx.Text("ACTIVE"));
+                stepStarted.SetResult();
+                await step.WaitForCompletionAsync();
+            },
+            options: new Hex1bFlowOptions
+            {
+                ResizeWidthSlack = 2,
+                InitialCursorRow = 0,
+            },
+            parentAdapter: adapter);
+
+        var runTask = runner.RunAsync(CancellationToken.None);
+        await stepStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await Task.Delay(50);
+
+        var beforeResize = adapter.SnapshotWrites();
+        adapter.SetSize(70, 24);
+        await adapter.PushEventAsync(new Hex1bResizeEvent(70, 24));
+        await Task.Delay(100);
+
+        var writes = string.Concat(adapter.SnapshotWritesSince(beforeResize));
+        Assert.Contains("\x1b[2K", writes, "Crossing the slack boundary should clear the old active region.");
+        Assert.Contains("ACTIVE", writes, "The active step should render again at the reduced width.");
+
+        step!.Complete();
+        await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Resize_AfterShrinkingAndExpanding_RestoresOriginalContentWidth(bool useSettle)
+    {
+        var adapter = new RecordingParentAdapter(width: 80, height: 24);
+        var started = new TaskCompletionSource<FlowStep>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var initialFrame = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var narrowFrame = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recoveredFrame = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observer = new TestWidget().OnRender(args =>
+        {
+            if (args.Node.Bounds.Width == 68)
+            {
+                narrowFrame.TrySetResult();
+            }
+            if (args.Node.Bounds.Width == 78)
+            {
+                initialFrame.TrySetResult();
+                if (narrowFrame.Task.IsCompleted)
+                    recoveredFrame.TrySetResult();
+            }
+        }).FillWidth().FixedHeight(1);
+
+        var runner = new Hex1bFlowRunner(
+            flowCallback: async flow =>
+            {
+                var active = flow.Step(ctx => observer, opts => opts.MaxHeight = 1);
+                started.SetResult(active);
+                await active.WaitForCompletionAsync();
+            },
+            options: new Hex1bFlowOptions
+            {
+                InitialCursorRow = 0,
+                ResizeWidthSlack = 2,
+                UseSoftWrapTombstones = useSettle,
+                ResizeSettleDelay = useSettle ? TimeSpan.FromMilliseconds(20) : null,
+            },
+            parentAdapter: adapter);
+
+        var runTask = runner.RunAsync(CancellationToken.None);
+        var step = await started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        try
+        {
+            await initialFrame.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            adapter.SetSize(70, 24);
+            await adapter.PushEventAsync(new Hex1bResizeEvent(70, 24));
+            await narrowFrame.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            adapter.SetSize(80, 24);
+            await adapter.PushEventAsync(new Hex1bResizeEvent(80, 24));
+            await recoveredFrame.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            step.Complete();
+            await runTask.WaitAsync(TimeSpan.FromSeconds(2));
+            await adapter.DisposeAsync();
+        }
+    }
+
+    [TestMethod]
     public async Task PerEventDuringDrag_DoesNotEmitBytesThatWouldScrollHostTerminal()
     {
         var adapter = new RecordingParentAdapter(width: 80, height: 24);

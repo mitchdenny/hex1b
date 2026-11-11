@@ -11,6 +11,37 @@ namespace Hex1b.Tests.Flow;
 public class FlowResizeMathTests
 {
     [TestMethod]
+    [DataRow(80, 2, 78)] // Initial layout reserves the configured slack
+    [DataRow(5, 2, 3)] // Narrow terminals retain a usable width
+    public void ComputeInitialContentWidth_ReservesSlack(
+        int terminalWidth, int widthSlack, int expected)
+    {
+        var actual = FlowResizeMath.ComputeInitialContentWidth(terminalWidth, widthSlack);
+
+        Assert.AreEqual(expected, actual);
+    }
+
+    [TestMethod]
+    [DataRow(78, 100, 2, 78, 78)] // Growth is capped at the original width
+    [DataRow(78, 79, 2, 78, 78)] // Shrink within slack preserves the layout
+    [DataRow(78, 70, 2, 78, 68)] // Crossing the boundary reclaims slack
+    [DataRow(68, 71, 2, 78, 68)] // Small growth does not cause relayout
+    [DataRow(68, 72, 2, 78, 70)] // Growth recovers a full slack interval
+    [DataRow(68, 80, 2, 78, 78)] // Restoring terminal width restores content
+    [DataRow(77, 80, 2, 78, 78)] // Final recovery may be less than the slack
+    [DataRow(5, 1, 2, 78, 1)] // Narrow terminals still get a usable width
+    [DataRow(80, 70, 0, 80, 70)] // Zero slack preserves legacy behavior
+    [DataRow(70, 100, 0, 80, 100)]
+    public void ComputeContentWidth_UsesReservedSlack(
+        int currentContentWidth, int terminalWidth, int widthSlack, int preferredContentWidth, int expected)
+    {
+        var actual = FlowResizeMath.ComputeContentWidth(
+            currentContentWidth, terminalWidth, widthSlack, preferredContentWidth);
+
+        Assert.AreEqual(expected, actual);
+    }
+
+    [TestMethod]
     [DataRow(null, 24, 24)] // No max → fills terminal
     [DataRow(10, 24, 10)]   // Max smaller than terminal → max wins
     [DataRow(40, 24, 24)]   // Max larger than terminal → terminal wins

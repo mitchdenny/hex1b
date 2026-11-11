@@ -9,6 +9,78 @@ namespace Hex1b.Flow;
 internal static class FlowResizeMath
 {
     /// <summary>
+    /// Computes the initial active-step width, leaving the configured slack
+    /// unused at the terminal's right edge.
+    /// </summary>
+    public static int ComputeInitialContentWidth(int terminalWidth, int widthSlack)
+    {
+        if (terminalWidth < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(terminalWidth),
+                terminalWidth, "terminalWidth must be at least 1");
+        }
+        if (widthSlack < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(widthSlack),
+                widthSlack, "widthSlack must be non-negative");
+        }
+        return Math.Max(1, terminalWidth - widthSlack);
+    }
+
+    /// <summary>
+    /// Computes the content width to use after a terminal resize.
+    /// </summary>
+    /// <param name="currentContentWidth">Width currently used to lay out the
+    /// active step.</param>
+    /// <param name="terminalWidth">New terminal width in columns.</param>
+    /// <param name="widthSlack">Columns reserved at the right edge.</param>
+    /// <param name="preferredContentWidth">Original content width to recover
+    /// when the terminal grows again.</param>
+    /// <returns>
+    /// A narrower width when content no longer fits, or a wider width when
+    /// at least one slack interval can be recovered. Recovery is capped at
+    /// the original content width and always finishes when that width fits
+    /// with the configured slack.
+    /// With zero slack, returns the terminal width to preserve legacy behavior.
+    /// </returns>
+    public static int ComputeContentWidth(
+        int currentContentWidth, int terminalWidth, int widthSlack, int preferredContentWidth)
+    {
+        if (currentContentWidth < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(currentContentWidth),
+                currentContentWidth, "currentContentWidth must be at least 1");
+        }
+        if (terminalWidth < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(terminalWidth),
+                terminalWidth, "terminalWidth must be at least 1");
+        }
+        if (widthSlack < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(widthSlack),
+                widthSlack, "widthSlack must be non-negative");
+        }
+        if (preferredContentWidth < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(preferredContentWidth),
+                preferredContentWidth, "preferredContentWidth must be at least 1");
+        }
+        if (widthSlack == 0) return terminalWidth;
+
+        var targetWidth = Math.Min(preferredContentWidth,
+            ComputeInitialContentWidth(terminalWidth, widthSlack));
+        if (terminalWidth < currentContentWidth) return targetWidth;
+        if (targetWidth > currentContentWidth
+            && (targetWidth - currentContentWidth >= widthSlack
+                || targetWidth == preferredContentWidth))
+        {
+            return targetWidth;
+        }
+        return currentContentWidth;
+    }
+
+    /// <summary>
     /// Clamps the desired step height to the terminal's available rows.
     /// </summary>
     /// <param name="maxHeight">Caller-supplied max height (from

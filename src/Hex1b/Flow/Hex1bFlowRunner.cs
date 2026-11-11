@@ -219,10 +219,12 @@ internal sealed class Hex1bFlowRunner
 
         var maxHeight = Math.Min(options?.MaxHeight ?? terminalHeight, terminalHeight);
         if (maxHeight < 1) maxHeight = 1;
+        var contentWidth = FlowResizeMath.ComputeInitialContentWidth(
+            terminalWidth, _options.ResizeWidthSlack);
 
         // Pre-measure the widget to determine actual content height
         var step = new FlowStep(terminalWidth, terminalHeight, maxHeight);
-        var contentHeight = MeasureStepContent(builder, step, terminalWidth, maxHeight);
+        var contentHeight = MeasureStepContent(builder, step, contentWidth, maxHeight);
         var desiredHeight = Math.Min(contentHeight, maxHeight);
         if (desiredHeight < 1) desiredHeight = 1;
         step.StepHeight = desiredHeight;
@@ -286,6 +288,8 @@ internal sealed class Hex1bFlowRunner
         {
             var terminalWidth = _parentAdapter.Width;
             var terminalHeight = _parentAdapter.Height;
+            var contentWidth = FlowResizeMath.ComputeInitialContentWidth(
+                terminalWidth, _options.ResizeWidthSlack);
 
             // Track the row origin for this step (may be updated on resize)
             var rowOrigin = _cursorRow;
@@ -315,7 +319,7 @@ internal sealed class Hex1bFlowRunner
             }
 
             using var stepAdapter = new InlineStepAdapter(
-                terminalWidth, desiredHeight, rowOrigin,
+                contentWidth, desiredHeight, rowOrigin,
                 stepCapabilities);
 
             var appOptions = new Hex1bAppOptions
@@ -371,6 +375,7 @@ internal sealed class Hex1bFlowRunner
             // new render.
             (int RowOrigin, int Height)? settleOriginalRect = null;
             (int Width, int Height) settleLatestDims = default;
+            var settleContentWidth = stepAdapter.Width;
             var lastKnownWidth = _parentAdapter.Width;
             var lastKnownHeight = _parentAdapter.Height;
 
@@ -379,9 +384,29 @@ internal sealed class Hex1bFlowRunner
                 {
                     var newStepHeight = FlowResizeMath.ComputeStepHeight(options?.MaxHeight, newHeight);
                     Trace($"onResize: newSize={newWidth}x{newHeight} newStepH={newStepHeight} useSoftWrap={_options.UseSoftWrapTombstones} settleDelay={_options.ResizeSettleDelay}");
+                    var newContentWidth = FlowResizeMath.ComputeContentWidth(
+                        stepAdapter.Width, newWidth, _options.ResizeWidthSlack, contentWidth);
 
                     var useSettle = _options.UseSoftWrapTombstones
                         && _options.ResizeSettleDelay is { } _;
+
+                    // A horizontal resize that remains inside the reserved
+                    // columns does not alter the active app's layout. Track
+                    // the physical dimensions, but do not clear or repaint.
+                    if (_options.ResizeWidthSlack > 0
+                        && newHeight == lastKnownHeight
+                        && newContentWidth == stepAdapter.Width)
+                    {
+                        lock (settleSync)
+                        {
+                            if (settleOriginalDims is null)
+                            {
+                                lastKnownWidth = newWidth;
+                                lastKnownHeight = newHeight;
+                                return;
+                            }
+                        }
+                    }
 
                     if (useSettle)
                     {
@@ -414,6 +439,7 @@ internal sealed class Hex1bFlowRunner
                                 settleOriginalRect = (rowOrigin, step.StepHeight);
                             }
                             settleLatestDims = (newWidth, newHeight);
+                            settleContentWidth = newContentWidth;
 
                             // Hide the cursor for the duration of the drag
                             // so it doesn't visibly chase the reflow.
@@ -659,7 +685,7 @@ internal sealed class Hex1bFlowRunner
                                     _parentAdapter.Write(SyncUpdateEnd);
                                 }
 
-                                _ = stepAdapter.ResizeAsync(settledWidth, settledStepHeight);
+                                _ = stepAdapter.ResizeAsync(settleContentWidth, settledStepHeight);
 
                                 // Unmute the output pump. From this point
                                 // the inner Hex1bApp's frames flow back
@@ -714,7 +740,7 @@ internal sealed class Hex1bFlowRunner
                     lastKnownWidth = newWidth;
                     lastKnownHeight = newHeight;
 
-                    _ = stepAdapter.ResizeAsync(newWidth, newStepHeight);
+                    _ = stepAdapter.ResizeAsync(newContentWidth, newStepHeight);
                 });
 
             try

@@ -1,7 +1,6 @@
 using FancyFlowDemo.State;
 using FancyFlowDemo.Widgets;
 using Hex1b;
-using Hex1b.Theming;
 
 namespace FancyFlowDemo.Flow;
 
@@ -102,6 +101,10 @@ internal static class FancyFlowOrchestrator
                     // catastrophic during a drag-resize burst.
                     options.UseSoftWrapTombstones = true;
 
+                    // Leave room for small horizontal resizes without
+                    // relaying out the active step.
+                    options.ResizeWidthSlack = 8;
+
                     // Hold the live step still during interactive drag-resize.
                     // The runner tracks cursor position internally on every
                     // resize event but does not mutate the screen — letting
@@ -109,7 +112,6 @@ internal static class FancyFlowOrchestrator
                     // above the active step intact. The actual repaint of
                     // the live step is debounced until events settle.
                     options.ResizeSettleDelay = TimeSpan.FromMilliseconds(80);
-                    options.ResizePlaceholder = BuildResizePlaceholder;
                 })
                 .Build()
                 .RunAsync();
@@ -122,26 +124,6 @@ internal static class FancyFlowOrchestrator
             // more to do — the inline tombstone is the final word.
         }
     }
-
-    /// <summary>
-    /// Rendered in the active step's rectangle during a resize burst,
-    /// replaced by the real prompt as soon as events settle. A single
-    /// muted-grey line keeps the visible footprint minimal and fits
-    /// inside even an aggressively shrunken terminal.
-    /// </summary>
-    private static Hex1b.Widgets.Hex1bWidget BuildResizePlaceholder(RootContext ctx) =>
-        ctx.HStack(h =>
-        [
-            h.Text(" "),
-            h.ThemePanel(
-                t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.BarColor),
-                h.Text(TemplatePromptWidget.BarChar)),
-            h.Text("  "),
-            h.ThemePanel(
-                t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.MutedColor),
-                h.Text("Resizing…")),
-        ]);
-
 
     private static Task RunStepAsync(
         Hex1b.Flow.Hex1bFlowContext flow,
