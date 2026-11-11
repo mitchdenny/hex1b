@@ -902,7 +902,10 @@ public sealed class Hex1bTerminalBuilder
     /// <returns>This builder instance for fluent chaining.</returns>
     /// <remarks>
     /// This setting only applies when using WithHex1bApp.
-    /// Mouse support requires a compatible terminal emulator.
+    /// Mouse input is disabled by default on Windows, Linux, and macOS.
+    /// Enabling it requests mouse reporting from a compatible terminal emulator
+    /// using escape sequences. Console capability queries that explicitly reject
+    /// the required modes prevent reporting; unanswered queries preserve opt-in behavior.
     /// </remarks>
     public Hex1bTerminalBuilder WithMouse(bool enable = true)
     {
