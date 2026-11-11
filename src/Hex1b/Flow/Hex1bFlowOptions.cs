@@ -81,6 +81,29 @@ public sealed class Hex1bFlowOptions
     /// </remarks>
     public bool UseSoftWrapTombstones { get; set; }
 
+    private int _resizeWidthSlack;
+
+    /// <summary>
+    /// Number of columns the active inline step leaves unused at the right
+    /// edge to absorb horizontal terminal resizes without relayout. When
+    /// greater than zero, a step keeps its current content width while
+    /// shrinking within that slack, and relayouts when the terminal becomes
+    /// narrower than the content. Widening recovers the original content
+    /// width in increments of at least this many columns, with a smaller
+    /// final increment allowed to restore the original width completely.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to zero, which preserves the existing behavior of resizing
+    /// the active step to the terminal width on every resize event.
+    /// </remarks>
+    public int ResizeWidthSlack
+    {
+        get => _resizeWidthSlack;
+        set => _resizeWidthSlack = value >= 0
+            ? value
+            : throw new ArgumentOutOfRangeException(nameof(value), "Resize width slack cannot be negative.");
+    }
+
     /// <summary>
     /// Quiet window required after the last <c>Hex1bResizeEvent</c> before
     /// the runner re-renders the active step at the new size. When
