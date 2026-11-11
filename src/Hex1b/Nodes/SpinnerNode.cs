@@ -37,7 +37,8 @@ public sealed class SpinnerNode : Hex1bNode
     public int? ExplicitFrameIndex { get; set; }
 
     // Time-based animation state
-    private DateTime _animationStartTime = DateTime.UtcNow;
+    private Animation.AnimationClock _animationClock = new(TimeProvider.System);
+    internal void SetTimeProvider(TimeProvider timeProvider) => _animationClock.Use(timeProvider);
     private int _lastRenderedFrame = -1;
 
     // Cached resolved style for measuring without render context
@@ -53,7 +54,7 @@ public sealed class SpinnerNode : Hex1bNode
             return ExplicitFrameIndex.Value;
         }
 
-        var elapsed = DateTime.UtcNow - _animationStartTime;
+        var elapsed = _animationClock.Elapsed;
         var intervalMs = _resolvedStyle.Interval.TotalMilliseconds;
         if (intervalMs <= 0) intervalMs = 80; // Fallback
 
@@ -71,7 +72,7 @@ public sealed class SpinnerNode : Hex1bNode
             return TimeSpan.MaxValue;
         }
 
-        var elapsed = DateTime.UtcNow - _animationStartTime;
+        var elapsed = _animationClock.Elapsed;
         var intervalMs = _resolvedStyle.Interval.TotalMilliseconds;
         if (intervalMs <= 0) intervalMs = 80;
 

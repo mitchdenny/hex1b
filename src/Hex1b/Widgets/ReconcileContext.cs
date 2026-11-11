@@ -1,5 +1,6 @@
 #pragma warning disable HEX1B001 // Navigator API is experimental - internal usage is allowed
 
+using Hex1b.Animation;
 using Hex1b.Input;
 using Hex1b.Nodes;
 
@@ -99,6 +100,9 @@ public sealed class ReconcileContext
     /// and triggering a re-render.
     /// </summary>
     internal Action<TimeSpan, Action>? ScheduleTimerCallback { get; }
+    internal AnimationTimer? AnimationTimer { get; set; }
+    internal TimeProvider TimeProvider { get; set; } = TimeProvider.System;
+    internal long? FrameTimestamp { get; set; }
 
     /// <summary>
     /// Callback to request focus on a node after the focus ring is rebuilt.
@@ -177,6 +181,9 @@ public sealed class ReconcileContext
             CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback,
             CopyToClipboardCallback)
         {
+            AnimationTimer = AnimationTimer,
+            TimeProvider = TimeProvider,
+            FrameTimestamp = FrameTimestamp,
             DiagnosticTimingEnabled = DiagnosticTimingEnabled,
             Metrics = Metrics,
             _inputOverrides = _inputOverrides
@@ -192,7 +199,8 @@ public sealed class ReconcileContext
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), axis, InvalidateCallback,
             CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback,
             CopyToClipboardCallback)
-        { IsNew = IsNew, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = _inputOverrides };
+        { IsNew = IsNew, AnimationTimer = AnimationTimer, TimeProvider = TimeProvider, FrameTimestamp = FrameTimestamp,
+            DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = _inputOverrides };
     }
     
     /// <summary>
@@ -204,7 +212,8 @@ public sealed class ReconcileContext
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), LayoutAxis, InvalidateCallback,
             CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback,
             CopyToClipboardCallback)
-        { IsNew = IsNew, ChildIndex = index, ChildCount = count, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = _inputOverrides };
+        { IsNew = IsNew, AnimationTimer = AnimationTimer, TimeProvider = TimeProvider, FrameTimestamp = FrameTimestamp,
+            ChildIndex = index, ChildCount = count, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = _inputOverrides };
     }
 
     /// <summary>
@@ -216,7 +225,8 @@ public sealed class ReconcileContext
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), LayoutAxis, InvalidateCallback,
             CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback,
             CopyToClipboardCallback)
-        { IsNew = IsNew, ChildIndex = ChildIndex, ChildCount = ChildCount, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = overrides };
+        { IsNew = IsNew, AnimationTimer = AnimationTimer, TimeProvider = TimeProvider, FrameTimestamp = FrameTimestamp,
+            ChildIndex = ChildIndex, ChildCount = ChildCount, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = overrides };
     }
 
     /// <summary>
@@ -319,23 +329,7 @@ public sealed class ReconcileContext
             Metrics!.NodeReconcileDuration!.Record(elapsedMs, new KeyValuePair<string, object?>("node", node.GetMetricPath()));
         }
         
-        // Schedule animation timer if widget has RedrawDelay
-        var effectiveDelay = widget.GetEffectiveRedrawDelay();
-        if (effectiveDelay.HasValue && ScheduleTimerCallback is not null)
-        {
-            var capturedNode = node;
-            var capturedParent = parent;
-            var capturedInvalidate = InvalidateCallback;
-            ScheduleTimerCallback(effectiveDelay.Value, () =>
-            {
-                capturedNode.MarkDirty();
-                // Also mark ancestors dirty - important for composed widgets like TreeItemNode
-                // where the grandparent (TreeNode) renders the child's state (e.g., spinner frame)
-                capturedParent?.MarkDirty();
-                capturedParent?.Parent?.MarkDirty();
-                capturedInvalidate?.Invoke();
-            });
-        }
+        ScheduleRedraw(node, widget.GetEffectiveRedrawDelay());
         
         // Mark new nodes as dirty (they need to be rendered for the first time)
         // Note: Existing nodes are marked dirty by individual widgets when their
@@ -347,6 +341,22 @@ public sealed class ReconcileContext
 
         return node;
     }
+
+    internal void ScheduleRedraw(Hex1bNode node, TimeSpan? delay, bool activeState = false)
+    {
+        if (AnimationTimer is not null)
+            AnimationTimer.ScheduleRedraw(node, activeState, delay, delay.HasValue ? CreateRedrawAction(node) : null);
+        else if (delay.HasValue)
+            ScheduleTimerCallback?.Invoke(delay.Value, CreateRedrawAction(node));
+    }
+
+    private Action CreateRedrawAction(Hex1bNode node) => () =>
+    {
+        node.MarkDirty();
+        node.Parent?.MarkDirty();
+        node.Parent?.Parent?.MarkDirty();
+        InvalidateCallback?.Invoke();
+    };
 
     /// <summary>
     /// Finds the nearest ancestor node of the specified type by walking the ancestor chain.

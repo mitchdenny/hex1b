@@ -106,6 +106,7 @@ public sealed record ProgressWidget : Hex1bWidget
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as ProgressNode ?? new ProgressNode();
+        node.SetTimeProvider(context.TimeProvider);
         
         // Mark dirty if any properties changed
         if (node.Value != Value || 

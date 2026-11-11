@@ -49,14 +49,15 @@ public sealed class ProgressNode : Hex1bNode
     public bool IsIndeterminate { get; set; }
 
     // Time-based animation state for indeterminate mode
-    private DateTime _animationStartTime = DateTime.UtcNow;
+    private Animation.AnimationClock _animationClock = new(TimeProvider.System);
+    internal void SetTimeProvider(TimeProvider timeProvider) => _animationClock.Use(timeProvider);
 
     /// <summary>
     /// Gets the current animation position (0.0 to 1.0) based on elapsed time.
     /// </summary>
     private double GetCurrentAnimationPosition()
     {
-        var elapsed = DateTime.UtcNow - _animationStartTime;
+        var elapsed = _animationClock.Elapsed;
         var cycleMs = AnimationCycleDuration.TotalMilliseconds;
         return (elapsed.TotalMilliseconds % cycleMs) / cycleMs;
     }

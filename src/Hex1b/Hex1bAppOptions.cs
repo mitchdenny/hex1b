@@ -140,8 +140,8 @@ public class Hex1bAppOptions
     public int InputCoalescingMaxDelayMs { get; set; } = 100;
     
     /// <summary>
-    /// Minimum frame interval in milliseconds. This sets the floor for animation timers
-    /// and effectively caps the maximum frame rate.
+    /// Minimum start-to-start frame interval in milliseconds for animation and
+    /// invalidation-driven frames. Input-driven frames can render sooner.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -156,7 +156,7 @@ public class Hex1bAppOptions
     /// </remarks>
     public int FrameRateLimitMs { get; set; } = 16;
 
-    // Keep frame pacing independently controllable without changing animation/input clocks.
+    // Shared app clock for frame pacing, redraw deadlines, and animation advancement.
     internal TimeProvider FrameTimeProvider { get; set; } = TimeProvider.System;
 
     /// <summary>

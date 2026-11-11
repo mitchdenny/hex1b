@@ -1,3 +1,5 @@
+using Hex1b.Nodes;
+
 namespace Hex1b.Animation;
 
 /// <summary>
@@ -30,6 +32,15 @@ public sealed class AnimationTimer
     private readonly List<ScheduledTimer> _timers = new();
     private readonly object _lock = new();
     private readonly TimeSpan _minimumInterval;
+    private readonly TimeProvider _timeProvider;
+    private readonly Dictionary<(Hex1bNode Node, bool ActiveState), ScheduledTimer> _redraws = new();
+    private readonly HashSet<(Hex1bNode Node, bool ActiveState)> _visitedRedraws = new();
+    private long? _redrawFrameStarted;
+
+    internal int PendingRedrawCount
+    {
+        get { lock (_lock) return _redraws.Count; }
+    }
     
     /// <summary>
     /// Gets the minimum interval between frames for this timer.
@@ -49,8 +60,13 @@ public sealed class AnimationTimer
     /// <param name="minimumInterval">
     /// The minimum interval between frames. Values below 1ms are clamped to 1ms.
     /// </param>
-    public AnimationTimer(TimeSpan minimumInterval)
+    public AnimationTimer(TimeSpan minimumInterval) : this(minimumInterval, TimeProvider.System)
     {
+    }
+
+    internal AnimationTimer(TimeSpan minimumInterval, TimeProvider timeProvider)
+    {
+        _timeProvider = timeProvider;
         _minimumInterval = minimumInterval < AbsoluteMinimumInterval 
             ? AbsoluteMinimumInterval 
             : minimumInterval;
@@ -73,13 +89,55 @@ public sealed class AnimationTimer
         if (delay < _minimumInterval)
             delay = _minimumInterval;
 
-        var dueTime = DateTime.UtcNow + delay;
-
         lock (_lock)
         {
-            _timers.Add(new ScheduledTimer(dueTime, callback));
+            _timers.Add(new ScheduledTimer(_timeProvider.GetTimestamp(), delay, callback));
         }
     }
+
+    internal void BeginRedrawFrame()
+    {
+        lock (_lock)
+        {
+            _visitedRedraws.Clear();
+            _redrawFrameStarted = _timeProvider.GetTimestamp();
+        }
+    }
+
+    internal void ScheduleRedraw(Hex1bNode node, bool activeState, TimeSpan? delay, Action? callback)
+    {
+        lock (_lock)
+        {
+            var key = (node, activeState);
+            if (delay is null)
+            {
+                _redraws.Remove(key);
+                return;
+            }
+
+            _visitedRedraws.Add(key);
+            ArgumentNullException.ThrowIfNull(callback);
+            var requestedDelay = delay.Value < AbsoluteMinimumInterval ? AbsoluteMinimumInterval : delay.Value;
+            var requested = new ScheduledTimer(_redrawFrameStarted ?? _timeProvider.GetTimestamp(), requestedDelay, callback);
+            if (_redraws.TryGetValue(key, out var existing) && Remaining(existing) <= Remaining(requested))
+                _redraws[key] = existing with { Callback = callback };
+            else
+                _redraws[key] = requested;
+        }
+    }
+
+    internal void EndRedrawFrame()
+    {
+        lock (_lock)
+        {
+            foreach (var key in _redraws.Keys.Where(key => !_visitedRedraws.Contains(key)).ToArray())
+                _redraws.Remove(key);
+            _redrawFrameStarted = null;
+        }
+    }
+
+    private TimeSpan Remaining(ScheduledTimer timer) =>
+        timer.Delay - _timeProvider.GetElapsedTime(timer.Started);
 
     /// <summary>
     /// Gets the time until the next timer is due, or null if no timers are scheduled.
@@ -92,19 +150,16 @@ public sealed class AnimationTimer
     {
         lock (_lock)
         {
-            if (_timers.Count == 0)
+            if (_timers.Count == 0 && _redraws.Count == 0)
                 return null;
 
-            var now = DateTime.UtcNow;
-            var earliest = DateTime.MaxValue;
+            var remaining = TimeSpan.MaxValue;
 
             foreach (var timer in _timers)
-            {
-                if (timer.DueTime < earliest)
-                    earliest = timer.DueTime;
-            }
+                remaining = TimeSpan.FromTicks(Math.Min(remaining.Ticks, Remaining(timer).Ticks));
+            foreach (var timer in _redraws.Values)
+                remaining = TimeSpan.FromTicks(Math.Min(remaining.Ticks, Remaining(timer).Ticks));
 
-            var remaining = earliest - now;
             return remaining < TimeSpan.Zero ? TimeSpan.Zero : remaining;
         }
     }
@@ -118,7 +173,7 @@ public sealed class AnimationTimer
         {
             lock (_lock)
             {
-                return _timers.Count > 0;
+                return _timers.Count > 0 || _redraws.Count > 0;
             }
         }
     }
@@ -133,19 +188,23 @@ public sealed class AnimationTimer
 
         lock (_lock)
         {
-            if (_timers.Count == 0)
+            if (_timers.Count == 0 && _redraws.Count == 0)
                 return 0;
 
-            var now = DateTime.UtcNow;
             callbacksToFire = new List<Action>();
 
             for (int i = _timers.Count - 1; i >= 0; i--)
             {
-                if (_timers[i].DueTime <= now)
+                if (Remaining(_timers[i]) <= TimeSpan.Zero)
                 {
                     callbacksToFire.Add(_timers[i].Callback);
                     _timers.RemoveAt(i);
                 }
+            }
+            foreach (var key in _redraws.Keys.Where(key => Remaining(_redraws[key]) <= TimeSpan.Zero).ToArray())
+            {
+                callbacksToFire.Add(_redraws[key].Callback);
+                _redraws.Remove(key);
             }
         }
 
@@ -173,8 +232,11 @@ public sealed class AnimationTimer
         lock (_lock)
         {
             _timers.Clear();
+            _redraws.Clear();
+            _visitedRedraws.Clear();
+            _redrawFrameStarted = null;
         }
     }
 
-    private readonly record struct ScheduledTimer(DateTime DueTime, Action Callback);
+    private readonly record struct ScheduledTimer(long Started, TimeSpan Delay, Action Callback);
 }
