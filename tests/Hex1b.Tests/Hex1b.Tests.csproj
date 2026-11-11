@@ -25,7 +25,7 @@
 
   <Target Name="CopyLegacyWorkloadFixture" AfterTargets="Build">
     <ItemGroup>
-      <LegacyWorkloadFixtureFiles Include="../Fixtures/LegacyWorkloadAdapter/bin/$(Configuration)/net8.0/**/*" />
+      <LegacyWorkloadFixtureFiles Include="../Fixtures/LegacyWorkloadAdapter/bin/$(Configuration)/net10.0/**/*" />
     </ItemGroup>
     <Copy SourceFiles="@(LegacyWorkloadFixtureFiles)"
           DestinationFiles="@(LegacyWorkloadFixtureFiles->'$(TargetDir)Fixtures/%(RecursiveDir)%(Filename)%(Extension)')"
@@ -84,8 +84,8 @@
 
   <Target Name="SyncHex1bAssemblyToOutput"
           AfterTargets="Build"
-          Condition="Exists('../../src/Hex1b/obj/$(Configuration)/net8.0/Hex1b.dll')">
-    <Copy SourceFiles="../../src/Hex1b/obj/$(Configuration)/net8.0/Hex1b.dll"
+          Condition="Exists('../../src/Hex1b/obj/$(Configuration)/net10.0/Hex1b.dll')">
+    <Copy SourceFiles="../../src/Hex1b/obj/$(Configuration)/net10.0/Hex1b.dll"
           DestinationFolder="$(TargetDir)"
           SkipUnchangedFiles="false" />
   </Target>

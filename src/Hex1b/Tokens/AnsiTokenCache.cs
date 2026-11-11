@@ -20,8 +20,7 @@ namespace Hex1b.Tokens;
 /// <para>
 /// The SGR cache is keyed by a hash of the assembled <see cref="StringBuilder"/>
 /// contents with a span-vs-string equality verification on lookup, so cache hits
-/// never materialise the SGR text into a heap string. <c>GetAlternateLookup</c>
-/// would be a cleaner API but is .NET 9+ only and this lib targets net8.0.
+/// never materialise the SGR text into a heap string.
 /// </para>
 /// <para>
 /// Per-thread state (<see cref="ThreadStaticAttribute">thread-static</see>) avoids

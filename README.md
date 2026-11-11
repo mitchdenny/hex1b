@@ -146,7 +146,7 @@ dotnet run --project apphost.cs
 
 ### Prerequisites
 
-- [.NET 10.0 SDK](https://dotnet.microsoft.com/download) (preview)
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download)
 - A terminal emulator with good ANSI support
 - For source builds on Unix: `build-essential` on Ubuntu/Debian, or Xcode Command
   Line Tools on macOS (`xcode-select --install`).

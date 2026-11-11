@@ -96,7 +96,7 @@ hex1b_native_assets=(
 )
 
 assert_files_exist "Hex1b" "$hex1b_root" \
-  "lib/net8.0/Hex1b.dll" \
+  "lib/net10.0/Hex1b.dll" \
   "THIRD-PARTY-NOTICES.txt" \
   "${hex1b_native_assets[@]}"
 
@@ -152,6 +152,6 @@ if [ -n "$unexpected_tool_root_native" ]; then
 fi
 
 echo "Verified extracted NuGet package contents:"
-printf '  Hex1b/%s\n' "lib/net8.0/Hex1b.dll" "${hex1b_native_assets[@]}"
+printf '  Hex1b/%s\n' "lib/net10.0/Hex1b.dll" "${hex1b_native_assets[@]}"
 printf '  Hex1b.McpServer/%s\n' "tools/net10.0/any/Hex1b.McpServer.dll" "tools/net10.0/any/DotnetToolSettings.xml"
 printf '  Hex1b.Tool/%s\n' "tools/net10.0/any/Hex1b.Tool.dll" "tools/net10.0/any/DotnetToolSettings.xml" "${tool_native_assets[@]}" "${tool_windows_graphics_assets[@]}"
