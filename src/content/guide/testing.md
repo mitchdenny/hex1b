@@ -69,7 +69,7 @@ Add the Hex1b package to your test project:
 ```xml
 <Project Sdk="MSTest.Sdk/3.6.4">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>

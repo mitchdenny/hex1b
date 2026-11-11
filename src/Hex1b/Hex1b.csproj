@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -49,16 +49,11 @@
       the first stable release ships the baseline element is absent, so we only
       get intra-package framework-compat checks; once it appears, breaking-API
       changes against the published baseline surface as build errors locally
-      and in CI. To deliberately ship a breaking change, comment the element
-      out for the spike and let the bot restore it on the next release.
+      and in CI. Intentional breaks are recorded in CompatibilitySuppressions.xml
+      (regenerate with -p:ApiCompatGenerateSuppressionFile=true): currently the
+            intentional removal of the net8.0 target (PKV006) when moving to net10.0.
     -->
-    <!--
-      Deliberately disabled for this change: removes the public
-      CellAttributes.Sixel / TerminalCell.TrackedSixel per-cell Sixel
-      ownership surface (see issue #451) in favor of independent
-      SixelGraphicsState. The bot will restore this on the next release.
-    -->
-    <!-- <EnablePackageValidation>true</EnablePackageValidation> -->
+    <EnablePackageValidation>true</EnablePackageValidation>
     <!-- BEGIN: bot-managed baseline -->
     <PackageValidationBaselineVersion>0.175.0</PackageValidationBaselineVersion>
     <!-- END: bot-managed baseline -->
@@ -98,7 +93,7 @@
     <WindowsPtyShimPublishRoot>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim</WindowsPtyShimPublishRoot>
     <WindowsPtyShimPublishDir>$(WindowsPtyShimPublishRoot)\$(WindowsPtyShimRid)\native</WindowsPtyShimPublishDir>
     <WindowsPtyHostProject>$(MSBuildProjectDirectory)\..\Hex1b.PtyHost\Hex1b.PtyHost.csproj</WindowsPtyHostProject>
-    <WindowsPtyHostTargetFramework>net8.0</WindowsPtyHostTargetFramework>
+    <WindowsPtyHostTargetFramework>net10.0</WindowsPtyHostTargetFramework>
     <WindowsPtyHostBuildOutputDir>$(MSBuildProjectDirectory)\..\Hex1b.PtyHost\bin\$(Configuration)\$(WindowsPtyHostTargetFramework)\$(WindowsPtyShimRid)</WindowsPtyHostBuildOutputDir>
   </PropertyGroup>
   <PropertyGroup>

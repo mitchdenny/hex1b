@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Hex1b! This document provides gui
 
 ### Prerequisites
 
-- [.NET 10.0 SDK](https://dotnet.microsoft.com/download) (preview)
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download)
 - Git
 - A code editor (VS Code recommended)
 - A terminal emulator with good ANSI escape sequence support

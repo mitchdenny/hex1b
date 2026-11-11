@@ -9,7 +9,7 @@
       ],
       "dest": "_metadata",
       "properties": {
-        "TargetFramework": "net8.0"
+        "TargetFramework": "net10.0"
       }
     }
   ]

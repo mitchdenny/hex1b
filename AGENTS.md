@@ -24,7 +24,7 @@ Skills are invoked automatically by AI agents based on the task context. They co
 **Hex1b** is a .NET library for building terminal user interfaces (TUI) with a React-inspired declarative API. The library ships to NuGet as `Hex1b`.
 
 ### Key Technologies
-- **.NET 10.0** (preview) - Target framework
+- **.NET 10.0** - Target framework
 - **C# 12+** - Modern C# features enabled
 - **MSTest** (MSTest.Sdk 4.x with Microsoft.Testing.Platform) - Testing framework
 - **.NET Aspire** - Used for running sample applications
