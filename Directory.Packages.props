@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <AspireHostingVersion>13.6.4</AspireHostingVersion>
+    <AspireHostingVersion>13.6.5</AspireHostingVersion>
   </PropertyGroup>
 
   <ItemGroup>
