@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageVersion Include="Aspire.Hosting" Version="13.6.5" />
     <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="$(AspireHostingVersion)" />
     <PackageVersion Include="Aspire.Hosting.JavaScript" Version="$(AspireHostingVersion)" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
