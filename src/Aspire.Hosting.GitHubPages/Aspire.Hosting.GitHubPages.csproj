@@ -8,6 +8,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Aspire.Hosting" />
     <PackageReference Include="Aspire.Hosting.JavaScript" />
     <PackageReference Include="MessagePack" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
