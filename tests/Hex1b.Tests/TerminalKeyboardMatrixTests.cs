@@ -375,7 +375,100 @@ public class TerminalKeyboardMatrixTests
         Assert.IsFalse(workload.InputEvents.TryRead(out _));
     }
 
+    [TestMethod]
+    [DataRow(1, Hex1bKey.C, "", Hex1bModifiers.Control, Hex1bKeyEventType.Press, "1B5B39393B3575")]
+    [DataRow(1, Hex1bKey.Escape, "", Hex1bModifiers.None, Hex1bKeyEventType.Press, "1B5B323775")]
+    [DataRow(3, Hex1bKey.UpArrow, "", Hex1bModifiers.Control, Hex1bKeyEventType.Repeat, "1B5B313B353A3241")]
+    [DataRow(3, Hex1bKey.F3, "", Hex1bModifiers.None, Hex1bKeyEventType.Release, "1B5B31333B313A337E")]
+    [DataRow(8, Hex1bKey.Enter, "\r", Hex1bModifiers.None, Hex1bKeyEventType.Press, "1B5B313375")]
+    [DataRow(31, Hex1bKey.A, "A", Hex1bModifiers.Shift, Hex1bKeyEventType.Press, "1B5B39373A36353B323B363575", 65)]
+    [DataRow(27, Hex1bKey.A, "A", Hex1bModifiers.Shift, Hex1bKeyEventType.Press, "1B5B39373B323B363575")]
+    [DataRow(2, Hex1bKey.NumPad1, "", Hex1bModifiers.None, Hex1bKeyEventType.Release, "1B5B34393B313A3375")]
+    [DataRow(3, Hex1bKey.NumPad1, "", Hex1bModifiers.None, Hex1bKeyEventType.Release, "1B5B35373430303B313A3375")]
+    [DataRow(1, Hex1bKey.A, "", Hex1bModifiers.None, Hex1bKeyEventType.Press, "1B5B393775")]
+    [DataRow(2, Hex1bKey.A, "", Hex1bModifiers.None, Hex1bKeyEventType.Repeat, "1B5B39373B313A3275")]
+    public async Task Keyboard_PushFlagsThenSendEvent_UsesNegotiatedWireBytes(
+        int flags, Hex1bKey key, string text, Hex1bModifiers modifiers, Hex1bKeyEventType type, string expectedHex,
+        int shiftedKeyCode = 0)
+    {
+        var workload = new RecordingWorkload();
+        await using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().Build();
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize($"\x1b[>{flags}u"));
+
+        await terminal.SendEventAsync(new Hex1bKeyEvent(key, text, modifiers)
+        {
+            EventType = type,
+            ShiftedKeyCode = shiftedKeyCode == 0 ? null : shiftedKeyCode,
+        }, TestContext.Current.CancellationToken);
+
+        workload.AssertNext(expectedHex, "terminal negotiated input");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[<u"));
+        await terminal.SendEventAsync(new Hex1bKeyEvent(Hex1bKey.C, "", Hex1bModifiers.Control),
+            TestContext.Current.CancellationToken);
+        workload.AssertNext("03", "terminal restored legacy input");
+        Assert.IsFalse(workload.Input.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow(1, "1B5B41")]
+    [DataRow(2, "1B4F41")]
+    [DataRow(8, "1B5B41")]
+    public async Task Keyboard_PushFlagsInCursorMode_UsesNegotiatedFormAndRestoresLegacy(int flags, string expectedHex)
+    {
+        var workload = new RecordingWorkload();
+        await using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().Build();
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize($"\x1b[?1h\x1b[>{flags}u"));
+
+        await terminal.SendEventAsync(new Hex1bKeyEvent(Hex1bKey.UpArrow, "", Hex1bModifiers.None),
+            TestContext.Current.CancellationToken);
+        workload.AssertNext(expectedHex, "negotiated cursor form");
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[<u"));
+        await terminal.SendEventAsync(new Hex1bKeyEvent(Hex1bKey.UpArrow, "", Hex1bModifiers.None),
+            TestContext.Current.CancellationToken);
+        workload.AssertNext("1B4F41", "restored application cursor form");
+        Assert.IsFalse(workload.Input.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Keyboard_TextEvent_WorkloadFilterObservesEncodedInput(bool enhanced)
+    {
+        var workload = new RecordingWorkload();
+        var filter = new InputRecordingFilter();
+        var options = new Hex1bTerminalOptions { WorkloadAdapter = workload };
+        options.WorkloadFilters.Add(filter);
+        await using var terminal = new Hex1bTerminal(options);
+        if (enhanced)
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>31u"));
+
+        await terminal.SendEventAsync(Hex1bKeyEvent.FromText("\U0001f642"), TestContext.Current.CancellationToken);
+
+        workload.AssertNext(enhanced ? "1B5B303B3B31323835373875" : "F09F9982", "text event");
+        var token = TestSeq.Single(filter.InputTokens);
+        if (enhanced)
+            Assert.AreEqual("\x1b[0;;128578u", TestSeq.IsType<UnrecognizedSequenceToken>(token).Sequence);
+        else
+            Assert.AreEqual("\U0001f642", TestSeq.IsType<TextToken>(token).Text);
+    }
+
     private sealed record KeyVector(Hex1bKey Key, string Normal, string? Cursor = null, string? Keypad = null);
+
+    private sealed class InputRecordingFilter : IHex1bTerminalWorkloadFilter
+    {
+        internal List<AnsiToken> InputTokens { get; } = [];
+        public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask OnOutputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask OnFrameCompleteAsync(TimeSpan elapsed, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask OnInputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
+        {
+            InputTokens.AddRange(tokens);
+            return ValueTask.CompletedTask;
+        }
+        public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask OnSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default) => ValueTask.CompletedTask;
+    }
 
     private sealed class RecordingWorkload : IHex1bTerminalWorkloadAdapter
     {
