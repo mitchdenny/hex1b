@@ -476,27 +476,7 @@ public sealed class ConsolePresentationAdapter :
 
         var bufferedInput = new List<byte>();
         var readBuffer = new byte[256];
-        var kgpDone = false;
-        int? mouseTrackingStatus = null;
-        int? mouseEncodingStatus = null;
-
-        var keyboardProbe = new KeyboardProbeState();
-
-        (double Height, double Width)? csi16 = null;
-        var csi16Done = !sixelProbeNeeded;
-        var csi16Malformed = false;
-
-        (double Height, double Width)? csi14 = null;
-        var csi14Done = !sixelProbeNeeded;
-        var csi14Malformed = false;
-
-        (double Rows, double Cols)? csi18 = null;
-        var csi18Done = !sixelProbeNeeded;
-        var csi18Malformed = false;
-
-        (double Height, double Width)? osc1337 = null;
-        var osc1337Done = !sixelProbeNeeded;
-        var osc1337Malformed = false;
+        var probe = new ProbeState { SixelProbeNeeded = sixelProbeNeeded };
 
         using var probeCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
         probeCts.CancelAfter(_kgpProbeTimeout);
@@ -510,71 +490,9 @@ public sealed class ConsolePresentationAdapter :
                     break;
 
                 bufferedInput.AddRange(readBuffer.AsSpan(0, bytesRead).ToArray());
+                ConsumeProbeReplies(bufferedInput, probe);
 
-                if (!kgpDone && TryConsumeKgpProbeResponse(bufferedInput, KgpProbeImageId, out var supportsKgp))
-                {
-                    kgpDone = true;
-                    _capabilities = _capabilities with { SupportsKgp = supportsKgp };
-                }
-
-                if (!_backgroundProbeCompleted &&
-                    TryConsumeBackgroundProbeResponse(bufferedInput, out var bgRgb))
-                {
-                    _capabilities = _capabilities with { DefaultBackground = bgRgb };
-                    _backgroundProbeCompleted = true;
-                }
-
-                if (mouseTrackingStatus is null &&
-                    TryConsumeMouseModeResponse(bufferedInput, 1003, out var trackingStatus))
-                {
-                    mouseTrackingStatus = trackingStatus;
-                }
-                if (mouseEncodingStatus is null &&
-                    TryConsumeMouseModeResponse(bufferedInput, 1006, out var encodingStatus))
-                {
-                    mouseEncodingStatus = encodingStatus;
-                }
-
-                ConsumeKeyboardAndDeviceAttributesReplies(bufferedInput, ref keyboardProbe);
-
-                if (sixelProbeNeeded)
-                {
-                    if (!csi16Done && TryConsumeWindowOperationResponse(bufferedInput, reportCode: 6, out var c16A, out var c16B, out var c16Bad))
-                    {
-                        csi16Done = true;
-                        csi16Malformed = c16Bad;
-                        if (!c16Bad)
-                            csi16 = (c16A, c16B);
-                    }
-
-                    if (!csi14Done && TryConsumeWindowOperationResponse(bufferedInput, reportCode: 4, out var c14A, out var c14B, out var c14Bad))
-                    {
-                        csi14Done = true;
-                        csi14Malformed = c14Bad;
-                        if (!c14Bad)
-                            csi14 = (c14A, c14B);
-                    }
-
-                    if (!csi18Done && TryConsumeWindowOperationResponse(bufferedInput, reportCode: 8, out var c18A, out var c18B, out var c18Bad))
-                    {
-                        csi18Done = true;
-                        csi18Malformed = c18Bad;
-                        if (!c18Bad)
-                            csi18 = (c18A, c18B);
-                    }
-
-                    if (!osc1337Done && TryConsumeOsc1337CellSizeResponse(bufferedInput, out var oH, out var oW, out var oscBad))
-                    {
-                        osc1337Done = true;
-                        osc1337Malformed = oscBad;
-                        if (!oscBad)
-                            osc1337 = (oH, oW);
-                    }
-                }
-
-                if (kgpDone && _backgroundProbeCompleted &&
-                    keyboardProbe.KittyDone && keyboardProbe.Da1Done && csi16Done && csi14Done && csi18Done && osc1337Done &&
-                    mouseTrackingStatus is not null && mouseEncodingStatus is not null)
+                if (probe.IsComplete(_backgroundProbeCompleted))
                     break;
             }
         }
@@ -586,26 +504,25 @@ public sealed class ConsolePresentationAdapter :
         {
             _capabilities = _capabilities with
             {
-                SupportsKittyKeyboard = keyboardProbe.KittyFlags is not null,
+                SupportsKittyKeyboard = probe.KittyFlags is not null,
                 SupportsMouse = _enableMouse &&
-                    mouseTrackingStatus is not (0 or 4) &&
-                    mouseEncodingStatus is not (0 or 4)
+                    probe.MouseTracking is not (0 or 4) &&
+                    probe.MouseEncoding is not (0 or 4)
             };
             System.Diagnostics.Trace.WriteLine(
-                $"Mouse mode probe: 1003={mouseTrackingStatus?.ToString() ?? "unknown"}, " +
-                $"1006={mouseEncodingStatus?.ToString() ?? "unknown"}.");
+                $"Mouse mode probe: 1003={probe.MouseTracking?.ToString() ?? "unknown"}, " +
+                $"1006={probe.MouseEncoding?.ToString() ?? "unknown"}.");
             System.Diagnostics.Trace.WriteLine(
-                $"Kitty keyboard probe: flags={keyboardProbe.KittyFlags?.ToString() ?? "none"}, " +
-                $"malformed={keyboardProbe.KittyMalformedReplies}, da1={keyboardProbe.Da1Done}.");
+                $"Kitty keyboard probe: flags={probe.KittyFlags?.ToString() ?? "none"}, da1={probe.Da1Done}.");
 
             if (sixelProbeNeeded)
             {
                 ResolveSixelCapabilities(
-                    keyboardProbe.Da1Done, keyboardProbe.Da1Malformed, keyboardProbe.Da1DeclaresSixel,
-                    csi16Done, csi16Malformed, csi16,
-                    osc1337Done, osc1337Malformed, osc1337,
-                    csi14Done, csi14Malformed, csi14,
-                    csi18Done, csi18Malformed, csi18);
+                    probe.Da1Done, probe.Da1Malformed, probe.Da1DeclaresSixel,
+                    probe.Csi16.Done, probe.Csi16.Malformed, probe.Csi16.Value,
+                    probe.Osc1337.Done, probe.Osc1337.Malformed, probe.Osc1337.Value,
+                    probe.Csi14.Done, probe.Csi14.Malformed, probe.Csi14.Value,
+                    probe.Csi18.Done, probe.Csi18.Malformed, probe.Csi18.Value);
             }
 
             if (bufferedInput.Count > 0)
@@ -613,29 +530,6 @@ public sealed class ConsolePresentationAdapter :
                 AppendPrefetchedInput(CollectionsMarshal.AsSpan(bufferedInput));
             }
         }
-    }
-
-    private static bool TryConsumeMouseModeResponse(List<byte> buffer, int mode, out int status)
-    {
-        status = 0;
-        var prefix = Encoding.ASCII.GetBytes($"\x1b[?{mode};");
-        var span = CollectionsMarshal.AsSpan(buffer);
-        for (var start = 0; start <= span.Length - prefix.Length - 3; start++)
-        {
-            if (!span[start..].StartsWith(prefix))
-                continue;
-
-            var valueOffset = start + prefix.Length;
-            if (span[valueOffset] is < (byte)'0' or > (byte)'4' ||
-                span[valueOffset + 1] != (byte)'$' ||
-                span[valueOffset + 2] != (byte)'y')
-                continue;
-
-            status = span[valueOffset] - (byte)'0';
-            buffer.RemoveRange(start, prefix.Length + 3);
-            return true;
-        }
-        return false;
     }
 
     private const double MaxPlausibleWindowPixelDimension = 1_000_000d;
@@ -647,55 +541,232 @@ public sealed class ConsolePresentationAdapter :
         double.IsFinite(value) && value > 0 && value <= MaxPlausibleWindowPixelDimension;
 
     /// <summary>
-    /// Consumes top-level Kitty keyboard support (<c>CSI ? flags u</c>) and DA1
-    /// (<c>CSI ? Pn(;Pn)* c</c>) replies in arrival order. Bracketed paste and string
-    /// controls (OSC, DCS, APC, SOS, PM) are skipped as opaque frames, so reply-shaped
-    /// bytes inside them neither set support nor get removed.
+    /// Consumes genuine probe replies from <paramref name="buffer"/>. Only complete,
+    /// top-level, ESC-introduced frames are considered (see <see cref="ConsoleProbeFrameScanner"/>),
+    /// so reply-shaped bytes inside bracketed paste or string controls are never consumed.
+    /// Frames that are not a recognised, well-formed reply stay in the buffer as input.
     /// </summary>
-    private void ConsumeKeyboardAndDeviceAttributesReplies(List<byte> buffer, ref KeyboardProbeState state)
+    private void ConsumeProbeReplies(List<byte> buffer, ProbeState probe)
     {
         var span = CollectionsMarshal.AsSpan(buffer);
-        var consumed = new List<(int Start, int End)>();
-        foreach (var (start, end) in FindTopLevelCsiSequences(span))
+        var encoding = _driver.InputEncoding;
+        var mode = IsUtf8(encoding) ? ConsoleProbeFrameScanner.ByteMode.Utf8
+            : encoding.IsSingleByte ? ConsoleProbeFrameScanner.ByteMode.SingleByte
+            : ConsoleProbeFrameScanner.ByteMode.MultiByte;
+        List<(int Start, int End)>? consumed = null;
+        foreach (var frame in ConsoleProbeFrameScanner.Scan(span, mode))
         {
-            var final = span[end - 1];
-            var parameters = span[(start + 2)..(end - 1)];
-            if (parameters.IsEmpty || parameters[0] != (byte)'?')
+            if (!frame.SevenBit)
                 continue;
 
-            if (final == (byte)'u')
+            var content = (ReadOnlySpan<byte>)span[frame.ContentStart..frame.ContentEnd];
+            var claimed = frame.Kind switch
             {
-                // No key encoding produces CSI ? ... u, so every such reply in the probe
-                // window belongs to the probe; only the first valid one decides support.
-                consumed.Add((start, end));
-                if (state.KittyDone)
-                    continue;
-                if (TryParseKittyFlags(parameters[1..], out var flags))
-                {
-                    state.KittyDone = true;
-                    state.KittyFlags = flags;
-                }
-                else
-                {
-                    state.KittyMalformedReplies++;
-                }
-            }
-            else if (final == (byte)'c' && !state.Da1Done &&
-                     TryParseDeviceAttributes(parameters[1..], out var sixelDeclared, out var malformed))
-            {
-                consumed.Add((start, end));
-                state.Da1Done = true;
-                state.Da1Malformed = malformed;
-                state.Da1DeclaresSixel = malformed ? null : sixelDeclared;
-                // The specification treats DA1 before a Kitty reply as unsupported. ConPTY can
-                // answer DA1 before the outer terminal's Kitty reply, so there it waits instead.
-                if (_kittyDa1Conclusive && !state.KittyDone)
-                    state.KittyDone = true;
-            }
+                ConsoleProbeFrameScanner.FrameKind.Csi => TryClaimCsiReply(content, span[frame.End - 1], probe),
+                ConsoleProbeFrameScanner.FrameKind.Osc => TryClaimOscReply(content, probe),
+                ConsoleProbeFrameScanner.FrameKind.Apc => TryClaimApcReply(content, probe),
+                _ => false,
+            };
+            if (claimed)
+                (consumed ??= []).Add((frame.Start, frame.End));
         }
 
+        if (consumed is null)
+            return;
         for (var i = consumed.Count - 1; i >= 0; i--)
             buffer.RemoveRange(consumed[i].Start, consumed[i].End - consumed[i].Start);
+    }
+
+    private bool TryClaimCsiReply(ReadOnlySpan<byte> parameters, byte final, ProbeState probe)
+    {
+        if (!parameters.IsEmpty && parameters[0] == (byte)'?')
+        {
+            switch (final)
+            {
+                case (byte)'u':
+                    // Kitty keyboard support reply (CSI ? flags u). Every valid reply belongs
+                    // to the probe; the first one decides support. Malformed replies stay input.
+                    if (!TryParseKittyFlags(parameters[1..], out var flags))
+                        return false;
+                    if (!probe.KittyDone)
+                    {
+                        probe.KittyDone = true;
+                        probe.KittyFlags = flags;
+                    }
+                    return true;
+
+                case (byte)'c':
+                    if (probe.Da1Done || !TryParseDeviceAttributes(parameters[1..], out var sixelDeclared, out var malformed))
+                        return false;
+                    probe.Da1Done = true;
+                    probe.Da1Malformed = malformed;
+                    probe.Da1DeclaresSixel = malformed ? null : sixelDeclared;
+                    // The specification treats DA1 before a Kitty reply as unsupported. ConPTY can
+                    // answer DA1 before the outer terminal's Kitty reply, so there it waits instead.
+                    if (_kittyDa1Conclusive && !probe.KittyDone)
+                        probe.KittyDone = true;
+                    return true;
+
+                case (byte)'y':
+                    return TryClaimMouseModeReply(parameters[1..], probe);
+            }
+
+            return false;
+        }
+
+        return final == (byte)'t' && probe.SixelProbeNeeded && TryClaimWindowOperationReply(parameters, probe);
+    }
+
+    /// <summary>
+    /// Claims a DECRPM reply (<c>CSI ? mode ; status $ y</c>) for mouse modes 1003 and 1006.
+    /// </summary>
+    private static bool TryClaimMouseModeReply(ReadOnlySpan<byte> parameters, ProbeState probe)
+    {
+        // "1003;N$" or "1006;N$" with a single status digit 0-4.
+        if (parameters.Length != 7 || parameters[4] != (byte)';' || parameters[6] != (byte)'$' ||
+            parameters[5] is < (byte)'0' or > (byte)'4')
+            return false;
+
+        var status = parameters[5] - (byte)'0';
+        if (parameters[..4].SequenceEqual("1003"u8) && probe.MouseTracking is null)
+        {
+            probe.MouseTracking = status;
+            return true;
+        }
+        if (parameters[..4].SequenceEqual("1006"u8) && probe.MouseEncoding is null)
+        {
+            probe.MouseEncoding = status;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Claims an XTWINOPS report reply of the form <c>CSI Pn;Pn;Pn t</c> whose leading
+    /// parameter is 4 (CSI 14 t), 6 (CSI 16 t) or 8 (CSI 18 t). Replies for other or
+    /// already-answered report codes stay input, and ordinary keyboard sequences that start
+    /// with a digit (for example <c>CSI 3 ~</c> for Delete) never match because they do not
+    /// end in <c>t</c>.
+    /// </summary>
+    private static bool TryClaimWindowOperationReply(ReadOnlySpan<byte> parameters, ProbeState probe)
+    {
+        if (parameters.IsEmpty || parameters[0] is < (byte)'0' or > (byte)'9')
+            return false;
+        foreach (var b in parameters)
+        {
+            if (b != (byte)';' && b is < (byte)'0' or > (byte)'9')
+                return false;
+        }
+
+        var parts = Encoding.ASCII.GetString(parameters).Split(';');
+        if (parts.Length != 3 || !int.TryParse(parts[0], out var code))
+            return false;
+
+        var reply = code switch
+        {
+            4 => probe.Csi14,
+            6 => probe.Csi16,
+            8 => probe.Csi18,
+            _ => null,
+        };
+        if (reply is null || reply.Done)
+            return false;
+
+        var parseOk = double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var first);
+        parseOk &= double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var second);
+        reply.Done = true;
+        reply.Malformed = !parseOk;
+        if (parseOk)
+            reply.Value = (first, second);
+        return true;
+    }
+
+    /// <summary>
+    /// Claims an OSC 11 background-colour reply (<c>OSC 11 ; rgb:RRRR/GGGG/BBBB ST</c>, with
+    /// component widths of 1–4 hex digits) or an iTerm2 <c>OSC 1337 ; ReportCellSize=h;w[;scale] ST</c>
+    /// reply. Malformed background replies and unrelated OSC 1337 subcommands stay input.
+    /// </summary>
+    private bool TryClaimOscReply(ReadOnlySpan<byte> content, ProbeState probe)
+    {
+        if (content.StartsWith("11;"u8))
+        {
+            if (_backgroundProbeCompleted || !TryParseRgbColor(Encoding.ASCII.GetString(content[3..]), out var rgb))
+                return false;
+            _capabilities = _capabilities with { DefaultBackground = rgb };
+            _backgroundProbeCompleted = true;
+            return true;
+        }
+
+        ReadOnlySpan<byte> cellSize = "1337;ReportCellSize="u8;
+        if (!probe.SixelProbeNeeded || probe.Osc1337.Done || !content.StartsWith(cellSize))
+            return false;
+
+        // Height and width are reported in points; the pixel size is points * scale (older
+        // iTerm2 versions omit scale, implying 1.0 / non-retina).
+        var reply = probe.Osc1337;
+        reply.Done = true;
+        var fields = Encoding.ASCII.GetString(content[cellSize.Length..]).Split(';');
+        var parseOk = fields.Length is 2 or 3;
+        double height = 0, width = 0, scale = 1.0;
+        if (parseOk)
+        {
+            parseOk = double.TryParse(fields[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out height);
+            parseOk &= double.TryParse(fields[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out width);
+            if (fields.Length == 3)
+                parseOk &= double.TryParse(fields[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out scale);
+        }
+
+        reply.Malformed = !parseOk;
+        if (parseOk)
+            reply.Value = (height * scale, width * scale);
+        return true;
+    }
+
+    /// <summary>Claims the Kitty graphics protocol probe reply (<c>APC G i=id;OK ST</c>).</summary>
+    private bool TryClaimApcReply(ReadOnlySpan<byte> content, ProbeState probe)
+    {
+        if (probe.KgpDone || content.IsEmpty || content[0] != (byte)'G')
+            return false;
+
+        var response = Encoding.ASCII.GetString(content[1..]);
+        if (!IsKgpProbeResponse(response, KgpProbeImageId))
+            return false;
+
+        probe.KgpDone = true;
+        _capabilities = _capabilities with
+        {
+            SupportsKgp = response.AsSpan(response.IndexOf(';') + 1).SequenceEqual("OK")
+        };
+        return true;
+    }
+
+    private sealed class ProbeState
+    {
+        public bool SixelProbeNeeded;
+        public bool KgpDone;
+        public int? MouseTracking;
+        public int? MouseEncoding;
+        public bool KittyDone;
+        public int? KittyFlags;
+        public bool Da1Done;
+        public bool Da1Malformed;
+        public bool? Da1DeclaresSixel;
+        public MetricReply Csi16 { get; } = new();
+        public MetricReply Csi14 { get; } = new();
+        public MetricReply Csi18 { get; } = new();
+        public MetricReply Osc1337 { get; } = new();
+
+        public bool IsComplete(bool backgroundDone) =>
+            KgpDone && backgroundDone && KittyDone && Da1Done &&
+            MouseTracking is not null && MouseEncoding is not null &&
+            (!SixelProbeNeeded || (Csi16.Done && Csi14.Done && Csi18.Done && Osc1337.Done));
+    }
+
+    private sealed class MetricReply
+    {
+        public bool Done;
+        public bool Malformed;
+        public (double, double)? Value;
     }
 
     private static bool TryParseKittyFlags(ReadOnlySpan<byte> digits, out int flags)
@@ -738,241 +809,6 @@ public sealed class ConsolePresentationAdapter :
 
         sixelDeclared &= !malformed;
         return true;
-    }
-
-    /// <summary>
-    /// Returns complete top-level CSI sequences, skipping bracketed paste and string
-    /// control payloads. Scanning stops at the first incomplete frame.
-    /// </summary>
-    internal static List<(int Start, int End)> FindTopLevelCsiSequences(ReadOnlySpan<byte> span)
-    {
-        ReadOnlySpan<byte> pasteStart = "\x1b[200~"u8;
-        ReadOnlySpan<byte> pasteEnd = "\x1b[201~"u8;
-        var sequences = new List<(int Start, int End)>();
-        var i = 0;
-        while (i < span.Length)
-        {
-            if (span[i] != 0x1b)
-            {
-                i++;
-                continue;
-            }
-            if (i + 1 >= span.Length)
-                break;
-
-            var introducer = span[i + 1];
-            if (introducer == (byte)'[')
-            {
-                var j = i + 2;
-                while (j < span.Length && span[j] is >= 0x20 and <= 0x3f)
-                    j++;
-                if (j >= span.Length)
-                    break;
-                if (span[j] is not (>= 0x40 and <= 0x7e))
-                {
-                    i = j;
-                    continue;
-                }
-
-                var end = j + 1;
-                if (span[i..end].SequenceEqual(pasteStart))
-                {
-                    var close = span[end..].IndexOf(pasteEnd);
-                    if (close < 0)
-                        break;
-                    i = end + close + pasteEnd.Length;
-                    continue;
-                }
-
-                sequences.Add((i, end));
-                i = end;
-            }
-            else if (introducer is (byte)']' or (byte)'P' or (byte)'_' or (byte)'X' or (byte)'^')
-            {
-                if (!TryFindStringControlEnd(span, i + 2, allowBell: introducer == (byte)']', out var end))
-                    break;
-                i = end;
-            }
-            else
-            {
-                // A lone ESC (an Escape key press) may directly precede another sequence.
-                i += span[i + 1] == 0x1b ? 1 : 2;
-            }
-        }
-
-        return sequences;
-    }
-
-    private static bool TryFindStringControlEnd(ReadOnlySpan<byte> span, int start, bool allowBell, out int end)
-    {
-        for (var i = start; i < span.Length; i++)
-        {
-            if (allowBell && span[i] == 0x07)
-            {
-                end = i + 1;
-                return true;
-            }
-            if (span[i] == 0x1b && i + 1 < span.Length && span[i + 1] == (byte)'\\')
-            {
-                end = i + 2;
-                return true;
-            }
-        }
-
-        end = span.Length;
-        return false;
-    }
-
-    private struct KeyboardProbeState
-    {
-        public bool KittyDone;
-        public int? KittyFlags;
-        public int KittyMalformedReplies;
-        public bool Da1Done;
-        public bool Da1Malformed;
-        public bool? Da1DeclaresSixel;
-    }
-
-    /// <summary>
-    /// Scans for an XTWINOPS report reply of the form <c>CSI Pn;Pn;Pn t</c> whose
-    /// leading parameter matches <paramref name="reportCode"/> (4 for a CSI 14 t
-    /// reply, 6 for CSI 16 t, 8 for CSI 18 t). Replies for a different report code are
-    /// left untouched (not consumed) so a later call for that code can still find
-    /// them, and ordinary keyboard sequences that happen to start with a digit (for
-    /// example <c>CSI 3 ~</c> for Delete) never match because they do not end in
-    /// <c>t</c>.
-    /// </summary>
-    private static bool TryConsumeWindowOperationResponse(
-        List<byte> buffer,
-        int reportCode,
-        out double first,
-        out double second,
-        out bool malformed)
-    {
-        first = 0;
-        second = 0;
-        malformed = false;
-
-        var span = CollectionsMarshal.AsSpan(buffer);
-        for (var start = 0; start <= span.Length - 3; start++)
-        {
-            if (span[start] != 0x1b || span[start + 1] != (byte)'[')
-                continue;
-
-            var scanStart = start + 2;
-            if (scanStart >= span.Length || span[scanStart] < (byte)'0' || span[scanStart] > (byte)'9')
-                continue; // DA1 replies (and other non-digit-led CSI sequences) are handled elsewhere.
-
-            var end = -1;
-            for (var i = scanStart; i < span.Length; i++)
-            {
-                var b = span[i];
-                if (b == (byte)'t')
-                {
-                    end = i;
-                    break;
-                }
-                if (b != (byte)';' && (b < (byte)'0' || b > (byte)'9'))
-                    break; // Not this kind of reply (e.g. a keyboard sequence terminated by '~' or a letter).
-            }
-
-            if (end < 0)
-                continue; // Either not a window-op reply, or the terminator has not arrived yet.
-
-            var paramsText = Encoding.ASCII.GetString(span[scanStart..end]);
-            var parts = paramsText.Split(';');
-            if (parts.Length != 3 || !int.TryParse(parts[0], out var code) || code != reportCode)
-                continue; // A different report code (or none we recognize); leave it untouched.
-
-            var parseOk = double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out first);
-            parseOk &= double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out second);
-
-            buffer.RemoveRange(start, end + 1 - start);
-            malformed = !parseOk;
-            return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Scans for an iTerm2 OSC 1337 <c>ReportCellSize</c> reply of the form
-    /// <c>OSC 1337 ; ReportCellSize=[height];[width][;[scale]] ST</c>. Height and
-    /// width are reported in points; when a scale factor is present, the pixel size
-    /// is <c>points * scale</c> (older iTerm2 versions omit scale, implying
-    /// 1.0 / non-retina). Other, unrelated OSC 1337 subcommands are left untouched.
-    /// </summary>
-    private static bool TryConsumeOsc1337CellSizeResponse(List<byte> buffer, out double heightPixels, out double widthPixels, out bool malformed)
-    {
-        heightPixels = 0;
-        widthPixels = 0;
-        malformed = false;
-
-        const string signature = "ReportCellSize=";
-
-        var span = CollectionsMarshal.AsSpan(buffer);
-        for (var start = 0; start <= span.Length - 7; start++)
-        {
-            if (span[start] != 0x1b || span[start + 1] != (byte)']' ||
-                span[start + 2] != (byte)'1' || span[start + 3] != (byte)'3' ||
-                span[start + 4] != (byte)'3' || span[start + 5] != (byte)'7' ||
-                span[start + 6] != (byte)';')
-                continue;
-
-            var payloadStart = start + 7;
-            var end = -1;
-            var terminatorLength = 0;
-            for (var i = payloadStart; i < span.Length; i++)
-            {
-                if (span[i] == 0x07)
-                {
-                    end = i;
-                    terminatorLength = 1;
-                    break;
-                }
-                if (span[i] == 0x1b && i + 1 < span.Length && span[i + 1] == (byte)'\\')
-                {
-                    end = i;
-                    terminatorLength = 2;
-                    break;
-                }
-            }
-
-            if (end < 0)
-                return false; // Payload incomplete; wait for more bytes.
-
-            var payload = Encoding.ASCII.GetString(span[payloadStart..end]);
-            if (!payload.StartsWith(signature, StringComparison.Ordinal))
-                continue; // A different OSC 1337 subcommand; leave it untouched.
-
-            buffer.RemoveRange(start, end + terminatorLength - start);
-
-            var fields = payload[signature.Length..].Split(';');
-            if (fields.Length is < 2 or > 3)
-            {
-                malformed = true;
-                return true;
-            }
-
-            var parseOk = double.TryParse(fields[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var height);
-            parseOk &= double.TryParse(fields[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var width);
-
-            var scale = 1.0;
-            if (fields.Length == 3 && !double.TryParse(fields[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out scale))
-                parseOk = false;
-
-            if (!parseOk)
-            {
-                malformed = true;
-                return true;
-            }
-
-            heightPixels = height * scale;
-            widthPixels = width * scale;
-            return true;
-        }
-
-        return false;
     }
 
     /// <summary>
@@ -1174,36 +1010,6 @@ public sealed class ConsolePresentationAdapter :
         _prefetchedInput = combined;
     }
 
-    private static bool TryConsumeKgpProbeResponse(List<byte> buffer, uint probeImageId, out bool supportsKgp)
-    {
-        supportsKgp = false;
-        var span = CollectionsMarshal.AsSpan(buffer);
-        for (var start = 0; start <= span.Length - 4; start++)
-        {
-            if (span[start] != 0x1b || span[start + 1] != (byte)'_' || span[start + 2] != (byte)'G')
-                continue;
-
-            for (var end = start + 3; end < span.Length - 1; end++)
-            {
-                if (span[end] != 0x1b || span[end + 1] != (byte)'\\')
-                    continue;
-
-                var content = Encoding.ASCII.GetString(span[(start + 3)..end]);
-                if (IsKgpProbeResponse(content, probeImageId))
-                {
-                    supportsKgp = content.AsSpan(content.IndexOf(';') + 1).SequenceEqual("OK");
-                    buffer.RemoveRange(start, end + 2 - start);
-                    return true;
-                }
-
-                start = end + 1;
-                break;
-            }
-        }
-
-        return false;
-    }
-
     private static bool IsKgpProbeResponse(string response, uint probeImageId)
     {
         var separator = response.IndexOf(';');
@@ -1219,61 +1025,6 @@ public sealed class ConsolePresentationAdapter :
 
             if (uint.TryParse(field.AsSpan(2), out var imageId) && imageId == probeImageId)
                 return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Scans the buffered input for an OSC 11 background-colour reply. The reply
-    /// has the shape <c>ESC ] 11 ; rgb:RRRR/GGGG/BBBB ST</c> where ST is either
-    /// <c>ESC \</c> (string terminator) or <c>BEL</c> (0x07). Component widths
-    /// vary by terminal — common widths are 4 hex digits (xterm) but 2 and even
-    /// 1 are also seen in the wild — so we parse leniently and scale up.
-    /// </summary>
-    private static bool TryConsumeBackgroundProbeResponse(List<byte> buffer, out int rgb)
-    {
-        rgb = 0;
-        var span = CollectionsMarshal.AsSpan(buffer);
-        for (var start = 0; start <= span.Length - 5; start++)
-        {
-            // Match ESC ] 1 1 ;
-            if (span[start] != 0x1b || span[start + 1] != (byte)']' ||
-                span[start + 2] != (byte)'1' || span[start + 3] != (byte)'1' ||
-                span[start + 4] != (byte)';')
-                continue;
-
-            // Find the string terminator (ESC \ or BEL).
-            var end = -1;
-            var terminatorLength = 0;
-            for (var i = start + 5; i < span.Length; i++)
-            {
-                if (span[i] == 0x07)
-                {
-                    end = i;
-                    terminatorLength = 1;
-                    break;
-                }
-                if (span[i] == 0x1b && i + 1 < span.Length && span[i + 1] == (byte)'\\')
-                {
-                    end = i;
-                    terminatorLength = 2;
-                    break;
-                }
-            }
-
-            if (end < 0)
-                return false; // payload incomplete; wait for more bytes
-
-            var payload = Encoding.ASCII.GetString(span[(start + 5)..end]);
-            if (TryParseRgbColor(payload, out rgb))
-            {
-                buffer.RemoveRange(start, end + terminatorLength - start);
-                return true;
-            }
-
-            // Malformed payload; skip past this match and keep looking.
-            start = end + terminatorLength - 1;
         }
 
         return false;

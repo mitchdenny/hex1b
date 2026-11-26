@@ -831,7 +831,7 @@ resolved by an undocumented tie-break.
 
 A parser limitation is worth naming explicitly because it shapes what
 `Malformed` can and cannot mean for the `CSI 16/14/18 t` tiers specifically:
-`TryConsumeWindowOperationResponse`'s response scanner only continues through
+`TryClaimWindowOperationReply`'s response scanner only continues through
 bytes that are digits or `;`. The instant it meets any other byte before the
 terminating `t`, it treats the candidate as "not a window-operation reply at
 all" and leaves the buffered bytes untouched, rather than classifying it as

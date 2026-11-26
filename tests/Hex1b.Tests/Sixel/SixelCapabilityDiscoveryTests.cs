@@ -268,7 +268,7 @@ public class SixelCapabilityDiscoveryTests
 
     // Note: negative dimensions cannot arrive over the wire as a recognized CSI
     // 16 t reply at all -- the parser's digit/semicolon character class (see
-    // TryConsumeWindowOperationResponse) deliberately stops scanning the moment
+    // TryClaimWindowOperationReply) deliberately stops scanning the moment
     // it meets a byte that could not plausibly belong to a numeric window-op
     // reply (to avoid ever misconsuming ordinary keyboard input that merely
     // starts like one, e.g. "CSI 3 ~" for Delete). A literal '-' falls outside

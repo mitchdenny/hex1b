@@ -37,7 +37,7 @@ public class KittyConPtyTests
     [TestMethod]
     [DataRow("\x1b[?1u", true, "abc")]
     [DataRow("\x1b[?31u", true, "abc")]
-    [DataRow("\x1b[?1;2u", false, "abc")]
+    [DataRow("\x1b[?1;2u", false, "^[[?1;2uabc")]
     [DataRow(null, false, "abc")]
     [DataRow("\x1b[200~\x1b[?1u\x1b[201~", false, "^[[200~^[[?1u^[[201~abc")]
     public async Task EnterRawModeAsync_ThroughConPty_DetectsKittyAndPreservesInput(

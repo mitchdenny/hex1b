@@ -70,6 +70,7 @@ public class KittyConsoleProbeTests
         Assert.AreEqual("abc", input);
     }
 
+    // Malformed or nonmatching replies are not probe replies: they stay input byte-for-byte.
     [TestMethod]
     [DataRow("\x1b[?;1u")]
     [DataRow("\x1b[?1;2u")]
@@ -77,25 +78,31 @@ public class KittyConsoleProbeTests
     [DataRow("\x1b[?u")]
     [DataRow("\x1b[?1234567890u")]
     [DataRow("\x1b[?99999999999999999999u")]
-    public async Task EnterRawModeAsync_MalformedKittyReply_IsConsumedWithoutEnablingSupport(string reply)
+    [DataRow("\x1b[?1 u")]
+    public async Task EnterRawModeAsync_MalformedKittyReply_IsPreservedWithoutEnablingSupport(string reply)
     {
-        using var driver = new FakeConsoleDriver($"a{reply}bc");
+        using var driver = new FakeConsoleDriver($"a{reply}b");
         var (adapter, input) = await ProbeAsync(driver, kittyDa1Conclusive: false);
         await using var _ = adapter;
 
         Assert.IsFalse(adapter.Capabilities.SupportsKittyKeyboard);
-        Assert.AreEqual("abc", input);
+        Assert.AreEqual($"a{reply}b", input);
     }
 
     [TestMethod]
-    public async Task EnterRawModeAsync_MalformedThenValidReply_EnablesSupport()
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task EnterRawModeAsync_MalformedThenValidReply_PreservesMalformedAndEnablesSupport(bool bytewise)
     {
-        using var driver = new FakeConsoleDriver("\x1b[?;u", "\x1b[?3u", "\x1b[?62c");
+        const string replies = "a\x1b[?1;2ub\x1b[?;uc\x1b[?3ud\x1b[?62c";
+        using var driver = bytewise
+            ? new FakeConsoleDriver(Bytewise(replies))
+            : new FakeConsoleDriver("a\x1b[?1;2ub\x1b[?;uc", "\x1b[?3ud", "\x1b[?62c");
         var (adapter, input) = await ProbeAsync(driver);
         await using var _ = adapter;
 
         Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard);
-        Assert.AreEqual("", input);
+        Assert.AreEqual("a\x1b[?1;2ub\x1b[?;ucd", input);
     }
 
     [TestMethod]
@@ -248,6 +255,190 @@ public class KittyConsoleProbeTests
         var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: ShortProbe, kittyDa1Conclusive: false);
         await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
         return (adapter, false);
+    }
+
+    // --- C1 control strings. Rows are written as Latin-1 strings so each char is one byte:
+    // "\u00c2\u009d" is the UTF-8 encoding of U+009D (OSC) and "\u009d" a raw 8-bit OSC. ---
+
+    private const string Utf8Osc = "\u00c2\u009d";
+    private const string Utf8Dcs = "\u00c2\u0090";
+    private const string Utf8Apc = "\u00c2\u009f";
+    private const string Utf8St = "\u00c2\u009c";
+
+    public static IEnumerable<object[]> C1FramedReplies =>
+    [
+        ["UTF-8 OSC, UTF-8 ST", Utf8Osc + "0;title \u001b[?1u\u001b[?62c" + Utf8St],
+        ["UTF-8 APC, UTF-8 ST", Utf8Apc + "Gi=7;\u001b[?31u" + Utf8St],
+        ["UTF-8 DCS, UTF-8 ST", Utf8Dcs + "1$r\u001b[?31u" + Utf8St],
+        ["UTF-8 OSC, ESC ST", Utf8Osc + "0;t\u001b[?31u\u001b\\"],
+        ["UTF-8 OSC, BEL", Utf8Osc + "0;t\u001b[?31u\u0007"],
+        ["UTF-8 DCS, raw ST", Utf8Dcs + "q\u001b[?31u\u009c"],
+        ["ESC OSC, UTF-8 ST", "\u001b]0;\u001b[?31u" + Utf8St],
+        ["ESC OSC with U+00DC (C3 9C) inside", "\u001b]0;\u00c3\u009c\u001b[?31u\u001b\\"],
+        ["raw OSC, raw ST", "\u009d0;t\u001b[?31u\u009c"],
+        ["raw APC, raw ST", "\u009fG\u001b[?31u\u009c"],
+        ["raw DCS, ESC ST", "\u0090q\u001b[?31u\u001b\\"],
+    ];
+
+    private static byte[] Latin1(string text) => Encoding.Latin1.GetBytes(text);
+
+    private static async Task<(ConsolePresentationAdapter Adapter, string Input)> ProbeBytesAsync(
+        Encoding encoding, params byte[][] chunks)
+    {
+        var driver = FakeConsoleDriver.FromByteChunks(encoding, chunks);
+        var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: ShortProbe, kittyDa1Conclusive: true);
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        var bytes = await adapter.ReadInputAsync(cancellation.Token);
+        // UTF-8 input passes through unchanged; other code pages are normalized to UTF-8.
+        var input = encoding is UTF8Encoding ? Encoding.Latin1.GetString(bytes.Span) : Encoding.UTF8.GetString(bytes.Span);
+        return (adapter, input);
+    }
+
+    [TestMethod]
+    [DynamicData(nameof(C1FramedReplies))]
+    public async Task EnterRawModeAsync_ReplyInsideC1Frame_IsIgnoredAndPreservedVerbatim(string name, string frame)
+    {
+        var (adapter, input) = await ProbeBytesAsync(Encoding.UTF8, Latin1("a" + frame + "b"));
+        await using var _ = adapter;
+
+        Assert.IsFalse(adapter.Capabilities.SupportsKittyKeyboard, name);
+        Assert.AreEqual("a" + frame + "b", input, name);
+    }
+
+    [TestMethod]
+    [DynamicData(nameof(C1FramedReplies))]
+    public async Task EnterRawModeAsync_ByteSplitC1FrameWithAdjacentGenuineReply_ConsumesOnlyGenuineReply(string name, string frame)
+    {
+        // One byte per read splits every UTF-8 C1 pair (C2 | 9D, C2 | 9C) across reads.
+        var chunks = Latin1("a" + frame + "\u001b[?31ub\u001b[?62c").Select(b => new[] { b }).ToArray();
+        var (adapter, input) = await ProbeBytesAsync(Encoding.UTF8, chunks);
+        await using var _ = adapter;
+
+        Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard, name);
+        Assert.AreEqual("a" + frame + "b", input, name);
+    }
+
+    [TestMethod]
+    public async Task EnterRawModeAsync_TitleEndedByUtf8St_ThenGenuineReply_DetectsSupportAndKeepsTitle()
+    {
+        const string title = "\u001b]0;title" + Utf8St;
+        var (adapter, input) = await ProbeBytesAsync(
+            Encoding.UTF8, Latin1(title + "\u001b[?31u"), Latin1("\u001b[?62c"));
+        await using var _ = adapter;
+
+        Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual(title, input);
+    }
+
+    [TestMethod]
+    public async Task EnterRawModeAsync_C1IntroducedReply_IsNotAcceptedAsGenuine()
+    {
+        // Replies are only recognised in their ESC-introduced form; an 8-bit CSI stays input.
+        const string reply = "\u00c2\u009b?31u";
+        var (adapter, input) = await ProbeBytesAsync(Encoding.UTF8, Latin1("a" + reply + "b"));
+        await using var _ = adapter;
+
+        Assert.IsFalse(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual("a" + reply + "b", input);
+    }
+
+    [TestMethod]
+    public async Task EnterRawModeAsync_SingleByteCodePage_TreatsRawC1AsStringControl()
+    {
+        const string frame = "\u009d0;t\u001b[?1u\u009c";
+        var (adapter, input) = await ProbeBytesAsync(Encoding.Latin1, Latin1("a" + frame + "\u001b[?31ub"));
+        await using var _ = adapter;
+
+        Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual("a" + frame + "b", input);
+    }
+
+    [TestMethod]
+    public async Task EnterRawModeAsync_MultiByteCodePage_DoesNotTreatCharacterBytesAsC1()
+    {
+        // In GBK, 9D 9C is one character; it must not open an OSC that hides the genuine reply.
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var gbk = Encoding.GetEncoding(936);
+        byte[] text = [0x9d, 0x9c];
+        var driver = FakeConsoleDriver.FromByteChunks(
+            gbk, [.. text, .. Encoding.ASCII.GetBytes("\u001b[?31u\u001b[?62c")]);
+        await using var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: ShortProbe, kittyDa1Conclusive: true);
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        var input = await adapter.ReadInputAsync(cancellation.Token);
+
+        Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual(gbk.GetString(text), Encoding.UTF8.GetString(input.Span));
+    }
+
+    // --- Every probe consumer respects the same opaque frames: reply-shaped bytes for the
+    // mouse, graphics, background, window-size and cell-size probes inside bracketed paste,
+    // OSC or DCS stay input byte-for-byte and do not answer the probe. ---
+
+    public static IEnumerable<object[]> OtherProbeRepliesInFrames
+    {
+        get
+        {
+            string[] replies =
+            [
+                "\x1b[?1003;1$y",
+                "\x1b[?1006;0$y",
+                "\x1b_Gi=2147483647;OK\x1b\\",
+                "\x1b]11;rgb:ffff/0000/0000\x1b\\",
+                "\x1b]11;rgb:ffff/0000/0000\x07",
+                "\x1b[6;20;10t",
+                "\x1b[4;480;640t",
+                "\x1b[8;24;80t",
+                "\x1b]1337;ReportCellSize=20;10\x07",
+            ];
+            foreach (var reply in replies)
+            {
+                yield return [$"\x1b[200~alpha{reply}beta\x1b[201~"];
+                // OSC and DCS strings cannot contain their own ST, so only BEL-free ESC
+                // sequences are embedded in a BEL-terminated OSC.
+                if (!reply.Contains('\x07') && !reply.Contains("\x1b\\", StringComparison.Ordinal))
+                {
+                    yield return [$"\x1b]52;c;{reply}\x07"];
+                    yield return [$"\x1bP1$r{reply}\x1b\\"];
+                }
+            }
+        }
+    }
+
+    [TestMethod]
+    [DynamicData(nameof(OtherProbeRepliesInFrames))]
+    public async Task EnterRawModeAsync_OtherProbeReplyInsideFrame_IsPreservedAndDoesNotAnswerProbe(string frame)
+    {
+        using var driver = new FakeConsoleDriver("a" + frame + "b");
+        var adapter = new ConsolePresentationAdapter(
+            driver, enableMouse: true, kgpProbeTimeout: ShortProbe, kittyDa1Conclusive: true);
+        await using var _ = adapter;
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        var input = await DrainPrefetchedAsync(adapter);
+
+        Assert.AreEqual("a" + frame + "b", input);
+        Assert.IsFalse(adapter.Capabilities.SupportsKgp);
+        Assert.AreEqual(0x000000, adapter.Capabilities.DefaultBackground);
+        Assert.IsTrue(adapter.Capabilities.SupportsMouse, "An unanswered mouse probe keeps mouse enabled.");
+    }
+
+    [TestMethod]
+    public async Task EnterRawModeAsync_PastedMouseReply_IsPreservedExactlyWhileAdjacentRepliesAreConsumed()
+    {
+        const string paste = "\x1b[200~alpha\x1b[?1003;1$ybeta\x1b[201~";
+        using var driver = new FakeConsoleDriver(Bytewise(
+            paste + "\x1b[?1003;0$y\x1b[?1006;2$y\x1b_Gi=2147483647;OK\x1b\\\x1b]11;rgb:0000/ffff/0000\x07z"));
+        var adapter = new ConsolePresentationAdapter(
+            driver, enableMouse: true, kgpProbeTimeout: ShortProbe, kittyDa1Conclusive: true);
+        await using var _ = adapter;
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        var input = await DrainPrefetchedAsync(adapter);
+
+        Assert.AreEqual(paste + "z", input);
+        Assert.IsFalse(adapter.Capabilities.SupportsMouse, "The genuine 1003 reply (status 0) decides mouse support.");
+        Assert.IsTrue(adapter.Capabilities.SupportsKgp);
+        Assert.AreEqual(0x00ff00, adapter.Capabilities.DefaultBackground);
     }
 
     [TestMethod]

@@ -186,7 +186,7 @@ internal static class CapabilityDiscoveryScenarios
     private static async Task<string> ImplausibleDimensionRejectionAsync()
     {
         // The window-operation parser only scans through digit/';' bytes (see
-        // TryConsumeWindowOperationResponse), so a negative sign there simply
+        // TryClaimWindowOperationReply), so a negative sign there simply
         // never matches rather than surfacing as Malformed. OSC 1337 has no
         // such pre-filter, so it is the reply used here to demonstrate
         // plausibility rejection after a value parses successfully.
