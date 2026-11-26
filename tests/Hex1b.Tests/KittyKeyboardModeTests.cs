@@ -155,24 +155,39 @@ public class KittyKeyboardModeTests
     }
 
     [TestMethod]
-    [DataRow(false)]
-    [DataRow(true)]
-    public async Task TerminalModes_Ris_ClearsBothScreenStacks(bool resetFromAlternate)
+    [DataRow(false, false)]
+    [DataRow(true, false)]
+    [DataRow(false, true)]
+    [DataRow(true, true)]
+    public async Task TerminalModes_RawWorkloadRis_ClearsBothScreenStacks(bool resetFromAlternate, bool splitRis)
     {
         await using var fixture = SixelTestTerminal.Create();
         var ct = TestContext.Current.CancellationToken;
         await fixture.FeedAsync(Encoding.ASCII.GetBytes("\x1b[>1u\x1b[?1049h\x1b[>3u"), cancellationToken: ct);
         await fixture.WaitForAsync(s => s.InAlternateScreen && s.KittyKeyboardFlags == 3, "flags before RIS", ct);
         if (!resetFromAlternate)
-            fixture.Terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049l"));
+        {
+            await fixture.FeedAsync(Encoding.ASCII.GetBytes("\x1b[?1049l"), cancellationToken: ct);
+            await fixture.WaitForAsync(s => !s.InAlternateScreen && s.KittyKeyboardFlags == 1, "main flags before RIS", ct);
+        }
 
-        // ESC c is not decoded by the raw workload path yet (#453).
-        await fixture.FeedPreTokenizedAsync(Encoding.ASCII.GetBytes("\x1b" + "c"), [RisToken.Instance], ct);
-        await fixture.WaitForAsync(s => !s.InAlternateScreen && s.KittyKeyboardFlags == 0, "main flags after RIS", ct);
-        fixture.Terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049h"));
-        Assert.AreEqual(0, fixture.Terminal.InputModes.KittyKeyboardFlags);
-        fixture.Terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>8u\x1b[<u\x1b[?1049l"));
-        Assert.AreEqual(0, fixture.Terminal.InputModes.KittyKeyboardFlags);
+        await fixture.FeedAsync(
+            Encoding.ASCII.GetBytes("\x1b" + "c"),
+            chunkSizes: splitRis ? [1, 1] : null,
+            cancellationToken: ct);
+
+        await fixture.FeedAsync("X"u8.ToArray(), cancellationToken: ct);
+        await fixture.WaitForAsync(
+            s => !s.InAlternateScreen && s.KittyKeyboardFlags == 0 && s.ContainsText("X"),
+            "main flags after raw RIS",
+            ct);
+        using (var afterRis = fixture.Terminal.CreateSnapshot())
+            Assert.IsFalse(afterRis.ContainsText("c"), "RIS final byte must not print");
+
+        await fixture.FeedAsync(Encoding.ASCII.GetBytes("\x1b[?1049h"), cancellationToken: ct);
+        await fixture.WaitForAsync(s => s.InAlternateScreen && s.KittyKeyboardFlags == 0, "alternate flags after RIS", ct);
+        await fixture.FeedAsync(Encoding.ASCII.GetBytes("\x1b[>8u\x1b[<u\x1b[?1049l"), cancellationToken: ct);
+        await fixture.WaitForAsync(s => !s.InAlternateScreen && s.KittyKeyboardFlags == 0, "main flags after alternate pop", ct);
     }
 
     [TestMethod]
