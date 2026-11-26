@@ -25,7 +25,13 @@ internal static class KittyKeyboardEncoder
             throw new ArgumentOutOfRangeException(nameof(input), "Invalid keyboard modifiers.");
 
         var release = input.EventType == Hex1bKeyEventType.Release;
-        var recoveryKey = code is 9 or 13 or 127;
+        var keypad = code is >= 57399 and <= 57427;
+        var wireKey = input.Key;
+        var wireCode = code;
+        // Keypad keys report their non-keypad equivalents unless disambiguation is enabled.
+        if (keypad && !disambiguate)
+            (wireKey, wireCode) = KeypadEquivalent(code);
+        var recoveryKey = wireCode is 9 or 13 or 127;
         if (release && (!events || (recoveryKey && !all)))
             return "";
         // Modifier key events are opt-in independently of event-type reporting.
@@ -33,7 +39,6 @@ internal static class KittyKeyboardEncoder
             return "";
 
         var modifiers = input.Modifiers;
-        var keypad = code is >= 57399 and <= 57427;
         var functional = code is >= 57344 and <= 63743 ||
             input.Key is >= Hex1bKey.F1 and <= Hex1bKey.Insert;
         if (!all && (!functional || keypad))
@@ -50,10 +55,17 @@ internal static class KittyKeyboardEncoder
             escape = (modifiers != Hex1bModifiers.None && disambiguate) ||
                 (modifiers & (Hex1bModifiers.Super | Hex1bModifiers.Hyper | Hex1bModifiers.Meta)) != 0;
 
+        var unavailableText = false;
         if (!escape)
-            return TerminalInputEncoder.EncodeLegacyKey(input with { Modifiers = modifiers }, modes);
+        {
+            var legacy = TerminalInputEncoder.EncodeLegacyKey(input with { Modifiers = modifiers }, modes);
+            // Keep known keys whose text is unavailable as key events rather than inventing layout text.
+            if (legacy.Length > 0 || wireCode == 0)
+                return legacy;
+            escape = unavailableText = true;
+        }
 
-        var (number, final) = WireKey(input.Key, code, disambiguate);
+        var (number, final) = WireKey(wireKey, wireCode, disambiguate);
         var keyField = number.ToString(CultureInfo.InvariantCulture);
         if (final == 'u' && (flags & 4) != 0 && code != 0 && code is not (>= 57344 and <= 63743))
         {
@@ -76,12 +88,13 @@ internal static class KittyKeyboardEncoder
             ? ":" + ((int)input.EventType + 1).ToString(CultureInfo.InvariantCulture) : "";
         var modifierField = modifiers != Hex1bModifiers.None || eventField.Length > 0
             ? ((int)modifiers + 1).ToString(CultureInfo.InvariantCulture) + eventField : "";
-        if (number == 1 && final is 'A' or 'B' or 'C' or 'D' or 'H' or 'F' &&
+        // Disambiguated non-text keys always use CSI forms; SS3 cursor forms are legacy-only.
+        if (!disambiguate && number == 1 && final is 'A' or 'B' or 'C' or 'D' or 'H' or 'F' &&
             modifierField.Length == 0 && modes.ApplicationCursorKeys)
             return "\x1bO" + final;
         if (final != 'u' && keyField == "1" && modifierField.Length == 0)
             keyField = "";
-        if (!all && !disambiguate && !release && modifierField.Length == 0 && eventField.Length == 0)
+        if (!unavailableText && !all && !disambiguate && !release && modifierField.Length == 0 && eventField.Length == 0)
             return TerminalInputEncoder.EncodeLegacyKey(input, modes);
         var suffix = textCodes.Count > 0 ? ";" + string.Join(':', textCodes) : "";
         return "\x1b[" + keyField +
@@ -97,9 +110,24 @@ internal static class KittyKeyboardEncoder
     private static int? PrintableAlternate(int? code)
         => code is { } value && !Rune.IsControl(new Rune(value)) ? code : null;
 
+    private static (Hex1bKey Key, int Code) KeypadEquivalent(int code) => code switch
+    {
+        >= 57399 and <= 57408 => (Hex1bKey.None, '0' + code - 57399),
+        57409 => (Hex1bKey.None, '.'), 57410 => (Hex1bKey.None, '/'),
+        57411 => (Hex1bKey.None, '*'), 57412 => (Hex1bKey.None, '-'),
+        57413 => (Hex1bKey.None, '+'), 57414 => (Hex1bKey.Enter, 13),
+        57415 => (Hex1bKey.None, '='), 57416 => (Hex1bKey.None, ','),
+        57417 => (Hex1bKey.LeftArrow, 0), 57418 => (Hex1bKey.RightArrow, 0),
+        57419 => (Hex1bKey.UpArrow, 0), 57420 => (Hex1bKey.DownArrow, 0),
+        57421 => (Hex1bKey.PageUp, 0), 57422 => (Hex1bKey.PageDown, 0),
+        57423 => (Hex1bKey.Home, 0), 57424 => (Hex1bKey.End, 0),
+        57425 => (Hex1bKey.Insert, 0), 57426 => (Hex1bKey.Delete, 0),
+        _ => (Hex1bKey.None, 57427),
+    };
+
     private static (int Number, char Final) WireKey(Hex1bKey key, int code, bool disambiguate)
     {
-        if (code == 57427) return (57427, '~');
+        if (code == 57427) return disambiguate ? (57427, '~') : (1, 'E');
         if (disambiguate && key is >= Hex1bKey.NumPad0 and <= Hex1bKey.Divide)
             return (code, 'u');
         return key switch

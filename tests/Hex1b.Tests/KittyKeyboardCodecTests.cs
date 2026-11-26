@@ -41,8 +41,11 @@ public class KittyKeyboardCodecTests
     [TestMethod]
     [DataRow(0, Hex1bKey.UpArrow, Hex1bModifiers.None, false, "\x1b[A")]
     [DataRow(0, Hex1bKey.UpArrow, Hex1bModifiers.None, true, "\x1bOA")]
-    [DataRow(1, Hex1bKey.UpArrow, Hex1bModifiers.None, true, "\x1bOA")]
-    [DataRow(8, Hex1bKey.UpArrow, Hex1bModifiers.None, true, "\x1bOA")]
+    [DataRow(1, Hex1bKey.UpArrow, Hex1bModifiers.None, true, "\x1b[A")]
+    [DataRow(8, Hex1bKey.UpArrow, Hex1bModifiers.None, true, "\x1b[A")]
+    [DataRow(2, Hex1bKey.UpArrow, Hex1bModifiers.None, true, "\x1bOA")]
+    [DataRow(1, Hex1bKey.Home, Hex1bModifiers.None, true, "\x1b[H")]
+    [DataRow(8, Hex1bKey.End, Hex1bModifiers.None, true, "\x1b[F")]
     [DataRow(1, Hex1bKey.LeftArrow, Hex1bModifiers.Alt, true, "\x1b[1;3D")]
     [DataRow(8, Hex1bKey.Home, Hex1bModifiers.None, false, "\x1b[H")]
     [DataRow(8, Hex1bKey.End, Hex1bModifiers.Shift, false, "\x1b[1;2F")]
@@ -94,6 +97,97 @@ public class KittyKeyboardCodecTests
     {
         Assert.AreEqual(expected, TerminalInputEncoder.EncodeKey(
             new(key, "", Hex1bModifiers.None) { EventType = Hex1bKeyEventType.Release }, Modes(flags)));
+    }
+
+    [TestMethod]
+    [DataRow(2, Hex1bKey.UpArrow, "\x1b[1;1:3A")]
+    [DataRow(1, Hex1bKey.UpArrow, "")]
+    [DataRow(10, Hex1bKey.UpArrow, "\x1b[1;1:3A")]
+    public void Encode_CursorKeyReleaseInCursorMode_UsesCsiForm(int flags, Hex1bKey key, string expected)
+    {
+        Assert.AreEqual(expected, TerminalInputEncoder.EncodeKey(
+            new(key, "", Hex1bModifiers.None) { EventType = Hex1bKeyEventType.Release }, Modes(flags, true)));
+    }
+
+    [TestMethod]
+    [DataRow(Hex1bKey.NumPad1, 2, Hex1bModifiers.None, "\x1b[49;1:3u")]
+    [DataRow(Hex1bKey.NumPad0, 2, Hex1bModifiers.None, "\x1b[48;1:3u")]
+    [DataRow(Hex1bKey.NumPad9, 6, Hex1bModifiers.None, "\x1b[57;1:3u")]
+    [DataRow(Hex1bKey.Decimal, 2, Hex1bModifiers.None, "\x1b[46;1:3u")]
+    [DataRow(Hex1bKey.Divide, 2, Hex1bModifiers.None, "\x1b[47;1:3u")]
+    [DataRow(Hex1bKey.Multiply, 2, Hex1bModifiers.None, "\x1b[42;1:3u")]
+    [DataRow(Hex1bKey.Subtract, 2, Hex1bModifiers.None, "\x1b[45;1:3u")]
+    [DataRow(Hex1bKey.Add, 2, Hex1bModifiers.Control, "\x1b[43;5:3u")]
+    [DataRow(Hex1bKey.NumPad1, 3, Hex1bModifiers.None, "\x1b[57400;1:3u")]
+    [DataRow(Hex1bKey.NumPad1, 10, Hex1bModifiers.None, "\x1b[57400;1:3u")]
+    public void Encode_KeypadRelease_UsesEquivalentUnlessDisambiguated(
+        Hex1bKey key, int flags, Hex1bModifiers modifiers, string expected)
+    {
+        Assert.AreEqual(expected, TerminalInputEncoder.EncodeKey(
+            new(key, "", modifiers) { EventType = Hex1bKeyEventType.Release }, Modes(flags)));
+    }
+
+    [TestMethod]
+    [DataRow(57414, "")]
+    [DataRow(57415, "\x1b[61;1:3u")]
+    [DataRow(57416, "\x1b[44;1:3u")]
+    [DataRow(57417, "\x1b[1;1:3D")]
+    [DataRow(57419, "\x1b[1;1:3A")]
+    [DataRow(57421, "\x1b[5;1:3~")]
+    [DataRow(57426, "\x1b[3;1:3~")]
+    [DataRow(57427, "\x1b[1;1:3E")]
+    public void Encode_RawKeypadIdentityRelease_UsesEquivalentWithoutDisambiguate(int code, string expected)
+    {
+        Assert.AreEqual(expected, TerminalInputEncoder.EncodeKey(
+            new(Hex1bKey.None, "", Hex1bModifiers.None)
+            {
+                UnicodeKeyCode = code,
+                EventType = Hex1bKeyEventType.Release,
+            }, Modes(2)));
+    }
+
+    [TestMethod]
+    public void Encode_KeypadPressAndRepeatWithEventFlag_KeepLegacyText()
+    {
+        var press = new Hex1bKeyEvent(Hex1bKey.NumPad1, "1", Hex1bModifiers.None);
+        Assert.AreEqual("1", TerminalInputEncoder.EncodeKey(press, Modes(2)));
+        Assert.AreEqual("1", TerminalInputEncoder.EncodeKey(
+            press with { EventType = Hex1bKeyEventType.Repeat }, Modes(2)));
+        Assert.AreEqual("\x1b[57400;1:2u", TerminalInputEncoder.EncodeKey(
+            press with { EventType = Hex1bKeyEventType.Repeat }, Modes(3)));
+    }
+
+    [TestMethod]
+    [DataRow(1, Hex1bModifiers.None, Hex1bKeyEventType.Press, "\x1b[97u")]
+    [DataRow(2, Hex1bModifiers.None, Hex1bKeyEventType.Press, "\x1b[97u")]
+    [DataRow(2, Hex1bModifiers.None, Hex1bKeyEventType.Repeat, "\x1b[97;1:2u")]
+    [DataRow(4, Hex1bModifiers.None, Hex1bKeyEventType.Press, "\x1b[97u")]
+    [DataRow(1, Hex1bModifiers.Shift, Hex1bKeyEventType.Press, "\x1b[97;2u")]
+    [DataRow(3, Hex1bModifiers.Shift, Hex1bKeyEventType.Repeat, "\x1b[97;2:2u")]
+    [DataRow(0, Hex1bModifiers.None, Hex1bKeyEventType.Press, "")]
+    public void Encode_KnownKeyWithoutText_ReportsIdentityWithoutInventingText(
+        int flags, Hex1bModifiers modifiers, Hex1bKeyEventType kind, string expected)
+    {
+        Assert.AreEqual(expected, TerminalInputEncoder.EncodeKey(
+            new(Hex1bKey.A, "", modifiers) { EventType = kind }, Modes(flags)));
+    }
+
+    [TestMethod]
+    public void Encode_TextlessUnknownIdentity_StaysEmptyWithoutAllKeys()
+    {
+        Assert.AreEqual("", TerminalInputEncoder.EncodeKey(
+            new(Hex1bKey.None, "", Hex1bModifiers.None), Modes(1)));
+    }
+
+    [TestMethod]
+    [DataRow("\x1b[97u", 1, "\x1b[97u")]
+    [DataRow("\x1b[97;1:2u", 2, "\x1b[97;1:2u")]
+    [DataRow("\x1b[1078u", 1, "\x1b[1078u")]
+    public void Encode_DecodedTextlessEvent_IsForwardedNotDropped(string wire, int flags, string expected)
+    {
+        Assert.IsTrue(KittyKeyboardInput.TryDecode(wire, out var decoded));
+        Assert.AreEqual("", decoded!.Text);
+        Assert.AreEqual(expected, TerminalInputEncoder.EncodeKey(decoded, Modes(flags)));
     }
 
     [TestMethod]
