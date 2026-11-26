@@ -33,8 +33,8 @@ runs:
 
         # Hex1b.Tool normally builds against a project reference. Switch restore to the
         # freshly packed Hex1b package here so the tool package matches dotnet tool/dnx.
-        # The checked-in NuGet.config maps all packages to nuget.org, so use a temporary
-        # config that maps Hex1b* to the local artifacts feed without changing the repo.
+        # Map Hex1b* to the local artifacts feed and other packages to nuget.org
+        # in a temporary config without changing the repo.
         cat > "$tool_pack_config" <<EOF
         <?xml version="1.0" encoding="utf-8"?>
         <configuration>
