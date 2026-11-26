@@ -13,7 +13,8 @@ internal static class KittyKeyboardEncoder
             throw new ArgumentOutOfRangeException(nameof(input), "Invalid keyboard event type.");
         if (flags == 0)
             return input.EventType == Hex1bKeyEventType.Release ? "" :
-                TerminalInputEncoder.EncodeLegacyKey(input, modes);
+                TerminalInputEncoder.EncodeLegacyKey(
+                    input with { Key = RecoveryKey(input.Key, input.UnicodeKeyCode ?? 0) }, modes);
         var all = (flags & 8) != 0;
         var events = (flags & 2) != 0;
         var disambiguate = all || (flags & 1) != 0;
@@ -31,6 +32,8 @@ internal static class KittyKeyboardEncoder
         // Keypad keys report their non-keypad equivalents unless disambiguation is enabled.
         if (keypad && !disambiguate)
             (wireKey, wireCode) = KeypadEquivalent(code);
+        // Raw Tab/Enter/Backspace identities share the named keys' legacy recovery bytes.
+        wireKey = RecoveryKey(wireKey, wireCode);
         var recoveryKey = wireCode is 9 or 13 or 127;
         if (release && (!events || (recoveryKey && !all)))
             return "";
@@ -39,8 +42,8 @@ internal static class KittyKeyboardEncoder
             return "";
 
         var modifiers = input.Modifiers;
-        var functional = code is >= 57344 and <= 63743 ||
-            input.Key is >= Hex1bKey.F1 and <= Hex1bKey.Insert;
+        var functional = !recoveryKey && (code is >= 57344 and <= 63743 ||
+            input.Key is >= Hex1bKey.F1 and <= Hex1bKey.Insert);
         if (!all && (!functional || keypad))
             modifiers &= ~(Hex1bModifiers.CapsLock | Hex1bModifiers.NumLock);
         var shortcut = (modifiers & ~Hex1bModifiers.Shift) != 0;
@@ -48,7 +51,7 @@ internal static class KittyKeyboardEncoder
             functional = wireKey is >= Hex1bKey.F1 and <= Hex1bKey.Insert || wireCode == 57427;
         var legacyInput = input with
         {
-            Key = keypad && !disambiguate ? wireKey : input.Key,
+            Key = wireKey,
             Modifiers = modifiers,
         };
         var escape = all || release || functional ||
@@ -115,6 +118,11 @@ internal static class KittyKeyboardEncoder
         if (!Rune.IsValid(code))
             throw new ArgumentOutOfRangeException(nameof(code), "Key identities must be Unicode scalar values.");
     }
+
+    private static Hex1bKey RecoveryKey(Hex1bKey key, int code) => key != Hex1bKey.None ? key : code switch
+    {
+        9 => Hex1bKey.Tab, 13 => Hex1bKey.Enter, 127 => Hex1bKey.Backspace, _ => key,
+    };
 
     private static int? PrintableAlternate(int? code)
         => code is { } value && !Rune.IsControl(new Rune(value)) ? code : null;

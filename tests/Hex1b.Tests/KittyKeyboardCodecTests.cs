@@ -100,6 +100,50 @@ public class KittyKeyboardCodecTests
     }
 
     [TestMethod]
+    [DataRow(0, Hex1bKey.Backspace, Hex1bModifiers.CapsLock, "\x7f")]
+    [DataRow(0, Hex1bKey.Backspace, Hex1bModifiers.Control, "\b")]
+    [DataRow(1, Hex1bKey.Backspace, Hex1bModifiers.CapsLock, "\x7f")]
+    [DataRow(1, Hex1bKey.Backspace, Hex1bModifiers.NumLock, "\x7f")]
+    [DataRow(3, Hex1bKey.Backspace, Hex1bModifiers.CapsLock | Hex1bModifiers.NumLock, "\x7f")]
+    [DataRow(1, Hex1bKey.Enter, Hex1bModifiers.CapsLock, "\r")]
+    [DataRow(1, Hex1bKey.Tab, Hex1bModifiers.NumLock, "\t")]
+    [DataRow(1, Hex1bKey.Backspace, Hex1bModifiers.Control | Hex1bModifiers.CapsLock, "\x1b[127;5u")]
+    [DataRow(3, Hex1bKey.Backspace, Hex1bModifiers.Alt | Hex1bModifiers.NumLock, "\x1b[127;3u")]
+    [DataRow(8, Hex1bKey.Backspace, Hex1bModifiers.CapsLock, "\x1b[127;65u")]
+    [DataRow(8, Hex1bKey.Backspace, Hex1bModifiers.Control | Hex1bModifiers.NumLock, "\x1b[127;133u")]
+    public void Encode_RecoveryKeyWithLocks_KeepsLegacyBytesUntilAllKeys(
+        int flags, Hex1bKey key, Hex1bModifiers modifiers, string expected)
+    {
+        Assert.AreEqual(expected, TerminalInputEncoder.EncodeKey(new(key, "", modifiers), Modes(flags)));
+    }
+
+    [TestMethod]
+    [DataRow(0, 9, Hex1bModifiers.None, Hex1bKeyEventType.Press, "\t")]
+    [DataRow(0, 13, Hex1bModifiers.None, Hex1bKeyEventType.Press, "\r")]
+    [DataRow(0, 127, Hex1bModifiers.None, Hex1bKeyEventType.Press, "\x7f")]
+    [DataRow(0, 127, Hex1bModifiers.Control, Hex1bKeyEventType.Press, "\b")]
+    [DataRow(0, 9, Hex1bModifiers.Shift, Hex1bKeyEventType.Press, "\x1b[Z")]
+    [DataRow(1, 9, Hex1bModifiers.None, Hex1bKeyEventType.Press, "\t")]
+    [DataRow(1, 13, Hex1bModifiers.None, Hex1bKeyEventType.Press, "\r")]
+    [DataRow(1, 127, Hex1bModifiers.None, Hex1bKeyEventType.Press, "\x7f")]
+    [DataRow(1, 127, Hex1bModifiers.CapsLock, Hex1bKeyEventType.Press, "\x7f")]
+    [DataRow(1, 127, Hex1bModifiers.Control, Hex1bKeyEventType.Press, "\x1b[127;5u")]
+    [DataRow(1, 13, Hex1bModifiers.Alt | Hex1bModifiers.NumLock, Hex1bKeyEventType.Press, "\x1b[13;3u")]
+    [DataRow(1, 9, Hex1bModifiers.Shift, Hex1bKeyEventType.Press, "\x1b[9;2u")]
+    [DataRow(3, 13, Hex1bModifiers.None, Hex1bKeyEventType.Press, "\r")]
+    [DataRow(3, 9, Hex1bModifiers.None, Hex1bKeyEventType.Repeat, "\t")]
+    [DataRow(3, 127, Hex1bModifiers.None, Hex1bKeyEventType.Release, "")]
+    [DataRow(8, 9, Hex1bModifiers.None, Hex1bKeyEventType.Press, "\x1b[9u")]
+    [DataRow(8, 13, Hex1bModifiers.NumLock, Hex1bKeyEventType.Press, "\x1b[13;129u")]
+    [DataRow(10, 127, Hex1bModifiers.None, Hex1bKeyEventType.Release, "\x1b[127;1:3u")]
+    public void Encode_RawRecoveryIdentity_MatchesNamedRecoveryKey(
+        int flags, int code, Hex1bModifiers modifiers, Hex1bKeyEventType kind, string expected)
+    {
+        var input = new Hex1bKeyEvent(Hex1bKey.None, "", modifiers) { UnicodeKeyCode = code, EventType = kind };
+        Assert.AreEqual(expected, TerminalInputEncoder.EncodeKey(input, Modes(flags)));
+    }
+
+    [TestMethod]
     [DataRow(2, Hex1bKey.UpArrow, "\x1b[1;1:3A")]
     [DataRow(1, Hex1bKey.UpArrow, "")]
     [DataRow(10, Hex1bKey.UpArrow, "\x1b[1;1:3A")]
