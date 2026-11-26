@@ -29,11 +29,16 @@ public partial class PresentationRawInputTests
         workload.SetInputSourceReportingHandler(value => reportsReleases = value);
         workload.EnterTuiMode();
         Assert.IsNull(reportsReleases, "Support and a queued push are not confirmation of effective flags.");
-        await workload.WriteInputAsync(Encoding.ASCII.GetBytes($"\x1b[?{flags}u\x1b[97u\x1b[13u\x1b[9u\x1b[127u"));
+        await workload.WriteInputAsync(Encoding.ASCII.GetBytes($"\x1b[?{flags}u\x1b[1;5R\x1b[97u\x1b[13u\x1b[9u\x1b[127u"));
+        if ((flags & 31) == 0)
+            Assert.AreEqual(Hex1bKey.F3, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
         foreach (var key in new[] { Hex1bKey.A, Hex1bKey.Enter, Hex1bKey.Tab, Hex1bKey.Backspace })
             Assert.AreEqual(key, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
         Assert.AreEqual(expected, reportsReleases);
         workload.ExitTuiMode();
+        await workload.WriteInputAsync("\x1b[?31u\x1b[97u"u8.ToArray());
+        Assert.AreEqual(Hex1bKey.A, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+        Assert.AreEqual(false, reportsReleases, "A report after pop cannot restore release guarantees.");
     }
 
     [TestMethod]

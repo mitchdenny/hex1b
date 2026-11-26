@@ -171,6 +171,10 @@ public class KittyAppNegotiationTests
     [DataRow(16, false)]
     [DataRow(10, true)]
     [DataRow(31, true)]
+    [DataRow(32, false)]
+    [DataRow(64, false)]
+    [DataRow(96, false)]
+    [DataRow(33, false)]
     public async Task PresentationInput_EffectiveHostFlags_NotWriteAcceptance_EstablishReleaseGuarantee(int? flags, bool? expected)
     {
         await using var presentation = new KeyboardHost(supported: true) { ReportedFlags = flags };
@@ -186,7 +190,10 @@ public class KittyAppNegotiationTests
         using var processed = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(_ => terminal.InputModes.KittyKeyboardFlags == 31, TimeSpan.FromSeconds(5), "keyboard query processed")
             .Build().ApplyAsync(terminal);
-        presentation.EnqueueInput("z"u8.ToArray());
+        presentation.EnqueueInput("\x1b[1;5Rz"u8.ToArray());
+        if (flags is { } reportedFlags && (reportedFlags & 31) == 0)
+            Assert.AreEqual(Hex1bKey.F3, TestSeq.IsType<Hex1bKeyEvent>(
+                await workload.InputEvents.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5))).Key);
         Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(
             await workload.InputEvents.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5))).Text);
         Assert.AreEqual(expected, reportsReleases);
