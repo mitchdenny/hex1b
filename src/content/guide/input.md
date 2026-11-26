@@ -65,6 +65,43 @@ b.Key(Hex1bKey.S).Ctrl().Shift().Action(() => SaveAs(), "Save as"); // Ctrl+Shif
 b.Key(Hex1bKey.F1).Alt().Action(() => ShowHelp(), "Help");         // Alt+F1
 ```
 
+### Enhanced Keyboard Events
+
+When the terminal supports the [Kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/),
+Hex1bApp requests enhanced keyboard reporting and restores the previous mode on exit.
+Other hosts continue to use the legacy encoding, and Hex1b sends them no Kitty mode changes.
+
+The console presentation detects support at startup by sending the Kitty query `CSI ? u`.
+A `CSI ? flags u` reply means the terminal supports the protocol. When Hex1b also needs DA1
+for Sixel discovery, a DA1 reply that arrives first means the terminal has no support.
+On Windows, ConPTY answers DA1 itself and forwards `CSI ? u` to the outer terminal.
+For that reason, a DA1 reply that arrives first does not count as "unsupported" there.
+Instead, detection waits for a Kitty reply until the existing startup probe deadline
+(about 150 ms) expires. Reply-shaped bytes inside bracketed paste, OSC, APC, DCS, SOS or PM
+strings are treated as input, not as replies, and are passed to the app unchanged.
+
+`Hex1bKeyEvent.EventType` distinguishes presses, repeats and releases. Events may also carry
+the Unicode key identity, shifted and base-layout key codes, associated text, and additional
+modifiers, when the terminal reports them. A terminal can grant fewer flags than Hex1b requests,
+so release events are guaranteed only when it confirms both event types and all-keys reporting.
+Use `OnHold` to run work while a key is held and cancel it when the key is released:
+
+```csharp
+b.Key(Hex1bKey.RightArrow).OnHold(async (context, held) =>
+{
+    while (!held.IsCancellationRequested)
+    {
+        Interlocked.Increment(ref position);
+        context.Invalidate();
+        await Task.Delay(TimeSpan.FromMilliseconds(50), held);
+    }
+}, "Move right while held");
+```
+
+A legacy host cannot report a physical release, so the token stays active until another
+cancellation condition occurs. Terminal and operating-system shortcuts can still intercept keys.
+Run `samples/KittyKeyboardDemo` to see what your terminal reports.
+
 > **Terminal reachability caveat (`Ctrl+Shift+letter`).** Most terminals
 > cannot distinguish `Ctrl+Shift+A` from `Ctrl+A`: the `Ctrl` modifier
 > strips ASCII bit 6 of a letter and `Shift` is dropped. Bindings on

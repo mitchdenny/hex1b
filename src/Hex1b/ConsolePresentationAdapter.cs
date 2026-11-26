@@ -35,6 +35,9 @@ public sealed class ConsolePresentationAdapter :
     // reports with no visible side effect. See docs/sixel-terminal-behavior.md
     // for the full discovery precedence these responses feed into.
     private static readonly byte[] Da1ProbeQuery = Encoding.ASCII.GetBytes("\x1b[c");
+    // Kitty keyboard progressive enhancement support query (CSI ? u). Terminals that
+    // implement the protocol answer CSI ? flags u before answering the DA1 query.
+    private static readonly byte[] KittyKeyboardProbeQuery = "\x1b[?u"u8.ToArray();
     private static readonly byte[] Csi14ProbeQuery = Encoding.ASCII.GetBytes("\x1b[14t");
     private static readonly byte[] Csi16ProbeQuery = Encoding.ASCII.GetBytes("\x1b[16t");
     private static readonly byte[] Csi18ProbeQuery = Encoding.ASCII.GetBytes("\x1b[18t");
@@ -50,6 +53,7 @@ public sealed class ConsolePresentationAdapter :
     private readonly bool _enableMouse;
     private readonly bool _preserveOPost;
     private readonly TimeSpan _kgpProbeTimeout;
+    private readonly bool _kittyDa1Conclusive;
     private readonly CancellationTokenSource _disposeCts = new();
     private ITerminalReflowProvider _reflowStrategy;
     private TerminalCapabilities _capabilities;
@@ -90,12 +94,15 @@ public sealed class ConsolePresentationAdapter :
         IConsoleDriver driver,
         bool enableMouse = false,
         bool preserveOPost = false,
-        TimeSpan? kgpProbeTimeout = null)
+        TimeSpan? kgpProbeTimeout = null,
+        bool? kittyDa1Conclusive = null)
     {
         _driver = driver ?? throw new ArgumentNullException(nameof(driver));
         _enableMouse = enableMouse;
         _preserveOPost = preserveOPost;
         _kgpProbeTimeout = kgpProbeTimeout ?? DefaultKgpProbeTimeout;
+        // ConPTY answers DA1 itself, possibly before the outer terminal's Kitty reply.
+        _kittyDa1Conclusive = kittyDa1Conclusive ?? driver is not WindowsConsoleDriver;
         _capabilities = CreateCapabilities(supportsKgp: false);
         
         // Wire up resize events. A resize invalidates only derived cell metrics
@@ -451,6 +458,9 @@ public sealed class ConsolePresentationAdapter :
         // probe pass rather than opening a second competing reader.
         _driver.Write(BackgroundProbeQuery);
         _driver.Write(MouseProbeQuery);
+        // The Kitty query precedes DA1 so supporting terminals answer it first. When Sixel
+        // support was declared, DA1 is not sent and the deadline alone bounds the Kitty probe.
+        _driver.Write(KittyKeyboardProbeQuery);
         if (sixelProbeNeeded)
         {
             _driver.Write(Da1ProbeQuery);
@@ -467,9 +477,7 @@ public sealed class ConsolePresentationAdapter :
         int? mouseTrackingStatus = null;
         int? mouseEncodingStatus = null;
 
-        bool? da1DeclaresSixel = null;
-        var da1Done = !sixelProbeNeeded;
-        var da1Malformed = false;
+        var keyboardProbe = new KeyboardProbeState { Da1Done = !sixelProbeNeeded };
 
         (double Height, double Width)? csi16 = null;
         var csi16Done = !sixelProbeNeeded;
@@ -524,15 +532,10 @@ public sealed class ConsolePresentationAdapter :
                     mouseEncodingStatus = encodingStatus;
                 }
 
+                ConsumeKeyboardAndDeviceAttributesReplies(bufferedInput, ref keyboardProbe);
+
                 if (sixelProbeNeeded)
                 {
-                    if (!da1Done && TryConsumeDeviceAttributesResponse(bufferedInput, out var sixelDeclared, out var da1Bad))
-                    {
-                        da1Done = true;
-                        da1Malformed = da1Bad;
-                        da1DeclaresSixel = da1Bad ? null : sixelDeclared;
-                    }
-
                     if (!csi16Done && TryConsumeWindowOperationResponse(bufferedInput, reportCode: 6, out var c16A, out var c16B, out var c16Bad))
                     {
                         csi16Done = true;
@@ -567,7 +570,7 @@ public sealed class ConsolePresentationAdapter :
                 }
 
                 if (kgpDone && _backgroundProbeCompleted &&
-                    da1Done && csi16Done && csi14Done && csi18Done && osc1337Done &&
+                    keyboardProbe.KittyDone && keyboardProbe.Da1Done && csi16Done && csi14Done && csi18Done && osc1337Done &&
                     mouseTrackingStatus is not null && mouseEncodingStatus is not null)
                     break;
             }
@@ -580,6 +583,7 @@ public sealed class ConsolePresentationAdapter :
         {
             _capabilities = _capabilities with
             {
+                SupportsKittyKeyboard = keyboardProbe.KittyFlags is not null,
                 SupportsMouse = _enableMouse &&
                     mouseTrackingStatus is not (0 or 4) &&
                     mouseEncodingStatus is not (0 or 4)
@@ -587,11 +591,14 @@ public sealed class ConsolePresentationAdapter :
             System.Diagnostics.Trace.WriteLine(
                 $"Mouse mode probe: 1003={mouseTrackingStatus?.ToString() ?? "unknown"}, " +
                 $"1006={mouseEncodingStatus?.ToString() ?? "unknown"}.");
+            System.Diagnostics.Trace.WriteLine(
+                $"Kitty keyboard probe: flags={keyboardProbe.KittyFlags?.ToString() ?? "none"}, " +
+                $"malformed={keyboardProbe.KittyMalformedReplies}, da1={keyboardProbe.Da1Done}.");
 
             if (sixelProbeNeeded)
             {
                 ResolveSixelCapabilities(
-                    da1Done, da1Malformed, da1DeclaresSixel,
+                    keyboardProbe.Da1Done, keyboardProbe.Da1Malformed, keyboardProbe.Da1DeclaresSixel,
                     csi16Done, csi16Malformed, csi16,
                     osc1337Done, osc1337Malformed, osc1337,
                     csi14Done, csi14Malformed, csi14,
@@ -637,68 +644,190 @@ public sealed class ConsolePresentationAdapter :
         double.IsFinite(value) && value > 0 && value <= MaxPlausibleWindowPixelDimension;
 
     /// <summary>
-    /// Scans for a DA1 (Primary Device Attributes) reply of the form
-    /// <c>CSI ? Pn(;Pn)* c</c> and reports whether it declares Sixel support via DEC
-    /// parameter 4. Only sequences that include the <c>?</c> private-parameter marker
-    /// (which every DA1 reply this library targets includes) are treated as replies,
-    /// so a workload-issued bare <c>CSI c</c> query is never misinterpreted as one.
+    /// Consumes top-level Kitty keyboard support (<c>CSI ? flags u</c>) and DA1
+    /// (<c>CSI ? Pn(;Pn)* c</c>) replies in arrival order. Bracketed paste and string
+    /// controls (OSC, DCS, APC, SOS, PM) are skipped as opaque frames, so reply-shaped
+    /// bytes inside them neither set support nor get removed.
     /// </summary>
-    private static bool TryConsumeDeviceAttributesResponse(List<byte> buffer, out bool sixelDeclared, out bool malformed)
+    private void ConsumeKeyboardAndDeviceAttributesReplies(List<byte> buffer, ref KeyboardProbeState state)
+    {
+        var span = CollectionsMarshal.AsSpan(buffer);
+        var consumed = new List<(int Start, int End)>();
+        foreach (var (start, end) in FindTopLevelCsiSequences(span))
+        {
+            var final = span[end - 1];
+            var parameters = span[(start + 2)..(end - 1)];
+            if (parameters.IsEmpty || parameters[0] != (byte)'?')
+                continue;
+
+            if (final == (byte)'u')
+            {
+                // No key encoding produces CSI ? ... u, so every such reply in the probe
+                // window belongs to the probe; only the first valid one decides support.
+                consumed.Add((start, end));
+                if (state.KittyDone)
+                    continue;
+                if (TryParseKittyFlags(parameters[1..], out var flags))
+                {
+                    state.KittyDone = true;
+                    state.KittyFlags = flags;
+                }
+                else
+                {
+                    state.KittyMalformedReplies++;
+                }
+            }
+            else if (final == (byte)'c' && !state.Da1Done &&
+                     TryParseDeviceAttributes(parameters[1..], out var sixelDeclared, out var malformed))
+            {
+                consumed.Add((start, end));
+                state.Da1Done = true;
+                state.Da1Malformed = malformed;
+                state.Da1DeclaresSixel = malformed ? null : sixelDeclared;
+                // The specification treats DA1 before a Kitty reply as unsupported. ConPTY can
+                // answer DA1 before the outer terminal's Kitty reply, so there it waits instead.
+                if (_kittyDa1Conclusive && !state.KittyDone)
+                    state.KittyDone = true;
+            }
+        }
+
+        for (var i = consumed.Count - 1; i >= 0; i--)
+            buffer.RemoveRange(consumed[i].Start, consumed[i].End - consumed[i].Start);
+    }
+
+    private static bool TryParseKittyFlags(ReadOnlySpan<byte> digits, out int flags)
+    {
+        flags = 0;
+        if (digits.IsEmpty || digits.Length > 9)
+            return false;
+        foreach (var b in digits)
+        {
+            if (b is < (byte)'0' or > (byte)'9')
+                return false;
+            flags = flags * 10 + (b - '0');
+        }
+        return true;
+    }
+
+    private static bool TryParseDeviceAttributes(ReadOnlySpan<byte> parameters, out bool sixelDeclared, out bool malformed)
     {
         sixelDeclared = false;
         malformed = false;
-
-        var span = CollectionsMarshal.AsSpan(buffer);
-        for (var start = 0; start <= span.Length - 4; start++)
+        foreach (var b in parameters)
         {
-            if (span[start] != 0x1b || span[start + 1] != (byte)'[' || span[start + 2] != (byte)'?')
-                continue;
+            if (b != (byte)';' && b is < (byte)'0' or > (byte)'9')
+                return false;
+        }
 
-            var scanStart = start + 3;
-            var end = -1;
-            for (var i = scanStart; i < span.Length; i++)
-            {
-                var b = span[i];
-                if (b == (byte)'c')
-                {
-                    end = i;
-                    break;
-                }
-                if (b != (byte)';' && (b < (byte)'0' || b > (byte)'9'))
-                    break; // Not a DA1 reply at this position.
-            }
-
-            if (end < 0)
-                continue; // Either not a DA1 reply, or the terminator has not arrived yet.
-
-            var paramsText = Encoding.ASCII.GetString(span[scanStart..end]);
-            buffer.RemoveRange(start, end + 1 - start);
-
-            if (paramsText.Length == 0)
-            {
-                malformed = true;
-                return true;
-            }
-
-            var declaresSixel = false;
-            var parseOk = true;
-            foreach (var part in paramsText.Split(';'))
-            {
-                if (!int.TryParse(part, out var value))
-                {
-                    parseOk = false;
-                    continue;
-                }
-                if (value == 4)
-                    declaresSixel = true;
-            }
-
-            malformed = !parseOk;
-            sixelDeclared = parseOk && declaresSixel;
+        if (parameters.IsEmpty)
+        {
+            malformed = true;
             return true;
         }
 
+        foreach (var part in Encoding.ASCII.GetString(parameters).Split(';'))
+        {
+            if (!int.TryParse(part, out var value))
+                malformed = true;
+            else if (value == 4)
+                sixelDeclared = true;
+        }
+
+        sixelDeclared &= !malformed;
+        return true;
+    }
+
+    /// <summary>
+    /// Returns complete top-level CSI sequences, skipping bracketed paste and string
+    /// control payloads. Scanning stops at the first incomplete frame.
+    /// </summary>
+    internal static List<(int Start, int End)> FindTopLevelCsiSequences(ReadOnlySpan<byte> span)
+    {
+        ReadOnlySpan<byte> pasteStart = "\x1b[200~"u8;
+        ReadOnlySpan<byte> pasteEnd = "\x1b[201~"u8;
+        var sequences = new List<(int Start, int End)>();
+        var i = 0;
+        while (i < span.Length)
+        {
+            if (span[i] != 0x1b)
+            {
+                i++;
+                continue;
+            }
+            if (i + 1 >= span.Length)
+                break;
+
+            var introducer = span[i + 1];
+            if (introducer == (byte)'[')
+            {
+                var j = i + 2;
+                while (j < span.Length && span[j] is >= 0x20 and <= 0x3f)
+                    j++;
+                if (j >= span.Length)
+                    break;
+                if (span[j] is not (>= 0x40 and <= 0x7e))
+                {
+                    i = j;
+                    continue;
+                }
+
+                var end = j + 1;
+                if (span[i..end].SequenceEqual(pasteStart))
+                {
+                    var close = span[end..].IndexOf(pasteEnd);
+                    if (close < 0)
+                        break;
+                    i = end + close + pasteEnd.Length;
+                    continue;
+                }
+
+                sequences.Add((i, end));
+                i = end;
+            }
+            else if (introducer is (byte)']' or (byte)'P' or (byte)'_' or (byte)'X' or (byte)'^')
+            {
+                if (!TryFindStringControlEnd(span, i + 2, allowBell: introducer == (byte)']', out var end))
+                    break;
+                i = end;
+            }
+            else
+            {
+                // A lone ESC (an Escape key press) may directly precede another sequence.
+                i += span[i + 1] == 0x1b ? 1 : 2;
+            }
+        }
+
+        return sequences;
+    }
+
+    private static bool TryFindStringControlEnd(ReadOnlySpan<byte> span, int start, bool allowBell, out int end)
+    {
+        for (var i = start; i < span.Length; i++)
+        {
+            if (allowBell && span[i] == 0x07)
+            {
+                end = i + 1;
+                return true;
+            }
+            if (span[i] == 0x1b && i + 1 < span.Length && span[i + 1] == (byte)'\\')
+            {
+                end = i + 2;
+                return true;
+            }
+        }
+
+        end = span.Length;
         return false;
+    }
+
+    private struct KeyboardProbeState
+    {
+        public bool KittyDone;
+        public int? KittyFlags;
+        public int KittyMalformedReplies;
+        public bool Da1Done;
+        public bool Da1Malformed;
+        public bool? Da1DeclaresSixel;
     }
 
     /// <summary>
