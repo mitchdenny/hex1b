@@ -172,6 +172,302 @@ public class KittyEmbeddedInputTests
         Assert.AreSame(expected, error);
     }
 
+    [TestMethod]
+    [DataRow("ancestor")]
+    [DataRow("global")]
+    public async Task RouteInput_ReleaseOfPressConsumedByBinding_BubblesToCustomHandlerWithoutChildRelease(string binding)
+    {
+        await using var childWorkload = new GatedWorkload();
+        await using var child = CreateEnhancedChild(childWorkload, out var handle);
+        var terminal = new TerminalNode { Handle = handle, IsFocused = true };
+        var root = new RecordingContainerNode(terminal);
+        var actions = 0;
+        root.BindingsConfig = b =>
+        {
+            var step = b.Key(Hex1bKey.B);
+            if (binding == "global") step.Global().Action(() => actions++);
+            else step.Action(() => actions++);
+        };
+        var ring = new FocusRing();
+        ring.Rebuild(root);
+        var state = new InputRouterState();
+
+        var press = Hex1bKeyEvent.Plain(Hex1bKey.B, 'b');
+        await InputRouter.RouteInputAsync(root, press, ring, state);
+        var release = press with { Text = "", EventType = Hex1bKeyEventType.Release };
+        await InputRouter.RouteInputAsync(root, release, ring, state);
+
+        Assert.AreEqual(1, actions, "The release must not execute the binding again.");
+        Assert.AreSame(release, TestSeq.Single(root.ReceivedInputs), "Custom ancestor handlers must still see the release.");
+        Assert.IsFalse(childWorkload.Input.Reader.TryRead(out _), "The child never received the press, so it must not get a release.");
+    }
+
+    [TestMethod]
+    [DataRow("focus")]
+    [DataRow("capture")]
+    [DataRow("remove")]
+    [DataRow("replace-handle")]
+    public async Task RouteInput_HandoffBeforeRelease_ReleasesOriginalChildExactlyOnce(string handoff)
+    {
+        await using var firstWorkload = new GatedWorkload();
+        await using var first = CreateEnhancedChild(firstWorkload, out var firstHandle);
+        await using var secondWorkload = new GatedWorkload();
+        await using var second = CreateEnhancedChild(secondWorkload, out var secondHandle);
+        await using var thirdWorkload = new GatedWorkload();
+        await using var third = CreateEnhancedChild(thirdWorkload, out var thirdHandle);
+        var firstNode = new TerminalNode { Handle = firstHandle };
+        var secondNode = new TerminalNode { Handle = secondHandle };
+        var root = new RecordingContainerNode(firstNode, secondNode);
+        var ring = new FocusRing();
+        ring.Rebuild(root);
+        ring.Focus(firstNode);
+        var state = new InputRouterState();
+
+        // Shift is held for the press but already lifted by the release; identity ignores modifiers.
+        var press = new Hex1bKeyEvent(Hex1bKey.A, "A", Hex1bModifiers.Shift) { UnicodeKeyCode = 97 };
+        await InputRouter.RouteInputAsync(root, press, ring, state);
+        Assert.AreEqual("\x1b[97;2u", await firstWorkload.ReadInputAsync());
+
+        switch (handoff)
+        {
+            case "focus":
+                ring.Focus(secondNode);
+                break;
+            case "capture":
+                ring.CaptureInput(secondNode);
+                break;
+            case "remove":
+                root.Children.Remove(firstNode);
+                firstNode.Parent = null;
+                ring.Rebuild(root);
+                ring.Focus(secondNode);
+                break;
+            case "replace-handle":
+                firstNode.Handle = thirdHandle;
+                break;
+        }
+
+        var release = new Hex1bKeyEvent(Hex1bKey.A, "", Hex1bModifiers.None)
+        {
+            UnicodeKeyCode = 97,
+            EventType = Hex1bKeyEventType.Release
+        };
+        Assert.AreEqual(InputResult.Handled, await InputRouter.RouteInputAsync(root, release, ring, state));
+        Assert.AreEqual("\x1b[97;1:3u", await firstWorkload.ReadInputAsync());
+
+        await InputRouter.RouteInputAsync(root, release, ring, state);
+        Assert.IsFalse(firstWorkload.Input.Reader.TryRead(out _), "The original child is released exactly once.");
+        Assert.IsFalse(secondWorkload.Input.Reader.TryRead(out _), "The new focus target never saw the press.");
+        Assert.IsFalse(thirdWorkload.Input.Reader.TryRead(out _), "A replacement handle never saw the press.");
+        Assert.HasCount(1, root.ReceivedInputs, "Only the unmatched duplicate release bubbles to custom handlers.");
+    }
+
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task RouteInput_ChildChangesEventReportingMidHold_UsesCurrentModeEncoding(bool enable)
+    {
+        await using var workload = new GatedWorkload();
+        await using var child = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithDimensions(24, 4).WithTerminalWidget(out var handle).Build();
+        if (!enable) child.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>11u"));
+        var node = new TerminalNode { Handle = handle, IsFocused = true };
+        var ring = new FocusRing();
+        ring.Rebuild(node);
+        var state = new InputRouterState();
+
+        var press = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a') with { UnicodeKeyCode = 97 };
+        await InputRouter.RouteInputAsync(node, press, ring, state);
+        Assert.AreEqual(enable ? "a" : "\x1b[97u", await workload.ReadInputAsync());
+
+        child.ApplyTokens(AnsiTokenizer.Tokenize(enable ? "\x1b[>11u" : "\x1b[<u"));
+        await InputRouter.RouteInputAsync(node, press with { EventType = Hex1bKeyEventType.Repeat }, ring, state);
+        Assert.AreEqual(enable ? "\x1b[97;1:2u" : "a", await workload.ReadInputAsync());
+        await InputRouter.RouteInputAsync(node, press with { Text = "", EventType = Hex1bKeyEventType.Release }, ring, state);
+        if (enable)
+            Assert.AreEqual("\x1b[97;1:3u", await workload.ReadInputAsync());
+        Assert.IsFalse(workload.Input.Reader.TryRead(out _), "Legacy mode has no release encoding.");
+        Assert.IsFalse(handle.HasAnyForwardedKeys);
+    }
+
+    [TestMethod]
+    public async Task RouteInput_HostWithoutReleases_BoundsTrackedPresses()
+    {
+        await using var workload = new GatedWorkload();
+        await using var child = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithDimensions(24, 4).WithTerminalWidget(out var handle).Build();
+        var node = new TerminalNode { Handle = handle, IsFocused = true };
+        var ring = new FocusRing();
+        ring.Rebuild(node);
+        var state = new InputRouterState();
+        var count = TerminalWidgetHandle.MaxForwardedKeys + 8;
+        for (var i = 0; i < count; i++)
+        {
+            var ch = (char)('!' + i);
+            await InputRouter.RouteInputAsync(node, Hex1bKeyEvent.FromText(ch.ToString()) with { UnicodeKeyCode = ch }, ring, state);
+        }
+
+        Assert.IsFalse(handle.HasForwardedKey((Hex1bKey.None, '!')), "The oldest stale press is evicted.");
+        var last = (char)('!' + count - 1);
+        Assert.IsTrue(handle.HasForwardedKey(InputRouterState.KeyIdentity(
+            Hex1bKeyEvent.FromText(last.ToString()) with { UnicodeKeyCode = last })));
+    }
+
+    [TestMethod]
+    [DataRow("stop")]
+    [DataRow("cancel")]
+    [DataRow("dispose")]
+    [DataRow("released-first")]
+    [DataRow("legacy-host")]
+    public async Task RunAsync_ShutdownWithHeldEmbeddedKey_ReleasesExternallyOwnedChildOnce(string scenario)
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        await using var childWorkload = new GatedWorkload();
+        await using var child = CreateEnhancedChild(childWorkload, out var handle);
+        Hex1bApp? app = null;
+        Hex1bAppWorkloadAdapter? appInput = null;
+        await using var host = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(
+                options => appInput = TestSeq.IsType<Hex1bAppWorkloadAdapter>(options.WorkloadAdapter),
+                instance =>
+                {
+                    app = instance;
+                    return _ => new VStackWidget([new TextBlockWidget("Shutdown ready"), new TerminalWidget(handle)]);
+                })
+            .WithHeadless().WithDimensions(30, 8).Build();
+        var run = host.RunAsync(cancellation.Token);
+        try
+        {
+            using var ready = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("Shutdown ready"), TimeSpan.FromSeconds(5), "embedded shutdown app ready")
+                .Build().ApplyAsync(host);
+            var other = Hex1bKeyEvent.Plain(Hex1bKey.X, 'x') with { UnicodeKeyCode = 120 };
+            if (scenario != "legacy-host")
+            {
+                // A delivered release shows the host reports event types.
+                appInput!.TryWriteInputEvent(other);
+                appInput.TryWriteInputEvent(other with { Text = "", EventType = Hex1bKeyEventType.Release });
+                Assert.AreEqual("\x1b[120u", await childWorkload.ReadInputAsync());
+                Assert.AreEqual("\x1b[120;1:3u", await childWorkload.ReadInputAsync());
+            }
+            var press = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a') with { UnicodeKeyCode = 97 };
+            appInput!.TryWriteInputEvent(press);
+            Assert.AreEqual("\x1b[97u", await childWorkload.ReadInputAsync());
+            if (scenario == "released-first")
+            {
+                appInput.TryWriteInputEvent(press with { Text = "", EventType = Hex1bKeyEventType.Release });
+                Assert.AreEqual("\x1b[97;1:3u", await childWorkload.ReadInputAsync());
+            }
+
+            switch (scenario)
+            {
+                case "cancel": cancellation.Cancel(); break;
+                case "dispose": await app!.DisposeAsync(); break;
+                default: app!.RequestStop(); break;
+            }
+            await run.WaitAsync(TimeSpan.FromSeconds(5));
+
+            if (scenario is "stop" or "cancel" or "dispose")
+                Assert.AreEqual("\x1b[97;1:3u", await childWorkload.ReadInputAsync());
+            Assert.IsFalse(childWorkload.Input.Reader.TryRead(out _), "Shutdown must not duplicate or invent releases.");
+            Assert.IsFalse(handle.HasAnyForwardedKeys);
+            Assert.AreNotEqual(TerminalState.Completed, handle.State, "The externally owned child outlives the app.");
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task RunAsync_ChildChannelClosedAfterAppInputCompletes_PropagatesChildFailure(bool childFails)
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var expected = new ChannelClosedException();
+        await using var workload = new GatedWorkload { BlockFirstWrite = true, WriteFailure = childFails ? expected : null };
+        await using var child = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithDimensions(24, 4).WithTerminalWidget(out var handle).Build();
+        Hex1bAppWorkloadAdapter? appInput = null;
+        await using var host = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(
+                options => appInput = TestSeq.IsType<Hex1bAppWorkloadAdapter>(options.WorkloadAdapter),
+                _ => new VStackWidget([new TextBlockWidget("Closed race ready"), new TerminalWidget(handle)]))
+            .WithHeadless().WithDimensions(30, 8).Build();
+        var run = host.RunAsync(cancellation.Token);
+        try
+        {
+            using var ready = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("Closed race ready"), TimeSpan.FromSeconds(5), "closed race app ready")
+                .Build().ApplyAsync(host);
+            if (childFails)
+            {
+                appInput!.SendKey(Hex1bKey.A, 'a');
+                await workload.FirstWrite.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+
+            // The final app event is already dequeued; app input now completes with nothing left to drain.
+            await appInput!.DisposeAsync();
+            Assert.IsTrue(appInput.InputEvents.Completion.IsCompleted);
+            workload.Unblock.TrySetResult();
+
+            if (childFails)
+            {
+                var error = await Assert.ThrowsAsync<ChannelClosedException>(() => run.WaitAsync(TimeSpan.FromSeconds(5)));
+                Assert.AreSame(expected, error);
+            }
+            else
+            {
+                await run.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+        }
+        finally
+        {
+            workload.Unblock.TrySetResult();
+            cancellation.Cancel();
+            try { await run.WaitAsync(TimeSpan.FromSeconds(5)); }
+            catch (ChannelClosedException ex) when (ReferenceEquals(ex, expected)) { }
+        }
+    }
+
+    private static Hex1bTerminal CreateEnhancedChild(GatedWorkload workload, out TerminalWidgetHandle handle)
+    {
+        var child = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithDimensions(24, 4).WithTerminalWidget(out handle).Build();
+        child.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>11u"));
+        return child;
+    }
+
+    private sealed class RecordingContainerNode : Hex1bNode
+    {
+        public RecordingContainerNode(params Hex1bNode[] children)
+        {
+            foreach (var child in children)
+            {
+                Children.Add(child);
+                child.Parent = this;
+            }
+        }
+
+        public List<Hex1bNode> Children { get; } = [];
+        public List<Hex1bEvent> ReceivedInputs { get; } = [];
+        public Action<InputBindingsBuilder>? BindingsConfig { get; set; }
+
+        public override InputResult HandleInput(Hex1bEvent inputEvent)
+        {
+            ReceivedInputs.Add(inputEvent);
+            return InputResult.NotHandled;
+        }
+
+        public override void ConfigureDefaultBindings(InputBindingsBuilder bindings) => BindingsConfig?.Invoke(bindings);
+        protected override Layout.Size MeasureCore(Layout.Constraints constraints) => new(80, 24);
+        public override void Render(Hex1bRenderContext context) { }
+        public override IEnumerable<Hex1bNode> GetChildren() => Children;
+        public override IEnumerable<Hex1bNode> GetFocusableNodes() => Children.SelectMany(c => c.GetFocusableNodes());
+    }
+
     private sealed class GatedWorkload : IHex1bTerminalWorkloadAdapter
     {
         private readonly Channel<ReadOnlyMemory<byte>> _output = Channel.CreateUnbounded<ReadOnlyMemory<byte>>();

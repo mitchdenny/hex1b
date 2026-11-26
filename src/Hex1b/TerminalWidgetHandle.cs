@@ -465,7 +465,56 @@ public sealed class TerminalWidgetHandle :
         await _terminal.SendEventAsync(evt, ct);
     }
 
-    internal bool ReportsKeyReleases => _terminal is { } terminal && (terminal.InputModes.KittyKeyboardFlags & 2) != 0;
+    // Presses forwarded to the child, tracked regardless of its current reporting mode so a
+    // repeat/release still reaches it after it enables event types mid-hold. Owned by the handle
+    // rather than the node so the release survives focus, capture or node changes. Bounded
+    // because hosts without release reporting never clear entries.
+    internal const int MaxForwardedKeys = 32;
+    private readonly List<((Hex1bKey Key, int? Code) Identity, Hex1bKeyEvent Press)> _forwardedKeys = [];
+
+    internal void TrackForwardedKey((Hex1bKey Key, int? Code) identity, Hex1bKeyEvent press)
+    {
+        lock (_forwardedKeys)
+        {
+            _forwardedKeys.RemoveAll(k => k.Identity == identity);
+            if (_forwardedKeys.Count == MaxForwardedKeys)
+                _forwardedKeys.RemoveAt(0);
+            _forwardedKeys.Add((identity, press));
+        }
+    }
+
+    internal bool HasForwardedKey((Hex1bKey Key, int? Code) identity)
+    {
+        lock (_forwardedKeys)
+            return _forwardedKeys.Exists(k => k.Identity == identity);
+    }
+
+    internal bool HasAnyForwardedKeys
+    {
+        get
+        {
+            lock (_forwardedKeys)
+                return _forwardedKeys.Count > 0;
+        }
+    }
+
+    internal bool TryTakeForwardedKey((Hex1bKey Key, int? Code) identity)
+    {
+        lock (_forwardedKeys)
+            return _forwardedKeys.RemoveAll(k => k.Identity == identity) > 0;
+    }
+
+    internal Hex1bKeyEvent[] TakeForwardedKeys()
+    {
+        lock (_forwardedKeys)
+        {
+            var presses = _forwardedKeys.Select(k => k.Press).ToArray();
+            _forwardedKeys.Clear();
+            return presses;
+        }
+    }
+
+    internal bool IsAcceptingInput => _terminal != null && !_disposed && State != TerminalState.Completed;
     
     /// <summary>
     /// Handles RIS (Reset to Initial State, ESC c) — clears terminal state that

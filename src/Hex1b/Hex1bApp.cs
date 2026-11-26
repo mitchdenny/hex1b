@@ -577,6 +577,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         {
             _outputGate.Release();
         }
+        var runFaulted = true;
         try
         {
             // Count startup against the same start-to-start budget as later frames.
@@ -641,7 +642,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 var inputReady = false;
                 if (inputWaitTask.IsCompleted)
                 {
-                    inputReady = await inputWaitTask;
+                    try
+                    {
+                        inputReady = await inputWaitTask;
+                    }
+                    catch (ChannelClosedException)
+                    {
+                        // App input completed with an error: exit gracefully. Only this read
+                        // identifies app-input closure; embedded child write failures propagate.
+                        break;
+                    }
                     inputWaitTask = null;
                     if (!inputReady)
                         break;
@@ -718,20 +728,20 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 if (_frameScheduler.TryBeginFrame(bypassPacing: inputReady || _stopRequested))
                     await RenderFrameAsync(cancellationToken);
             }
+            runFaulted = false;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // Normal cancellation, exit gracefully
-        }
-        catch (ChannelClosedException) when (_adapter.InputEvents.Completion.IsCompleted)
-        {
-            // Terminal input channel closed, exit gracefully
+            runFaulted = false;
         }
         finally
         {
             _inputRouterState.CancelKeyHolds();
+            Exception? releaseFailure = null;
             try
             {
+                releaseFailure = await ReleaseEmbeddedKeysAsync().ConfigureAwait(false);
                 waitLifetime.Cancel();
                 if (frameWaitTask is not null)
                 {
@@ -766,6 +776,28 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             {
                 await _inputRouterState.StopKeyHoldsAsync().ConfigureAwait(false);
             }
+            if (releaseFailure != null && !runFaulted)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(releaseFailure);
+        }
+    }
+
+    private async Task<Exception?> ReleaseEmbeddedKeysAsync()
+    {
+        // Embedded children can outlive the app; release keys they still hold, but never let a
+        // stalled child block shutdown indefinitely.
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await _inputRouterState.ReleaseAllTerminalKeysAsync(timeout.Token).ConfigureAwait(false);
+            return null;
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex;
         }
     }
 

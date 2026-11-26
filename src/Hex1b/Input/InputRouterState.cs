@@ -12,7 +12,78 @@ public sealed class InputRouterState
     private readonly Dictionary<FocusRing, Action> _holdFocusHandlers = [];
     private TaskCompletionSource<Exception> _holdFailure = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    private readonly List<TerminalWidgetHandle> _terminalKeyOwners = [];
+    private bool _releasesObserved;
+
     internal Task<Exception> HoldFailure => _holdFailure.Task;
+
+    /// <summary>
+    /// Records an embedded terminal that received a press it must later be released for,
+    /// independent of where focus or capture moves before the physical release.
+    /// </summary>
+    internal void TrackTerminalKeyOwner(TerminalWidgetHandle handle)
+    {
+        lock (_terminalKeyOwners)
+        {
+            _terminalKeyOwners.RemoveAll(owner => owner != handle && !owner.HasAnyForwardedKeys);
+            if (!_terminalKeyOwners.Contains(handle))
+                _terminalKeyOwners.Add(handle);
+        }
+    }
+
+    /// <summary>
+    /// Delivers a release to every embedded terminal that still owns the matching press.
+    /// Returns <see langword="true"/> when at least one terminal consumed the release.
+    /// </summary>
+    internal async Task<bool> ReleaseTerminalKeyAsync(Hex1bKeyEvent release, CancellationToken cancellationToken)
+    {
+        Volatile.Write(ref _releasesObserved, true);
+        var identity = KeyIdentity(release);
+        TerminalWidgetHandle[] owners;
+        lock (_terminalKeyOwners)
+            owners = _terminalKeyOwners.ToArray();
+
+        var delivered = false;
+        foreach (var owner in owners)
+        {
+            if (!owner.TryTakeForwardedKey(identity))
+                continue;
+            delivered = true;
+            if (owner.IsAcceptingInput)
+                await owner.SendEventAsync(release, cancellationToken).ConfigureAwait(false);
+        }
+        lock (_terminalKeyOwners)
+            _terminalKeyOwners.RemoveAll(owner => !owner.HasAnyForwardedKeys);
+        return delivered;
+    }
+
+    /// <summary>
+    /// Releases every key still held in embedded terminals when the app stops routing input.
+    /// Embedded children can outlive the app, so their release ownership must not be discarded.
+    /// Releases are only synthesized once the host has delivered a release: hosts without
+    /// release reporting never clear tracked presses, which are then discarded instead.
+    /// </summary>
+    internal async Task ReleaseAllTerminalKeysAsync(CancellationToken cancellationToken)
+    {
+        TerminalWidgetHandle[] owners;
+        lock (_terminalKeyOwners)
+        {
+            owners = _terminalKeyOwners.ToArray();
+            _terminalKeyOwners.Clear();
+        }
+
+        foreach (var owner in owners)
+        {
+            // Taking the presses atomically prevents a duplicate when a real release races cleanup.
+            foreach (var press in owner.TakeForwardedKeys())
+            {
+                if (Volatile.Read(ref _releasesObserved) && owner.IsAcceptingInput)
+                    await owner.SendEventAsync(
+                        press with { Text = "", EventType = Hex1bKeyEventType.Release },
+                        cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
 
     internal void BeginKeyHolds()
     {

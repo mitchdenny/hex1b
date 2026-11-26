@@ -71,8 +71,11 @@ public static class InputRouter
         if (keyEvent.EventType == Hex1bKeyEventType.Release)
         {
             state.ReleaseKeyHold(keyEvent);
+            // The terminal that received the press owns its release, wherever focus or capture is now.
+            if (await state.ReleaseTerminalKeyAsync(keyEvent, cancellationToken))
+                return InputResult.Handled;
             var captured = focusRing.CapturedNode;
-            if (captured != null && await HandleUnboundInputAsync(captured, keyEvent, cancellationToken) == InputResult.Handled)
+            if (captured != null && await HandleUnboundInputAsync(captured, keyEvent, cancellationToken, state) == InputResult.Handled)
                 return InputResult.Handled;
 
             var releasePath = BuildPathToFocused(root);
@@ -81,7 +84,7 @@ public static class InputRouter
                 for (var i = releasePath.Count - 1; i >= 0; i--)
                 {
                     if (releasePath[i] != captured &&
-                        await HandleUnboundInputAsync(releasePath[i], keyEvent, cancellationToken) == InputResult.Handled)
+                        await HandleUnboundInputAsync(releasePath[i], keyEvent, cancellationToken, state) == InputResult.Handled)
                         return InputResult.Handled;
                 }
             }
@@ -110,7 +113,7 @@ public static class InputRouter
             }
             
             // Send input to the captured node (translate mouse coordinates if needed)
-            var captureResult = await HandleUnboundInputAsync(capturedNode, keyEvent, cancellationToken);
+            var captureResult = await HandleUnboundInputAsync(capturedNode, keyEvent, cancellationToken, state);
             if (captureResult == InputResult.Handled)
             {
                 return InputResult.Handled;
@@ -205,7 +208,7 @@ public static class InputRouter
         var lastNode = path[^1];
         if (lastNode.IsFocusable && lastNode.IsFocused)
         {
-            var inputResult = await HandleUnboundInputAsync(lastNode, keyEvent, cancellationToken);
+            var inputResult = await HandleUnboundInputAsync(lastNode, keyEvent, cancellationToken, state);
             if (inputResult == InputResult.Handled)
             {
                 return inputResult;
@@ -214,7 +217,7 @@ public static class InputRouter
             // Focused node didn't handle it, bubble UP to container nodes
             for (int i = path.Count - 2; i >= 0; i--)
             {
-                inputResult = await HandleUnboundInputAsync(path[i], keyEvent, cancellationToken);
+                inputResult = await HandleUnboundInputAsync(path[i], keyEvent, cancellationToken, state);
                 if (inputResult == InputResult.Handled)
                 {
                     return inputResult;
@@ -226,9 +229,9 @@ public static class InputRouter
     }
 
     private static Task<InputResult> HandleUnboundInputAsync(
-        Hex1bNode node, Hex1bEvent inputEvent, CancellationToken cancellationToken)
+        Hex1bNode node, Hex1bEvent inputEvent, CancellationToken cancellationToken, InputRouterState? state = null)
         => node is Nodes.TerminalNode terminal
-            ? terminal.HandleInputAsync(inputEvent, cancellationToken)
+            ? terminal.HandleInputAsync(inputEvent, cancellationToken, state)
             : Task.FromResult(node.HandleInput(inputEvent));
 
     /// <summary>
