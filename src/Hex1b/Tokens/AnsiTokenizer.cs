@@ -8,6 +8,7 @@ namespace Hex1b.Tokens;
 public static class AnsiTokenizer
 {
     private static readonly TokenizerOptions s_defaultOptions = new();
+    private static readonly TokenizerOptions s_enhancedInputOptions = new() { EnhancedInput = true };
     private static readonly TokenizerOptions s_withoutDcsOptions = new()
     {
         RecognizeDcs = false,
@@ -23,6 +24,9 @@ public static class AnsiTokenizer
 
     internal static IReadOnlyList<AnsiToken> TokenizeWithoutDcs(string text) =>
         Tokenize(text, s_withoutDcsOptions);
+
+    internal static IReadOnlyList<AnsiToken> TokenizeEnhancedInput(string text) =>
+        Tokenize(text, s_enhancedInputOptions);
 
     private static IReadOnlyList<AnsiToken> Tokenize(string text, TokenizerOptions options)
     {
@@ -86,7 +90,7 @@ public static class AnsiTokenizer
             else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '[')
             {
                 FlushTextToken(text, ref textStart, i, tokens);
-                i = ParseCsiSequence(text, i, tokens);
+                i = ParseCsiSequence(text, i, tokens, options);
             }
             // Check for SS3 sequence (ESC O) - function keys F1-F4 and arrow keys in application mode
             else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == 'O' && i + 2 < text.Length)
@@ -280,7 +284,7 @@ public static class AnsiTokenizer
         }
     }
 
-    private static int ParseCsiSequence(string text, int start, List<AnsiToken> tokens)
+    private static int ParseCsiSequence(string text, int start, List<AnsiToken> tokens, TokenizerOptions options)
     {
         // Find the CSI final byte after ESC [.
         int end = start + 2;
@@ -319,6 +323,14 @@ public static class AnsiTokenizer
         var command = text[end];
         var paramStart = start + 2 + (isPrivateMode ? 1 : 0);
         var parameters = text[paramStart..end];
+
+        // Preserve complete keyboard fields for the input decoder, not output cursor commands.
+        if (!isPrivateMode && (parameters.Contains(':') || options.EnhancedInput) &&
+            command is 'A' or 'B' or 'C' or 'D' or 'E' or 'F' or 'H' or 'P' or 'Q' or 'R' or 'S' or '~')
+        {
+            tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+            return end + 1;
+        }
 
         switch (command)
         {
@@ -435,10 +447,9 @@ public static class AnsiTokenizer
                 break;
 
             case 'u':
-                // CSI u with no prefix is ANSI restore cursor. The prefixed forms belong to the
-                // kitty keyboard protocol (CSI ? u query, CSI > flags u push, CSI = flags;mode u
-                // set) and must pass through verbatim instead of moving the cursor.
-                if (isPrivateMode || (parameters.Length > 0 && parameters[0] is '>' or '=' or '<'))
+                // Only parameterless CSI u restores the cursor. Preserve keyboard events and
+                // prefixed keyboard negotiation sequences without interpreting them as output.
+                if (isPrivateMode || parameters.Length > 0)
                 {
                     tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
                 }
@@ -1201,5 +1212,6 @@ public static class AnsiTokenizer
     private sealed class TokenizerOptions
     {
         public bool RecognizeDcs { get; init; } = true;
+        public bool EnhancedInput { get; init; }
     }
 }

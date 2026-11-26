@@ -11,6 +11,9 @@ internal static class TerminalInputEncoder
             x10 ? TerminalMouseTracking.X10 : TerminalMouseTracking.None;
 
     internal static string EncodeKey(Hex1bKeyEvent input, TerminalInputModes modes)
+        => KittyKeyboardEncoder.Encode(input, modes.KittyKeyboardFlags, modes);
+
+    internal static string EncodeLegacyKey(Hex1bKeyEvent input, TerminalInputModes modes)
     {
         var modifier = 1 + (input.Shift ? 1 : 0) + (input.Alt ? 2 : 0) + (input.Control ? 4 : 0);
         var final = input.Key switch
