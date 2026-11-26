@@ -51,5 +51,10 @@ public readonly record struct WorkloadOutputItem(
     /// owning pool. Decoupled from <see cref="Hex1bApp"/> to avoid a circular type reference.
     /// </summary>
     internal Action<List<AnsiToken>>? PooledTokensReturn { get; init; }
+
+    /// <summary>
+    /// Internal non-zero epoch when this item carries a Hex1bApp keyboard push/query.
+    /// </summary>
+    internal int KeyboardQueryEpoch { get; init; }
 }
 

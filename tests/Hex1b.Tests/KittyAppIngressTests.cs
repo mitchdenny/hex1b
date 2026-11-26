@@ -29,6 +29,7 @@ public partial class PresentationRawInputTests
         workload.SetInputSourceReportingHandler(value => reportsReleases = value);
         workload.EnterTuiMode();
         Assert.IsNull(reportsReleases, "Support and a queued push are not confirmation of effective flags.");
+        DeliverQueuedOutput(workload);
         await workload.WriteInputAsync(Encoding.ASCII.GetBytes($"\x1b[?{flags}u\x1b[1;5R\x1b[97u\x1b[13u\x1b[9u\x1b[127u"));
         if ((flags & 31) == 0)
             Assert.AreEqual(Hex1bKey.F3, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
@@ -49,6 +50,7 @@ public partial class PresentationRawInputTests
         workload.SetInputSourceReportingHandler(value => reportsReleases = value);
         await workload.WriteInputAsync("a\r\t\x7f"u8.ToArray());
         workload.EnterTuiMode();
+        DeliverQueuedOutput(workload);
         await workload.WriteInputAsync("\x1b[?31u\x1b[13u"u8.ToArray());
         foreach (var key in new[] { Hex1bKey.A, Hex1bKey.Enter, Hex1bKey.Tab, Hex1bKey.Backspace })
         {
@@ -94,12 +96,13 @@ public partial class PresentationRawInputTests
     public void InputSequenceParser_UnterminatedCsi_RetainsLessThanFourKiB()
     {
         var parser = new InputSequenceParser();
-        parser.Parse("\x1b[", enhanced: true);
+        Assert.IsEmpty(parser.Parse("\x1b[", enhanced: true));
         for (var i = 0; i < 8192; i++)
         {
-            parser.Parse("1", enhanced: true);
+            Assert.IsEmpty(parser.Parse("1", enhanced: true), $"Leaked oversized CSI byte {i}.");
             Assert.IsLessThan(4096, parser.PendingLength);
         }
+        Assert.IsEmpty(parser.Parse("123u", enhanced: true), "The remainder ends the oversized CSI.");
         var tokens = parser.Parse("\x1b[97u", enhanced: true);
         Assert.AreEqual(Hex1bKey.A, TestSeq.IsType<Hex1bKeyEvent>(
             Hex1bTerminal.TokenToEvent(TestSeq.Single(tokens))).Key);
@@ -178,6 +181,8 @@ public partial class PresentationRawInputTests
         }
     }
 
+    // Raw-child/ParsedEvents workloads that are not app adapters drive this terminal's
+    // mode directly, so the terminal-local stack remains authoritative for them.
     [TestMethod]
     [DataRow(0, false)]
     [DataRow(32, false)]
@@ -189,10 +194,10 @@ public partial class PresentationRawInputTests
     [DataRow(4, true)]
     [DataRow(8, true)]
     [DataRow(16, true)]
-    public async Task KittyIngress_OnlyKnownFlagsDisambiguateCursorReport(int flags, bool enhanced)
+    public async Task PresentationIngress_NonAppWorkload_TerminalLocalKnownFlagsDisambiguateCursorReport(int flags, bool enhanced)
     {
         await using var presentation = new QueuedPresentation();
-        using var workload = new Hex1bAppWorkloadAdapter();
+        var workload = new RecordingEventWorkload();
         await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
         {
             PresentationAdapter = presentation, WorkloadAdapter = workload,
@@ -203,30 +208,322 @@ public partial class PresentationRawInputTests
         presentation.Enqueue("\x1b[1;5R\x1b[13;5:2~z"u8.ToArray());
         if (!enhanced)
         {
-            var f3 = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents));
+            var f3 = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.Events));
             Assert.AreEqual(Hex1bKey.F3, f3.Key);
             Assert.AreEqual(Hex1bModifiers.Control, f3.Modifiers);
         }
-        var repeat = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents));
+        var repeat = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.Events));
         Assert.AreEqual(Hex1bKey.F3, repeat.Key);
         Assert.AreEqual(Hex1bKeyEventType.Repeat, repeat.EventType);
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.Events)).Text);
+        Assert.IsFalse(workload.Events.TryRead(out _));
+    }
+
+    // An app adapter's own requested mode is not the host's effective mode, so the
+    // terminal-local stack alone must not suppress legacy Ctrl+F3.
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task KittyIngress_AppAdapter_TerminalLocalFlagsDoNotConfirmHost(bool raw)
+    {
+        await using var presentation = new QueuedPresentation();
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities { SupportsKittyKeyboard = true })
+        {
+            RawInputTimeProvider = new RawClock()
+        };
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[=31u"));
+        workload.EnterTuiMode();
+        await WriteIngressAsync(raw, presentation, workload, "\x1b[1;5Rz");
+        Assert.AreEqual(Hex1bKey.F3, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
         Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    // Kitty spec: the program must not assume the protocol is active until the terminal
+    // answers CSI ? u. Until then (or with only unknown/reserved bits) CSI 1;5R stays the
+    // legacy xterm Ctrl+F3 encoding; afterwards Kitty's F3 is CSI 13~ and the same bytes
+    // can only be a cursor-position report.
+    [TestMethod]
+    [DataRow(false, 0, false)]
+    [DataRow(false, 32, false)]
+    [DataRow(false, 64, false)]
+    [DataRow(false, 96, false)]
+    [DataRow(false, 1, true)]
+    [DataRow(false, 2, true)]
+    [DataRow(false, 4, true)]
+    [DataRow(false, 8, true)]
+    [DataRow(false, 16, true)]
+    [DataRow(false, 33, true)]
+    [DataRow(false, 31, true)]
+    [DataRow(true, 0, false)]
+    [DataRow(true, 32, false)]
+    [DataRow(true, 64, false)]
+    [DataRow(true, 96, false)]
+    [DataRow(true, 1, true)]
+    [DataRow(true, 2, true)]
+    [DataRow(true, 4, true)]
+    [DataRow(true, 8, true)]
+    [DataRow(true, 16, true)]
+    [DataRow(true, 33, true)]
+    [DataRow(true, 31, true)]
+    public async Task KittyIngress_SupportedButUnconfirmedHost_KeepsLegacyF3UntilKnownReport(bool raw, int flags, bool enhanced)
+    {
+        await using var presentation = new QueuedPresentation();
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities { SupportsKittyKeyboard = true })
+        {
+            RawInputTimeProvider = new RawClock()
+        };
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        workload.EnterTuiMode();
+
+        // Push queued and written, host silent so far: an F3 already in flight is legacy.
+        await WriteIngressAsync(raw, presentation, workload, "\x1b[1;5R");
+        AssertCtrlF3(await ReadAsync(workload.InputEvents));
+        Assert.IsNull(workload.ConfirmedEnhancedInput);
+
+        // Same read: in-flight F3, then the confirming reply, then a later F3.
+        await presentation.QueryDelivered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await WriteIngressAsync(raw, presentation, workload, $"\x1b[1;5R\x1b[?{flags}u\x1b[1;5R\x1b[13~z");
+        AssertCtrlF3(await ReadAsync(workload.InputEvents));
+        if (!enhanced)
+            AssertCtrlF3(await ReadAsync(workload.InputEvents));
+        Assert.AreEqual(Hex1bKey.F3, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+        Assert.AreEqual(enhanced, workload.ConfirmedEnhancedInput);
+
+        // After pop the confirmation is gone and legacy decoding returns.
+        workload.ExitTuiMode();
+        await WriteIngressAsync(raw, presentation, workload, "\x1b[1;5Rz");
+        AssertCtrlF3(await ReadAsync(workload.InputEvents));
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task KittyIngress_SilentHostThatNeverReplies_StaysLegacy(bool raw)
+    {
+        await using var presentation = new QueuedPresentation();
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities { SupportsKittyKeyboard = true })
+        {
+            RawInputTimeProvider = new RawClock()
+        };
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        workload.EnterTuiMode();
+        for (var i = 0; i < 3; i++)
+        {
+            await WriteIngressAsync(raw, presentation, workload, "\x1b[1;5R");
+            AssertCtrlF3(await ReadAsync(workload.InputEvents));
+        }
+        await WriteIngressAsync(raw, presentation, workload, "\x1b[13~z");
+        Assert.AreEqual(Hex1bKey.F3, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+        Assert.IsNull(workload.ConfirmedEnhancedInput);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task WriteInputAsync_UnsupportedOrUnconfirmedNegotiation_KeepsLegacyF3(bool supported)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities { SupportsKittyKeyboard = supported });
+        workload.EnterTuiMode();
+        await workload.WriteInputAsync("\x1b[1;5R\x1b[13~z"u8.ToArray());
+        AssertCtrlF3(await ReadAsync(workload.InputEvents));
+        Assert.AreEqual(Hex1bKey.F3, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    private static void DeliverQueuedOutput(Hex1bAppWorkloadAdapter workload)
+    {
+        while (workload.TryReadOutput(out _)) { }
+    }
+
+    // Raw ingress can only order a reply against the query leaving the adapter's output queue.
+    [TestMethod]
+    public async Task WriteInputAsync_ReportBeforeQueryDequeued_CannotConfirmEpoch()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities { SupportsKittyKeyboard = true });
+        bool? reportsReleases = null;
+        workload.SetInputSourceReportingHandler(value => reportsReleases = value);
+        workload.EnterTuiMode();
+
+        await workload.WriteInputAsync("\x1b[?31u\x1b[1;5R"u8.ToArray());
+        AssertCtrlF3(await ReadAsync(workload.InputEvents));
+        Assert.IsNull(workload.ConfirmedEnhancedInput);
+
+        // A report split across delivery keeps the stamp of its first (pre-delivery) byte.
+        await workload.WriteInputAsync("\x1b[?3"u8.ToArray());
+        DeliverQueuedOutput(workload);
+        await workload.WriteInputAsync("1u\x1b[1;5R"u8.ToArray());
+        AssertCtrlF3(await ReadAsync(workload.InputEvents));
+        Assert.IsNull(workload.ConfirmedEnhancedInput);
+        Assert.IsNull(reportsReleases);
+
+        await workload.WriteInputAsync("\x1b[?31u\x1b[1;5R\x1b[13~"u8.ToArray());
+        Assert.AreEqual(Hex1bKey.F3, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+        Assert.AreEqual(true, workload.ConfirmedEnhancedInput);
+
+        // A re-entered epoch whose query is still queued cannot reuse a reply.
+        workload.ExitTuiMode();
+        workload.EnterTuiMode();
+        await workload.WriteInputAsync("\x1b[?31u\x1b[1;5R"u8.ToArray());
+        AssertCtrlF3(await ReadAsync(workload.InputEvents));
+        Assert.IsNull(workload.ConfirmedEnhancedInput);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task KittyIngress_OversizedSequenceRemainder_IsDiscardedUntilTermination(bool raw)
+    {
+        await using var presentation = new QueuedPresentation();
+        using var workload = new Hex1bAppWorkloadAdapter { RawInputTimeProvider = new RawClock() };
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        var payload = new string('1', 5000);
+        var cases = new[]
+        {
+            new[] { "\x1b[" + new string('1', 4094), "123u" },
+            new[] { "\x1b[" + new string('1', 4100), "123u" },
+            new[] { "\x1b]0;" + payload[..4200], payload, "\u0007" },
+            new[] { "\x1b_G" + payload[..4200], payload, "\x1b\\" },
+            new[] { "\u009d0;" + payload[..4200], payload, "\u009c" },
+            new[] { "\u009fG" + payload[..4200], payload, "\x1b\\" },
+            new[] { "\u0090q" + payload[..4200], payload, "\u009c" },
+        };
+        foreach (var chunks in cases)
+        {
+            foreach (var chunk in chunks)
+                await WriteIngressAsync(raw, presentation, workload, chunk);
+            await WriteIngressAsync(raw, presentation, workload, "z");
+            Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text,
+                string.Join(" | ", chunks.Select(c => c.Length)));
+        }
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow(false, 4095)]
+    [DataRow(false, 4096)]
+    [DataRow(false, 4097)]
+    [DataRow(true, 4095)]
+    [DataRow(true, 4096)]
+    [DataRow(true, 4097)]
+    public async Task KittyIngress_SequenceLengthBoundary_MatchesCodecAcrossChunks(bool raw, int length)
+    {
+        const string prefix = "\x1b[97;1;";
+        var bodyLength = length - prefix.Length - 1;
+        var hundreds = Enumerable.Range(0, 3).First(m => (bodyLength + 1 - 4 * m) % 3 == 0);
+        var groups = Enumerable.Repeat("100", hundreds)
+            .Concat(Enumerable.Repeat("97", (bodyLength + 1 - 4 * hundreds) / 3));
+        var sequence = prefix + string.Join(':', groups) + "u";
+        Assert.AreEqual(length, sequence.Length);
+        var expectedText = new string('d', hundreds) + new string('a', (bodyLength + 1 - 4 * hundreds) / 3);
+
+        await using var presentation = new QueuedPresentation();
+        using var workload = new Hex1bAppWorkloadAdapter { RawInputTimeProvider = new RawClock() };
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        foreach (var split in new[] { 1, length / 2, length - 1, Math.Min(4096, length - 1) })
+        {
+            await WriteIngressAsync(raw, presentation, workload, sequence[..split]);
+            await WriteIngressAsync(raw, presentation, workload, sequence[split..] + "z");
+            if (length <= 4096)
+            {
+                var key = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents));
+                Assert.AreEqual(Hex1bKey.A, key.Key, $"split {split}");
+                Assert.AreEqual(expectedText, key.Text, $"split {split}");
+            }
+            Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text,
+                $"split {split}");
+        }
         Assert.IsFalse(workload.InputEvents.TryRead(out _));
     }
 
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public async Task WriteInputAsync_NegotiationControlsCprNotLegacyF3(bool supported)
+    public async Task KittyIngress_C1ControlStrings_AreFramedAtEveryByteSplit(bool raw)
     {
-        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities { SupportsKittyKeyboard = supported });
-        workload.EnterTuiMode();
-        await workload.WriteInputAsync("\x1b[1;5R\x1b[13~z"u8.ToArray());
-        if (!supported)
-            Assert.AreEqual(Hex1bKey.F3, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
-        Assert.AreEqual(Hex1bKey.F3, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
-        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+        await using var presentation = new QueuedPresentation();
+        using var workload = new Hex1bAppWorkloadAdapter { RawInputTimeProvider = new RawClock() };
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        var inputs = new[]
+        {
+            "\u009d0;title\u0007z", "\u009d0;title\x1b\\z", "\u009d0;title\u009cz",
+            "\u009fGpayload\u009cz", "\u009fGpayload\x1b\\z", "\u0090qpayload\x1b\\z"
+        };
+        foreach (var input in inputs)
+        {
+            var bytes = Encoding.UTF8.GetBytes(input);
+            for (var split = 1; split < bytes.Length; split++)
+            {
+                if (raw)
+                {
+                    await workload.WriteInputAsync(bytes[..split]);
+                    await workload.WriteInputAsync(bytes[split..]);
+                }
+                else
+                {
+                    presentation.Enqueue(bytes[..split]);
+                    presentation.Enqueue(bytes[split..]);
+                }
+                var key = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents));
+                Assert.AreEqual("z", key.Text, $"{Convert.ToHexString(bytes)} split {split}");
+            }
+        }
         Assert.IsFalse(workload.InputEvents.TryRead(out _));
+
+        // Inside bracketed paste, C1 code points are opaque content rather than introducers.
+        await WriteIngressAsync(raw, presentation, workload, "\x1b[200~a\u009db\u009fc\u0090d\x1b[201~z");
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(await ReadAsync(workload.InputEvents)).Paste;
+        Assert.AreEqual("a\u009db\u009fc\u0090d", await paste.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+    }
+
+    private static void AssertCtrlF3(Hex1bEvent evt)
+    {
+        var key = TestSeq.IsType<Hex1bKeyEvent>(evt);
+        Assert.AreEqual(Hex1bKey.F3, key.Key);
+        Assert.AreEqual(Hex1bModifiers.Control, key.Modifiers);
+    }
+
+    private static async Task WriteIngressAsync(
+        bool raw, QueuedPresentation presentation, Hex1bAppWorkloadAdapter workload, string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        if (raw)
+            await workload.WriteInputAsync(bytes);
+        else
+            presentation.Enqueue(bytes);
     }
 
     [TestMethod]

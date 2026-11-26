@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 #pragma warning disable HEX1B_SIXEL // Sixel API is experimental - internal usage is allowed
 
 using System.Globalization;
@@ -171,6 +172,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         Channel.CreateUnbounded<PresentationInputEvent>(
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
     private ITimer? _escapeFlushTimer;
+    private int _escapeFlushGeneration;
     
     // Scrollback buffer (opt-in via WithScrollback)
     private readonly ScrollbackBuffer? _scrollbackBuffer;
@@ -621,29 +623,54 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        Exception? runFailure = null;
+        var exitCode = 0;
         try
         {
-            return await RunWorkloadAsync(ct);
+            exitCode = await RunWorkloadAsync(ct);
         }
-        finally
+        catch (Exception ex)
         {
-            // Stop pumps (via dispose cancellation token)
-            _disposeCts.Cancel();
+            runFailure = ex;
+        }
 
-            // Exit raw mode
-            if (_presentation != null)
+        // Stop pumps (via dispose cancellation token)
+        _disposeCts.Cancel();
+
+        Exception? keyboardFailure = null;
+        if (_presentation != null)
+        {
+            try
             {
                 await CompleteAppKeyboardPresentationAsync();
-                try
-                {
-                    await _presentation.ExitRawModeAsync(default);
-                }
-                catch
-                {
-                    // Ignore errors during cleanup
-                }
+            }
+            catch (Exception ex)
+            {
+                keyboardFailure = ex;
+            }
+
+            // Raw mode must be restored even when the keyboard pop could not be written.
+            try
+            {
+                await _presentation.ExitRawModeAsync(default);
+            }
+            catch
+            {
+                // Ignore errors during cleanup
             }
         }
+
+        ThrowCleanupFailures(runFailure, keyboardFailure);
+        return exitCode;
+    }
+
+    // Preserves a single failure's original stack; reports both when cleanup also failed.
+    private static void ThrowCleanupFailures(Exception? primary, Exception? cleanup)
+    {
+        if (primary is not null && cleanup is not null)
+            throw new AggregateException(primary, cleanup);
+        if ((primary ?? cleanup) is { } failure)
+            ExceptionDispatchInfo.Throw(failure);
     }
 
     // Owners that capture the final state can defer pump shutdown until disposal.
@@ -784,15 +811,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         public readonly ReadOnlyMemory<byte> Data;
         public readonly bool IsTimeout;
+        public readonly int Generation;
+        public readonly int QueryEpoch;
 
-        private PresentationInputEvent(ReadOnlyMemory<byte> data, bool isTimeout)
+        private PresentationInputEvent(ReadOnlyMemory<byte> data, bool isTimeout, int generation, int queryEpoch)
         {
             Data = data;
             IsTimeout = isTimeout;
+            Generation = generation;
+            QueryEpoch = queryEpoch;
         }
 
-        public static PresentationInputEvent FromData(ReadOnlyMemory<byte> data) => new(data, false);
-        public static readonly PresentationInputEvent TimeoutSentinel = new(default, true);
+        public static PresentationInputEvent FromData(ReadOnlyMemory<byte> data, int queryEpoch) => new(data, false, 0, queryEpoch);
+        public static PresentationInputEvent Timeout(int generation) => new(default, true, generation, 0);
     }
 
     /// <summary>
@@ -814,7 +845,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     break;
                 }
-                _presentationInputChannel.Writer.TryWrite(PresentationInputEvent.FromData(data));
+                // Stamp on arrival: delayed processing must not make a report predating
+                // the keyboard query look like its reply.
+                _presentationInputChannel.Writer.TryWrite(PresentationInputEvent.FromData(
+                    data, Volatile.Read(ref _presentedKeyboardQueryEpoch)));
             }
         }
         catch (OperationCanceledException)
@@ -834,13 +868,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     /// <summary>
     /// Timer callback that fires when the escape-sequence timeout expires.
-    /// Writes a <see cref="PresentationInputEvent.TimeoutSentinel"/> into the
-    /// channel so the processing loop can flush the incomplete buffer.
-    /// Zero-alloc: only sets a field on the existing channel entry.
+    /// Writes a generation-tagged timeout event into the channel so the processing
+    /// loop can flush the incomplete buffer armed by that timer.
     /// </summary>
-    private void OnEscapeFlushTimerFired(object? _)
+    private void OnEscapeFlushTimerFired(object? state)
     {
-        _presentationInputChannel.Writer.TryWrite(PresentationInputEvent.TimeoutSentinel);
+        _presentationInputChannel.Writer.TryWrite(PresentationInputEvent.Timeout((int)state!));
     }
 
     private async Task PumpPresentationInputAsync(CancellationToken ct)
@@ -859,11 +892,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     if (_inBracketedPaste)
                         continue;
 
+                    // A timer for an earlier prefix can be queued behind newer input.
+                    if (item.Generation != _escapeFlushGeneration)
+                        continue;
+
                     // Timer fired — flush the incomplete buffer as a bare Escape key
                     // (or whatever partial sequence was pending).  Guard against a
                     // spurious timeout that arrives after data already cleared the buffer.
                     if (_presentationInputParser.NeedsEscapeTimeout)
-                        await DispatchCompleteInputTextAsync("", ct, flush: true);
+                        await DispatchCompleteInputTextAsync("", ct, flush: true, queryEpoch: _pendingInputQueryEpoch);
                     continue;
                 }
 
@@ -871,7 +908,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _metrics.TerminalInputBytes.Record(data.Length);
 
                 // Cancel any pending escape-sequence timeout — real data arrived.
-                _escapeFlushTimer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                _escapeFlushGeneration++;
+                _escapeFlushTimer?.Dispose();
+                _escapeFlushTimer = null;
 
                 // Tokenize input the same way we tokenize output, preserving
                 // incomplete escape sequences across read boundaries. Kitty KGP
@@ -897,7 +936,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     decodedText = new string(chars, 0, charsWritten);
                 }
 
-                await DispatchCompleteInputTextAsync(decodedText, ct);
+                await DispatchCompleteInputTextAsync(decodedText, ct, queryEpoch: item.QueryEpoch);
 
                 // Token buffering belongs to event decoding and filter notifications,
                 // not the raw transport. Forward each original read exactly once;
@@ -909,10 +948,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 // If there is an incomplete escape sequence and the timeout is enabled,
                 // start (or restart) the reusable timer.
-                if (_presentationInputParser.PendingLength > 0 && _escapeTimeout > TimeSpan.Zero)
+                if ((_presentationInputParser.PendingLength > 0 || _presentationInputParser.IsDiscarding) &&
+                    _escapeTimeout > TimeSpan.Zero)
                 {
-                    _escapeFlushTimer ??= _timeProvider.CreateTimer(
-                        OnEscapeFlushTimerFired, null,
+                    // Each arm owns a generation so a stale expiry cannot flush a newer prefix.
+                    _escapeFlushTimer = _timeProvider.CreateTimer(
+                        OnEscapeFlushTimerFired, ++_escapeFlushGeneration,
                         Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
                     _escapeFlushTimer.Change(_escapeTimeout, Timeout.InfiniteTimeSpan);
                 }
@@ -931,15 +972,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <summary>
     /// Tokenizes complete input text, notifies filters, and dispatches app events.
     /// </summary>
-    private async Task DispatchCompleteInputTextAsync(string completeText, CancellationToken ct, bool flush = false)
+    private async Task DispatchCompleteInputTextAsync(string completeText, CancellationToken ct, bool flush = false, int queryEpoch = 0)
     {
         IReadOnlyList<AnsiToken> tokens;
         await _appPresentationLock.WaitAsync(ct);
         try
         {
-            var enhanced = (_workload as Hex1bAppWorkloadAdapter)?.ConfirmedEnhancedInput ??
-                ((InputModes.KittyKeyboardFlags & 31) != 0 || _appHostKeyboardPushed);
+            // A token completed by this read may have started in an older read; use the
+            // oldest stamp so a split pre-query report cannot borrow the newer epoch.
+            if (_presentationInputParser.PendingLength > 0 || _presentationInputParser.IsDiscarding)
+                queryEpoch = Math.Min(queryEpoch, _pendingInputQueryEpoch);
+            var enhanced = IsEnhancedInputActive(_workload);
             tokens = _presentationInputParser.Parse(completeText, enhanced, flush);
+            _pendingInputQueryEpoch = queryEpoch;
         }
         finally
         {
@@ -958,7 +1003,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         if (_workloadInputMode == Hex1bTerminalInputMode.ParsedEvents)
         {
-            await DispatchTokensAsEventsAsync(tokens, _workload, ct);
+            await DispatchTokensAsEventsAsync(tokens, _workload, queryEpoch, ct);
         }
     }
     
@@ -967,12 +1012,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Handles bracketed paste accumulation: detects ESC[200~ (start) and ESC[201~ (end)
     /// markers, streaming paste data through a PasteContext instead of individual key events.
     /// </summary>
-    private async Task DispatchTokensAsEventsAsync(IReadOnlyList<AnsiToken> tokens, IHex1bTerminalWorkloadAdapter workload, CancellationToken ct)
+    private async Task DispatchTokensAsEventsAsync(IReadOnlyList<AnsiToken> tokens, IHex1bTerminalWorkloadAdapter workload, int queryEpoch, CancellationToken ct)
     {
         foreach (var token in tokens)
         {
             ct.ThrowIfCancellationRequested();
-            if (workload is Hex1bAppWorkloadAdapter appAdapter && appAdapter.ObserveKeyboardReport(token))
+            if (workload is Hex1bAppWorkloadAdapter appAdapter && appAdapter.ObserveKeyboardReport(token, queryEpoch))
                 continue;
             
             // Check for bracketed paste start/end markers
@@ -1015,8 +1060,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Non-text tokens during paste (mouse, special keys) fall through to normal dispatch
             }
             
-            var enhanced = (workload as Hex1bAppWorkloadAdapter)?.ConfirmedEnhancedInput ??
-                ((InputModes.KittyKeyboardFlags & 31) != 0 || _appHostKeyboardPushed);
+            var enhanced = IsEnhancedInputActive(workload);
             var evt = InputTokenToEvent(token, enhanced);
             if (evt != null)
             {
@@ -1060,6 +1104,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Converts an ANSI token to a Hex1b input event.
     /// Returns null if the token doesn't represent a user input event.
     /// </summary>
+    // An app's requested/pushed host mode is not the source's effective mode: keep
+    // legacy decoding until the host reports flags. Other workloads drive this
+    // terminal's mode directly, so their requested flags remain authoritative.
+    private bool IsEnhancedInputActive(IHex1bTerminalWorkloadAdapter workload)
+        => workload is Hex1bAppWorkloadAdapter app
+            ? app.ConfirmedEnhancedInput == true
+            : (InputModes.KittyKeyboardFlags & 31) != 0;
+
     internal static Hex1bEvent? InputTokenToEvent(AnsiToken token, bool enhanced)
     {
         if (!enhanced && token is UnrecognizedSequenceToken unrecognized &&
@@ -7035,30 +7087,50 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _ = NotifyWorkloadFiltersSessionEndAsync(elapsed);
         _ = NotifyPresentationFiltersSessionEndAsync(elapsed);
 
+        Exception? keyboardFailure = null;
         if (_presentation != null)
         {
-            CompleteAppKeyboardPresentationAsync().AsTask().GetAwaiter().GetResult();
-            // Write mouse disable sequences and screen restore DIRECTLY to presentation
-            // This ensures they're written before raw mode is exited, avoiding race conditions
-            var exitSequences = Input.MouseParser.DisableMouseTracking + 
-                "\x1b[?2004l" + // Disable bracketed paste mode
-                "\x1b[?25h" +   // Show cursor
-                "\x1b[?1049l";  // Exit alternate screen
-            _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default).AsTask().GetAwaiter().GetResult();
-            _presentation.FlushAsync().AsTask().GetAwaiter().GetResult();
-            
-            _presentation.ExitRawModeAsync().AsTask().GetAwaiter().GetResult();
-            _presentation.Resized -= OnPresentationResized;
-            _presentation.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            try
+            {
+                CompleteAppKeyboardPresentationAsync().AsTask().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                keyboardFailure = ex;
+            }
         }
 
-        _workload.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        try
+        {
+            if (_presentation != null)
+            {
+                // Write mouse disable sequences and screen restore DIRECTLY to presentation
+                // This ensures they're written before raw mode is exited, avoiding race conditions
+                var exitSequences = Input.MouseParser.DisableMouseTracking +
+                    "\x1b[?2004l" + // Disable bracketed paste mode
+                    "\x1b[?25h" +   // Show cursor
+                    "\x1b[?1049l";  // Exit alternate screen
+                _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default).AsTask().GetAwaiter().GetResult();
+                _presentation.FlushAsync().AsTask().GetAwaiter().GetResult();
 
-        _escapeFlushTimer?.Dispose();
-        _kgpAnimationTimer?.Dispose();
+                _presentation.ExitRawModeAsync().AsTask().GetAwaiter().GetResult();
+                _presentation.Resized -= OnPresentationResized;
+                _presentation.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
 
-        _disposeCts.Cancel();
-        _disposeCts.Dispose();
+            _workload.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+            _escapeFlushTimer?.Dispose();
+            _kgpAnimationTimer?.Dispose();
+
+            _disposeCts.Cancel();
+            _disposeCts.Dispose();
+        }
+        catch (Exception ex) when (keyboardFailure is not null)
+        {
+            throw new AggregateException(keyboardFailure, ex);
+        }
+        ThrowCleanupFailures(null, keyboardFailure);
     }
 
     /// <inheritdoc />
@@ -7080,33 +7152,53 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         await NotifyWorkloadFiltersSessionEndAsync(elapsed);
         await NotifyPresentationFiltersSessionEndAsync(elapsed);
 
+        Exception? keyboardFailure = null;
         if (_presentation != null)
         {
-            await CompleteAppKeyboardPresentationAsync();
-            // Write mouse disable sequences and screen restore DIRECTLY to presentation
-            // This ensures they're written before raw mode is exited, avoiding race conditions
-            // where mouse events could leak to the shell after app exit
-            var exitSequences = Input.MouseParser.DisableMouseTracking + 
-                "\x1b[?2004l" + // Disable bracketed paste mode
-                "\x1b[0m" +     // Reset text attributes (prevents inverted text from leaking)
-                "\x1b[?25h" +   // Show cursor
-                "\x1b[?1049l";  // Exit alternate screen
-            await _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default);
-            await _presentation.FlushAsync();
-            
-            // Exit raw mode before disposing
-            await _presentation.ExitRawModeAsync();
-            _presentation.Resized -= OnPresentationResized;
-            await _presentation.DisposeAsync();
+            try
+            {
+                await CompleteAppKeyboardPresentationAsync();
+            }
+            catch (Exception ex)
+            {
+                keyboardFailure = ex;
+            }
         }
 
-        await _workload.DisposeAsync();
+        try
+        {
+            if (_presentation != null)
+            {
+                // Write mouse disable sequences and screen restore DIRECTLY to presentation
+                // This ensures they're written before raw mode is exited, avoiding race conditions
+                // where mouse events could leak to the shell after app exit
+                var exitSequences = Input.MouseParser.DisableMouseTracking +
+                    "\x1b[?2004l" + // Disable bracketed paste mode
+                    "\x1b[0m" +     // Reset text attributes (prevents inverted text from leaking)
+                    "\x1b[?25h" +   // Show cursor
+                    "\x1b[?1049l";  // Exit alternate screen
+                await _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default);
+                await _presentation.FlushAsync();
 
-        _escapeFlushTimer?.Dispose();
-        _kgpAnimationTimer?.Dispose();
+                // Exit raw mode before disposing
+                await _presentation.ExitRawModeAsync();
+                _presentation.Resized -= OnPresentationResized;
+                await _presentation.DisposeAsync();
+            }
 
-        _disposeCts.Cancel();
-        _disposeCts.Dispose();
+            await _workload.DisposeAsync();
+
+            _escapeFlushTimer?.Dispose();
+            _kgpAnimationTimer?.Dispose();
+
+            _disposeCts.Cancel();
+            _disposeCts.Dispose();
+        }
+        catch (Exception ex) when (keyboardFailure is not null)
+        {
+            throw new AggregateException(keyboardFailure, ex);
+        }
+        ThrowCleanupFailures(null, keyboardFailure);
     }
 
     private bool TryBeginDisposalAndResetScreenOwnedState()

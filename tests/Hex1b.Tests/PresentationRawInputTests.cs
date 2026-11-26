@@ -614,7 +614,7 @@ public partial class PresentationRawInputTests
     [DataRow("E7958C", "界")]
     [DataRow("C328", "\ufffd(")]
     [DataRow("C280", "")]
-    [DataRow("C29F", "")]
+    [DataRow("C285", "")]
     public async Task WriteInputAsync_AppFallback_BuffersIncompleteScalars(string hex, string expected)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -683,9 +683,15 @@ public partial class PresentationRawInputTests
         public event Action<int, int>? Resized { add { } remove { } }
         public event Action? Disconnected { add { } remove { } }
         public void Enqueue(byte[] bytes) => Assert.IsTrue(_input.Writer.TryWrite(bytes));
+        public TaskCompletionSource QueryDelivered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public async ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
             => await _input.Reader.ReadAsync(ct);
-        public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+        {
+            if (Encoding.UTF8.GetString(data.Span).Contains("\x1b[?u", StringComparison.Ordinal))
+                QueryDelivered.TrySetResult();
+            return ValueTask.CompletedTask;
+        }
         public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
         public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
         public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;

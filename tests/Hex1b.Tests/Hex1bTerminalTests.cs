@@ -714,6 +714,35 @@ public class Hex1bTerminalTests
         Assert.IsFalse(workload.InputEvents.TryRead(out _));
     }
 
+    // A timeout armed for an earlier prefix may be queued behind newer input; it must not
+    // flush the newer prefix before that prefix's own timeout.
+    [TestMethod]
+    public async Task PresentationInput_StaleQueuedTimeout_DoesNotFlushNewerPrefix()
+    {
+        var clock = new EscapeTimeProvider();
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            TimeProvider = clock
+        });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+
+        presentation.EnqueueInput("\x1b");
+        var first = await clock.Armed.Reader.ReadAsync(ct);
+        presentation.EnqueueInput("[97");
+        await clock.Armed.Reader.ReadAsync(ct);
+        first.Fire();
+        presentation.EnqueueInput("u");
+
+        Assert.AreEqual(Hex1bKey.A, TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Key);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
     [TestMethod]
     [DataRow("")]
     [DataRow("a\x1b\rb")]

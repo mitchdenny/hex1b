@@ -79,6 +79,110 @@ public class KittyAppNegotiationTests
         }
     }
 
+    // The Kitty reply has no request ID. A report already read before the push/query was
+    // handed to the presentation (here held by a filter until after EnterTuiMode) cannot
+    // answer it, so held legacy keys must stay legacy rather than gaining live ownership.
+    [TestMethod]
+    public async Task PresentationInput_ReportReadBeforeQueryDelivery_CannotConfirmLaterEpoch()
+    {
+        await using var presentation = new KeyboardHost(supported: true) { ReportedFlags = null };
+        using var workload = new Hex1bAppWorkloadAdapter(presentation);
+        bool? reportsReleases = null;
+        workload.SetInputSourceReportingHandler(value => reportsReleases = value);
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var filter = new PassThroughFilter
+        {
+            InputGate = gate.Task,
+            GateOn = t => t is UnrecognizedSequenceToken { Sequence: "\x1b[?31u" }
+        };
+        var options = new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        };
+        options.PresentationFilters.Add(filter);
+        await using var terminal = new Hex1bTerminal(options);
+        try
+        {
+            presentation.EnqueueInput("\x1b[?31ua"u8.ToArray());
+            await filter.InputSeen.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            workload.EnterTuiMode();
+            await presentation.Pushed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            gate.TrySetResult();
+            Assert.AreEqual(Hex1bKey.A, TestSeq.IsType<Hex1bKeyEvent>(
+                await workload.InputEvents.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5))).Key);
+            presentation.EnqueueInput("\x1b[1;5Rz"u8.ToArray());
+            var f3 = TestSeq.IsType<Hex1bKeyEvent>(
+                await workload.InputEvents.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.AreEqual(Hex1bKey.F3, f3.Key);
+            Assert.AreEqual(Hex1bModifiers.Control, f3.Modifiers);
+            Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(
+                await workload.InputEvents.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5))).Text);
+            Assert.IsNull(workload.ConfirmedEnhancedInput);
+            Assert.IsNull(reportsReleases);
+
+            // A report read after delivery is accepted (and is indistinguishable from a stale one).
+            presentation.EnqueueInput("\x1b[?31u\x1b[1;5Rz"u8.ToArray());
+            Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(
+                await workload.InputEvents.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5))).Text);
+            Assert.AreEqual(true, workload.ConfirmedEnhancedInput);
+            Assert.AreEqual(true, reportsReleases);
+        }
+        finally
+        {
+            gate.TrySetResult();
+        }
+    }
+
+    [TestMethod]
+    public async Task RunAsync_PopWriteFailure_StillRestoresRawModeAndSurfacesError()
+    {
+        await using var presentation = new KeyboardHost(supported: true) { FailPop = true };
+        using var workload = new Hex1bAppWorkloadAdapter(presentation);
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload,
+            RunCallback = async ct =>
+            {
+                workload.EnterTuiMode();
+                await presentation.Pushed.Task.WaitAsync(ct);
+                return 0;
+            }
+        });
+        var error = await Assert.ThrowsExactlyAsync<IOException>(
+            () => terminal.RunAsync().WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.AreEqual("pop write rejected", error.Message);
+        Assert.IsTrue(presentation.Trace.IndexOf("pop-failed") < presentation.Trace.IndexOf("raw-exit"));
+        await terminal.DisposeAsync();
+        Assert.AreEqual(1, presentation.Trace.Count(t => t == "pop-failed"), "The pop is attempted once.");
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Dispose_PopWriteFailure_StillCompletesCleanupAndSurfacesError(bool synchronous)
+    {
+        await using var presentation = new KeyboardHost(supported: true) { FailPop = true };
+        var workload = new Hex1bAppWorkloadAdapter(presentation);
+        var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload
+        });
+        workload.EnterTuiMode();
+        await presentation.Pushed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var error = synchronous
+            ? Assert.ThrowsExactly<IOException>(terminal.Dispose)
+            : await Assert.ThrowsExactlyAsync<IOException>(async () => await terminal.DisposeAsync());
+        Assert.AreEqual("pop write rejected", error.Message);
+        var failed = presentation.Trace.IndexOf("pop-failed");
+        Assert.IsTrue(failed >= 0 && failed < presentation.Trace.IndexOf("alt-exit"),
+            "Exit sequences are still written after the failed pop.");
+        Assert.IsTrue(presentation.Trace.IndexOf("alt-exit") < presentation.Trace.IndexOf("raw-exit"));
+        Assert.IsTrue(workload.IsDisposed);
+        await terminal.DisposeAsync();
+        Assert.AreEqual(1, presentation.Trace.Count(t => t == "pop-failed"));
+    }
+
     [TestMethod]
     [DataRow(Hex1bKey.A, 97, "a")]
     [DataRow(Hex1bKey.Enter, 13, "\r")]
@@ -191,7 +295,7 @@ public class KittyAppNegotiationTests
             .WaitUntil(_ => terminal.InputModes.KittyKeyboardFlags == 31, TimeSpan.FromSeconds(5), "keyboard query processed")
             .Build().ApplyAsync(terminal);
         presentation.EnqueueInput("\x1b[1;5Rz"u8.ToArray());
-        if (flags is { } reportedFlags && (reportedFlags & 31) == 0)
+        if (flags is not { } reportedFlags || (reportedFlags & 31) == 0)
             Assert.AreEqual(Hex1bKey.F3, TestSeq.IsType<Hex1bKeyEvent>(
                 await workload.InputEvents.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5))).Key);
         Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(
@@ -396,6 +500,7 @@ public class KittyAppNegotiationTests
         public TaskCompletionSource Ready { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool DelayStartup { get; init; }
         public bool FailPush { get; init; }
+        public bool FailPop { get; init; }
         public bool AdvertiseSupport { get; set; } = true;
         public int? ReportedFlags { get; init; } = 31;
         private readonly Channel<ReadOnlyMemory<byte>> _input = Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
@@ -433,6 +538,11 @@ public class KittyAppNegotiationTests
             var text = Encoding.UTF8.GetString(data.Span);
             if (FailPush && text.Contains("\x1b[>31u", StringComparison.Ordinal))
                 throw new IOException("push write rejected");
+            if (FailPop && text.Contains("\x1b[<u", StringComparison.Ordinal))
+            {
+                Trace.Add("pop-failed");
+                throw new IOException("pop write rejected");
+            }
             foreach (var token in AnsiTokenizer.Tokenize(text))
             {
                 Host.ApplyTokens([token]);
@@ -471,6 +581,7 @@ public class KittyAppNegotiationTests
     private sealed class PassThroughFilter : IHex1bTerminalPresentationFilter
     {
         public Task? InputGate { get; init; }
+        public Func<AnsiToken, bool> GateOn { get; init; } = t => t is TextToken { Text: "a" };
         public TaskCompletionSource InputSeen { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public ValueTask<IReadOnlyList<AnsiToken>> OnOutputAsync(
             IReadOnlyList<AppliedToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
@@ -479,7 +590,7 @@ public class KittyAppNegotiationTests
             => ValueTask.CompletedTask;
         public async ValueTask OnInputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
         {
-            if (InputGate is not null && tokens.Any(t => t is TextToken { Text: "a" }))
+            if (InputGate is not null && tokens.Any(GateOn))
             {
                 InputSeen.TrySetResult();
                 await InputGate.WaitAsync(ct);
