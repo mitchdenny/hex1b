@@ -486,6 +486,72 @@ public class KittyKeyboardCodecTests
     }
 
     [TestMethod]
+    [DataRow(Hex1bKey.D0, 48, "0", "0", "\x1b" + "0")]
+    [DataRow(Hex1bKey.D1, 49, "1", "1", "\x1b" + "1")]
+    [DataRow(Hex1bKey.D2, 50, "2", "\0", "\x1b\0")]
+    [DataRow(Hex1bKey.D3, 51, "3", "\x1b", "\x1b\x1b")]
+    [DataRow(Hex1bKey.D4, 52, "4", "\u001c", "\x1b\u001c")]
+    [DataRow(Hex1bKey.D5, 53, "5", "\u001d", "\x1b\u001d")]
+    [DataRow(Hex1bKey.D6, 54, "6", "\u001e", "\x1b\u001e")]
+    [DataRow(Hex1bKey.D7, 55, "7", "\u001f", "\x1b\u001f")]
+    [DataRow(Hex1bKey.D8, 56, "8", "\x7f", "\x1b\x7f")]
+    [DataRow(Hex1bKey.D9, 57, "9", "9", "\x1b" + "9")]
+    [DataRow(Hex1bKey.OemQuestion, 47, "/", "\u001f", "\x1b\u001f")]
+    [DataRow(Hex1bKey.None, 63, "?", "\x7f", "\x1b\x7f")]
+    [DataRow(Hex1bKey.None, 64, "@", "\0", "\x1b\0")]
+    [DataRow(Hex1bKey.Oem4, 91, "[", "\x1b", "\x1b\x1b")]
+    [DataRow(Hex1bKey.Oem5, 92, "\\", "\u001c", "\x1b\u001c")]
+    [DataRow(Hex1bKey.Oem6, 93, "]", "\u001d", "\x1b\u001d")]
+    [DataRow(Hex1bKey.None, 94, "^", "\u001e", "\x1b\u001e")]
+    [DataRow(Hex1bKey.None, 95, "_", "\u001f", "\x1b\u001f")]
+    [DataRow(Hex1bKey.None, 126, "~", "\u001e", "\x1b\u001e")]
+    [DataRow(Hex1bKey.Spacebar, 32, " ", "\0", "\x1b\0")]
+    [DataRow(Hex1bKey.A, 97, "a", "\x01", "\x1b\x01")]
+    [DataRow(Hex1bKey.Z, 122, "z", "\u001a", "\x1b\u001a")]
+    [DataRow(Hex1bKey.Oem1, 59, ";", ";", "\x1b;")]
+    [DataRow(Hex1bKey.OemTilde, 96, "`", "`", "\x1b`")]
+    [DataRow(Hex1bKey.None, 50, "", "\0", "\x1b\0")]
+    [DataRow(Hex1bKey.None, 47, "\u001f", "\u001f", "\x1b\u001f")]
+    public void Encode_EnhancedLegacyCtrlMapping_UsesSpecBytesForPressAndRepeat(
+        Hex1bKey key, int code, string text, string expectedControl, string expectedAltControl)
+    {
+        foreach (var flags in new[] { 2, 4, 16, 6, 18, 20, 22, 66, 100 })
+        foreach (var kind in new[] { Hex1bKeyEventType.Press, Hex1bKeyEventType.Repeat })
+        {
+            var input = new Hex1bKeyEvent(key, text, Hex1bModifiers.Control)
+            {
+                UnicodeKeyCode = code,
+                EventType = kind,
+            };
+            Assert.AreEqual(expectedControl, TerminalInputEncoder.EncodeKey(input, Modes(flags)),
+                $"Ctrl, flags {flags}, {kind}");
+            Assert.AreEqual(expectedAltControl, TerminalInputEncoder.EncodeKey(
+                input with { Modifiers = Hex1bModifiers.Control | Hex1bModifiers.Alt }, Modes(flags)),
+                $"Ctrl+Alt, flags {flags}, {kind}");
+        }
+    }
+
+    [TestMethod]
+    [DataRow(0, Hex1bModifiers.Control, Hex1bKeyEventType.Press, "2")]
+    [DataRow(32, Hex1bModifiers.Control, Hex1bKeyEventType.Press, "2")]
+    [DataRow(64, Hex1bModifiers.Control, Hex1bKeyEventType.Repeat, "2")]
+    [DataRow(96, Hex1bModifiers.Control | Hex1bModifiers.Alt, Hex1bKeyEventType.Press, "\x1b" + "2")]
+    [DataRow(2, Hex1bModifiers.Control | Hex1bModifiers.CapsLock | Hex1bModifiers.NumLock, Hex1bKeyEventType.Press, "\0")]
+    [DataRow(4, Hex1bModifiers.Control | Hex1bModifiers.Alt | Hex1bModifiers.CapsLock, Hex1bKeyEventType.Repeat, "\x1b\0")]
+    [DataRow(16, Hex1bModifiers.Control | Hex1bModifiers.Shift, Hex1bKeyEventType.Press, "\x1b[50;6u")]
+    [DataRow(6, Hex1bModifiers.Control | Hex1bModifiers.Shift, Hex1bKeyEventType.Repeat, "\x1b[50;6:2u")]
+    [DataRow(2, Hex1bModifiers.Control, Hex1bKeyEventType.Release, "\x1b[50;5:3u")]
+    [DataRow(4, Hex1bModifiers.Control, Hex1bKeyEventType.Release, "")]
+    [DataRow(1, Hex1bModifiers.Control, Hex1bKeyEventType.Press, "\x1b[50;5u")]
+    [DataRow(8, Hex1bModifiers.Control, Hex1bKeyEventType.Press, "\x1b[50;5u")]
+    public void Encode_EnhancedLegacyCtrlMapping_RespectsFlagsModifiersAndEventKind(
+        int flags, Hex1bModifiers modifiers, Hex1bKeyEventType kind, string expected)
+    {
+        var input = new Hex1bKeyEvent(Hex1bKey.D2, "2", modifiers) { EventType = kind };
+        Assert.AreEqual(expected, TerminalInputEncoder.EncodeKey(input, Modes(flags)));
+    }
+
+    [TestMethod]
     [DataRow(Hex1bKey.UpArrow, "\x1b[A")]
     [DataRow(Hex1bKey.F3, "\x1b[13~")]
     [DataRow(Hex1bKey.Enter, "\x1b[13u")]

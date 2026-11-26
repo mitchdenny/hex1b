@@ -66,7 +66,7 @@ internal static class KittyKeyboardEncoder
         var unavailableText = false;
         if (!escape)
         {
-            var legacy = TerminalInputEncoder.EncodeLegacyKey(legacyInput, modes);
+            var legacy = EncodeEnhancedLegacyKey(legacyInput, wireCode, modes);
             // Keep known keys whose text is unavailable as key events rather than inventing layout text.
             if (legacy.Length > 0 || wireCode == 0)
                 return legacy;
@@ -104,13 +104,36 @@ internal static class KittyKeyboardEncoder
             keyField = "";
         if (!unavailableText && !all && !disambiguate && !release && modifierField.Length == 0 && eventField.Length == 0)
         {
-            var legacy = TerminalInputEncoder.EncodeLegacyKey(legacyInput, modes);
+            var legacy = EncodeEnhancedLegacyKey(legacyInput, wireCode, modes);
             if (legacy.Length > 0)
                 return legacy;
         }
         var suffix = textCodes.Count > 0 ? ";" + string.Join(':', textCodes) : "";
         return "\x1b[" + keyField +
             (modifierField.Length > 0 || suffix.Length > 0 ? ";" + modifierField : "") + suffix + final;
+    }
+
+    private static string EncodeEnhancedLegacyKey(Hex1bKeyEvent input, int code, TerminalInputModes modes)
+    {
+        // Opted-in Kitty modes use the specification's Ctrl table, not the flags-zero automation profile.
+        if (input.Control && !input.Shift)
+        {
+            var control = code switch
+            {
+                ' ' or '2' or '@' => 0,
+                '3' or '[' => 27,
+                '4' or '\\' => 28,
+                '5' or ']' => 29,
+                '6' or '^' or '~' => 30,
+                '7' or '/' or '_' => 31,
+                '8' or '?' => 127,
+                >= 'a' and <= 'z' => code - 'a' + 1,
+                _ => -1,
+            };
+            if (control >= 0)
+                return (input.Alt ? "\x1b" : "") + (char)control;
+        }
+        return TerminalInputEncoder.EncodeLegacyKey(input, modes);
     }
 
     private static void ValidateCode(int code)
