@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.Channels;
 using Hex1b.Input;
+using Hex1b.Tokens;
 using Hex1b.Widgets;
 using Microsoft.Extensions.Time.Testing;
 
@@ -245,6 +246,7 @@ public class Hex1bTerminalTests
     private sealed class RecordingDisposePresentationAdapter : IHex1bTerminalPresentationAdapter
     {
         public bool DisposeAsyncCalled { get; private set; }
+        public StringBuilder Output { get; } = new();
 
         public int Width => 80;
         public int Height => 24;
@@ -267,7 +269,11 @@ public class Hex1bTerminalTests
             remove { }
         }
 
-        public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+        {
+            Output.Append(Encoding.UTF8.GetString(data.Span));
+            return ValueTask.CompletedTask;
+        }
         public ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default) => ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
         public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
         public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
@@ -456,6 +462,39 @@ public class Hex1bTerminalTests
 
         Assert.IsTrue(presentation.DisposeAsyncCalled);
         Assert.IsTrue(workload.DisposeAsyncCalled);
+    }
+
+    [TestMethod]
+    [DataRow(false, false, false)]
+    [DataRow(false, false, true)]
+    [DataRow(true, false, false)]
+    [DataRow(true, false, true)]
+    [DataRow(true, true, false)]
+    [DataRow(true, true, true)]
+    public async Task Dispose_AlternateScreenState_OnlyRestoresActiveBuffer(
+        bool enterAlternate, bool exitBeforeDisposal, bool syncDispose)
+    {
+        var presentation = new RecordingDisposePresentationAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = new RecordingDisposeWorkloadAdapter(),
+            DeferStart = true
+        });
+        if (enterAlternate)
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049h"));
+        if (exitBeforeDisposal)
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049l"));
+
+        if (syncDispose)
+            terminal.Dispose();
+        else
+            await terminal.DisposeAsync();
+
+        Assert.AreEqual(enterAlternate && !exitBeforeDisposal,
+            presentation.Output.ToString().Contains("\x1b[?1049l", StringComparison.Ordinal),
+            "Only an active alternate buffer should trigger a host cursor restore during disposal.");
+        Assert.IsFalse(terminal.InAlternateScreen);
     }
 
     [TestMethod]

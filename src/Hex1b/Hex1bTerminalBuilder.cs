@@ -1069,6 +1069,7 @@ public sealed class Hex1bTerminalBuilder
             Func<CancellationToken, Task<int>> runCallback = async ct =>
             {
                 await runner.RunAsync(ct);
+                workloadAdapter.CompleteOutput();
                 return 0;
             };
 

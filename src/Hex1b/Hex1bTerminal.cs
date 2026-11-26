@@ -707,9 +707,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         var exitCode = await runTask;
 
-        // Process exit drains stdout/stderr into the adapter's channel, not into
-        // the terminal. Finish applying and presenting those bytes before shutdown.
-        if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess or Hmp1WorkloadAdapter &&
+        // Completion queues final output; finish applying and presenting it
+        // before shutdown cancels the output pump.
+        if ((_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess or Hmp1WorkloadAdapter ||
+             _workload is Hex1bAppWorkloadAdapter { OutputCompletionRequested: true }) &&
             _outputProcessingTask is not null)
             await _outputProcessingTask.WaitAsync(ct);
 
@@ -1384,7 +1385,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Process reads return empty only at EOF (or cancellation).
                     // Other workloads can return empty between frames and must keep pumping.
                     if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess ||
-                        _workload is Hmp1WorkloadAdapter { OutputCompleted: true })
+                        _workload is Hmp1WorkloadAdapter { OutputCompleted: true } ||
+                        _workload is Hex1bAppWorkloadAdapter { OutputCompleted: true })
                     {
                         if (_workload is Hex1bTerminalChildProcess { HasExited: false } child)
                             await child.WaitForExitAsync(ct);
@@ -6993,7 +6995,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        if (!TryBeginDisposalAndResetScreenOwnedState())
+        if (!TryBeginDisposalAndResetScreenOwnedState(out var exitAlternateScreen))
             return;
 
         // Complete any active paste context
@@ -7016,7 +7018,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             var exitSequences = Input.MouseParser.DisableMouseTracking + 
                 "\x1b[?2004l" + // Disable bracketed paste mode
                 "\x1b[?25h" +   // Show cursor
-                "\x1b[?1049l";  // Exit alternate screen
+                (exitAlternateScreen ? "\x1b[?1049l" : "");
             _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default).AsTask().GetAwaiter().GetResult();
             _presentation.FlushAsync().AsTask().GetAwaiter().GetResult();
             
@@ -7037,7 +7039,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (!TryBeginDisposalAndResetScreenOwnedState())
+        if (!TryBeginDisposalAndResetScreenOwnedState(out var exitAlternateScreen))
             return;
 
         // Complete any active paste context
@@ -7062,7 +7064,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 "\x1b[?2004l" + // Disable bracketed paste mode
                 "\x1b[0m" +     // Reset text attributes (prevents inverted text from leaking)
                 "\x1b[?25h" +   // Show cursor
-                "\x1b[?1049l";  // Exit alternate screen
+                (exitAlternateScreen ? "\x1b[?1049l" : "");
             await _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default);
             await _presentation.FlushAsync();
             
@@ -7081,10 +7083,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _disposeCts.Dispose();
     }
 
-    private bool TryBeginDisposalAndResetScreenOwnedState()
+    private bool TryBeginDisposalAndResetScreenOwnedState(out bool exitAlternateScreen)
     {
         lock (_bufferLock)
         {
+            // DECRST 1049 restores the host cursor even when already in the
+            // normal buffer; only emit it for an outstanding alternate screen.
+            exitAlternateScreen = _inAlternateScreen;
             if (_disposed)
                 return false;
 

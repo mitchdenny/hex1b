@@ -771,6 +771,7 @@ internal sealed class Hex1bFlowRunner
             var completedBuilder = step.CompletedBuilder;
             if (completedBuilder != null)
             {
+                terminalWidth = _parentAdapter.Width;
                 if (_options.UseSoftWrapTombstones)
                 {
                     var surface = RenderToSurface(completedBuilder, terminalWidth, desiredHeight);

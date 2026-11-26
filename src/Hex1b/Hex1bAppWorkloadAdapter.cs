@@ -397,6 +397,15 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         // Channel-based, no buffering needed
     }
 
+    internal bool OutputCompletionRequested { get; private set; }
+    internal bool OutputCompleted => _outputChannel.Reader.Completion.IsCompleted;
+
+    internal void CompleteOutput()
+    {
+        OutputCompletionRequested = true;
+        _outputChannel.Writer.TryComplete();
+    }
+
     /// <summary>
     /// Channel of parsed input events from the terminal.
     /// </summary>
