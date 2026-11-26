@@ -147,6 +147,55 @@ public class KittyKeyboardCodecTests
     }
 
     [TestMethod]
+    [DataRow(57417, false, "\x1b[D", "\x1b[1;1:2D", "\x1b[1;1:3D")]
+    [DataRow(57417, true, "\x1bOD", "\x1b[1;1:2D", "\x1b[1;1:3D")]
+    [DataRow(57418, false, "\x1b[C", "\x1b[1;1:2C", "\x1b[1;1:3C")]
+    [DataRow(57419, true, "\x1bOA", "\x1b[1;1:2A", "\x1b[1;1:3A")]
+    [DataRow(57420, false, "\x1b[B", "\x1b[1;1:2B", "\x1b[1;1:3B")]
+    [DataRow(57421, false, "\x1b[5~", "\x1b[5;1:2~", "\x1b[5;1:3~")]
+    [DataRow(57421, true, "\x1b[5~", "\x1b[5;1:2~", "\x1b[5;1:3~")]
+    [DataRow(57422, false, "\x1b[6~", "\x1b[6;1:2~", "\x1b[6;1:3~")]
+    [DataRow(57423, true, "\x1bOH", "\x1b[1;1:2H", "\x1b[1;1:3H")]
+    [DataRow(57424, false, "\x1b[F", "\x1b[1;1:2F", "\x1b[1;1:3F")]
+    [DataRow(57425, false, "\x1b[2~", "\x1b[2;1:2~", "\x1b[2;1:3~")]
+    [DataRow(57426, false, "\x1b[3~", "\x1b[3;1:2~", "\x1b[3;1:3~")]
+    [DataRow(57427, false, "\x1b[E", "\x1b[1;1:2E", "\x1b[1;1:3E")]
+    [DataRow(57414, false, "\r", "\r", "")]
+    [DataRow(57414, true, "\r", "\r", "")]
+    public void Encode_RawKeypadWithEventFlag_ReportsEquivalentForEachEvent(
+        int code, bool cursorMode, string press, string repeat, string release)
+    {
+        var input = new Hex1bKeyEvent(Hex1bKey.None, "", Hex1bModifiers.None)
+        {
+            UnicodeKeyCode = code,
+        };
+        var modes = Modes(2, cursorMode) with { ApplicationKeypad = true };
+        Assert.AreEqual(press, TerminalInputEncoder.EncodeKey(input, modes));
+        Assert.AreEqual(repeat, TerminalInputEncoder.EncodeKey(
+            input with { EventType = Hex1bKeyEventType.Repeat }, modes));
+        Assert.AreEqual(release, TerminalInputEncoder.EncodeKey(
+            input with { EventType = Hex1bKeyEventType.Release }, modes));
+    }
+
+    [TestMethod]
+    [DataRow(57417, "\x1b[1;5D", "\x1b[1;5:2D", "\x1b[1;5:3D")]
+    [DataRow(57421, "\x1b[5;5~", "\x1b[5;5:2~", "\x1b[5;5:3~")]
+    [DataRow(57414, "\r", "\r", "")]
+    public void Encode_ModifiedRawKeypadWithEventFlag_PreservesEquivalentModifiers(
+        int code, string press, string repeat, string release)
+    {
+        var input = new Hex1bKeyEvent(Hex1bKey.None, "", Hex1bModifiers.Control)
+        {
+            UnicodeKeyCode = code,
+        };
+        Assert.AreEqual(press, TerminalInputEncoder.EncodeKey(input, Modes(2, true)));
+        Assert.AreEqual(repeat, TerminalInputEncoder.EncodeKey(
+            input with { EventType = Hex1bKeyEventType.Repeat }, Modes(2, true)));
+        Assert.AreEqual(release, TerminalInputEncoder.EncodeKey(
+            input with { EventType = Hex1bKeyEventType.Release }, Modes(2, true)));
+    }
+
+    [TestMethod]
     public void Encode_KeypadPressAndRepeatWithEventFlag_KeepLegacyText()
     {
         var press = new Hex1bKeyEvent(Hex1bKey.NumPad1, "1", Hex1bModifiers.None);

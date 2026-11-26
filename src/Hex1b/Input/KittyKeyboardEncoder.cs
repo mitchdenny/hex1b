@@ -45,7 +45,12 @@ internal static class KittyKeyboardEncoder
             modifiers &= ~(Hex1bModifiers.CapsLock | Hex1bModifiers.NumLock);
         var shortcut = (modifiers & ~Hex1bModifiers.Shift) != 0;
         if (keypad && !disambiguate)
-            functional = false;
+            functional = wireKey is >= Hex1bKey.F1 and <= Hex1bKey.Insert || wireCode == 57427;
+        var legacyInput = input with
+        {
+            Key = keypad && !disambiguate ? wireKey : input.Key,
+            Modifiers = modifiers,
+        };
         var escape = all || release || functional ||
             (disambiguate && (code == 27 || shortcut)) ||
             (input.Control && input.Shift) ||
@@ -58,7 +63,7 @@ internal static class KittyKeyboardEncoder
         var unavailableText = false;
         if (!escape)
         {
-            var legacy = TerminalInputEncoder.EncodeLegacyKey(input with { Modifiers = modifiers }, modes);
+            var legacy = TerminalInputEncoder.EncodeLegacyKey(legacyInput, modes);
             // Keep known keys whose text is unavailable as key events rather than inventing layout text.
             if (legacy.Length > 0 || wireCode == 0)
                 return legacy;
@@ -95,7 +100,11 @@ internal static class KittyKeyboardEncoder
         if (final != 'u' && keyField == "1" && modifierField.Length == 0)
             keyField = "";
         if (!unavailableText && !all && !disambiguate && !release && modifierField.Length == 0 && eventField.Length == 0)
-            return TerminalInputEncoder.EncodeLegacyKey(input, modes);
+        {
+            var legacy = TerminalInputEncoder.EncodeLegacyKey(legacyInput, modes);
+            if (legacy.Length > 0)
+                return legacy;
+        }
         var suffix = textCodes.Count > 0 ? ";" + string.Join(':', textCodes) : "";
         return "\x1b[" + keyField +
             (modifierField.Length > 0 || suffix.Length > 0 ? ";" + modifierField : "") + suffix + final;
