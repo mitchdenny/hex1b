@@ -8,7 +8,7 @@ using Hex1b.Tokens;
 namespace Hex1b.Tests;
 
 [TestClass]
-public class PresentationRawInputTests
+public partial class PresentationRawInputTests
 {
     [TestMethod]
     [DataRow("a", false)]

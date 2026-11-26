@@ -161,7 +161,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     // https://github.com/mitchdenny/hex1b/issues/353
     private static readonly bool s_inputDecoderIsBroken = OperatingSystem.IsBrowser();
     private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across workload output reads
-    private string _incompleteInputSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across presentation input reads
+    private readonly InputSequenceParser _presentationInputParser = new();
     
     // Escape-sequence timeout: channel-based architecture for zero-alloc disambiguation.
     // A background reader writes data events, and a reusable timer writes timeout
@@ -579,8 +579,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Enter raw mode on presentation if present (enables proper input capture)
         if (_presentation != null)
         {
-            // Fire and forget - EnterRawModeAsync is typically synchronous for console
-            _ = _presentation.EnterRawModeAsync();
+            _rawModeEntryTask ??= _presentation.EnterRawModeAsync(_disposeCts.Token).AsTask();
         }
 
         // Start pumping presentation input → workload (if presentation exists)
@@ -634,6 +633,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Exit raw mode
             if (_presentation != null)
             {
+                await CompleteAppKeyboardPresentationAsync();
                 try
                 {
                     await _presentation.ExitRawModeAsync(default);
@@ -653,7 +653,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         ct.ThrowIfCancellationRequested();
         using var workloadCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
         if (_presentation != null)
-            await _presentation.EnterRawModeAsync(ct);
+        {
+            _rawModeEntryTask ??= _presentation.EnterRawModeAsync(_disposeCts.Token).AsTask();
+            await _rawModeEntryTask.WaitAsync(ct);
+        }
 
         // Subscribe before starting pumps so an immediately disconnecting adapter is observed.
         var runTask = _runCallback is null
@@ -699,7 +702,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             throw failure;
         }
 
-        var exitCode = await runTask;
+        int exitCode;
+        try
+        {
+            exitCode = await runTask;
+        }
+        finally
+        {
+            if (_workload is Hex1bAppWorkloadAdapter { IsDisposed: true } && _outputProcessingTask is not null)
+                await _outputProcessingTask.WaitAsync(_disposeCts.Token);
+        }
         _workloadCompleted = true;
         if (_presentation is ITerminalLifecycleAwarePresentationAdapter completedAdapter)
             completedAdapter.TerminalCompleted(exitCode);
@@ -850,12 +862,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Timer fired — flush the incomplete buffer as a bare Escape key
                     // (or whatever partial sequence was pending).  Guard against a
                     // spurious timeout that arrives after data already cleared the buffer.
-                    if (_incompleteInputSequenceBuffer.Length > 0)
-                    {
-                        var flushed = _incompleteInputSequenceBuffer;
-                        _incompleteInputSequenceBuffer = "";
-                        await DispatchCompleteInputTextAsync(flushed, ct);
-                    }
+                    if (_presentationInputParser.NeedsEscapeTimeout)
+                        await DispatchCompleteInputTextAsync("", ct, flush: true);
                     continue;
                 }
 
@@ -889,17 +897,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     decodedText = new string(chars, 0, charsWritten);
                 }
 
-                var text = _incompleteInputSequenceBuffer + decodedText;
-                _incompleteInputSequenceBuffer = "";
-
-                var extracted = ExtractIncompleteEscapeSequence(text);
-                var completeText = extracted.completeText;
-                _incompleteInputSequenceBuffer = extracted.incompleteSequence;
-
-                if (!string.IsNullOrEmpty(completeText))
-                {
-                    await DispatchCompleteInputTextAsync(completeText, ct);
-                }
+                await DispatchCompleteInputTextAsync(decodedText, ct);
 
                 // Token buffering belongs to event decoding and filter notifications,
                 // not the raw transport. Forward each original read exactly once;
@@ -911,7 +909,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 // If there is an incomplete escape sequence and the timeout is enabled,
                 // start (or restart) the reusable timer.
-                if (_incompleteInputSequenceBuffer.Length > 0 && _escapeTimeout > TimeSpan.Zero)
+                if (_presentationInputParser.NeedsEscapeTimeout && _escapeTimeout > TimeSpan.Zero)
                 {
                     _escapeFlushTimer ??= _timeProvider.CreateTimer(
                         OnEscapeFlushTimerFired, null,
@@ -933,9 +931,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <summary>
     /// Tokenizes complete input text, notifies filters, and dispatches app events.
     /// </summary>
-    private async Task DispatchCompleteInputTextAsync(string completeText, CancellationToken ct)
+    private async Task DispatchCompleteInputTextAsync(string completeText, CancellationToken ct, bool flush = false)
     {
-        var tokens = AnsiTokenizer.Tokenize(completeText);
+        var tokens = _presentationInputParser.Parse(completeText, (InputModes.KittyKeyboardFlags & 31) != 0, flush);
+        if (tokens.Count == 0)
+            return;
 
         _metrics.TerminalInputTokens.Record(tokens.Count);
 
@@ -1045,7 +1045,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Converts an ANSI token to a Hex1b input event.
     /// Returns null if the token doesn't represent a user input event.
     /// </summary>
-    private static Hex1bEvent? TokenToEvent(AnsiToken token)
+    internal static Hex1bEvent? TokenToEvent(AnsiToken token)
     {
         return token switch
         {
@@ -1083,6 +1083,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             KgpToken => null,
             
             // Unrecognized sequences may contain Alt+key combinations or bare Escape
+            UnrecognizedSequenceToken unrec when KittyKeyboardInput.TryDecode(unrec.Sequence, out var key) => key,
             UnrecognizedSequenceToken unrec => UnrecognizedToKeyEvent(unrec),
             
             // Other tokens don't represent user input
@@ -1140,17 +1141,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (key == Hex1bKey.None)
             return null;
         
-        // Decode modifiers from the modifier code
-        var modifiers = Hex1bModifiers.None;
-        if (token.Modifiers >= 2)
-        {
-            var modifierBits = token.Modifiers - 1;
-            if ((modifierBits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
-            if ((modifierBits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
-            if ((modifierBits & 4) != 0) modifiers |= Hex1bModifiers.Control;
-        }
-        
-        return new Hex1bKeyEvent(key, '\0', modifiers);
+        return new Hex1bKeyEvent(key, '\0', DecodeXtermModifiers(token.Modifiers));
     }
     
     private static Hex1bKeyEvent? ArrowKeyTokenToKeyEvent(ArrowKeyToken token)
@@ -1168,18 +1159,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (key == Hex1bKey.None)
             return null;
         
-        // Decode modifier bits: modifier code - 1 gives the bit pattern
-        // Bit 0 = Shift, Bit 1 = Alt, Bit 2 = Ctrl
-        var modifiers = Hex1bModifiers.None;
-        if (token.Modifiers >= 2)
-        {
-            var modifierBits = token.Modifiers - 1;
-            if ((modifierBits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
-            if ((modifierBits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
-            if ((modifierBits & 4) != 0) modifiers |= Hex1bModifiers.Control;
-        }
-        
-        return new Hex1bKeyEvent(key, '\0', modifiers);
+        return new Hex1bKeyEvent(key, '\0', DecodeXtermModifiers(token.Modifiers));
     }
     
     private static Hex1bKeyEvent? CursorMoveTokenToKeyEvent(CursorMoveToken token)
@@ -1219,6 +1199,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         return token.Character switch
         {
+            '\0' => new Hex1bKeyEvent(Hex1bKey.Spacebar, '\0', Hex1bModifiers.Control),
             '\r' or '\n' => new Hex1bKeyEvent(Hex1bKey.Enter, token.Character, Hex1bModifiers.None),
             '\t' => new Hex1bKeyEvent(Hex1bKey.Tab, token.Character, Hex1bModifiers.None),
             // \b (0x08) and DEL (0x7F) are both treated as Backspace. The \b case also falls
@@ -1242,6 +1223,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             return new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None);
         }
+        if (seq == "\x1b[")
+            return new Hex1bKeyEvent(Hex1bKey.None, '[', Hex1bModifiers.Alt);
         
         // Alt+key combination: ESC followed by a character
         if (seq.Length == 2 && seq[0] == '\x1b')
@@ -1326,12 +1309,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private static Hex1bModifiers DecodeXtermModifiers(int modifierCode)
     {
         if (modifierCode < 2) return Hex1bModifiers.None;
-        var bits = modifierCode - 1;
-        var modifiers = Hex1bModifiers.None;
-        if ((bits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
-        if ((bits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
-        if ((bits & 4) != 0) modifiers |= Hex1bModifiers.Control;
-        return modifiers;
+        return (Hex1bModifiers)((modifierCode - 1) & 0xff);
     }
     
     private async Task PumpWorkloadOutputAsync(CancellationToken ct)
@@ -1396,7 +1374,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Process reads return empty only at EOF (or cancellation).
                     // Other workloads can return empty between frames and must keep pumping.
                     if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess ||
-                        _workload is Hmp1WorkloadAdapter { OutputCompleted: true })
+                        _workload is Hmp1WorkloadAdapter { OutputCompleted: true } ||
+                        _workload is Hex1bAppWorkloadAdapter { IsDisposed: true })
                     {
                         if (_workload is Hex1bTerminalChildProcess { HasExited: false } child)
                             await child.WaitForExitAsync(ct);
@@ -1448,7 +1427,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Native/raw presentations own the original workload bytes. Forward each
                     // read before framing, decoding, filters, raster work, or snapshots.
                     var passthroughStarted = Stopwatch.GetTimestamp();
-                    await _presentation.WriteOutputAsync(data, ct);
+                    await WriteAppPresentationAsync(data, ct);
                     _metrics.TerminalRawPassthroughDuration.Record(
                         Stopwatch.GetElapsedTime(passthroughStarted).TotalMilliseconds);
                     _metrics.TerminalOutputBytes.Record(data.Length);
@@ -1519,7 +1498,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         if (_disposed)
                             continue;
                         var filteredBytes = Tokens.AnsiTokenUtf8Serializer.Serialize(filteredTokens);
-                        await _presentation.WriteOutputAsync(filteredBytes, ct);
+                        await WriteAppPresentationAsync(filteredBytes, ct);
                         _metrics.TerminalOutputBytes.Record(filteredBytes.Length);
                     }
                 }
@@ -7032,6 +7011,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         if (_presentation != null)
         {
+            CompleteAppKeyboardPresentationAsync().AsTask().GetAwaiter().GetResult();
             // Write mouse disable sequences and screen restore DIRECTLY to presentation
             // This ensures they're written before raw mode is exited, avoiding race conditions
             var exitSequences = Input.MouseParser.DisableMouseTracking + 
@@ -7076,6 +7056,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         if (_presentation != null)
         {
+            await CompleteAppKeyboardPresentationAsync();
             // Write mouse disable sequences and screen restore DIRECTLY to presentation
             // This ensures they're written before raw mode is exited, avoiding race conditions
             // where mouse events could leak to the shell after app exit
@@ -7294,7 +7275,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private static bool IsEscapeSequenceIntroducer(char c, bool recognizeC1Dcs)
         => c is '\x1b' or '\x9d' or '\x9f' || recognizeC1Dcs && c == '\x90';
 
-    private static bool TryFindEscapeSequenceEnd(string text, int start, out int endExclusive)
+    internal static bool TryFindEscapeSequenceEnd(string text, int start, out int endExclusive)
     {
         endExclusive = start + 1;
 

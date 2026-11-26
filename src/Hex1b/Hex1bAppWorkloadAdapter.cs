@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Text;
 using System.Threading.Channels;
 using Hex1b.Input;
@@ -26,6 +25,13 @@ namespace Hex1b;
 ///   <item>Terminal calls WriteInputEventAsync() → App reads InputEvents</item>
 /// </list>
 /// </para>
+/// <para>
+/// Raw ingress buffers fragmented UTF-8 and escape sequences. A lone Escape or
+/// Alt+[ is resolved after 50 ms; legacy Alt+[ followed immediately by CSI-like
+/// text remains inherently ambiguous. Malformed or oversized control sequences
+/// are discarded rather than replayed as shortcuts. Bracketed paste contents
+/// are opaque, including protocol-looking text.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -39,13 +45,20 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     private readonly Channel<WorkloadOutputItem> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;
     private readonly SemaphoreSlim _rawInputWriteLock = new(1, 1);
-    private byte[] _pendingRawInput = [];
+    private readonly Decoder _rawInputDecoder = Encoding.UTF8.GetDecoder();
+    private readonly InputSequenceParser _rawInputParser = new();
+    private PasteContext? _rawPaste;
+    private ITimer? _rawInputTimer;
+    private int _rawInputGeneration;
+    internal TimeProvider RawInputTimeProvider { get; set; } = TimeProvider.System;
     private readonly IHex1bTerminalPresentationAdapter? _presentationAdapter;
     private readonly TerminalCapabilities? _staticCapabilities;
     private int _width;
     private int _height;
-    private bool _disposed;
+    private volatile bool _disposed;
+    internal bool IsDisposed => _disposed;
     private bool _inTuiMode;
+    private bool _kittyKeyboardPushed;
     private bool _dimensionsInitialized;
     private int _outputQueueDepth; // Manual tracking since unbounded channels don't support Count
     private readonly int _maxQueuedOutputItems;
@@ -138,7 +151,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         _inputChannel = Channel.CreateUnbounded<Hex1bEvent>(new UnboundedChannelOptions
         {
             SingleReader = true,
-            SingleWriter = true
+            SingleWriter = false
         });
     }
 
@@ -172,7 +185,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         _inputChannel = Channel.CreateUnbounded<Hex1bEvent>(new UnboundedChannelOptions
         {
             SingleReader = true,
-            SingleWriter = true
+            SingleWriter = false
         });
     }
 
@@ -430,8 +443,8 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// </summary>
     public void EnterTuiMode()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (_inTuiMode) return;
-        _inTuiMode = true;
 
         // Standard TUI mode sequences
         var sb = new StringBuilder();
@@ -446,7 +459,12 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         {
             sb.Append("\x1b[?2004h");  // Enable bracketed paste mode
         }
+        var pushKeyboard = Capabilities.SupportsKittyKeyboard;
+        if (pushKeyboard)
+            sb.Append("\x1b[>31u");
         Write(sb.ToString());
+        _kittyKeyboardPushed = pushKeyboard;
+        _inTuiMode = true;
     }
 
     /// <summary>
@@ -455,9 +473,9 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     public void ExitTuiMode()
     {
         if (!_inTuiMode) return;
-        _inTuiMode = false;
-
         var sb = new StringBuilder();
+        if (_kittyKeyboardPushed)
+            sb.Append("\x1b[<u");
         if (Capabilities.SupportsBracketedPaste)
         {
             sb.Append("\x1b[?2004l");  // Disable bracketed paste mode
@@ -471,6 +489,8 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         sb.Append("\x1b[?25h");    // Show cursor
         sb.Append("\x1b[?1049l");  // Exit alternate screen
         Write(sb.ToString());
+        _kittyKeyboardPushed = false;
+        _inTuiMode = false;
     }
 
     /// <summary>
@@ -501,7 +521,6 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     public bool TryReadOutput(out ReadOnlyMemory<byte> data)
     {
         data = ReadOnlyMemory<byte>.Empty;
-        if (_disposed) return false;
         
         if (_outputChannel.Reader.TryRead(out var item))
         {
@@ -515,7 +534,6 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     internal bool TryReadOutputItem(out WorkloadOutputItem item)
     {
         item = default;
-        if (_disposed) return false;
 
         if (_outputChannel.Reader.TryRead(out item))
         {
@@ -536,7 +554,6 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// <inheritdoc />
     public async ValueTask<WorkloadOutputItem> ReadOutputItemAsync(CancellationToken ct = default)
     {
-        if (_disposed) return default;
 
         try
         {
@@ -572,8 +589,18 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         try
         {
             if (_disposed) return;
-            foreach (var evt in DecodeRawInput(data))
-                await _inputChannel.Writer.WriteAsync(evt, ct);
+            _rawInputGeneration++;
+            _rawInputTimer?.Dispose();
+            _rawInputTimer = null;
+            var chars = new char[_rawInputDecoder.GetCharCount(data.Span, flush: false)];
+            var count = _rawInputDecoder.GetChars(data.Span, chars, flush: false);
+            await DispatchRawTokensAsync(_rawInputParser.Parse(new string(chars, 0, count), _kittyKeyboardPushed), ct);
+            if (_rawInputParser.NeedsEscapeTimeout)
+            {
+                var generation = _rawInputGeneration;
+                _rawInputTimer = RawInputTimeProvider.CreateTimer(
+                    FlushRawInput, generation, TimeSpan.FromMilliseconds(50), Timeout.InfiniteTimeSpan);
+            }
         }
         finally
         {
@@ -581,35 +608,62 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         }
     }
 
-    private List<Hex1bKeyEvent> DecodeRawInput(ReadOnlyMemory<byte> data)
+    private void FlushRawInput(object? state)
     {
-        var input = data;
-        if (_pendingRawInput.Length > 0)
+        _rawInputWriteLock.Wait();
+        try
         {
-            var combined = new byte[_pendingRawInput.Length + data.Length];
-            _pendingRawInput.CopyTo(combined, 0);
-            data.CopyTo(combined.AsMemory(_pendingRawInput.Length));
-            input = combined;
+            if (_disposed || state is not int generation || generation != _rawInputGeneration)
+                return;
+            foreach (var token in _rawInputParser.Parse("", _kittyKeyboardPushed, flush: true))
+                if (Hex1bTerminal.TokenToEvent(token) is { } evt)
+                    _inputChannel.Writer.TryWrite(evt);
         }
+        finally
+        {
+            _rawInputWriteLock.Release();
+        }
+    }
 
-        var events = new List<Hex1bKeyEvent>();
-        var offset = 0;
-        while (offset < input.Length)
+    private async ValueTask DispatchRawTokensAsync(IReadOnlyList<AnsiToken> tokens, CancellationToken ct)
+    {
+        try
         {
-            var status = Rune.DecodeFromUtf8(input.Span[offset..], out var rune, out var consumed);
-            if (status == OperationStatus.NeedMoreData)
-                break;
-            if (status == OperationStatus.InvalidData)
-                rune = Rune.ReplacementChar;
-            offset += consumed;
-            var evt = rune.IsBmp
-                ? ParseKeyInput((char)rune.Value)
-                : Hex1bKeyEvent.FromText(rune.ToString());
-            if (evt != null)
-                events.Add(evt);
+            foreach (var token in tokens)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (token is SpecialKeyToken { KeyCode: 200 })
+                {
+                    _rawPaste = new PasteContext();
+                    await _inputChannel.Writer.WriteAsync(new Hex1bPasteEvent(_rawPaste), ct);
+                }
+                else if (token is SpecialKeyToken { KeyCode: 201 })
+                {
+                    _rawPaste?.Complete();
+                    _rawPaste = null;
+                }
+                else if (_rawPaste is not null && token is TextToken pasteText)
+                {
+                    await _rawPaste.WriteAsync(pasteText.Text, ct);
+                    ct.ThrowIfCancellationRequested();
+                }
+                else if (token is TextToken text)
+                {
+                    foreach (var rune in text.Text.EnumerateRunes())
+                        if (Hex1bTerminal.TokenToEvent(new TextToken(rune.ToString())) is { } evt)
+                            await _inputChannel.Writer.WriteAsync(evt, ct);
+                }
+                else if (Hex1bTerminal.TokenToEvent(token) is { } evt)
+                    await _inputChannel.Writer.WriteAsync(evt, ct);
+            }
         }
-        _pendingRawInput = input.Span[offset..].ToArray();
-        return events;
+        catch
+        {
+            _rawPaste?.Cancel();
+            if (!_rawInputParser.InPaste)
+                _rawPaste = null;
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -703,32 +757,6 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     // Private helpers
     // ========================================
 
-    private static Hex1bKeyEvent? ParseKeyInput(char c)
-    {
-        return c switch
-        {
-            '\0' => new Hex1bKeyEvent(Hex1bKey.Spacebar, c, Hex1bModifiers.Control), // Ctrl+Space sends NUL
-            '\r' or '\n' => new Hex1bKeyEvent(Hex1bKey.Enter, c, Hex1bModifiers.None),
-            '\t' => new Hex1bKeyEvent(Hex1bKey.Tab, c, Hex1bModifiers.None),
-            '\x1b' => new Hex1bKeyEvent(Hex1bKey.Escape, c, Hex1bModifiers.None),
-            '\x7f' or '\b' => new Hex1bKeyEvent(Hex1bKey.Backspace, c, Hex1bModifiers.None),
-            ' ' => new Hex1bKeyEvent(Hex1bKey.Spacebar, c, Hex1bModifiers.None),
-            >= 'a' and <= 'z' => new Hex1bKeyEvent(
-                KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - 'a'))), c, Hex1bModifiers.None),
-            >= 'A' and <= 'Z' => new Hex1bKeyEvent(
-                KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - 'A'))), c, Hex1bModifiers.Shift),
-            >= '0' and <= '9' => new Hex1bKeyEvent(
-                KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.D0 + (c - '0'))), c, Hex1bModifiers.None),
-            '+' or '=' => new Hex1bKeyEvent(Hex1bKey.OemPlus, c, Hex1bModifiers.None),
-            '-' => new Hex1bKeyEvent(Hex1bKey.OemMinus, c, Hex1bModifiers.None),
-            ',' => new Hex1bKeyEvent(Hex1bKey.OemComma, c, Hex1bModifiers.None),
-            '.' => new Hex1bKeyEvent(Hex1bKey.OemPeriod, c, Hex1bModifiers.None),
-            '/' or '?' => new Hex1bKeyEvent(Hex1bKey.OemQuestion, c, Hex1bModifiers.None),
-            _ when !char.IsControl(c) => new Hex1bKeyEvent(Hex1bKey.None, c, Hex1bModifiers.None),
-            _ => null
-        };
-    }
-
     private static ConsoleKey CharToConsoleKey(char c)
     {
         return c switch
@@ -749,6 +777,8 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     {
         if (_disposed) return;
         _disposed = true;
+        _rawInputTimer?.Dispose();
+        _rawPaste?.Cancel();
 
         // Note: ExitTuiMode is NOT called here because Hex1bTerminal handles
         // writing mouse-disable and screen-restore sequences directly to the
