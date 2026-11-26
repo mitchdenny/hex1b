@@ -347,6 +347,55 @@ public class KittyKeyboardCodecTests
     }
 
     [TestMethod]
+    [DataRow(57447, Hex1bModifiers.Shift, "2")]
+    [DataRow(57448, Hex1bModifiers.Control, "5")]
+    [DataRow(57449, Hex1bModifiers.Alt, "3")]
+    [DataRow(57450, Hex1bModifiers.Super, "9")]
+    [DataRow(57451, Hex1bModifiers.Hyper, "17")]
+    [DataRow(57452, Hex1bModifiers.Meta, "33")]
+    public void Encode_RightModifierKeys_KeepSideSpecificIdentityAcrossEvents(
+        int code, Hex1bModifiers modifier, string mask)
+    {
+        var press = new Hex1bKeyEvent(Hex1bKey.None, "", modifier) { UnicodeKeyCode = code };
+        var repeat = press with { EventType = Hex1bKeyEventType.Repeat };
+        var release = press with { Modifiers = Hex1bModifiers.None, EventType = Hex1bKeyEventType.Release };
+
+        foreach (var flags in new[] { 1, 2, 3, 4, 16 })
+        {
+            Assert.AreEqual("", TerminalInputEncoder.EncodeKey(press, Modes(flags)), $"press flags {flags}");
+            Assert.AreEqual("", TerminalInputEncoder.EncodeKey(release, Modes(flags)), $"release flags {flags}");
+        }
+        Assert.AreEqual($"\x1b[{code};{mask}u", TerminalInputEncoder.EncodeKey(press, Modes(8)));
+        Assert.AreEqual($"\x1b[{code};{mask}u", TerminalInputEncoder.EncodeKey(repeat, Modes(8)));
+        Assert.AreEqual("", TerminalInputEncoder.EncodeKey(release, Modes(8)));
+        Assert.AreEqual($"\x1b[{code};{mask}u", TerminalInputEncoder.EncodeKey(press, Modes(10)));
+        Assert.AreEqual($"\x1b[{code};{mask}:2u", TerminalInputEncoder.EncodeKey(repeat, Modes(10)));
+        Assert.AreEqual($"\x1b[{code};1:3u", TerminalInputEncoder.EncodeKey(release, Modes(10)));
+        Assert.AreEqual($"\x1b[{code};{mask}:2u", TerminalInputEncoder.EncodeKey(repeat, Modes(31)));
+    }
+
+    [TestMethod]
+    [DataRow("\x1b[57441;2u", 57441, 1, Hex1bKeyEventType.Press)]
+    [DataRow("\x1b[57447;2u", 57447, 1, Hex1bKeyEventType.Press)]
+    [DataRow("\x1b[57442;5:2u", 57442, 4, Hex1bKeyEventType.Repeat)]
+    [DataRow("\x1b[57448;5:2u", 57448, 4, Hex1bKeyEventType.Repeat)]
+    [DataRow("\x1b[57449;1:3u", 57449, 0, Hex1bKeyEventType.Release)]
+    [DataRow("\x1b[57450;9u", 57450, 8, Hex1bKeyEventType.Press)]
+    [DataRow("\x1b[57451;17:2u", 57451, 16, Hex1bKeyEventType.Repeat)]
+    [DataRow("\x1b[57452;33:3u", 57452, 32, Hex1bKeyEventType.Release)]
+    public void Decode_SideSpecificModifierKey_PreservesIdentityAndRoundTrips(
+        string wire, int code, int modifiers, Hex1bKeyEventType kind)
+    {
+        Assert.IsTrue(KittyKeyboardInput.TryDecode(wire, out var input));
+        Assert.IsNotNull(input);
+        Assert.AreEqual(Hex1bKey.None, input.Key);
+        Assert.AreEqual(code, input.UnicodeKeyCode);
+        Assert.AreEqual((Hex1bModifiers)modifiers, input.Modifiers);
+        Assert.AreEqual(kind, input.EventType);
+        Assert.AreEqual(wire, TerminalInputEncoder.EncodeKey(input, Modes(10)));
+    }
+
+    [TestMethod]
     [DataRow("\x1b[97u", Hex1bKey.A, 0, Hex1bKeyEventType.Press)]
     [DataRow("\x1b[97;256:2u", Hex1bKey.A, 255, Hex1bKeyEventType.Repeat)]
     [DataRow("\x1b[13;5:3~", Hex1bKey.F3, 4, Hex1bKeyEventType.Release)]
