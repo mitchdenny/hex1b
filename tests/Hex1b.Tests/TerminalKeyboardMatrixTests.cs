@@ -155,8 +155,8 @@ public class TerminalKeyboardMatrixTests
     {
         TestSeq.AreEqual(Enum.GetValues<Hex1bKey>().Where(key => key != Hex1bKey.None).Order(),
             Vectors.Select(vector => vector.Key).Order());
-        Assert.AreEqual(7, Enum.GetValues<Hex1bModifiers>().Aggregate(0, (mask, value) => mask | (int)value),
-            "New modifiers require an explicit expansion of the wire matrix.");
+        Assert.AreEqual(255, Enum.GetValues<Hex1bModifiers>().Aggregate(0, (mask, value) => mask | (int)value),
+            "New modifiers require explicit coverage here or in KittyKeyboardCodecTests.");
         foreach (var vector in Vectors)
         foreach (var row in new[] { vector.Normal, vector.Cursor, vector.Keypad }.OfType<string>())
         {

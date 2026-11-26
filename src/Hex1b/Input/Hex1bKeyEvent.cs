@@ -3,11 +3,24 @@ namespace Hex1b.Input;
 /// <summary>
 /// A keyboard input event that gets routed to the focused node.
 /// </summary>
-/// <param name="Key">The key that was pressed.</param>
-/// <param name="Text">The text produced by the keypress (may be empty for non-printable keys). Supports multi-char input like emojis.</param>
-/// <param name="Modifiers">The modifier keys held during the keypress.</param>
+/// <param name="Key">The key associated with the event.</param>
+/// <param name="Text">The associated text, when available. May be empty and supports multiple Unicode characters.</param>
+/// <param name="Modifiers">The modifier state at the time of the event, including its effect on that state.</param>
 public sealed record Hex1bKeyEvent(Hex1bKey Key, string Text, Hex1bModifiers Modifiers) : Hex1bEvent
 {
+    /// <summary>Gets the event kind. Existing constructors create press events.</summary>
+    public Hex1bKeyEventType EventType { get; init; }
+
+    /// <summary>Gets the unshifted Unicode or functional key identity, if known.</summary>
+    /// <remarks>Zero denotes text without a known key. Private-use identities are preserved.</remarks>
+    public int? UnicodeKeyCode { get; init; }
+
+    /// <summary>Gets the shifted key identity reported by the input source, if available.</summary>
+    public int? ShiftedKeyCode { get; init; }
+
+    /// <summary>Gets the corresponding standard PC-layout key identity, if available.</summary>
+    public int? BaseLayoutKeyCode { get; init; }
+
     /// <summary>
     /// Legacy constructor for single character input.
     /// </summary>
