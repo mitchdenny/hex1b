@@ -72,6 +72,30 @@ public sealed class KeyStepBuilder
         return this;
     }
 
+    /// <summary>Adds the Super modifier to the current step.</summary>
+    /// <returns>This builder.</returns>
+    public KeyStepBuilder Super()
+    {
+        _currentModifiers |= Hex1bModifiers.Super;
+        return this;
+    }
+
+    /// <summary>Adds the Hyper modifier to the current step.</summary>
+    /// <returns>This builder.</returns>
+    public KeyStepBuilder Hyper()
+    {
+        _currentModifiers |= Hex1bModifiers.Hyper;
+        return this;
+    }
+
+    /// <summary>Adds the Meta modifier to the current step.</summary>
+    /// <returns>This builder.</returns>
+    public KeyStepBuilder Meta()
+    {
+        _currentModifiers |= Hex1bModifiers.Meta;
+        return this;
+    }
+
     /// <summary>
     /// Sets the key for the current step.
     /// </summary>
@@ -172,6 +196,54 @@ public sealed class KeyStepBuilder
         var (handler, description) = _parent.GetRegisteredAction(actionId);
         _actionId = actionId;
         Action(handler, description);
+    }
+
+    /// <summary>Runs a callback once for the lifetime of the matched key press.</summary>
+    /// <param name="handler">The callback and its held-key cancellation token.</param>
+    /// <param name="description">Optional description for help and documentation.</param>
+    /// <remarks>
+    /// Runs independently of input routing. Repeats do not start duplicate callbacks.
+    /// The token is cancelled on release, focus/capture changes, or app shutdown.
+    /// Without enhanced release reporting, only ownership changes and shutdown cancel it.
+    /// Call <see cref="InputBindingActionContext.Invalidate"/> after updating UI state.
+    /// Callbacks must cooperate with cancellation; shutdown waits for their completion.
+    /// Callback and cancellation-registration failures propagate from Hex1bApp.RunAsync.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// using Hex1b;
+    /// using Hex1b.Input;
+    ///
+    /// var ticks = 0;
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithHex1bApp(ctx =&gt; ctx.Button($"Held ticks: {Volatile.Read(ref ticks)}")
+    ///         .InputBindings(b =&gt; b.Key(Hex1bKey.Spacebar).OnHold(async (context, token) =&gt;
+    ///         {
+    ///             while (!token.IsCancellationRequested)
+    ///             {
+    ///                 Interlocked.Increment(ref ticks);
+    ///                 context.Invalidate();
+    ///                 await Task.Delay(100, token);
+    ///             }
+    ///         })))
+    ///     .Build();
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public void OnHold(Func<InputBindingActionContext, CancellationToken, Task> handler, string? description = null)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        Action(context => context.StartKeyHold(handler), description);
+    }
+
+    /// <summary>Runs a synchronous callback once, providing its held-key lifetime token.</summary>
+    /// <param name="handler">The callback and its held-key cancellation token.</param>
+    /// <param name="description">Optional description for help and documentation.</param>
+    /// <remarks>Has the same cancellation and host requirements as the asynchronous overload.</remarks>
+    public void OnHold(Action<InputBindingActionContext, CancellationToken> handler, string? description = null)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        OnHold((context, token) => { handler(context, token); return Task.CompletedTask; }, description);
     }
 
     private void CommitCurrentStep()

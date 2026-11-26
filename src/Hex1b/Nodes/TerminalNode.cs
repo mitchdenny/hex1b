@@ -38,6 +38,7 @@ public sealed class TerminalNode : Hex1bNode
     private bool _handleChanged; // Tracks if handle was changed since last Arrange
     private TerminalWidgetRenderFrame? _renderFrame;
     private bool _frameDeferred;
+    private readonly HashSet<(Hex1bKey Key, int? Code)> _forwardedKeys = [];
 
     internal (int X, int Y, CursorShape Shape, bool Visible) RenderedCursor =>
         _renderFrame?.Cursor ??
@@ -86,6 +87,7 @@ public sealed class TerminalNode : Hex1bNode
             {
                 _renderFrame = null;
                 _frameDeferred = false;
+                _forwardedKeys.Clear();
                 _handle = value;
                 _handleChanged = true; // Mark that we need to resize the new handle
                 MarkDirty();
@@ -307,6 +309,23 @@ public sealed class TerminalNode : Hex1bNode
     /// <inheritdoc />
     public override InputResult HandleInput(Hex1bEvent inputEvent)
     {
+        var result = HandleInputCore(inputEvent, out var forward);
+        if (forward)
+            _ = _handle!.SendEventAsync(inputEvent);
+        return result;
+    }
+
+    internal async Task<InputResult> HandleInputAsync(Hex1bEvent inputEvent, CancellationToken cancellationToken)
+    {
+        var result = HandleInputCore(inputEvent, out var forward);
+        if (forward)
+            await _handle!.SendEventAsync(inputEvent, cancellationToken);
+        return result;
+    }
+
+    private InputResult HandleInputCore(Hex1bEvent inputEvent, out bool forward)
+    {
+        forward = false;
         // If terminal is not running and we have a fallback, don't forward to terminal
         if (_handle != null && _handle.State != TerminalState.Running && FallbackChild != null)
         {
@@ -316,6 +335,21 @@ public sealed class TerminalNode : Hex1bNode
         
         // Forward input to the terminal
         if (_handle == null) return InputResult.NotHandled;
+
+        if (inputEvent is Hex1bKeyEvent keyEvent)
+        {
+            var identity = InputRouterState.KeyIdentity(keyEvent);
+            if (keyEvent.EventType == Hex1bKeyEventType.Release)
+            {
+                // Copy mode must not consume releases belonging to the child, or invent
+                // releases for entry keys and shortcuts whose presses it never received.
+                forward = _forwardedKeys.Remove(identity);
+                return InputResult.Handled;
+            }
+            if (keyEvent.EventType == Hex1bKeyEventType.Repeat && !_forwardedKeys.Contains(identity) &&
+                _handle.ReportsKeyReleases)
+                return InputResult.Handled;
+        }
         
         // When in copy mode, intercept all input (keyboard and mouse).
         // Delegate to the handle's CopyModeInput event.
@@ -358,8 +392,10 @@ public sealed class TerminalNode : Hex1bNode
             _invalidateCallback?.Invoke();
         }
         
-        // Fire and forget - we don't want to block the input loop
-        _ = _handle.SendEventAsync(inputEvent);
+        if (inputEvent is Hex1bKeyEvent forwardedKey && _handle.ReportsKeyReleases &&
+            (forwardedKey.Key != Hex1bKey.None || forwardedKey.UnicodeKeyCode is > 0))
+            _forwardedKeys.Add(InputRouterState.KeyIdentity(forwardedKey));
+        forward = true;
         return InputResult.Handled;
     }
     

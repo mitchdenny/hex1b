@@ -464,6 +464,8 @@ public sealed class TerminalWidgetHandle :
         
         await _terminal.SendEventAsync(evt, ct);
     }
+
+    internal bool ReportsKeyReleases => _terminal is { } terminal && (terminal.InputModes.KittyKeyboardFlags & 2) != 0;
     
     /// <summary>
     /// Handles RIS (Reset to Initial State, ESC c) — clears terminal state that
