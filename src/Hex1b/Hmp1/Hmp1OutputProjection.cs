@@ -164,6 +164,13 @@ internal sealed class Hmp1OutputProjection
                             WindowOperationToken or
                             DeviceStatusReportToken { Type: DeviceStatusReportToken.StatusReport or DeviceStatusReportToken.CursorPositionReport };
                     }
+                    else if (value == (byte)'u')
+                    {
+                        // The producer answers Kitty keyboard queries once; viewers must
+                        // never forward them to their own hosts.
+                        var body = CollectionsMarshal.AsSpan(_pending)[2..^1];
+                        query = body.Length == 1 && body[0] == (byte)'?';
+                    }
                     if (!query)
                         FlushPending(output);
                     else

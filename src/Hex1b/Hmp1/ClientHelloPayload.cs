@@ -22,6 +22,10 @@ internal sealed class ClientHelloPayload
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int ScrollbackHistoryRows { get; set; }
 
+    /// <summary>Kitty keyboard presentation capability version; zero when absent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int KittyKeyboardVersion { get; set; }
+
     /// <summary>
     /// Optional human-readable label that the producer surfaces in its peer
     /// roster (e.g. "dashboard", "aspire-cli").

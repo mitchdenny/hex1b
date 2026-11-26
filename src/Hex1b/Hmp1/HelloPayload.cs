@@ -21,6 +21,10 @@ internal sealed class HelloPayload
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int ScrollbackHistoryRows { get; set; }
 
+    /// <summary>Kitty keyboard presentation capability version; zero when absent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int KittyKeyboardVersion { get; set; }
+
     /// <summary>Protocol version. Always <see cref="Hmp1Protocol.Version"/>.</summary>
     public int Version { get; set; }
 
