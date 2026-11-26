@@ -684,6 +684,14 @@ and Backspace as the first held key, before observing any release. See
 `KittyAppNegotiationTests` for these cases and raw/presentation ingress tests in
 `KittyAppIngressTests.cs` for fragmented CSI, UTF-8, and opaque bracketed paste.
 
+For read/query races, distinguish completion of a presentation read from execution
+of its await continuation. A controlled `IValueTaskSource` can complete the read
+while withholding that continuation until a blocked query write finishes; the
+already-completed input must not acquire the new query epoch. Cover a read that
+is still pending across delivery too, so genuine first replies remain accepted.
+See `PresentationInput_ReadCompletesBeforeQueryButResumesAfter_CannotConfirm`
+and `PresentationInput_ReadPendingAcrossQuery_AcceptsFirstReply`.
+
 For held-key cancellation, register a callback that signals entry and waits on a
 test-controlled gate. Route release on a worker with `WaitAsync`, prove subsequent
 input progresses while the registration is blocked, then release the gate in

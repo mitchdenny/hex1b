@@ -1,5 +1,6 @@
 using System.Text;
 using System.Threading.Channels;
+using System.Threading.Tasks.Sources;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
@@ -494,6 +495,140 @@ public partial class PresentationRawInputTests
         Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
         Assert.IsFalse(workload.InputEvents.TryRead(out _));
         Assert.AreEqual(true, workload.ConfirmedEnhancedInput);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task PresentationInput_ReadCompletesBeforeQueryButResumesAfter_CannotConfirm(bool split)
+    {
+        var pushGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var read = new DeferredInputRead();
+        await using var presentation = new QueuedPresentation
+        {
+            PushGate = pushGate.Task,
+            InitialRead = read.ReadAsync()
+        };
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities { SupportsKittyKeyboard = true });
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        try
+        {
+            await read.Registered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            workload.EnterTuiMode();
+            await presentation.PushEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            read.Complete(split ? "\x1b[?3" : "\x1b[?31uz");
+            await read.ContinuationBlocked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.IsFalse(presentation.QueryDelivered.Task.IsCompleted);
+            Assert.IsFalse(pushGate.Task.IsCompleted);
+
+            pushGate.SetResult();
+            await presentation.QueryDelivered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            read.Resume.SetResult();
+            if (split)
+                presentation.Enqueue("1uz"u8.ToArray());
+            Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+            Assert.IsNull(workload.ConfirmedEnhancedInput,
+                "A completed read must not acquire the query epoch while its continuation is suspended.");
+
+            presentation.Enqueue("\x1b[1;5R"u8.ToArray());
+            AssertCtrlF3(await ReadAsync(workload.InputEvents));
+            presentation.Enqueue("\x1b[?31u\x1b[1;5Rz"u8.ToArray());
+            Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+            Assert.IsFalse(workload.InputEvents.TryRead(out _));
+            Assert.AreEqual(true, workload.ConfirmedEnhancedInput);
+        }
+        finally
+        {
+            pushGate.TrySetResult();
+            read.Finish();
+        }
+    }
+
+    [TestMethod]
+    public async Task PresentationInput_ReadPendingAcrossQuery_AcceptsFirstReply()
+    {
+        var pushGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var read = new DeferredInputRead();
+        await using var presentation = new QueuedPresentation
+        {
+            PushGate = pushGate.Task,
+            InitialRead = read.ReadAsync()
+        };
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities { SupportsKittyKeyboard = true });
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        try
+        {
+            await read.Registered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            workload.EnterTuiMode();
+            await presentation.PushEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            pushGate.SetResult();
+            await presentation.QueryDelivered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            read.Complete("\x1b[?31u\x1b[1;5R\x1b[1;1Pz");
+            await read.ContinuationBlocked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            read.Resume.SetResult();
+            Assert.AreEqual(Hex1bKey.F1, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+            Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+            Assert.IsFalse(workload.InputEvents.TryRead(out _));
+            Assert.AreEqual(true, workload.ConfirmedEnhancedInput,
+                "A still-pending read can receive a genuine reply even if it began before query delivery.");
+        }
+        finally
+        {
+            pushGate.TrySetResult();
+            read.Finish();
+        }
+    }
+
+    // Completes the adapter read while keeping its consumer's await continuation suspended.
+    private sealed class DeferredInputRead : IValueTaskSource<ReadOnlyMemory<byte>>
+    {
+        private ManualResetValueTaskSourceCore<ReadOnlyMemory<byte>> _source = new()
+        {
+            RunContinuationsAsynchronously = true
+        };
+        public TaskCompletionSource Registered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ContinuationBlocked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Resume { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _completed;
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadAsync() => new(this, _source.Version);
+        public void Complete(string text)
+        {
+            Assert.AreEqual(0, Interlocked.Exchange(ref _completed, 1));
+            _source.SetResult(Encoding.UTF8.GetBytes(text));
+        }
+        public void Finish()
+        {
+            if (Interlocked.Exchange(ref _completed, 1) == 0)
+                _source.SetResult(default);
+            Resume.TrySetResult();
+        }
+        public ReadOnlyMemory<byte> GetResult(short token) => _source.GetResult(token);
+        public ValueTaskSourceStatus GetStatus(short token) => _source.GetStatus(token);
+        public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
+        {
+            _source.OnCompleted(ignored =>
+            {
+                ContinuationBlocked.TrySetResult();
+                _ = ResumeAsync(continuation, state);
+            }, null, token, flags);
+            Registered.TrySetResult();
+        }
+        private async Task ResumeAsync(Action<object?> continuation, object? state)
+        {
+            await Resume.Task;
+            continuation(state);
+        }
     }
 
     [TestMethod]

@@ -692,10 +692,21 @@ public partial class PresentationRawInputTests
         public TaskCompletionSource PushEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         // When set, the push write blocks without delivering bytes until the gate completes.
         public Task? PushGate { get; init; }
+        public ValueTask<ReadOnlyMemory<byte>>? InitialRead { get; init; }
+        private bool _initialReadReturned;
         private int _enqueued;
         private int _returned;
         private readonly Channel<int> _readEntries = Channel.CreateUnbounded<int>();
-        public async ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
+        public ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
+        {
+            if (!_initialReadReturned && InitialRead is { } read)
+            {
+                _initialReadReturned = true;
+                return read;
+            }
+            return ReadQueuedInputAsync(ct);
+        }
+        private async ValueTask<ReadOnlyMemory<byte>> ReadQueuedInputAsync(CancellationToken ct)
         {
             // Re-entry proves every previously returned chunk was received and stamped.
             _readEntries.Writer.TryWrite(Volatile.Read(ref _returned));

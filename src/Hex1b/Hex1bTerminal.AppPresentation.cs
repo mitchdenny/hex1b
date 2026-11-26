@@ -40,7 +40,15 @@ public sealed partial class Hex1bTerminal
                 // reply that raced the write is not lost, while one read before delivery
                 // cannot confirm. Without request IDs a late reply to an older query that
                 // arrives after this point remains indistinguishable from a genuine one.
-                Volatile.Write(ref _presentedKeyboardQueryEpoch, queryEpoch);
+                lock (_presentationReadLock)
+                {
+                    _presentedKeyboardQueryEpoch = queryEpoch;
+                    // A read begun before delivery can receive the first genuine reply,
+                    // but a completed read must keep its stamp even if its await continuation
+                    // has not run. GetResult consumes it under this same lock.
+                    if (_presentationReadPending && !_presentationRead.IsCompleted)
+                        _presentationReadQueryEpoch = queryEpoch;
+                }
                 await _presentation.WriteOutputAsync("\x1b[?u"u8.ToArray(), ct);
             }
             if (text.Contains("\x1b[<u", StringComparison.Ordinal))

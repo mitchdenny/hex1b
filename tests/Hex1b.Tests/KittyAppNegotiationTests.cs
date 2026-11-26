@@ -280,6 +280,10 @@ public class KittyAppNegotiationTests
                 appInput.TryWriteInputEvent(Press(code));
                 Assert.AreEqual($"\x1b[{code}u", await childWorkload.ReadAsync());
             }
+            using var evicted = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(_ => !handle.OwnsForwardedKey((key, null)), TimeSpan.FromSeconds(5),
+                    "completed forwarding evicts demoted press")
+                .Build().ApplyAsync(host);
             Assert.IsFalse(handle.OwnsForwardedKey((key, null)), "Pop demotes the prior live press to bounded bookkeeping.");
             Assert.IsFalse(childWorkload.Input.Reader.TryRead(out _), "Demotion never synthesizes a release.");
             app.RequestStop();

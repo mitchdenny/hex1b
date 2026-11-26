@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using System.Runtime.CompilerServices;
 #pragma warning disable HEX1B_SIXEL // Sixel API is experimental - internal usage is allowed
 
 using System.Globalization;
@@ -834,6 +835,32 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         public static PresentationInputEvent Timeout(int generation) => new(default, true, generation, 0);
     }
 
+    private readonly object _presentationReadLock = new();
+    private ValueTask<ReadOnlyMemory<byte>> _presentationRead;
+    private bool _presentationReadPending;
+    private int _presentationReadQueryEpoch;
+
+    // Keep the original ValueTask unconsumed until the epoch is frozen under the lock.
+    // Awaiting AsTask() instead could delay observing completion of an IValueTaskSource.
+    private readonly struct PresentationInputReadAwaiter(Hex1bTerminal terminal) : ICriticalNotifyCompletion
+    {
+        public PresentationInputReadAwaiter GetAwaiter() => this;
+        public bool IsCompleted => terminal._presentationRead.IsCompleted;
+        public void OnCompleted(Action continuation)
+            => terminal._presentationRead.ConfigureAwait(false).GetAwaiter().OnCompleted(continuation);
+        public void UnsafeOnCompleted(Action continuation)
+            => terminal._presentationRead.ConfigureAwait(false).GetAwaiter().UnsafeOnCompleted(continuation);
+        public PresentationInputEvent GetResult()
+        {
+            lock (terminal._presentationReadLock)
+            {
+                terminal._presentationReadPending = false;
+                return PresentationInputEvent.FromData(
+                    terminal._presentationRead.GetAwaiter().GetResult(), terminal._presentationReadQueryEpoch);
+            }
+        }
+    }
+
     /// <summary>
     /// Tiny background loop that reads raw bytes from the presentation adapter and
     /// posts them into <see cref="_presentationInputChannel"/>.  Runs for the lifetime
@@ -848,15 +875,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             while (!ct.IsCancellationRequested && _presentation != null)
             {
-                var data = await _presentation.ReadInputAsync(ct);
-                if (data.IsEmpty)
+                PresentationInputReadAwaiter read;
+                lock (_presentationReadLock)
+                {
+                    _presentationReadQueryEpoch = _presentedKeyboardQueryEpoch;
+                    _presentationRead = _presentation.ReadInputAsync(ct);
+                    _presentationReadPending = true;
+                    read = new PresentationInputReadAwaiter(this);
+                }
+                var item = await read;
+                if (item.Data.IsEmpty)
                 {
                     break;
                 }
-                // Stamp on arrival: delayed processing must not make a report predating
-                // the keyboard query look like its reply.
-                _presentationInputChannel.Writer.TryWrite(PresentationInputEvent.FromData(
-                    data, Volatile.Read(ref _presentedKeyboardQueryEpoch)));
+                _presentationInputChannel.Writer.TryWrite(item);
             }
         }
         catch (OperationCanceledException)
