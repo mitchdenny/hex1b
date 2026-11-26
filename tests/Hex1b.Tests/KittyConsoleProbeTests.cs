@@ -355,6 +355,56 @@ public class KittyConsoleProbeTests
     }
 
     [TestMethod]
+    [DataRow(437, 0x9d, "\u00a5", false)]
+    [DataRow(437, 0x9d, "\u00a5", true)]
+    [DataRow(1252, 0x9f, "\u0178", false)]
+    [DataRow(1252, 0x9f, "\u0178", true)]
+    public async Task EnterRawModeAsync_CodePagePrintableByte_DoesNotHideGenuineReply(
+        int codePage, int value, string expected, bool bytewise)
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        byte[] bytes = [(byte)value, .. Encoding.ASCII.GetBytes("\u001b[?31u\u001b[?62c")];
+        var chunks = bytewise ? bytes.Select(b => new[] { b }).ToArray() : [bytes];
+        var (adapter, input) = await ProbeBytesAsync(Encoding.GetEncoding(codePage), chunks);
+        await using var _ = adapter;
+
+        Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual(expected, input);
+    }
+
+    [TestMethod]
+    [DataRow(437, "\u00a3", false)]
+    [DataRow(437, "\u00a3", true)]
+    [DataRow(1252, "\u0153", false)]
+    [DataRow(1252, "\u0153", true)]
+    public async Task EnterRawModeAsync_CodePagePrintableByte_DoesNotTerminateOpaqueString(
+        int codePage, string expected, bool bytewise)
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        byte[] bytes = [.. Encoding.ASCII.GetBytes("\u001b]0;title"), 0x9c,
+            .. Encoding.ASCII.GetBytes("\u001b[?31u\u001b\\")];
+        var chunks = bytewise ? bytes.Select(b => new[] { b }).ToArray() : [bytes];
+        var (adapter, input) = await ProbeBytesAsync(Encoding.GetEncoding(codePage), chunks);
+        await using var _ = adapter;
+
+        Assert.IsFalse(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual("\u001b]0;title" + expected + "\u001b[?31u\u001b\\", input);
+    }
+
+    [TestMethod]
+    public async Task EnterRawModeAsync_CodePageMappedC1_RemainsOpaque()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        const string frame = "\u009d0;title\u001b[?1u\u001b\\";
+        var (adapter, input) = await ProbeBytesAsync(
+            Encoding.GetEncoding(1252), Latin1(frame + "\u001b[?31ux"));
+        await using var _ = adapter;
+
+        Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual(frame + "x", input);
+    }
+
+    [TestMethod]
     public async Task EnterRawModeAsync_MultiByteCodePage_DoesNotTreatCharacterBytesAsC1()
     {
         // In GBK, 9D 9C is one character; it must not open an OSC that hides the genuine reply.

@@ -549,12 +549,8 @@ public sealed class ConsolePresentationAdapter :
     private void ConsumeProbeReplies(List<byte> buffer, ProbeState probe)
     {
         var span = CollectionsMarshal.AsSpan(buffer);
-        var encoding = _driver.InputEncoding;
-        var mode = IsUtf8(encoding) ? ConsoleProbeFrameScanner.ByteMode.Utf8
-            : encoding.IsSingleByte ? ConsoleProbeFrameScanner.ByteMode.SingleByte
-            : ConsoleProbeFrameScanner.ByteMode.MultiByte;
         List<(int Start, int End)>? consumed = null;
-        foreach (var frame in ConsoleProbeFrameScanner.Scan(span, mode))
+        foreach (var frame in ConsoleProbeFrameScanner.Scan(span, _driver.InputEncoding))
         {
             if (!frame.SevenBit)
                 continue;

@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Hex1b;
 
 /// <summary>
@@ -11,7 +13,8 @@ namespace Hex1b;
 /// <c>ESC \</c>), by UTF-8 encoded C1 controls (for example <c>C2 9D</c> and <c>C2 9C</c>),
 /// or by raw 8-bit C1 bytes that are not part of a UTF-8 character. OSC may also end with
 /// BEL. Scanning stops at the first incomplete frame so later bytes wait for more input.
-/// C1 controls are recognised only for UTF-8 and single-byte input encodings: in other
+/// In single-byte encodings, a raw byte is a C1 control only if it decodes to that control,
+/// not a printable character (for example CP437's yen and pound signs). In other
 /// multi-byte code pages (for example GBK or Shift-JIS) bytes 0x80–0x9F are parts of
 /// characters, so only ESC-introduced frames are recognised there.
 /// </remarks>
@@ -21,12 +24,12 @@ internal static class ConsoleProbeFrameScanner
     private const byte C1StringTerminator = 0x9c;
 
     /// <summary>How bytes 0x80 and above are interpreted.</summary>
-    internal enum ByteMode
+    private enum ByteMode
     {
         /// <summary>UTF-8: C1 controls are <c>C2 80</c>–<c>C2 9F</c> or stray 8-bit bytes.</summary>
         Utf8,
 
-        /// <summary>A single-byte code page: bytes 0x80–0x9F are C1 controls.</summary>
+        /// <summary>A single-byte code page: C1 recognition follows its character mappings.</summary>
         SingleByte,
 
         /// <summary>Another multi-byte code page: no C1 controls are recognised.</summary>
@@ -56,8 +59,12 @@ internal static class ConsoleProbeFrameScanner
     /// <param name="SevenBit">Whether the frame was introduced by <c>ESC</c> rather than a C1 control.</param>
     internal readonly record struct Frame(FrameKind Kind, int Start, int End, int ContentStart, int ContentEnd, bool SevenBit);
 
-    public static List<Frame> Scan(ReadOnlySpan<byte> span, ByteMode mode = ByteMode.Utf8)
+    public static List<Frame> Scan(ReadOnlySpan<byte> span, Encoding encoding)
     {
+        var mode = encoding.CodePage == Encoding.UTF8.CodePage ? ByteMode.Utf8
+            : encoding.IsSingleByte ? ByteMode.SingleByte
+            : ByteMode.MultiByte;
+        var rawC1Mask = mode == ByteMode.SingleByte ? GetRawC1Mask(encoding) : uint.MaxValue;
         ReadOnlySpan<byte> pasteStart = "\x1b[200~"u8;
         ReadOnlySpan<byte> pasteEnd = "\x1b[201~"u8;
         var frames = new List<Frame>();
@@ -100,7 +107,7 @@ internal static class ConsoleProbeFrameScanner
                 }
                 else if (TryGetStringKind(next, out var kind))
                 {
-                    if (!TryFindStringEnd(span, i + 2, kind == FrameKind.Osc, mode, out var contentEnd, out var end))
+                    if (!TryFindStringEnd(span, i + 2, kind == FrameKind.Osc, mode, rawC1Mask, out var contentEnd, out var end))
                         break;
                     frames.Add(new Frame(kind, i, end, i + 2, contentEnd, true));
                     i = end;
@@ -115,11 +122,11 @@ internal static class ConsoleProbeFrameScanner
                 continue;
             }
 
-            if (TryReadC1(span, i, mode, out var c1, out var c1Length, out var incomplete))
+            if (TryReadC1(span, i, mode, rawC1Mask, out var c1, out var c1Length, out var incomplete))
             {
                 if (TryGetStringKind((byte)(c1 - 0x40), out var kind))
                 {
-                    if (!TryFindStringEnd(span, i + c1Length, kind == FrameKind.Osc, mode, out var contentEnd, out var end))
+                    if (!TryFindStringEnd(span, i + c1Length, kind == FrameKind.Osc, mode, rawC1Mask, out var contentEnd, out var end))
                         break;
                     frames.Add(new Frame(kind, i, end, i + c1Length, contentEnd, false));
                     i = end;
@@ -141,6 +148,20 @@ internal static class ConsoleProbeFrameScanner
         return frames;
     }
 
+    private static uint GetRawC1Mask(Encoding encoding)
+    {
+        Span<byte> value = stackalloc byte[1];
+        Span<char> decoded = new char[encoding.GetMaxCharCount(1)];
+        uint mask = 0;
+        for (var b = 0x80; b <= 0x9f; b++)
+        {
+            value[0] = (byte)b;
+            if (encoding.GetChars(value, decoded) == 1 && decoded[0] == b)
+                mask |= 1u << (b - 0x80);
+        }
+        return mask;
+    }
+
     private static bool TryGetStringKind(byte introducer, out FrameKind kind)
     {
         kind = introducer switch
@@ -156,7 +177,7 @@ internal static class ConsoleProbeFrameScanner
     }
 
     private static bool TryFindStringEnd(
-        ReadOnlySpan<byte> span, int start, bool allowBell, ByteMode mode, out int contentEnd, out int end)
+        ReadOnlySpan<byte> span, int start, bool allowBell, ByteMode mode, uint rawC1Mask, out int contentEnd, out int end)
     {
         var j = start;
         while (j < span.Length)
@@ -184,7 +205,7 @@ internal static class ConsoleProbeFrameScanner
                 continue;
             }
 
-            if (TryReadC1(span, j, mode, out var c1, out var c1Length, out var incomplete))
+            if (TryReadC1(span, j, mode, rawC1Mask, out var c1, out var c1Length, out var incomplete))
             {
                 if (c1 == C1StringTerminator)
                 {
@@ -209,11 +230,11 @@ internal static class ConsoleProbeFrameScanner
 
     /// <summary>
     /// Reads a C1 control at <paramref name="index"/>: UTF-8 encoded (<c>C2 80</c>–<c>C2 9F</c>)
-    /// or a raw 8-bit byte that is not part of a character (UTF-8), or any byte 0x80–0x9F
-    /// (single-byte code pages).
+    /// or a raw 8-bit byte that is not part of a character (UTF-8), or a byte that decodes
+    /// to the corresponding C1 control (single-byte code pages).
     /// </summary>
     private static bool TryReadC1(
-        ReadOnlySpan<byte> span, int index, ByteMode mode, out byte code, out int length, out bool incomplete)
+        ReadOnlySpan<byte> span, int index, ByteMode mode, uint rawC1Mask, out byte code, out int length, out bool incomplete)
     {
         code = 0;
         length = 0;
@@ -238,7 +259,7 @@ internal static class ConsoleProbeFrameScanner
             return false;
         }
 
-        if (b is >= 0x80 and <= 0x9f)
+        if (b is >= 0x80 and <= 0x9f && (rawC1Mask & (1u << (b - 0x80))) != 0)
         {
             code = b;
             length = 1;
