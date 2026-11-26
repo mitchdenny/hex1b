@@ -1343,6 +1343,35 @@ public class Hex1bTerminalTests
     }
 
     [TestMethod]
+    [DataRow("\x1b[", true)]
+    [DataRow("\x1b[97", false)]
+    public async Task PresentationInput_AmbiguousPrefixTimeout_PreservesAltBracketWithoutReplayingMalformedText(
+        string prefix, bool emitAltBracket)
+    {
+        var clock = new EscapeTimeProvider();
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload, TimeProvider = clock
+        });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+        presentation.EnqueueInput(prefix);
+        (await clock.Armed.Reader.ReadAsync(ct)).Fire();
+        if (emitAltBracket)
+        {
+            var alt = TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct));
+            Assert.AreEqual("[", alt.Text);
+            Assert.AreEqual(Hex1bModifiers.Alt, alt.Modifiers);
+        }
+        presentation.EnqueueInput("z");
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Text);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
     public async Task PresentationInput_BareEscape_FlushedAfterTimeout()
     {
         await using var presentation = new QueuedInputPresentationAdapter();

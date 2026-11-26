@@ -277,6 +277,9 @@ public partial class PresentationRawInputTests
         var alt = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents));
         Assert.AreEqual("[", alt.Text);
         Assert.AreEqual(Hex1bModifiers.Alt, alt.Modifiers);
+        await workload.WriteInputAsync("\x1b[97"u8.ToArray());
+        clock.FireLast();
+        Assert.IsFalse(workload.InputEvents.TryRead(out _), "Malformed timeout must not replay numeric shortcut text.");
         await workload.WriteInputAsync("z"u8.ToArray());
         Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
         Assert.IsFalse(workload.InputEvents.TryRead(out _));
