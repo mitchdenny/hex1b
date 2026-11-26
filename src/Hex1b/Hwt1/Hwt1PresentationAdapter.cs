@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using Hex1b.Sixel;
 using Hex1b.Tokens;
 using Hex1b.Automation;
+using Hex1b.Input;
 using Hex1b.Reflow;
 
 namespace Hex1b;
@@ -111,6 +112,10 @@ public sealed class Hwt1PresentationAdapter :
     private ITerminalReflowProvider _reflowStrategy = NoReflowStrategy.Instance;
     private bool _reflowEnabled;
     private TimeSpan _acknowledgementTimeout = TimeSpan.FromMinutes(2);
+    internal const int MaxHeldKeys = 256;
+    // Kitty presses delivered by this view, keyed by DOM code, so releases pair with their press.
+    private readonly Dictionary<string, Hex1bKeyEvent> _heldKeys = new(StringComparer.Ordinal);
+    private readonly SemaphoreSlim _keyGate = new(1, 1);
 
     /// <summary>Creates an HWT1 presentation adapter with the initial grid dimensions.</summary>
     /// <param name="width">Initial width, from 1 to 300 columns.</param>
@@ -182,11 +187,29 @@ public sealed class Hwt1PresentationAdapter :
     /// control only; the host must use this property to enforce read-only access.
     /// Changes apply when a validated command is checked for dispatch. Enabling read-only
     /// access does not retract commands already accepted or cancel writes in progress.
+    /// When the workload has enabled Kitty keyboard event reporting, enabling read-only access
+    /// sends releases for keys this view pressed, so the workload does not observe a stuck key.
+    /// A failed release is retried by the next key message received while read-only.
     /// </remarks>
     public bool IsReadOnly
     {
         get => Volatile.Read(ref _isReadOnly);
-        set => Volatile.Write(ref _isReadOnly, value);
+        set
+        {
+            Volatile.Write(ref _isReadOnly, value);
+            if (value && Volatile.Read(ref _disposed) == 0)
+            {
+                try
+                {
+                    _ = ReleaseHeldKeysAsync(_disposedCancellation.Token).ContinueWith(
+                        static task => _ = task.Exception, CancellationToken.None,
+                        TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+                }
+                catch (ObjectDisposedException)
+                {
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -456,6 +479,10 @@ public sealed class Hwt1PresentationAdapter :
     /// as 0x02000000, default background as 0x03000000, and inherited underline foreground
     /// as 0x04000000. Reverse and dim remain unapplied attributes for the browser to resolve;
     /// metadata defaultForeground and defaultBackground remain packed RGBA fallbacks.
+    /// Frames carry the workload's Kitty keyboard flags as kittyKeyboardFlags. While Kitty
+    /// mode is active, key messages may add code, eventType, meta, capsLock, and numLock.
+    /// Releases are forwarded only for presses this view delivered; held presses are released
+    /// when the view becomes read-only or is disposed, and forgotten when event reporting stops.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The adapter is unattached or a JSON field has the wrong type.</exception>
     /// <exception cref="InvalidDataException">The command, its values, or its size are unsupported.</exception>
@@ -537,6 +564,8 @@ public sealed class Hwt1PresentationAdapter :
                 var text = command.GetProperty("text").GetString() ?? throw new InvalidDataException("Missing text.");
                 if (command.GetProperty("type").GetString() == "paste")
                     text = Hwt1Input.EncodePaste(text, terminal);
+                else
+                    text = Hwt1Input.EncodeText(text, terminal);
                 if (IsReadOnly)
                     break;
                 terminal.ResetBrowserView(_view);
@@ -544,12 +573,13 @@ public sealed class Hwt1PresentationAdapter :
                 await SendInputAsync(Encoding.UTF8.GetBytes(text), linked.Token);
                 break;
             case "key":
-                var key = Hwt1Input.EncodeKey(command, terminal);
+                var key = Hwt1Input.DecodeKey(command, terminal.InputModes.KittyKeyboardFlags);
                 if (IsReadOnly)
+                {
+                    await ReleaseHeldKeysAsync(linked.Token);
                     break;
-                terminal.ResetBrowserView(_view);
-                InvalidatePresentation();
-                await SendInputAsync(Encoding.UTF8.GetBytes(key), linked.Token);
+                }
+                await HandleKeyAsync(key, terminal, linked.Token);
                 break;
             case "mouse":
                 var mouse = Hwt1Input.EncodeMouse(command, terminal);
@@ -576,6 +606,103 @@ public sealed class Hwt1PresentationAdapter :
             _muxer.SendBrowserInput(_session!, input);
         else
             await _terminal!.SendInputAsync(input, cancellationToken);
+    }
+
+    private async Task HandleKeyAsync(Hwt1Input.KeyCommand command, Hex1bTerminal terminal, CancellationToken cancellationToken)
+    {
+        await _keyGate.WaitAsync(cancellationToken);
+        try
+        {
+            var modes = terminal.InputModes;
+            // Without event-type reporting the workload expects no releases for earlier presses.
+            if ((modes.KittyKeyboardFlags & 2) == 0)
+                _heldKeys.Clear();
+            if (command.Event is not { } input)
+                return;
+            if (input.EventType == Hex1bKeyEventType.Release)
+            {
+                // Only release presses this view delivered, using the identity reported at press time.
+                if (!_heldKeys.TryGetValue(command.HeldKey, out var press))
+                    return;
+                var release = TerminalInputEncoder.EncodeKey(
+                    press with { EventType = Hex1bKeyEventType.Release, Text = "", Modifiers = input.Modifiers }, modes);
+                if (release.Length > 0)
+                    await SendInputAsync(Encoding.UTF8.GetBytes(release), cancellationToken);
+                _heldKeys.Remove(command.HeldKey);
+                return;
+            }
+            if (input.EventType == Hex1bKeyEventType.Repeat && !_heldKeys.ContainsKey(command.HeldKey))
+                input = input with { EventType = Hex1bKeyEventType.Press };
+            terminal.ResetBrowserView(_view);
+            InvalidatePresentation();
+            var encoded = TerminalInputEncoder.EncodeKey(input, modes);
+            if (encoded.Length > 0)
+                await SendInputAsync(Encoding.UTF8.GetBytes(encoded), cancellationToken);
+            if ((modes.KittyKeyboardFlags & 2) != 0 && (input.Key != Hex1bKey.None || input.UnicodeKeyCode is not null) &&
+                (_heldKeys.Count < MaxHeldKeys || _heldKeys.ContainsKey(command.HeldKey)))
+                _heldKeys[command.HeldKey] = input with { EventType = Hex1bKeyEventType.Press };
+        }
+        finally
+        {
+            _keyGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Releases every press this view delivered. A failed write keeps the remaining presses
+    /// so a later read-only message or disposal can retry.
+    /// </summary>
+    private async Task ReleaseHeldKeysAsync(CancellationToken cancellationToken)
+    {
+        await _keyGate.WaitAsync(cancellationToken);
+        try
+        {
+            await ReleaseHeldKeysCoreAsync(cancellationToken);
+        }
+        finally
+        {
+            _keyGate.Release();
+        }
+    }
+
+    private async Task ReleaseHeldKeysCoreAsync(CancellationToken cancellationToken)
+    {
+        if (_heldKeys.Count == 0 || _terminal is not { } terminal)
+            return;
+        var modes = terminal.InputModes;
+        if ((modes.KittyKeyboardFlags & 2) == 0)
+        {
+            _heldKeys.Clear();
+            return;
+        }
+        foreach (var (heldKey, press) in _heldKeys.ToArray())
+        {
+            var release = TerminalInputEncoder.EncodeKey(press with
+            {
+                EventType = Hex1bKeyEventType.Release,
+                Text = "",
+                Modifiers = press.Modifiers & (Hex1bModifiers.CapsLock | Hex1bModifiers.NumLock),
+            }, modes);
+            if (release.Length > 0)
+                await SendInputAsync(Encoding.UTF8.GetBytes(release), cancellationToken);
+            _heldKeys.Remove(heldKey);
+        }
+    }
+
+    internal int HeldKeyCount
+    {
+        get
+        {
+            _keyGate.Wait();
+            try
+            {
+                return _heldKeys.Count;
+            }
+            finally
+            {
+                _keyGate.Release();
+            }
+        }
     }
 
     internal void AttachProducer(Hex1bTerminal terminal, Hmp1PresentationAdapter muxer,
@@ -660,6 +787,23 @@ public sealed class Hwt1PresentationAdapter :
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
+        // Best effort: release presses this view delivered, unless a write already owns the gate.
+        if (_keyGate.Wait(0))
+        {
+            try
+            {
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+                await ReleaseHeldKeysCoreAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or IOException or InvalidOperationException)
+            {
+            }
+            finally
+            {
+                _heldKeys.Clear();
+                _keyGate.Release();
+            }
+        }
         if (_terminal is { } terminal)
         {
             _width = terminal.Width;

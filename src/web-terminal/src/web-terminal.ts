@@ -32,11 +32,29 @@ import type { CopySelectionOptions, InputActionHandler, InputDecision, InputBind
   TerminalRendererPreference, TerminalSelection, TerminalSizing, TerminalSizingState, TerminalStats, TerminalViewport,
   TerminalProgress, TerminalShellIntegration, TerminalWorkingDirectory, TerminalCommandMark,
   TerminalProgramStatusSnapshot,
-  TerminalLinkOptions, TerminalLinkActivation, TerminalPoint,
+  TerminalLinkOptions, TerminalLinkActivation, TerminalPoint, InputModifiers,
   WebTerminalHandle, WebTerminalOptions } from "./types.js";
 import type { HyperlinkRange, InputCommand, TerminalCommand, WorkerInputMessage, WorkerOutputMessage } from "./wire-types.js";
 import { errorMessage, isRecord } from "./validation.js";
 export { InputRoute, TerminalAction, defaultInputBindings } from "./input-policy.js";
+
+// Keys whose Kitty identity is a functional code with no legacy or text encoding.
+const kittyFunctionalKeys = new Set(["ContextMenu", "Pause", "PrintScreen", "ScrollLock"]);
+const kittyNamedKeys = new Set(["ArrowUp", "ArrowDown", "ArrowRight", "ArrowLeft", "Home", "End", "Insert",
+  "Delete", "PageUp", "PageDown", "Enter", "Backspace", "Tab", "Escape", "CapsLock", "NumLock",
+  ...kittyFunctionalKeys]);
+const kittyModifierCodes: Record<string, readonly string[]> = {
+  Shift: ["ShiftLeft", "ShiftRight"], Control: ["ControlLeft", "ControlRight"], Alt: ["AltLeft", "AltRight"],
+  Meta: ["MetaLeft", "MetaRight", "OSLeft", "OSRight"], OS: ["MetaLeft", "MetaRight", "OSLeft", "OSRight"]
+};
+
+/** Whether HWT1 has a Kitty identity for the key; unknown, dead, and unsided keys are never guessed. */
+function kittyKeyKnown(key: string, code: string): boolean {
+  if (key in kittyModifierCodes) return kittyModifierCodes[key]!.includes(code);
+  if (kittyNamedKeys.has(key) || /^F([1-9]|[12]\d|3[0-5])$/.test(key)) return true;
+  if (key === "Clear") return code === "Numpad5";
+  return [...key].length === 1;
+}
 
 function requiredElement<T extends Element>(root: ParentNode, selector: string, type: new () => T): T {
   const element = root.querySelector(selector);
@@ -119,6 +137,10 @@ export class WebTerminal implements WebTerminalHandle {
   #canvasSize = { width: 0, height: 0 };
   #hyperlinks = new Hyperlinks();
   #lineRenditions: readonly number[] = [];
+  #kittyFlags = 0;
+  #heldKeys = new Map<string, { key: string; code: string }>();
+  #lockState = { capsLock: false, numLock: false };
+  #compositionEcho: string | null = null;
   #links: false | TerminalLinkOptions;
   #linkDetector: LinkDetection;
   #linkGeneration = 1;
@@ -474,6 +496,9 @@ export class WebTerminal implements WebTerminalHandle {
       this.#options.onStatus?.(message.message, message.level);
     } else if (message.type === "geometry") {
       this.#lineRenditions = message.lineRenditions ?? [];
+      this.#kittyFlags = message.kittyKeyboardFlags ?? 0;
+      // Releases are only meaningful while the workload asked for them; drop stale presses otherwise.
+      if (!(this.#kittyFlags & 2)) this.#heldKeys.clear();
       this.#linkRevision = message.revision;
       this.#osc8Rows.clear();
       for (const range of message.hyperlinks) {
@@ -904,6 +929,11 @@ export class WebTerminal implements WebTerminalHandle {
     if (this.#readOnly === readOnly) return;
     const inputFocused = document.activeElement === this.element &&
       (!this.element.shadowRoot?.activeElement || this.element.shadowRoot.activeElement === this.#input);
+    // End held keys while input is still allowed so the workload never sees a stuck key.
+    if (readOnly) {
+      try { this.#releaseHeldKeys(); }
+      catch { this.#heldKeys.clear(); }
+    }
     this.#readOnly = readOnly;
     this.#inputSerial++;
     this.#resetComposition?.();
@@ -1036,6 +1066,14 @@ export class WebTerminal implements WebTerminalHandle {
 
   #forwardInput(input: TerminalInput): void {
     if (input.type === "key") {
+      if (this.#kittyFlags & 31) {
+        const held = input.code || input.key;
+        this.#inputCommand(this.#kittyKey(input.key, input.code, input.repeat ? "repeat" : "press", input));
+        // Track only presses actually sent, so a release never reaches a workload without its press.
+        if ((this.#kittyFlags & 2) && this.#canInput() && (this.#heldKeys.has(held) || this.#heldKeys.size < 256))
+          this.#heldKeys.set(held, { key: input.key, code: input.code });
+        return;
+      }
       if (input.meta) throw new Error("Meta has no terminal key encoding; bind this shortcut to a local action instead.");
       this.#inputCommand({ type: "key", key: input.key, ctrl: input.ctrl, alt: input.alt, shift: input.shift });
     } else if (input.type === "paste") {
@@ -1045,12 +1083,45 @@ export class WebTerminal implements WebTerminalHandle {
     }
   }
 
+  #kittyKey(key: string, code: string, eventType: "press" | "repeat" | "release",
+    modifiers: InputModifiers): InputCommand {
+    return {
+      type: "key", key, code, eventType, ctrl: modifiers.ctrl, alt: modifiers.alt, shift: modifiers.shift,
+      meta: modifiers.meta, capsLock: this.#lockState.capsLock, numLock: this.#lockState.numLock
+    };
+  }
+
+  /** Whether Kitty mode reports a key the default policy leaves to the browser's text input. */
+  #kittyReports(input: TerminalInput): boolean {
+    const flags = this.#kittyFlags & 31;
+    if (!flags || input.type !== "key" || !kittyKeyKnown(input.key, input.code)) return false;
+    if (flags & 8) return true;
+    if (kittyFunctionalKeys.has(input.key) || /^F(1[3-9]|2\d|3[0-5])$/.test(input.key)) return true;
+    if ((flags & 1) && input.code.startsWith("Numpad")) return true;
+    return (flags & 2) !== 0 && [...input.key].length === 1 && !input.ctrl && !input.alt && !input.meta;
+  }
+
+  #releaseKey(id: string, modifiers: InputModifiers): void {
+    const held = this.#heldKeys.get(id);
+    if (!held) return;
+    this.#heldKeys.delete(id);
+    if (!(this.#kittyFlags & 2) || this.#disposed || !this.#canInput()) return;
+    const command = this.#kittyKey(held.key, held.code, "release", modifiers);
+    assertCommandSize(command);
+    this.#send(command);
+  }
+
+  #releaseHeldKeys(): void {
+    for (const id of [...this.#heldKeys.keys()])
+      this.#releaseKey(id, { ctrl: false, alt: false, shift: false, meta: false });
+  }
+
   #dispatchInput(input: TerminalInput, event?: Event, allowApplication = true): void {
     const decision = this.#resolveInput(input);
     // Shortcuts may run on inspection controls, but Enter/Space must still activate the control.
     if (!allowApplication && decision.action === undefined && decision.route !== InputRoute.Consume) return;
     if (decision.route === InputRoute.Browser ||
-        (decision.route === InputRoute.Continue && input.type === "key")) return;
+        (decision.route === InputRoute.Continue && input.type === "key" && !this.#kittyReports(input))) return;
     event?.preventDefault();
     event?.stopPropagation();
     if (decision.action !== undefined) this.#executeInputAction(decision, input);
@@ -1068,6 +1139,7 @@ export class WebTerminal implements WebTerminalHandle {
     this.#resetComposition = () => {
       composing = false;
       compositionCommit = null;
+      this.#compositionEcho = null;
       clearTimeout(this.#compositionTimer);
     };
     this.element.addEventListener("keydown", event => {
@@ -1076,9 +1148,25 @@ export class WebTerminal implements WebTerminalHandle {
       const target = event.composedPath()[0];
       if (!this.#connected || event.isComposing || composing || event.key === "Process" || event.key === "Dead") return;
       if (event.getModifierState("AltGraph")) return;
+      this.#lockState = { capsLock: event.getModifierState("CapsLock"), numLock: event.getModifierState("NumLock") };
       this.#dispatchInput({ type: "key", key: event.key, code: event.code, repeat: event.repeat,
         ...inputModifiers(event) }, event, target === input || target === this.element);
     }, { ...options, capture: true });
+    this.element.addEventListener("keyup", event => {
+      const id = event.code || event.key;
+      if (!this.#heldKeys.has(id)) return;
+      this.#lockState = { capsLock: event.getModifierState("CapsLock"), numLock: event.getModifierState("NumLock") };
+      event.preventDefault();
+      try { this.#releaseKey(id, inputModifiers(event)); }
+      catch (error) { this.#actionFailed(error); }
+    }, { ...options, capture: true });
+    this.element.addEventListener("focusout", event => {
+      // Keys released while focus is elsewhere never deliver keyup here; end them now.
+      const next = (event as FocusEvent).relatedTarget;
+      if (next && this.element.contains(next as Node)) return;
+      try { this.#releaseHeldKeys(); }
+      catch (error) { this.#actionFailed(error); }
+    }, options);
     input.addEventListener("paste", event => {
       if (event.defaultPrevented || !this.#connected || !event.clipboardData) return;
       this.#dispatchInput({ type: "paste", text: event.clipboardData.getData("text/plain") }, event);
@@ -1096,7 +1184,11 @@ export class WebTerminal implements WebTerminalHandle {
       // Accommodate browsers placing the final input before or after compositionend.
       compositionCommit = typeof event.data === "string" ? event.data : input.value;
       this.#compositionTimer = setTimeout(() => {
-        if (compositionCommit) this.#dispatchInput({ type: "text", text: compositionCommit });
+        if (compositionCommit) {
+          this.#dispatchInput({ type: "text", text: compositionCommit });
+          // A late composition input event repeats this commit; ordinary input of the same text does not.
+          this.#compositionEcho = compositionCommit;
+        }
         compositionCommit = null;
         input.value = "";
       }, 0);
@@ -1105,6 +1197,13 @@ export class WebTerminal implements WebTerminalHandle {
       const inputEvent = event instanceof InputEvent ? event : undefined;
       if (inputEvent?.isComposing || composing) return;
       clearTimeout(this.#compositionTimer);
+      const echo = this.#compositionEcho;
+      this.#compositionEcho = null;
+      if (echo !== null && inputEvent?.data === echo &&
+          (inputEvent.inputType === "insertFromComposition" || inputEvent.inputType === "insertCompositionText")) {
+        input.value = "";
+        return;
+      }
       const text = compositionCommit ?? inputEvent?.data ?? input.value;
       compositionCommit = null;
       if (text && inputEvent?.inputType !== "insertFromPaste") this.#dispatchInput({ type: "text", text }, event);
@@ -1161,6 +1260,8 @@ export class WebTerminal implements WebTerminalHandle {
   #disconnect() {
     this.#inputSerial++;
     this.#connected = false;
+    this.#heldKeys.clear();
+    this.#kittyFlags = 0;
     this.#hyperlinks.update([]);
     this.#osc8Rows.clear();
     this.#detectedLinks = [];

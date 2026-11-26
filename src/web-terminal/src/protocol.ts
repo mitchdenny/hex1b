@@ -209,6 +209,8 @@ function validateMetadata(metadata: unknown): asserts metadata is FrameMetadata 
     if (metadata.lineRenditions.length !== rows) throw new Error("Invalid line rendition count");
     for (const rendition of metadata.lineRenditions) integer(rendition, "line rendition", 0, 3);
   }
+  if (metadata.kittyKeyboardFlags !== undefined)
+    integer(metadata.kittyKeyboardFlags, "Kitty keyboard flags", 0, 127);
   if (typeof metadata.mouseTracking !== "number" || ![0, 9, 1000, 1002, 1003].includes(metadata.mouseTracking)) {
     throw new Error("Unsupported mouse tracking mode");
   }

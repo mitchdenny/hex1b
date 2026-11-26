@@ -42,6 +42,8 @@ export interface ImagePlacement {
 }
 export interface FrameMetadata extends TerminalGeometry {
   lineRenditions?: number[];
+  /** Active Kitty keyboard flags (0..127); only the defined low five bits change input. */
+  kittyKeyboardFlags?: number;
   version: 1; full: boolean; revision: number; baseRevision: number;
   colorEncodings?: string[];
   colorEncoding?: "indexed-v1" | null;
@@ -67,6 +69,8 @@ export type MouseCommand = {
 export type InputCommand =
   | { type: "input" | "paste"; text: string }
   | { type: "key"; key: string; ctrl: boolean; alt: boolean; shift: boolean }
+  | { type: "key"; key: string; ctrl: boolean; alt: boolean; shift: boolean; meta: boolean;
+      code: string; eventType: "press" | "repeat" | "release"; capsLock: boolean; numLock: boolean }
   | MouseCommand;
 export type TerminalCommand = InputCommand
   | { type: "colorEncoding"; value: "indexed-v1" }
@@ -117,7 +121,7 @@ export type WorkerOutputMessage =
   | { type: "closed"; details: TerminalTransportCloseDetails }
   | { type: "status"; message: string; level: TerminalStatusLevel }
   | ({ type: "geometry"; peer: TerminalPeer; history: HistoryMetadata | null;
-       lineRenditions?: number[];
+       lineRenditions?: number[]; kittyKeyboardFlags?: number;
        revision: number; title: string; progress: TerminalProgress; shellIntegration: TerminalShellIntegration;
        programStatus: TerminalProgramStatusInventory;
        workingDirectory: TerminalWorkingDirectory; commandMark: TerminalCommandMark | null;
