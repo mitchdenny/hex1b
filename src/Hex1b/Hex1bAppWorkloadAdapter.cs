@@ -1,5 +1,7 @@
 using System.Text;
 using System.Threading.Channels;
+using System.Globalization;
+using System.Diagnostics.CodeAnalysis;
 using Hex1b.Input;
 using Hex1b.Tokens;
 
@@ -44,6 +46,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
 {
     private readonly Channel<WorkloadOutputItem> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;
+    private readonly ChannelReader<Hex1bEvent> _inputReader;
     private readonly SemaphoreSlim _rawInputWriteLock = new(1, 1);
     private readonly Decoder _rawInputDecoder = Encoding.UTF8.GetDecoder();
     private readonly InputSequenceParser _rawInputParser = new();
@@ -58,10 +61,75 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     private volatile bool _disposed;
     internal bool IsDisposed => _disposed;
     private bool _inTuiMode;
-    private bool _kittyKeyboardPushed;
+    private volatile bool _kittyKeyboardPushed;
+    private int _reportedKeyboardFlags = -1;
+    private readonly object _sourceReportingLock = new();
+    private bool? _inputSourceReportsKeyReleases;
+    private Action<bool?>? _sourceReportingHandler;
     private bool _dimensionsInitialized;
     private int _outputQueueDepth; // Manual tracking since unbounded channels don't support Count
     private readonly int _maxQueuedOutputItems;
+
+    internal void SetInputSourceReportingHandler(Action<bool?>? handler)
+    {
+        lock (_sourceReportingLock)
+        {
+            _sourceReportingHandler = handler;
+            handler?.Invoke(_inputSourceReportsKeyReleases);
+        }
+    }
+
+    internal void SetInputSourceReportsKeyReleases(bool? value)
+    {
+        lock (_sourceReportingLock)
+        {
+            _inputChannel.Writer.TryWrite(new SourceReportingChange(value));
+        }
+    }
+
+    internal bool? ConfirmedEnhancedInput => Volatile.Read(ref _reportedKeyboardFlags) is var flags && flags >= 0
+        ? (flags & 31) != 0 : null;
+
+    internal bool ObserveKeyboardReport(AnsiToken token)
+    {
+        if (token is not UnrecognizedSequenceToken { Sequence: var sequence } ||
+            !sequence.StartsWith("\x1b[?", StringComparison.Ordinal) || !sequence.EndsWith('u'))
+            return false;
+        if (_kittyKeyboardPushed && sequence.Length > 4 &&
+            int.TryParse(sequence.AsSpan(3, sequence.Length - 4), NumberStyles.None,
+                CultureInfo.InvariantCulture, out var flags) && flags is >= 0 and <= 127)
+        {
+            Volatile.Write(ref _reportedKeyboardFlags, flags);
+            SetInputSourceReportsKeyReleases((flags & 10) == 10);
+        }
+        return true;
+    }
+
+    private sealed record SourceReportingChange(bool? ReportsReleases) : Hex1bEvent;
+
+    // Apply capability epochs on the consumer side, in order with the keys they
+    // describe. A queued legacy press must not inherit a later negotiation.
+    private sealed class SourceReportingReader(Hex1bAppWorkloadAdapter owner) : ChannelReader<Hex1bEvent>
+    {
+        public override Task Completion => owner._inputChannel.Reader.Completion;
+        public override ValueTask<bool> WaitToReadAsync(CancellationToken cancellationToken = default)
+            => owner._inputChannel.Reader.WaitToReadAsync(cancellationToken);
+        public override bool TryRead([MaybeNullWhen(false)] out Hex1bEvent item)
+        {
+            while (owner._inputChannel.Reader.TryRead(out item))
+            {
+                if (item is not SourceReportingChange change)
+                    return true;
+                lock (owner._sourceReportingLock)
+                {
+                    owner._inputSourceReportsKeyReleases = change.ReportsReleases;
+                    owner._sourceReportingHandler?.Invoke(change.ReportsReleases);
+                }
+            }
+            item = null;
+            return false;
+        }
+    }
 
     /// <summary>
     /// Optional diagnostic tree provider for MCP diagnostics.
@@ -153,6 +221,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             SingleReader = true,
             SingleWriter = false
         });
+        _inputReader = new SourceReportingReader(this);
     }
 
     /// <summary>
@@ -187,6 +256,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             SingleReader = true,
             SingleWriter = false
         });
+        _inputReader = new SourceReportingReader(this);
     }
 
     private static Channel<WorkloadOutputItem> CreateOutputChannel(int maxQueuedOutputItems)
@@ -413,7 +483,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// <summary>
     /// Channel of parsed input events from the terminal.
     /// </summary>
-    public ChannelReader<Hex1bEvent> InputEvents => _inputChannel.Reader;
+    public ChannelReader<Hex1bEvent> InputEvents => _inputReader;
 
     /// <summary>
     /// Current terminal width.
@@ -461,9 +531,18 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         }
         var pushKeyboard = Capabilities.SupportsKittyKeyboard;
         if (pushKeyboard)
-            sb.Append("\x1b[>31u");
-        Write(sb.ToString());
+            sb.Append("\x1b[>31u\x1b[?u");
         _kittyKeyboardPushed = pushKeyboard;
+        Volatile.Write(ref _reportedKeyboardFlags, -1);
+        try
+        {
+            Write(sb.ToString());
+        }
+        catch
+        {
+            _kittyKeyboardPushed = false;
+            throw;
+        }
         _inTuiMode = true;
     }
 
@@ -490,6 +569,8 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         sb.Append("\x1b[?1049l");  // Exit alternate screen
         Write(sb.ToString());
         _kittyKeyboardPushed = false;
+        Volatile.Write(ref _reportedKeyboardFlags, -1);
+        SetInputSourceReportsKeyReleases(false);
         _inTuiMode = false;
     }
 
@@ -594,7 +675,8 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             _rawInputTimer = null;
             var chars = new char[_rawInputDecoder.GetCharCount(data.Span, flush: false)];
             var count = _rawInputDecoder.GetChars(data.Span, chars, flush: false);
-            await DispatchRawTokensAsync(_rawInputParser.Parse(new string(chars, 0, count), _kittyKeyboardPushed), ct);
+            await DispatchRawTokensAsync(_rawInputParser.Parse(new string(chars, 0, count),
+                ConfirmedEnhancedInput ?? _kittyKeyboardPushed), ct);
             if (_rawInputParser.NeedsEscapeTimeout)
             {
                 var generation = _rawInputGeneration;
@@ -615,8 +697,8 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         {
             if (_disposed || state is not int generation || generation != _rawInputGeneration)
                 return;
-            foreach (var token in _rawInputParser.Parse("", _kittyKeyboardPushed, flush: true))
-                if (Hex1bTerminal.TokenToEvent(token) is { } evt)
+            foreach (var token in _rawInputParser.Parse("", ConfirmedEnhancedInput ?? _kittyKeyboardPushed, flush: true))
+                if (Hex1bTerminal.InputTokenToEvent(token, ConfirmedEnhancedInput ?? _kittyKeyboardPushed) is { } evt)
                     _inputChannel.Writer.TryWrite(evt);
         }
         finally
@@ -632,6 +714,8 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             foreach (var token in tokens)
             {
                 ct.ThrowIfCancellationRequested();
+                if (ObserveKeyboardReport(token))
+                    continue;
                 if (token is SpecialKeyToken { KeyCode: 200 })
                 {
                     _rawPaste = new PasteContext();
@@ -653,7 +737,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
                         if (Hex1bTerminal.TokenToEvent(new TextToken(rune.ToString())) is { } evt)
                             await _inputChannel.Writer.WriteAsync(evt, ct);
                 }
-                else if (Hex1bTerminal.TokenToEvent(token) is { } evt)
+                else if (Hex1bTerminal.InputTokenToEvent(token, ConfirmedEnhancedInput ?? _kittyKeyboardPushed) is { } evt)
                     await _inputChannel.Writer.WriteAsync(evt, ct);
             }
         }
@@ -777,6 +861,12 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     {
         if (_disposed) return;
         _disposed = true;
+        lock (_sourceReportingLock)
+        {
+            _inputSourceReportsKeyReleases = false;
+            _sourceReportingHandler?.Invoke(false);
+            _sourceReportingHandler = null;
+        }
         _rawInputTimer?.Dispose();
         _rawPaste?.Cancel();
 

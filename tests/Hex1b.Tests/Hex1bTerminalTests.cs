@@ -774,7 +774,7 @@ public class Hex1bTerminalTests
     }
 
     [TestMethod]
-    public async Task PresentationInput_SplitProtocolDuringPasteAcrossTimeout_PreservesNonTextDispatch()
+    public async Task PresentationInput_SplitProtocolDuringPasteAcrossTimeout_PreservesOpaqueContent()
     {
         var clock = new EscapeTimeProvider();
         await using var presentation = new QueuedInputPresentationAdapter();
@@ -789,20 +789,17 @@ public class Hex1bTerminalTests
         deadline.CancelAfter(TimeSpan.FromSeconds(5));
         var ct = deadline.Token;
 
-        presentation.EnqueueInput("\x1b[200~a\x1b_Gi=123");
+        presentation.EnqueueInput("\x1b[200~a\x1b");
         var paste = TestSeq.IsType<Hex1bPasteEvent>(await workload.InputEvents.ReadAsync(ct));
         var timer = await clock.Armed.Reader.ReadAsync(ct);
         timer.Fire();
-        presentation.EnqueueInput(";OK\x1b\\\x1b[<0;5;10");
+        presentation.EnqueueInput("_Gi=123;OK\x1b\\\x1b[");
         timer = await clock.Armed.Reader.ReadAsync(ct);
         timer.Fire();
-        presentation.EnqueueInput("Mb\x1b[201~z");
+        presentation.EnqueueInput("<0;5;10Mb\x1b[201~z");
 
-        var mouse = TestSeq.IsType<Hex1bMouseEvent>(await workload.InputEvents.ReadAsync(ct));
-        Assert.AreEqual(MouseButton.Left, mouse.Button);
-        Assert.AreEqual(MouseAction.Down, mouse.Action);
         Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Text);
-        Assert.AreEqual("ab", await paste.Paste.ReadToEndAsync(ct: ct));
+        Assert.AreEqual("a\x1b_Gi=123;OK\x1b\\\x1b[<0;5;10Mb", await paste.Paste.ReadToEndAsync(ct: ct));
         Assert.IsTrue(paste.Paste.IsCompleted);
         Assert.IsFalse(workload.InputEvents.TryRead(out _));
     }

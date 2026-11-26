@@ -10,6 +10,51 @@ namespace Hex1b.Tests;
 public partial class PresentationRawInputTests
 {
     [TestMethod]
+    [DataRow(0, false)]
+    [DataRow(1, false)]
+    [DataRow(2, false)]
+    [DataRow(4, false)]
+    [DataRow(8, false)]
+    [DataRow(16, false)]
+    [DataRow(10, true)]
+    [DataRow(31, true)]
+    [DataRow(32, false)]
+    [DataRow(64, false)]
+    [DataRow(96, false)]
+    [DataRow(33, false)]
+    public async Task WriteInputAsync_EffectiveFlagsRequireReportEventsAndAllKeys(int flags, bool expected)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities { SupportsKittyKeyboard = true });
+        bool? reportsReleases = null;
+        workload.SetInputSourceReportingHandler(value => reportsReleases = value);
+        workload.EnterTuiMode();
+        Assert.IsNull(reportsReleases, "Support and a queued push are not confirmation of effective flags.");
+        await workload.WriteInputAsync(Encoding.ASCII.GetBytes($"\x1b[?{flags}u\x1b[97u\x1b[13u\x1b[9u\x1b[127u"));
+        foreach (var key in new[] { Hex1bKey.A, Hex1bKey.Enter, Hex1bKey.Tab, Hex1bKey.Backspace })
+            Assert.AreEqual(key, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+        Assert.AreEqual(expected, reportsReleases);
+        workload.ExitTuiMode();
+    }
+
+    [TestMethod]
+    public async Task WriteInputAsync_QueuedLegacyKeyKeepsPreNegotiationSourceState()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities { SupportsKittyKeyboard = true });
+        bool? reportsReleases = null;
+        workload.SetInputSourceReportingHandler(value => reportsReleases = value);
+        await workload.WriteInputAsync("a\r\t\x7f"u8.ToArray());
+        workload.EnterTuiMode();
+        await workload.WriteInputAsync("\x1b[?31u\x1b[13u"u8.ToArray());
+        foreach (var key in new[] { Hex1bKey.A, Hex1bKey.Enter, Hex1bKey.Tab, Hex1bKey.Backspace })
+        {
+            Assert.AreEqual(key, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+            Assert.IsNull(reportsReleases, "An already-queued legacy press must not inherit the new epoch.");
+        }
+        Assert.AreEqual(Hex1bKey.Enter, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+        Assert.AreEqual(true, reportsReleases);
+    }
+
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public async Task KittyIngress_ReleaseReachesCustomRoutingWithoutExecutingBindings(bool raw)
@@ -21,7 +66,7 @@ public partial class PresentationRawInputTests
             PresentationAdapter = presentation, WorkloadAdapter = workload,
             EscapeSequenceTimeout = TimeSpan.Zero
         });
-        var node = new IngressNode();
+        var node = new IngressNode { IsFocused = true };
         var ring = new FocusRing();
         ring.Rebuild(node);
         var state = new InputRouterState();
@@ -278,22 +323,22 @@ public partial class PresentationRawInputTests
             public void Dispose() { }
             public ValueTask DisposeAsync() => ValueTask.CompletedTask;
         }
+    }
 
-        private sealed class IngressNode : Hex1bNode
+    private sealed class IngressNode : Hex1bNode
+    {
+        public int Actions { get; private set; }
+        public List<Hex1bEvent> Received { get; } = [];
+        public override bool IsFocusable => true;
+        public override bool IsFocused { get; set; }
+        public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+            => bindings.Key(Hex1bKey.Enter).Action(() => Actions++);
+        public override InputResult HandleInput(Hex1bEvent inputEvent)
         {
-            public int Actions { get; private set; }
-            public List<Hex1bEvent> Received { get; } = [];
-            public override bool IsFocusable => true;
-            public override bool IsFocused { get; set; }
-            public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
-                => bindings.Key(Hex1bKey.Enter).Action(() => Actions++);
-            public override InputResult HandleInput(Hex1bEvent inputEvent)
-            {
-                Received.Add(inputEvent);
-                return InputResult.Handled;
-            }
-            protected override Size MeasureCore(Constraints constraints) => new(1, 1);
-            public override void Render(Hex1bRenderContext context) { }
+            Received.Add(inputEvent);
+            return InputResult.Handled;
         }
+        protected override Size MeasureCore(Constraints constraints) => new(1, 1);
+        public override void Render(Hex1bRenderContext context) { }
     }
 }

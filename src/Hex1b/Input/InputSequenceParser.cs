@@ -79,9 +79,14 @@ internal sealed class InputSequenceParser
                 var sequence = text[start..offset];
                 if (sequence == "\x1b[200~")
                     _inPaste = true;
-                tokens.AddRange(enhanced
-                    ? AnsiTokenizer.TokenizeEnhancedInput(sequence)
-                    : AnsiTokenizer.Tokenize(sequence));
+                // Preserve CPR's original spelling until dispatch: an effective-flags
+                // report earlier in this same read can change its F3 ambiguity.
+                if (KittyKeyboardInput.IsCursorPositionReport(sequence))
+                    tokens.Add(new UnrecognizedSequenceToken(sequence));
+                else
+                    tokens.AddRange(enhanced
+                        ? AnsiTokenizer.TokenizeEnhancedInput(sequence)
+                        : AnsiTokenizer.Tokenize(sequence));
             }
             else
             {

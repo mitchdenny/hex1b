@@ -10,7 +10,7 @@ public sealed partial class Hex1bTerminal
 
     private async ValueTask WriteAppPresentationAsync(ReadOnlyMemory<byte> data, CancellationToken ct)
     {
-        if (_workload is not Hex1bAppWorkloadAdapter)
+        if (_workload is not Hex1bAppWorkloadAdapter appAdapter)
         {
             await _presentation!.WriteOutputAsync(data, ct);
             return;
@@ -29,7 +29,15 @@ public sealed partial class Hex1bTerminal
             if (text.Contains("\x1b[>31u", StringComparison.Ordinal))
                 _appHostKeyboardPushed = true;
             if (text.Contains("\x1b[<u", StringComparison.Ordinal))
+            {
                 _appHostKeyboardPushed = false;
+                appAdapter.SetInputSourceReportsKeyReleases(false);
+            }
+        }
+        catch
+        {
+            appAdapter.SetInputSourceReportsKeyReleases(null);
+            throw;
         }
         finally
         {
@@ -39,6 +47,8 @@ public sealed partial class Hex1bTerminal
 
     private async ValueTask CompleteAppKeyboardPresentationAsync()
     {
+        if (_workload is not Hex1bAppWorkloadAdapter appAdapter)
+            return;
         await _appPresentationLock.WaitAsync();
         try
         {
@@ -49,6 +59,7 @@ public sealed partial class Hex1bTerminal
         }
         finally
         {
+            appAdapter.SetInputSourceReportsKeyReleases(false);
             _appPresentationLock.Release();
         }
     }

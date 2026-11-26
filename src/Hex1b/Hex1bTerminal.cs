@@ -909,7 +909,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 // If there is an incomplete escape sequence and the timeout is enabled,
                 // start (or restart) the reusable timer.
-                if (_presentationInputParser.NeedsEscapeTimeout && _escapeTimeout > TimeSpan.Zero)
+                if (_presentationInputParser.PendingLength > 0 && _escapeTimeout > TimeSpan.Zero)
                 {
                     _escapeFlushTimer ??= _timeProvider.CreateTimer(
                         OnEscapeFlushTimerFired, null,
@@ -933,7 +933,18 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     private async Task DispatchCompleteInputTextAsync(string completeText, CancellationToken ct, bool flush = false)
     {
-        var tokens = _presentationInputParser.Parse(completeText, (InputModes.KittyKeyboardFlags & 31) != 0, flush);
+        IReadOnlyList<AnsiToken> tokens;
+        await _appPresentationLock.WaitAsync(ct);
+        try
+        {
+            var enhanced = (_workload as Hex1bAppWorkloadAdapter)?.ConfirmedEnhancedInput ??
+                ((InputModes.KittyKeyboardFlags & 31) != 0 || _appHostKeyboardPushed);
+            tokens = _presentationInputParser.Parse(completeText, enhanced, flush);
+        }
+        finally
+        {
+            _appPresentationLock.Release();
+        }
         if (tokens.Count == 0)
             return;
 
@@ -961,6 +972,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         foreach (var token in tokens)
         {
             ct.ThrowIfCancellationRequested();
+            if (workload is Hex1bAppWorkloadAdapter appAdapter && appAdapter.ObserveKeyboardReport(token))
+                continue;
             
             // Check for bracketed paste start/end markers
             if (token is SpecialKeyToken { KeyCode: 200 })
@@ -1002,7 +1015,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Non-text tokens during paste (mouse, special keys) fall through to normal dispatch
             }
             
-            var evt = TokenToEvent(token);
+            var enhanced = (workload as Hex1bAppWorkloadAdapter)?.ConfirmedEnhancedInput ??
+                ((InputModes.KittyKeyboardFlags & 31) != 0 || _appHostKeyboardPushed);
+            var evt = InputTokenToEvent(token, enhanced);
             if (evt != null)
             {
                 await workload.WriteInputEventAsync(evt, ct);
@@ -1045,6 +1060,17 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Converts an ANSI token to a Hex1b input event.
     /// Returns null if the token doesn't represent a user input event.
     /// </summary>
+    internal static Hex1bEvent? InputTokenToEvent(AnsiToken token, bool enhanced)
+    {
+        if (!enhanced && token is UnrecognizedSequenceToken unrecognized &&
+            KittyKeyboardInput.IsCursorPositionReport(unrecognized.Sequence))
+        {
+            var legacy = AnsiTokenizer.Tokenize(unrecognized.Sequence);
+            return legacy.Count == 1 ? TokenToEvent(legacy[0]) : null;
+        }
+        return TokenToEvent(token);
+    }
+
     internal static Hex1bEvent? TokenToEvent(AnsiToken token)
     {
         return token switch
@@ -3775,7 +3801,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             case UnrecognizedSequenceToken unrecognized:
                 var keyboardMode = _inAlternateScreen ? _alternateKeyboardMode : _mainKeyboardMode;
                 if (keyboardMode.Apply(unrecognized.Sequence, out var keyboardQuery) && keyboardQuery &&
-                    !_presentation.AnswersProtocolQueriesDirectly)
+                    !_presentation.AnswersProtocolQueriesDirectly && _workload is not Hex1bAppWorkloadAdapter)
                 {
                     _ = SendProtocolResponseAsync(Encoding.ASCII.GetBytes($"\x1b[?{keyboardMode.Flags}u"));
                 }

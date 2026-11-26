@@ -674,6 +674,16 @@ assert literal workload bytes. Gate the first child write to exercise backpressu
 enqueue repeat, release and a following app binding as an ordering sentinel.
 See `KittyEmbeddedInputTests`.
 
+For adapter negotiation, distinguish declared host support, successful output, and
+an effective-flags reply from the physical input source. An emulated terminal's
+own keyboard stack is not that source. Require both report-events (2) and
+report-all (8) before treating every identity-bearing press as release-capable.
+Gate input before dispatch to exercise bytes already in flight across the query,
+then verify source epochs in order with queued keys. Include text, Enter, Tab,
+and Backspace as the first held key, before observing any release. See
+`KittyAppNegotiationTests` for these cases and raw/presentation ingress tests in
+`KittyAppIngressTests.cs` for fragmented CSI, UTF-8, and opaque bracketed paste.
+
 For held-key cancellation, register a callback that signals entry and waits on a
 test-controlled gate. Route release on a worker with `WaitAsync`, prove subsequent
 input progresses while the registration is blocked, then release the gate in

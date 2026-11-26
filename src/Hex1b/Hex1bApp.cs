@@ -285,6 +285,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         if (_adapter is Hex1bAppWorkloadAdapter appAdapter)
         {
             appAdapter.EnableMouse = _mouseEnabled;
+            appAdapter.SetInputSourceReportingHandler(value => InputSourceReportsKeyReleases = value);
         }
         
         ProgramStatus = new TerminalProgramStatusReporter(WriteProgramStatus, WriteProgramStatusAsync);
