@@ -325,7 +325,207 @@ public class KittyEmbeddedInputTests
     }
 
     [TestMethod]
-    public async Task RouteInput_SourceWithoutReleases_NeutralizesOverflowAndBoundsTrackedPresses()
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task RouteInput_TrackingLimit_RejectsNewPressWithoutReleasingExistingKeys(bool enhanced)
+    {
+        await using var workload = new GatedWorkload();
+        await using var child = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithDimensions(24, 4).WithTerminalWidget(out var handle).Build();
+        if (enhanced)
+            child.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>11u"));
+        var node = new TerminalNode { Handle = handle, IsFocused = true };
+        var ring = new FocusRing();
+        ring.Rebuild(node);
+        var state = new InputRouterState();
+        var codes = Enumerable.Range(0x4E00, TerminalWidgetHandle.MaxForwardedKeys + 1).ToArray();
+
+        for (var i = 0; i < TerminalWidgetHandle.MaxForwardedKeys; i++)
+        {
+            await InputRouter.RouteInputAsync(node,
+                Hex1bKeyEvent.FromText(char.ConvertFromUtf32(codes[i])) with { UnicodeKeyCode = codes[i] }, ring, state);
+            Assert.AreEqual(enhanced ? $"\x1b[{codes[i]}u" : char.ConvertFromUtf32(codes[i]), await workload.ReadInputAsync());
+        }
+        var rejected = Hex1bKeyEvent.FromText(char.ConvertFromUtf32(codes[^1])) with { UnicodeKeyCode = codes[^1] };
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await InputRouter.RouteInputAsync(node, rejected, ring, state));
+        Assert.AreEqual(TerminalWidgetHandle.MaxForwardedKeys, handle.ForwardedKeyCount);
+        Assert.IsFalse(workload.Input.Reader.TryRead(out _), "No premature release or untracked press is sent.");
+        Assert.IsFalse(handle.OwnsForwardedKey((Hex1bKey.None, codes[^1])));
+
+        await InputRouter.RouteInputAsync(node,
+            Hex1bKeyEvent.FromText("") with { UnicodeKeyCode = codes[0], EventType = Hex1bKeyEventType.Release }, ring, state);
+        if (enhanced)
+            Assert.AreEqual($"\x1b[{codes[0]};1:3u", await workload.ReadInputAsync());
+        await InputRouter.RouteInputAsync(node, rejected, ring, state);
+        Assert.AreEqual(enhanced ? $"\x1b[{codes[^1]}u" : char.ConvertFromUtf32(codes[^1]), await workload.ReadInputAsync());
+
+        await state.ReleaseAllTerminalKeysAsync(CancellationToken.None);
+        if (enhanced)
+        {
+            foreach (var code in codes.Skip(1))
+                Assert.AreEqual($"\x1b[{code};1:3u", await workload.ReadInputAsync());
+        }
+        Assert.IsFalse(workload.Input.Reader.TryRead(out _), "Every forwarded press is released exactly once.");
+        Assert.IsFalse(handle.HasAnyForwardedKeys);
+    }
+
+    [TestMethod]
+    [DataRow(false, false)]
+    [DataRow(false, true)]
+    [DataRow(true, false)]
+    [DataRow(true, true)]
+    public async Task ReleaseForwardedKeys_WriteFailsOrCancels_KeepsOwnershipForRetry(bool cleanup, bool cancel)
+    {
+        await using var workload = new GatedWorkload
+        {
+            BlockAtWrite = 2,
+            FailAtWrite = cancel ? 0 : 2,
+            WriteFailure = cancel ? null : new IOException("release delivery failed")
+        };
+        await using var child = CreateEnhancedChild(workload, out var handle);
+        var state = new InputRouterState();
+        var press = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a') with { UnicodeKeyCode = 97 };
+        state.ObserveKeyEvent(press);
+        await handle.ForwardKeyAsync(press, state, CancellationToken.None);
+        Assert.AreEqual("\x1b[97u", await workload.ReadInputAsync());
+        var release = press with { Text = "", EventType = Hex1bKeyEventType.Release };
+        using var cancellation = new CancellationTokenSource();
+
+        var delivery = cleanup
+            ? state.ReleaseAllTerminalKeysAsync(cancellation.Token)
+            : handle.ReleaseForwardedKeyAsync(release, cancellation.Token);
+        try
+        {
+            await workload.Blocked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            if (cancel)
+            {
+                cancellation.Cancel();
+                if (cleanup)
+                    await Assert.ThrowsAsync<TimeoutException>(() => delivery.WaitAsync(TimeSpan.FromSeconds(5)));
+                else
+                    await Assert.ThrowsAsync<OperationCanceledException>(() => delivery.WaitAsync(TimeSpan.FromSeconds(5)));
+            }
+            else
+            {
+                workload.Unblock.TrySetResult();
+                var failure = await Assert.ThrowsAsync<IOException>(() => delivery.WaitAsync(TimeSpan.FromSeconds(5)));
+                Assert.AreSame(workload.WriteFailure, failure);
+            }
+            Assert.IsTrue(handle.OwnsForwardedKey((Hex1bKey.A, null)));
+            Assert.IsFalse(workload.Input.Reader.TryRead(out _));
+
+            workload.Unblock.TrySetResult();
+            await state.ReleaseAllTerminalKeysAsync(CancellationToken.None);
+            Assert.AreEqual("\x1b[97;1:3u", await workload.ReadInputAsync());
+            Assert.IsFalse(handle.HasAnyForwardedKeys);
+            Assert.IsFalse(workload.Input.Reader.TryRead(out _));
+        }
+        finally
+        {
+            workload.Unblock.TrySetResult();
+            cancellation.Cancel();
+        }
+    }
+
+    [TestMethod]
+    public async Task ReleaseForwardedKey_SecondRecipientFails_RetriesOnlyUndeliveredRecipient()
+    {
+        await using var oldWorkload = new GatedWorkload();
+        await using var oldChild = CreateEnhancedChild(oldWorkload, out var handle);
+        await using var newWorkload = new GatedWorkload { FailAtWrite = 2, WriteFailure = new IOException("second child") };
+        await using var newChild = CreateEnhancedChild(newWorkload, out _);
+        var state = new InputRouterState();
+        var press = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a') with { UnicodeKeyCode = 97 };
+        await handle.ForwardKeyAsync(press, state, CancellationToken.None);
+        handle.Reset();
+        ((ITerminalLifecycleAwarePresentationAdapter)handle).TerminalCreated(newChild);
+        await handle.ForwardKeyAsync(press, state, CancellationToken.None);
+        Assert.AreEqual("\x1b[97u", await oldWorkload.ReadInputAsync());
+        Assert.AreEqual("\x1b[97u", await newWorkload.ReadInputAsync());
+
+        var release = press with { Text = "", EventType = Hex1bKeyEventType.Release };
+        await Assert.ThrowsAsync<IOException>(() => handle.ReleaseForwardedKeyAsync(release, CancellationToken.None));
+        Assert.AreEqual("\x1b[97;1:3u", await oldWorkload.ReadInputAsync());
+        Assert.AreEqual(1, handle.ForwardedKeyCount);
+        Assert.IsTrue(await handle.ReleaseForwardedKeyAsync(release, CancellationToken.None));
+        Assert.AreEqual("\x1b[97;1:3u", await newWorkload.ReadInputAsync());
+        Assert.IsFalse(handle.HasAnyForwardedKeys);
+        Assert.IsFalse(oldWorkload.Input.Reader.TryRead(out _), "The successful recipient is not released twice.");
+        Assert.IsFalse(newWorkload.Input.Reader.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task ForwardKey_RepeatedPressWriteFails_RetainsEarlierOwnership()
+    {
+        await using var workload = new GatedWorkload { FailAtWrite = 2, WriteFailure = new IOException("second press") };
+        await using var child = CreateEnhancedChild(workload, out var handle);
+        var state = new InputRouterState();
+        var press = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a') with { UnicodeKeyCode = 97 };
+        await handle.ForwardKeyAsync(press, state, CancellationToken.None);
+        Assert.AreEqual("\x1b[97u", await workload.ReadInputAsync());
+        await Assert.ThrowsAsync<IOException>(() => handle.ForwardKeyAsync(press, state, CancellationToken.None));
+
+        Assert.IsTrue(handle.OwnsForwardedKey((Hex1bKey.A, null)));
+        await state.ReleaseAllTerminalKeysAsync(CancellationToken.None);
+        Assert.AreEqual("\x1b[97;1:3u", await workload.ReadInputAsync());
+        Assert.IsFalse(handle.HasAnyForwardedKeys);
+        Assert.IsFalse(workload.Input.Reader.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task RouteInput_PhysicalReleaseRacesCleanup_DeliversExactlyOneRelease(bool cleanupFirst)
+    {
+        await using var workload = new GatedWorkload { BlockAtWrite = 2 };
+        await using var child = CreateEnhancedChild(workload, out var handle);
+        var node = new TerminalNode { Handle = handle, IsFocused = true };
+        var ring = new FocusRing();
+        ring.Rebuild(node);
+        var state = new InputRouterState();
+        var press = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a') with { UnicodeKeyCode = 97 };
+        await InputRouter.RouteInputAsync(node, press, ring, state);
+        Assert.AreEqual("\x1b[97u", await workload.ReadInputAsync());
+        var release = press with { Text = "", EventType = Hex1bKeyEventType.Release };
+
+        Task first = cleanupFirst
+            ? state.ReleaseAllTerminalKeysAsync(CancellationToken.None)
+            : InputRouter.RouteInputAsync(node, release, ring, state);
+        try
+        {
+            await workload.Blocked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Task second = cleanupFirst
+                ? InputRouter.RouteInputAsync(node, release, ring, state)
+                : state.ReleaseAllTerminalKeysAsync(CancellationToken.None);
+            Assert.IsFalse(second.IsCompleted, "The competing release waits for the in-flight delivery.");
+            Assert.IsTrue(handle.HasAnyForwardedKeys);
+            workload.Unblock.TrySetResult();
+            await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.AreEqual("\x1b[97;1:3u", await workload.ReadInputAsync());
+            Assert.IsFalse(workload.Input.Reader.TryRead(out _));
+            Assert.IsFalse(handle.HasAnyForwardedKeys);
+        }
+        finally
+        {
+            workload.Unblock.TrySetResult();
+        }
+    }
+
+    [TestMethod]
+    [DataRow(57441, Hex1bModifiers.Shift)]
+    [DataRow(57447, Hex1bModifiers.Shift)]
+    [DataRow(57442, Hex1bModifiers.Control)]
+    [DataRow(57448, Hex1bModifiers.Control)]
+    [DataRow(57443, Hex1bModifiers.Alt)]
+    [DataRow(57449, Hex1bModifiers.Alt)]
+    [DataRow(57444, Hex1bModifiers.Super)]
+    [DataRow(57450, Hex1bModifiers.Super)]
+    [DataRow(57445, Hex1bModifiers.Hyper)]
+    [DataRow(57451, Hex1bModifiers.Hyper)]
+    [DataRow(57446, Hex1bModifiers.Meta)]
+    [DataRow(57452, Hex1bModifiers.Meta)]
+    public async Task ReleaseAllTerminalKeys_ModifierKey_ReportsPostReleaseStateAndPreservesLocks(int code, Hex1bModifiers modifier)
     {
         await using var workload = new GatedWorkload();
         await using var child = CreateEnhancedChild(workload, out var handle);
@@ -333,26 +533,94 @@ public class KittyEmbeddedInputTests
         var ring = new FocusRing();
         ring.Rebuild(node);
         var state = new InputRouterState();
-        var count = TerminalWidgetHandle.MaxForwardedKeys + 8;
-        var codes = Enumerable.Range(0x4E00, count).ToArray();
-
-        // A legacy source reports every keystroke as a press and never releases.
-        for (var i = 0; i < count; i++)
+        var press = new Hex1bKeyEvent(Hex1bKey.None, "", modifier | Hex1bModifiers.CapsLock | Hex1bModifiers.NumLock)
         {
-            await InputRouter.RouteInputAsync(node,
-                Hex1bKeyEvent.FromText(char.ConvertFromUtf32(codes[i])) with { UnicodeKeyCode = codes[i] }, ring, state);
-            if (i >= TerminalWidgetHandle.MaxForwardedKeys)
-                Assert.AreEqual($"\x1b[{codes[i - TerminalWidgetHandle.MaxForwardedKeys]};1:3u", await workload.ReadInputAsync(),
-                    "Overflow neutralizes the oldest press instead of silently dropping it.");
-            Assert.AreEqual($"\x1b[{codes[i]}u", await workload.ReadInputAsync());
-        }
-        Assert.AreEqual(TerminalWidgetHandle.MaxForwardedKeys, handle.ForwardedKeyCount);
+            UnicodeKeyCode = code
+        };
+        await InputRouter.RouteInputAsync(node, press, ring, state);
+        await workload.ReadInputAsync();
+        await InputRouter.RouteInputAsync(node,
+            new Hex1bKeyEvent(Hex1bKey.A, "a", press.Modifiers) { UnicodeKeyCode = 97 }, ring, state);
+        await workload.ReadInputAsync();
 
         await state.ReleaseAllTerminalKeysAsync(CancellationToken.None);
-        foreach (var code in codes.Skip(8))
-            Assert.AreEqual($"\x1b[{code};1:3u", await workload.ReadInputAsync());
-        Assert.IsFalse(workload.Input.Reader.TryRead(out _), "Every forwarded press is released exactly once.");
+        Assert.AreEqual($"\x1b[{code};193:3u", await workload.ReadInputAsync());
+        Assert.AreEqual("\x1b[97;193:3u", await workload.ReadInputAsync(), "Subsequent releases use the updated modifier state.");
+        Assert.IsFalse(workload.Input.Reader.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow(4)]
+    [DataRow(5)]
+    public async Task ReleaseAllTerminalKeys_ModifierReleaseFails_RetryRetainsPostDeliveryState(int failAtWrite)
+    {
+        await using var workload = new GatedWorkload { FailAtWrite = failAtWrite, WriteFailure = new IOException("modifier release") };
+        await using var child = CreateEnhancedChild(workload, out var handle);
+        var state = new InputRouterState();
+        const Hex1bModifiers modifiers = Hex1bModifiers.Control | Hex1bModifiers.NumLock;
+        foreach (var code in new[] { 57442, 57448, 97 })
+        {
+            var press = new Hex1bKeyEvent(Hex1bKey.None, "", modifiers) { UnicodeKeyCode = code };
+            state.ObserveKeyEvent(press);
+            await handle.ForwardKeyAsync(press, state, CancellationToken.None);
+            await workload.ReadInputAsync();
+        }
+
+        await Assert.ThrowsAsync<IOException>(() => state.ReleaseAllTerminalKeysAsync(CancellationToken.None));
+        if (failAtWrite == 5)
+        {
+            Assert.AreEqual("\x1b[57442;133:3u", await workload.ReadInputAsync());
+            Assert.AreEqual(2, handle.ForwardedKeyCount);
+        }
+        else
+            Assert.AreEqual(3, handle.ForwardedKeyCount);
+        Assert.IsFalse(workload.Input.Reader.TryRead(out _));
+
+        await state.ReleaseAllTerminalKeysAsync(CancellationToken.None);
+        if (failAtWrite == 4)
+            Assert.AreEqual("\x1b[57442;133:3u", await workload.ReadInputAsync());
+        Assert.AreEqual("\x1b[57448;129:3u", await workload.ReadInputAsync());
+        Assert.AreEqual("\x1b[97;129:3u", await workload.ReadInputAsync());
+        Assert.IsFalse(workload.Input.Reader.TryRead(out _));
         Assert.IsFalse(handle.HasAnyForwardedKeys);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ReleaseAllTerminalKeys_BothControlsAndLockKeys_PreservesOtherControlUntilItsRelease(bool separateHandles)
+    {
+        await using var workload = new GatedWorkload();
+        await using var child = CreateEnhancedChild(workload, out var handle);
+        await using var otherWorkload = new GatedWorkload();
+        await using var otherChild = CreateEnhancedChild(otherWorkload, out var otherHandle);
+        var state = new InputRouterState();
+        const Hex1bModifiers modifiers = Hex1bModifiers.Control | Hex1bModifiers.CapsLock | Hex1bModifiers.NumLock;
+        var left = new Hex1bKeyEvent(Hex1bKey.None, "", modifiers) { UnicodeKeyCode = 57442 };
+        var right = left with { UnicodeKeyCode = 57448 };
+        state.ObserveKeyEvent(left);
+        await handle.ForwardKeyAsync(left, state, CancellationToken.None);
+        state.ObserveKeyEvent(right);
+        await (separateHandles ? otherHandle : handle).ForwardKeyAsync(right, state, CancellationToken.None);
+        await workload.ReadInputAsync();
+        await (separateHandles ? otherWorkload : workload).ReadInputAsync();
+        foreach (var code in new[] { 57358, 57360, 97 })
+        {
+            var press = new Hex1bKeyEvent(Hex1bKey.None, "", modifiers) { UnicodeKeyCode = code };
+            state.ObserveKeyEvent(press);
+            await (separateHandles ? otherHandle : handle).ForwardKeyAsync(press, state, CancellationToken.None);
+            await (separateHandles ? otherWorkload : workload).ReadInputAsync();
+        }
+
+        await state.ReleaseAllTerminalKeysAsync(CancellationToken.None);
+        Assert.AreEqual("\x1b[57442;197:3u", await workload.ReadInputAsync(), "Right Control is still held.");
+        var remaining = separateHandles ? otherWorkload : workload;
+        Assert.AreEqual("\x1b[57448;193:3u", await remaining.ReadInputAsync(), "Neither Control is now held.");
+        Assert.AreEqual("\x1b[57358;193:3u", await remaining.ReadInputAsync(), "Releasing Caps Lock does not toggle its lock state.");
+        Assert.AreEqual("\x1b[57360;193:3u", await remaining.ReadInputAsync(), "Releasing Num Lock does not toggle its lock state.");
+        Assert.AreEqual("\x1b[97;193:3u", await remaining.ReadInputAsync());
+        Assert.IsFalse(workload.Input.Reader.TryRead(out _));
+        Assert.IsFalse(otherWorkload.Input.Reader.TryRead(out _));
     }
 
     [TestMethod]
@@ -670,6 +938,7 @@ public class KittyEmbeddedInputTests
         internal bool BlockFirstWrite { get; init; }
         /// <summary>One-based write number that blocks until <see cref="Unblock"/> completes.</summary>
         internal int BlockAtWrite { get; init; }
+        internal int FailAtWrite { get; init; }
         internal Exception? WriteFailure { get; init; }
         private int _writes;
 
@@ -689,7 +958,7 @@ public class KittyEmbeddedInputTests
                 Blocked.TrySetResult();
                 await Unblock.Task.WaitAsync(ct);
             }
-            if (WriteFailure is not null) throw WriteFailure;
+            if (WriteFailure is not null && (FailAtWrite == 0 || number == FailAtWrite)) throw WriteFailure;
             await Input.Writer.WriteAsync(Encoding.UTF8.GetString(data.Span), ct);
         }
 

@@ -13,38 +13,85 @@ public sealed class InputRouterState
     private TaskCompletionSource<Exception> _holdFailure = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private readonly List<TerminalWidgetHandle> _terminalKeyOwners = [];
+    private readonly object _modifierLock = new();
+    private readonly HashSet<int> _pressedModifierKeys = [];
     private int _lastKnownModifiers = -1;
 
     internal Task<Exception> HoldFailure => _holdFailure.Task;
 
-    /// <summary>The modifier and lock state reported by the most recent key event, if any.</summary>
+    /// <summary>The best-known modifier and lock state, including successful cleanup releases.</summary>
     internal Hex1bModifiers? LastKnownModifiers
     {
         get
         {
-            var value = Volatile.Read(ref _lastKnownModifiers);
-            return value < 0 ? null : (Hex1bModifiers)value;
+            lock (_modifierLock)
+                return _lastKnownModifiers < 0 ? null : (Hex1bModifiers)_lastKnownModifiers;
         }
     }
 
     internal void ObserveKeyEvent(Hex1bKeyEvent keyEvent)
-        => Volatile.Write(ref _lastKnownModifiers, (int)keyEvent.Modifiers);
+    {
+        lock (_modifierLock)
+        {
+            _lastKnownModifiers = (int)keyEvent.Modifiers;
+            _pressedModifierKeys.RemoveWhere(code => (ModifierForKey(code) & keyEvent.Modifiers) == 0);
+            if (keyEvent.UnicodeKeyCode is { } code && ModifierForKey(code) != Hex1bModifiers.None)
+            {
+                if (keyEvent.EventType == Hex1bKeyEventType.Release)
+                    _pressedModifierKeys.Remove(code);
+                else
+                    _pressedModifierKeys.Add(code);
+            }
+        }
+    }
+
+    // Kitty functional-key definitions; lock keys are toggles, not held modifier bits.
+    private static Hex1bModifiers ModifierForKey(int? code) => code switch
+    {
+        57441 or 57447 => Hex1bModifiers.Shift,
+        57442 or 57448 => Hex1bModifiers.Control,
+        57443 or 57449 => Hex1bModifiers.Alt,
+        57444 or 57450 => Hex1bModifiers.Super,
+        57445 or 57451 => Hex1bModifiers.Hyper,
+        57446 or 57452 => Hex1bModifiers.Meta,
+        _ => Hex1bModifiers.None
+    };
 
     /// <summary>
     /// Creates a release that neutralizes a forwarded press without a physical release, using the
-    /// last-known modifier and lock state where available.
+    /// last-known modifier and lock state where available. A modifier's own bit is cleared unless
+    /// its other side is still held; releasing a lock key does not toggle the lock state.
     /// </summary>
-    internal static Hex1bKeyEvent NeutralizingRelease(Hex1bKeyEvent press, Hex1bModifiers? lastKnownModifiers)
+    internal Hex1bKeyEvent NeutralizingRelease(Hex1bKeyEvent press)
     {
-        var modifiers = lastKnownModifiers ?? press.Modifiers;
-        return press with
+        lock (_modifierLock)
         {
-            Text = "",
-            Modifiers = modifiers,
-            // A shifted alternate only describes the key while Shift is held.
-            ShiftedKeyCode = (modifiers & Hex1bModifiers.Shift) != 0 ? press.ShiftedKeyCode : null,
-            EventType = Hex1bKeyEventType.Release
-        };
+            var modifiers = _lastKnownModifiers < 0 ? press.Modifiers : (Hex1bModifiers)_lastKnownModifiers;
+            var releasedModifier = ModifierForKey(press.UnicodeKeyCode);
+            if (!_pressedModifierKeys.Any(code =>
+                    code != press.UnicodeKeyCode && ModifierForKey(code) == releasedModifier))
+                modifiers &= ~releasedModifier;
+            return press with
+            {
+                Text = "",
+                Modifiers = modifiers,
+                ShiftedKeyCode = (modifiers & Hex1bModifiers.Shift) != 0 ? press.ShiftedKeyCode : null,
+                EventType = Hex1bKeyEventType.Release
+            };
+        }
+    }
+
+    internal void RecordNeutralizingRelease(Hex1bKeyEvent press)
+    {
+        lock (_modifierLock)
+        {
+            var modifier = ModifierForKey(press.UnicodeKeyCode);
+            if (press.UnicodeKeyCode is not { } code || modifier == Hex1bModifiers.None)
+                return;
+            _pressedModifierKeys.Remove(code);
+            if (!_pressedModifierKeys.Any(held => ModifierForKey(held) == modifier) && _lastKnownModifiers >= 0)
+                _lastKnownModifiers &= ~(int)modifier;
+        }
     }
 
     /// <summary>
@@ -93,13 +140,12 @@ public sealed class InputRouterState
         lock (_terminalKeyOwners)
             owners = _terminalKeyOwners.ToArray();
 
-        var modifiers = LastKnownModifiers;
         List<Exception>? failures = null;
         foreach (var owner in owners)
         {
             try
             {
-                await owner.ReleaseAllForwardedKeysAsync(modifiers, cancellationToken).ConfigureAwait(false);
+                await owner.ReleaseAllForwardedKeysAsync(this, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
             {

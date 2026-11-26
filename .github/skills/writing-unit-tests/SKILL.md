@@ -674,6 +674,15 @@ assert literal workload bytes. Gate the first child write to exercise backpressu
 enqueue repeat, release and a following app binding as an ordering sentinel.
 See `KittyEmbeddedInputTests`.
 
+For forwarded-key ownership, gate a release write, race cleanup against a physical
+release in both orders, and verify only one wire release after opening the gate.
+Fail or cancel a specific write before recording it, then retry and assert that
+only undelivered recipients are retried. Synthetic modifier releases must report
+the post-release state: test both Control keys, lock bits, and a following
+ordinary key across partial cleanup failure. See the `ReleaseForwardedKeys_*`,
+`RouteInput_PhysicalReleaseRacesCleanup_*`, and `ReleaseAllTerminalKeys_*` cases
+in `KittyEmbeddedInputTests`.
+
 For held-key cancellation, register a callback that signals entry and waits on a
 test-controlled gate. Route release on a worker with `WaitAsync`, prove subsequent
 input progresses while the registration is blocked, then release the gate in

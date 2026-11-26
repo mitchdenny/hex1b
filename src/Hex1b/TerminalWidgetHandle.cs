@@ -469,11 +469,13 @@ public sealed class TerminalWidgetHandle :
     // repeat/release still reaches it after it enables event types mid-hold. Each entry records
     // the terminal that actually received the press, so its release survives focus, capture,
     // node, handle-replacement and Reset/reattach changes without reaching a different child.
-    // The bound exceeds any physical keyboard's simultaneously held keys, so overflow only
-    // happens for sources that never report releases; overflowed presses are neutralized with
-    // a release rather than silently dropped.
+    // At the bound, reject a new distinct press before forwarding it. Synthetic sources can
+    // hold arbitrarily many keys; silently evicting or releasing one would corrupt their state.
     internal const int MaxForwardedKeys = 256;
     private readonly List<ForwardedKey> _forwardedKeys = [];
+    // Keep ownership through the awaited send. Physical release, cleanup and another press
+    // must not claim or replace an entry while that delivery is unresolved.
+    private readonly SemaphoreSlim _forwardedKeyDelivery = new(1, 1);
 
     internal sealed class ForwardedKey((Hex1bKey Key, int? Code) identity, Hex1bKeyEvent press, Hex1bTerminal recipient)
     {
@@ -486,92 +488,105 @@ public sealed class TerminalWidgetHandle :
     /// Forwards a key event to the attached child. Presses are recorded against the terminal that
     /// receives them; nothing is recorded when no child is attached.
     /// </summary>
+    /// <exception cref="InvalidOperationException">The handle already owns 256 distinct presses.
+    /// The new press is not sent, and existing ownership is retained.</exception>
     internal async Task ForwardKeyAsync(Hex1bKeyEvent key, InputRouterState? routerState, CancellationToken ct)
     {
-        var recipient = _terminal;
-        if (recipient == null || _disposed)
-            return;
-
-        ForwardedKey? entry = null;
-        ForwardedKey? overflow = null;
-        if (key.EventType == Hex1bKeyEventType.Press && (key.Key != Hex1bKey.None || key.UnicodeKeyCode is > 0))
-        {
-            entry = new ForwardedKey(InputRouterState.KeyIdentity(key), key, recipient);
-            lock (_forwardedKeys)
-            {
-                // A second press of a key this child already holds needs only one release.
-                _forwardedKeys.RemoveAll(k => k.Identity == entry.Identity && k.Recipient == recipient);
-                if (_forwardedKeys.Count >= MaxForwardedKeys)
-                {
-                    overflow = _forwardedKeys[0];
-                    _forwardedKeys.RemoveAt(0);
-                }
-                _forwardedKeys.Add(entry);
-            }
-            routerState?.TrackTerminalKeyOwner(this);
-        }
-
+        await _forwardedKeyDelivery.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            if (overflow != null && overflow.Recipient.AcceptsWorkloadInput)
-                await overflow.Recipient.SendEventAsync(
-                    InputRouterState.NeutralizingRelease(overflow.Press, routerState?.LastKnownModifiers), ct)
-                    .ConfigureAwait(false);
+            var recipient = _terminal;
+            if (recipient == null || _disposed)
+                return;
+
+            ForwardedKey? entry = null;
+            if (key.EventType == Hex1bKeyEventType.Press && (key.Key != Hex1bKey.None || key.UnicodeKeyCode is > 0))
+            {
+                var identity = InputRouterState.KeyIdentity(key);
+                lock (_forwardedKeys)
+                {
+                    // Repeated presses share ownership; a failed write must not erase the
+                    // earlier, successfully forwarded press.
+                    if (!_forwardedKeys.Exists(k => k.Identity == identity && k.Recipient == recipient))
+                    {
+                        if (_forwardedKeys.Count >= MaxForwardedKeys)
+                            throw new InvalidOperationException(
+                                $"An embedded terminal handle cannot track more than {MaxForwardedKeys} unreleased keys.");
+                        entry = new ForwardedKey(identity, key, recipient);
+                    }
+                }
+            }
+
             await recipient.SendEventAsync(key, ct).ConfigureAwait(false);
+            if (entry != null)
+            {
+                lock (_forwardedKeys)
+                    _forwardedKeys.Add(entry);
+                routerState?.TrackTerminalKeyOwner(this);
+            }
         }
-        catch when (entry != null)
+        finally
         {
-            // The child may not have received the press; do not later release it.
-            lock (_forwardedKeys)
-                _forwardedKeys.Remove(entry);
-            throw;
+            _forwardedKeyDelivery.Release();
         }
     }
 
     /// <summary>
     /// Delivers <paramref name="release"/> to every child that holds the matching press.
-    /// Returns <see langword="true"/> when this handle owned the press.
+    /// Returns <see langword="true"/> when this handle owned the press. Failed or cancelled
+    /// deliveries retain ownership; retrying does not redeliver to successful recipients.
     /// </summary>
     internal async Task<bool> ReleaseForwardedKeyAsync(Hex1bKeyEvent release, CancellationToken ct)
     {
-        var identity = InputRouterState.KeyIdentity(release);
-        ForwardedKey[] owned;
-        lock (_forwardedKeys)
+        await _forwardedKeyDelivery.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            owned = _forwardedKeys.Where(k => k.Identity == identity).ToArray();
-            _forwardedKeys.RemoveAll(k => k.Identity == identity);
-        }
+            var identity = InputRouterState.KeyIdentity(release);
+            ForwardedKey[] owned;
+            lock (_forwardedKeys)
+                owned = _forwardedKeys.Where(k => k.Identity == identity).ToArray();
 
-        foreach (var key in owned)
-        {
-            if (key.Recipient.AcceptsWorkloadInput)
-                await key.Recipient.SendEventAsync(release, ct).ConfigureAwait(false);
+            foreach (var key in owned)
+            {
+                if (key.Recipient.AcceptsWorkloadInput)
+                    await key.Recipient.SendEventAsync(release, ct).ConfigureAwait(false);
+                lock (_forwardedKeys)
+                    _forwardedKeys.Remove(key);
+            }
+            return owned.Length > 0;
         }
-        return owned.Length > 0;
+        finally
+        {
+            _forwardedKeyDelivery.Release();
+        }
     }
 
     /// <summary>
     /// Sends a neutralizing release for every press still held, removing each only once its
     /// release has been delivered so a failed or timed-out cleanup leaves ownership intact.
     /// </summary>
-    internal async Task ReleaseAllForwardedKeysAsync(Hex1bModifiers? lastKnownModifiers, CancellationToken ct)
+    internal async Task ReleaseAllForwardedKeysAsync(InputRouterState routerState, CancellationToken ct)
     {
-        ForwardedKey[] owned;
-        lock (_forwardedKeys)
-            owned = [.. _forwardedKeys];
-
-        foreach (var key in owned)
+        await _forwardedKeyDelivery.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
+            ForwardedKey[] owned;
             lock (_forwardedKeys)
+                owned = [.. _forwardedKeys];
+
+            foreach (var key in owned)
             {
-                if (!_forwardedKeys.Contains(key))
-                    continue;
+                var release = routerState.NeutralizingRelease(key.Press);
+                if (key.Recipient.AcceptsWorkloadInput)
+                    await key.Recipient.SendEventAsync(release, ct).ConfigureAwait(false);
+                lock (_forwardedKeys)
+                    _forwardedKeys.Remove(key);
+                routerState.RecordNeutralizingRelease(key.Press);
             }
-            if (key.Recipient.AcceptsWorkloadInput)
-                await key.Recipient.SendEventAsync(
-                    InputRouterState.NeutralizingRelease(key.Press, lastKnownModifiers), ct).ConfigureAwait(false);
-            lock (_forwardedKeys)
-                _forwardedKeys.Remove(key);
+        }
+        finally
+        {
+            _forwardedKeyDelivery.Release();
         }
     }
 
