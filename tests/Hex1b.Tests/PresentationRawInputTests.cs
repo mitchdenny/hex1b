@@ -8,7 +8,7 @@ using Hex1b.Tokens;
 namespace Hex1b.Tests;
 
 [TestClass]
-public class PresentationRawInputTests
+public partial class PresentationRawInputTests
 {
     [TestMethod]
     [DataRow("a", false)]
@@ -614,7 +614,7 @@ public class PresentationRawInputTests
     [DataRow("E7958C", "界")]
     [DataRow("C328", "\ufffd(")]
     [DataRow("C280", "")]
-    [DataRow("C29F", "")]
+    [DataRow("C285", "")]
     public async Task WriteInputAsync_AppFallback_BuffersIncompleteScalars(string hex, string expected)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -682,10 +682,58 @@ public class PresentationRawInputTests
         public TerminalCapabilities Capabilities => new();
         public event Action<int, int>? Resized { add { } remove { } }
         public event Action? Disconnected { add { } remove { } }
-        public void Enqueue(byte[] bytes) => Assert.IsTrue(_input.Writer.TryWrite(bytes));
-        public async ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
-            => await _input.Reader.ReadAsync(ct);
-        public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public void Enqueue(byte[] bytes)
+        {
+            Interlocked.Increment(ref _enqueued);
+            Assert.IsTrue(_input.Writer.TryWrite(bytes));
+        }
+        // Completes on the follow-up query written after the push is accepted and its epoch published.
+        public TaskCompletionSource QueryDelivered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource PushEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        // When set, the push write blocks without delivering bytes until the gate completes.
+        public Task? PushGate { get; init; }
+        public ValueTask<ReadOnlyMemory<byte>>? InitialRead { get; init; }
+        private bool _initialReadReturned;
+        private int _enqueued;
+        private int _returned;
+        private readonly Channel<int> _readEntries = Channel.CreateUnbounded<int>();
+        public ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
+        {
+            if (!_initialReadReturned && InitialRead is { } read)
+            {
+                _initialReadReturned = true;
+                return read;
+            }
+            return ReadQueuedInputAsync(ct);
+        }
+        private async ValueTask<ReadOnlyMemory<byte>> ReadQueuedInputAsync(CancellationToken ct)
+        {
+            // Re-entry proves every previously returned chunk was received and stamped.
+            _readEntries.Writer.TryWrite(Volatile.Read(ref _returned));
+            var data = await _input.Reader.ReadAsync(ct);
+            Interlocked.Increment(ref _returned);
+            return data;
+        }
+        public async Task EnqueueAndAwaitReceiptAsync(string text)
+        {
+            Enqueue(Encoding.UTF8.GetBytes(text));
+            var target = Volatile.Read(ref _enqueued);
+            while (await ReadAsync(_readEntries.Reader) < target)
+            {
+            }
+        }
+        public async ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+        {
+            var text = Encoding.UTF8.GetString(data.Span);
+            if (text.Contains("\x1b[>31u", StringComparison.Ordinal))
+            {
+                PushEntered.TrySetResult();
+                if (PushGate is not null)
+                    await PushGate.WaitAsync(ct);
+            }
+            if (text == "\x1b[?u")
+                QueryDelivered.TrySetResult();
+        }
         public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
         public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
         public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;

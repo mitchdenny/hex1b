@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+using System.Runtime.CompilerServices;
 #pragma warning disable HEX1B_SIXEL // Sixel API is experimental - internal usage is allowed
 
 using System.Globalization;
@@ -161,7 +163,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     // https://github.com/mitchdenny/hex1b/issues/353
     private static readonly bool s_inputDecoderIsBroken = OperatingSystem.IsBrowser();
     private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across workload output reads
-    private string _incompleteInputSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across presentation input reads
+    private readonly InputSequenceParser _presentationInputParser = new();
     
     // Escape-sequence timeout: channel-based architecture for zero-alloc disambiguation.
     // A background reader writes data events, and a reusable timer writes timeout
@@ -171,6 +173,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         Channel.CreateUnbounded<PresentationInputEvent>(
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
     private ITimer? _escapeFlushTimer;
+    private int _escapeFlushGeneration;
     
     // Scrollback buffer (opt-in via WithScrollback)
     private readonly ScrollbackBuffer? _scrollbackBuffer;
@@ -579,8 +582,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Enter raw mode on presentation if present (enables proper input capture)
         if (_presentation != null)
         {
-            // Fire and forget - EnterRawModeAsync is typically synchronous for console
-            _ = _presentation.EnterRawModeAsync();
+            _rawModeEntryTask ??= _presentation.EnterRawModeAsync(_disposeCts.Token).AsTask();
         }
 
         // Start pumping presentation input → workload (if presentation exists)
@@ -622,28 +624,62 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        Exception? runFailure = null;
+        var exitCode = 0;
         try
         {
-            return await RunWorkloadAsync(ct);
+            exitCode = await RunWorkloadAsync(ct);
         }
-        finally
+        catch (Exception ex)
         {
-            // Stop pumps (via dispose cancellation token)
-            _disposeCts.Cancel();
+            runFailure = ex;
+        }
 
-            // Exit raw mode
-            if (_presentation != null)
+        // Stop pumps (via dispose cancellation token)
+        _disposeCts.Cancel();
+
+        Exception? keyboardFailure = null;
+        if (_presentation != null)
+        {
+            try
             {
-                try
-                {
-                    await _presentation.ExitRawModeAsync(default);
-                }
-                catch
-                {
-                    // Ignore errors during cleanup
-                }
+                await CompleteAppKeyboardPresentationAsync();
+            }
+            catch (Exception ex)
+            {
+                keyboardFailure = ex;
+            }
+
+            // Raw mode must be restored even when the keyboard pop could not be written.
+            try
+            {
+                await _presentation.ExitRawModeAsync(default);
+            }
+            catch
+            {
+                // Ignore errors during cleanup
             }
         }
+
+        ThrowCleanupFailures(runFailure, keyboardFailure);
+        return exitCode;
+    }
+
+    // Preserves a single failure's original stack; reports both when cleanup also failed.
+    private static void ThrowCleanupFailures(Exception? primary, Exception? cleanup)
+    {
+        if (primary is not null && cleanup is not null)
+            throw new AggregateException(primary, cleanup);
+        if ((primary ?? cleanup) is { } failure)
+            ExceptionDispatchInfo.Throw(failure);
+    }
+
+    private static void ThrowCleanupFailures(List<Exception> failures)
+    {
+        if (failures.Count == 1)
+            ExceptionDispatchInfo.Throw(failures[0]);
+        if (failures.Count > 1)
+            throw new AggregateException(failures);
     }
 
     // Owners that capture the final state can defer pump shutdown until disposal.
@@ -653,7 +689,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         ct.ThrowIfCancellationRequested();
         using var workloadCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
         if (_presentation != null)
-            await _presentation.EnterRawModeAsync(ct);
+        {
+            _rawModeEntryTask ??= _presentation.EnterRawModeAsync(_disposeCts.Token).AsTask();
+            await _rawModeEntryTask.WaitAsync(ct);
+        }
 
         // Subscribe before starting pumps so an immediately disconnecting adapter is observed.
         var runTask = _runCallback is null
@@ -699,7 +738,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             throw failure;
         }
 
-        var exitCode = await runTask;
+        int exitCode;
+        try
+        {
+            exitCode = await runTask;
+        }
+        finally
+        {
+            if (_workload is Hex1bAppWorkloadAdapter { IsDisposed: true } && _outputProcessingTask is not null)
+                await _outputProcessingTask.WaitAsync(_disposeCts.Token);
+        }
         _workloadCompleted = true;
         if (_presentation is ITerminalLifecycleAwarePresentationAdapter completedAdapter)
             completedAdapter.TerminalCompleted(exitCode);
@@ -772,15 +820,45 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         public readonly ReadOnlyMemory<byte> Data;
         public readonly bool IsTimeout;
+        public readonly int Generation;
+        public readonly int QueryEpoch;
 
-        private PresentationInputEvent(ReadOnlyMemory<byte> data, bool isTimeout)
+        private PresentationInputEvent(ReadOnlyMemory<byte> data, bool isTimeout, int generation, int queryEpoch)
         {
             Data = data;
             IsTimeout = isTimeout;
+            Generation = generation;
+            QueryEpoch = queryEpoch;
         }
 
-        public static PresentationInputEvent FromData(ReadOnlyMemory<byte> data) => new(data, false);
-        public static readonly PresentationInputEvent TimeoutSentinel = new(default, true);
+        public static PresentationInputEvent FromData(ReadOnlyMemory<byte> data, int queryEpoch) => new(data, false, 0, queryEpoch);
+        public static PresentationInputEvent Timeout(int generation) => new(default, true, generation, 0);
+    }
+
+    private readonly object _presentationReadLock = new();
+    private ValueTask<ReadOnlyMemory<byte>> _presentationRead;
+    private bool _presentationReadPending;
+    private int _presentationReadQueryEpoch;
+
+    // Keep the original ValueTask unconsumed until the epoch is frozen under the lock.
+    // Awaiting AsTask() instead could delay observing completion of an IValueTaskSource.
+    private readonly struct PresentationInputReadAwaiter(Hex1bTerminal terminal) : ICriticalNotifyCompletion
+    {
+        public PresentationInputReadAwaiter GetAwaiter() => this;
+        public bool IsCompleted => terminal._presentationRead.IsCompleted;
+        public void OnCompleted(Action continuation)
+            => terminal._presentationRead.ConfigureAwait(false).GetAwaiter().OnCompleted(continuation);
+        public void UnsafeOnCompleted(Action continuation)
+            => terminal._presentationRead.ConfigureAwait(false).GetAwaiter().UnsafeOnCompleted(continuation);
+        public PresentationInputEvent GetResult()
+        {
+            lock (terminal._presentationReadLock)
+            {
+                terminal._presentationReadPending = false;
+                return PresentationInputEvent.FromData(
+                    terminal._presentationRead.GetAwaiter().GetResult(), terminal._presentationReadQueryEpoch);
+            }
+        }
     }
 
     /// <summary>
@@ -797,12 +875,20 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             while (!ct.IsCancellationRequested && _presentation != null)
             {
-                var data = await _presentation.ReadInputAsync(ct);
-                if (data.IsEmpty)
+                PresentationInputReadAwaiter read;
+                lock (_presentationReadLock)
+                {
+                    _presentationReadQueryEpoch = _presentedKeyboardQueryEpoch;
+                    _presentationRead = _presentation.ReadInputAsync(ct);
+                    _presentationReadPending = true;
+                    read = new PresentationInputReadAwaiter(this);
+                }
+                var item = await read;
+                if (item.Data.IsEmpty)
                 {
                     break;
                 }
-                _presentationInputChannel.Writer.TryWrite(PresentationInputEvent.FromData(data));
+                _presentationInputChannel.Writer.TryWrite(item);
             }
         }
         catch (OperationCanceledException)
@@ -822,13 +908,12 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     /// <summary>
     /// Timer callback that fires when the escape-sequence timeout expires.
-    /// Writes a <see cref="PresentationInputEvent.TimeoutSentinel"/> into the
-    /// channel so the processing loop can flush the incomplete buffer.
-    /// Zero-alloc: only sets a field on the existing channel entry.
+    /// Writes a generation-tagged timeout event into the channel so the processing
+    /// loop can flush the incomplete buffer armed by that timer.
     /// </summary>
-    private void OnEscapeFlushTimerFired(object? _)
+    private void OnEscapeFlushTimerFired(object? state)
     {
-        _presentationInputChannel.Writer.TryWrite(PresentationInputEvent.TimeoutSentinel);
+        _presentationInputChannel.Writer.TryWrite(PresentationInputEvent.Timeout((int)state!));
     }
 
     private async Task PumpPresentationInputAsync(CancellationToken ct)
@@ -847,15 +932,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     if (_inBracketedPaste)
                         continue;
 
+                    // A timer for an earlier prefix can be queued behind newer input.
+                    if (item.Generation != _escapeFlushGeneration)
+                        continue;
+
                     // Timer fired — flush the incomplete buffer as a bare Escape key
                     // (or whatever partial sequence was pending).  Guard against a
                     // spurious timeout that arrives after data already cleared the buffer.
-                    if (_incompleteInputSequenceBuffer.Length > 0)
-                    {
-                        var flushed = _incompleteInputSequenceBuffer;
-                        _incompleteInputSequenceBuffer = "";
-                        await DispatchCompleteInputTextAsync(flushed, ct);
-                    }
+                    if (_presentationInputParser.NeedsEscapeTimeout)
+                        await DispatchCompleteInputTextAsync("", ct, flush: true, queryEpoch: _pendingInputQueryEpoch);
                     continue;
                 }
 
@@ -863,7 +948,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _metrics.TerminalInputBytes.Record(data.Length);
 
                 // Cancel any pending escape-sequence timeout — real data arrived.
-                _escapeFlushTimer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                _escapeFlushGeneration++;
+                _escapeFlushTimer?.Dispose();
+                _escapeFlushTimer = null;
 
                 // Tokenize input the same way we tokenize output, preserving
                 // incomplete escape sequences across read boundaries. Kitty KGP
@@ -889,17 +976,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     decodedText = new string(chars, 0, charsWritten);
                 }
 
-                var text = _incompleteInputSequenceBuffer + decodedText;
-                _incompleteInputSequenceBuffer = "";
-
-                var extracted = ExtractIncompleteEscapeSequence(text);
-                var completeText = extracted.completeText;
-                _incompleteInputSequenceBuffer = extracted.incompleteSequence;
-
-                if (!string.IsNullOrEmpty(completeText))
-                {
-                    await DispatchCompleteInputTextAsync(completeText, ct);
-                }
+                await DispatchCompleteInputTextAsync(decodedText, ct, queryEpoch: item.QueryEpoch);
 
                 // Token buffering belongs to event decoding and filter notifications,
                 // not the raw transport. Forward each original read exactly once;
@@ -911,10 +988,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 // If there is an incomplete escape sequence and the timeout is enabled,
                 // start (or restart) the reusable timer.
-                if (_incompleteInputSequenceBuffer.Length > 0 && _escapeTimeout > TimeSpan.Zero)
+                // Discarding never arms the timer: it lasts until a terminator or resync.
+                if (_presentationInputParser.PendingLength > 0 && !_presentationInputParser.IsDiscarding &&
+                    _escapeTimeout > TimeSpan.Zero)
                 {
-                    _escapeFlushTimer ??= _timeProvider.CreateTimer(
-                        OnEscapeFlushTimerFired, null,
+                    // Each arm owns a generation so a stale expiry cannot flush a newer prefix.
+                    _escapeFlushTimer = _timeProvider.CreateTimer(
+                        OnEscapeFlushTimerFired, ++_escapeFlushGeneration,
                         Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
                     _escapeFlushTimer.Change(_escapeTimeout, Timeout.InfiniteTimeSpan);
                 }
@@ -933,21 +1013,54 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <summary>
     /// Tokenizes complete input text, notifies filters, and dispatches app events.
     /// </summary>
-    private async Task DispatchCompleteInputTextAsync(string completeText, CancellationToken ct)
+    private async Task DispatchCompleteInputTextAsync(string completeText, CancellationToken ct, bool flush = false, int queryEpoch = 0)
     {
-        var tokens = AnsiTokenizer.Tokenize(completeText);
-
-        _metrics.TerminalInputTokens.Record(tokens.Count);
-
-        // Notify presentation filters of input FROM presentation
-        await NotifyPresentationFiltersInputAsync(tokens);
-
-        // Notify workload filters of input going TO workload
-        await NotifyWorkloadFiltersInputAsync(tokens);
-
-        if (_workloadInputMode == Hex1bTerminalInputMode.ParsedEvents)
+        // Stop after each flags report: a confirmation changes how the rest of the read
+        // decodes, so the remainder is parsed only after the report has been observed.
+        var stopAtReport = _workloadInputMode == Hex1bTerminalInputMode.ParsedEvents &&
+            _workload is Hex1bAppWorkloadAdapter;
+        string? text = completeText;
+        while (text is not null)
         {
-            await DispatchTokensAsEventsAsync(tokens, _workload, ct);
+            IReadOnlyList<AnsiToken> tokens;
+            int carriedCount, carriedEpoch;
+            await _appPresentationLock.WaitAsync(ct);
+            try
+            {
+                // A sequence completed by this read may have started in an older read and keeps
+                // that read's stamp, so a split pre-query report cannot borrow the newer epoch.
+                // Sequences starting in this read take its stamp even beside an older prefix.
+                carriedEpoch = _pendingInputQueryEpoch;
+                var enhanced = IsEnhancedInputActive(_workload);
+                tokens = _presentationInputParser.Parse(text, enhanced, flush, stopAtReport);
+                carriedCount = _presentationInputParser.CarriedTokenCount;
+                text = _presentationInputParser.Remainder;
+                if (!_presentationInputParser.PendingIsCarried)
+                    _pendingInputQueryEpoch = queryEpoch;
+            }
+            finally
+            {
+                _appPresentationLock.Release();
+            }
+            if (tokens.Count == 0)
+                continue;
+
+            _metrics.TerminalInputTokens.Record(tokens.Count);
+
+            // Notify presentation filters of input FROM presentation
+            await NotifyPresentationFiltersInputAsync(tokens);
+
+            // Notify workload filters of input going TO workload
+            await NotifyWorkloadFiltersInputAsync(tokens);
+
+            if (_workloadInputMode == Hex1bTerminalInputMode.ParsedEvents)
+            {
+                if (carriedCount > 0)
+                    await DispatchTokensAsEventsAsync(tokens.Take(carriedCount).ToArray(), _workload, carriedEpoch, ct);
+                if (carriedCount < tokens.Count)
+                    await DispatchTokensAsEventsAsync(
+                        carriedCount == 0 ? tokens : tokens.Skip(carriedCount).ToArray(), _workload, queryEpoch, ct);
+            }
         }
     }
     
@@ -956,11 +1069,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Handles bracketed paste accumulation: detects ESC[200~ (start) and ESC[201~ (end)
     /// markers, streaming paste data through a PasteContext instead of individual key events.
     /// </summary>
-    private async Task DispatchTokensAsEventsAsync(IReadOnlyList<AnsiToken> tokens, IHex1bTerminalWorkloadAdapter workload, CancellationToken ct)
+    private async Task DispatchTokensAsEventsAsync(IReadOnlyList<AnsiToken> tokens, IHex1bTerminalWorkloadAdapter workload, int queryEpoch, CancellationToken ct)
     {
         foreach (var token in tokens)
         {
             ct.ThrowIfCancellationRequested();
+            if (workload is Hex1bAppWorkloadAdapter appAdapter && appAdapter.ObserveKeyboardReport(token, queryEpoch))
+                continue;
             
             // Check for bracketed paste start/end markers
             if (token is SpecialKeyToken { KeyCode: 200 })
@@ -1002,7 +1117,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Non-text tokens during paste (mouse, special keys) fall through to normal dispatch
             }
             
-            var evt = TokenToEvent(token);
+            var enhanced = IsEnhancedInputActive(workload);
+            var evt = InputTokenToEvent(token, enhanced);
             if (evt != null)
             {
                 await workload.WriteInputEventAsync(evt, ct);
@@ -1045,7 +1161,26 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Converts an ANSI token to a Hex1b input event.
     /// Returns null if the token doesn't represent a user input event.
     /// </summary>
-    private static Hex1bEvent? TokenToEvent(AnsiToken token)
+    // An app's requested/pushed host mode is not the source's effective mode: keep
+    // legacy decoding until the host reports flags. Other workloads drive this
+    // terminal's mode directly, so their requested flags remain authoritative.
+    private bool IsEnhancedInputActive(IHex1bTerminalWorkloadAdapter workload)
+        => workload is Hex1bAppWorkloadAdapter app
+            ? app.ConfirmedEnhancedInput == true
+            : (InputModes.KittyKeyboardFlags & 31) != 0;
+
+    internal static Hex1bEvent? InputTokenToEvent(AnsiToken token, bool enhanced)
+    {
+        if (!enhanced && token is UnrecognizedSequenceToken unrecognized &&
+            KittyKeyboardInput.IsCursorPositionReport(unrecognized.Sequence))
+        {
+            var legacy = AnsiTokenizer.Tokenize(unrecognized.Sequence);
+            return legacy.Count == 1 ? TokenToEvent(legacy[0]) : null;
+        }
+        return TokenToEvent(token);
+    }
+
+    internal static Hex1bEvent? TokenToEvent(AnsiToken token)
     {
         return token switch
         {
@@ -1083,6 +1218,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             KgpToken => null,
             
             // Unrecognized sequences may contain Alt+key combinations or bare Escape
+            UnrecognizedSequenceToken unrec when KittyKeyboardInput.TryDecode(unrec.Sequence, out var key) => key,
             UnrecognizedSequenceToken unrec => UnrecognizedToKeyEvent(unrec),
             
             // Other tokens don't represent user input
@@ -1140,17 +1276,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (key == Hex1bKey.None)
             return null;
         
-        // Decode modifiers from the modifier code
-        var modifiers = Hex1bModifiers.None;
-        if (token.Modifiers >= 2)
-        {
-            var modifierBits = token.Modifiers - 1;
-            if ((modifierBits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
-            if ((modifierBits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
-            if ((modifierBits & 4) != 0) modifiers |= Hex1bModifiers.Control;
-        }
-        
-        return new Hex1bKeyEvent(key, '\0', modifiers);
+        return new Hex1bKeyEvent(key, '\0', DecodeXtermModifiers(token.Modifiers));
     }
     
     private static Hex1bKeyEvent? ArrowKeyTokenToKeyEvent(ArrowKeyToken token)
@@ -1168,18 +1294,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (key == Hex1bKey.None)
             return null;
         
-        // Decode modifier bits: modifier code - 1 gives the bit pattern
-        // Bit 0 = Shift, Bit 1 = Alt, Bit 2 = Ctrl
-        var modifiers = Hex1bModifiers.None;
-        if (token.Modifiers >= 2)
-        {
-            var modifierBits = token.Modifiers - 1;
-            if ((modifierBits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
-            if ((modifierBits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
-            if ((modifierBits & 4) != 0) modifiers |= Hex1bModifiers.Control;
-        }
-        
-        return new Hex1bKeyEvent(key, '\0', modifiers);
+        return new Hex1bKeyEvent(key, '\0', DecodeXtermModifiers(token.Modifiers));
     }
     
     private static Hex1bKeyEvent? CursorMoveTokenToKeyEvent(CursorMoveToken token)
@@ -1219,6 +1334,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         return token.Character switch
         {
+            '\0' => new Hex1bKeyEvent(Hex1bKey.Spacebar, '\0', Hex1bModifiers.Control),
             '\r' or '\n' => new Hex1bKeyEvent(Hex1bKey.Enter, token.Character, Hex1bModifiers.None),
             '\t' => new Hex1bKeyEvent(Hex1bKey.Tab, token.Character, Hex1bModifiers.None),
             // \b (0x08) and DEL (0x7F) are both treated as Backspace. The \b case also falls
@@ -1242,6 +1358,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             return new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None);
         }
+        if (seq == "\x1b[")
+            return new Hex1bKeyEvent(Hex1bKey.None, '[', Hex1bModifiers.Alt);
         
         // Alt+key combination: ESC followed by a character
         if (seq.Length == 2 && seq[0] == '\x1b')
@@ -1326,12 +1444,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private static Hex1bModifiers DecodeXtermModifiers(int modifierCode)
     {
         if (modifierCode < 2) return Hex1bModifiers.None;
-        var bits = modifierCode - 1;
-        var modifiers = Hex1bModifiers.None;
-        if ((bits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
-        if ((bits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
-        if ((bits & 4) != 0) modifiers |= Hex1bModifiers.Control;
-        return modifiers;
+        return (Hex1bModifiers)((modifierCode - 1) & 0xff);
     }
     
     private async Task PumpWorkloadOutputAsync(CancellationToken ct)
@@ -1396,7 +1509,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Process reads return empty only at EOF (or cancellation).
                     // Other workloads can return empty between frames and must keep pumping.
                     if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess ||
-                        _workload is Hmp1WorkloadAdapter { OutputCompleted: true })
+                        _workload is Hmp1WorkloadAdapter { OutputCompleted: true } ||
+                        _workload is Hex1bAppWorkloadAdapter { IsDisposed: true })
                     {
                         if (_workload is Hex1bTerminalChildProcess { HasExited: false } child)
                             await child.WaitForExitAsync(ct);
@@ -1448,7 +1562,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Native/raw presentations own the original workload bytes. Forward each
                     // read before framing, decoding, filters, raster work, or snapshots.
                     var passthroughStarted = Stopwatch.GetTimestamp();
-                    await _presentation.WriteOutputAsync(data, ct);
+                    await WriteAppPresentationAsync(data, ct);
                     _metrics.TerminalRawPassthroughDuration.Record(
                         Stopwatch.GetElapsedTime(passthroughStarted).TotalMilliseconds);
                     _metrics.TerminalOutputBytes.Record(data.Length);
@@ -1519,7 +1633,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         if (_disposed)
                             continue;
                         var filteredBytes = Tokens.AnsiTokenUtf8Serializer.Serialize(filteredTokens);
-                        await _presentation.WriteOutputAsync(filteredBytes, ct);
+                        await WriteAppPresentationAsync(filteredBytes, ct);
                         _metrics.TerminalOutputBytes.Record(filteredBytes.Length);
                     }
                 }
@@ -3796,7 +3910,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             case UnrecognizedSequenceToken unrecognized:
                 var keyboardMode = _inAlternateScreen ? _alternateKeyboardMode : _mainKeyboardMode;
                 if (keyboardMode.Apply(unrecognized.Sequence, out var keyboardQuery) && keyboardQuery &&
-                    !_presentation.AnswersProtocolQueriesDirectly)
+                    !_presentation.AnswersProtocolQueriesDirectly && _workload is not Hex1bAppWorkloadAdapter)
                 {
                     _ = SendProtocolResponseAsync(Encoding.ASCII.GetBytes($"\x1b[?{keyboardMode.Flags}u"));
                 }
@@ -7030,29 +7144,37 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _ = NotifyWorkloadFiltersSessionEndAsync(elapsed);
         _ = NotifyPresentationFiltersSessionEndAsync(elapsed);
 
-        if (_presentation != null)
+        // Each step runs even when an earlier one failed (for example, a broken pipe makes
+        // every write throw), so raw mode and resources are still released.
+        var failures = new List<Exception>();
+        void Step(Action action)
         {
+            try { action(); }
+            catch (Exception ex) { failures.Add(ex); }
+        }
+
+        if (_presentation is { } presentation)
+        {
+            Step(() => CompleteAppKeyboardPresentationAsync().AsTask().GetAwaiter().GetResult());
             // Write mouse disable sequences and screen restore DIRECTLY to presentation
             // This ensures they're written before raw mode is exited, avoiding race conditions
-            var exitSequences = Input.MouseParser.DisableMouseTracking + 
+            var exitSequences = Input.MouseParser.DisableMouseTracking +
                 "\x1b[?2004l" + // Disable bracketed paste mode
                 "\x1b[?25h" +   // Show cursor
                 "\x1b[?1049l";  // Exit alternate screen
-            _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default).AsTask().GetAwaiter().GetResult();
-            _presentation.FlushAsync().AsTask().GetAwaiter().GetResult();
-            
-            _presentation.ExitRawModeAsync().AsTask().GetAwaiter().GetResult();
-            _presentation.Resized -= OnPresentationResized;
-            _presentation.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            Step(() => presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default).AsTask().GetAwaiter().GetResult());
+            Step(() => presentation.FlushAsync().AsTask().GetAwaiter().GetResult());
+            Step(() => presentation.ExitRawModeAsync().AsTask().GetAwaiter().GetResult());
+            presentation.Resized -= OnPresentationResized;
+            Step(() => presentation.DisposeAsync().AsTask().GetAwaiter().GetResult());
         }
 
-        _workload.DisposeAsync().AsTask().GetAwaiter().GetResult();
-
-        _escapeFlushTimer?.Dispose();
-        _kgpAnimationTimer?.Dispose();
-
-        _disposeCts.Cancel();
-        _disposeCts.Dispose();
+        Step(() => _workload.DisposeAsync().AsTask().GetAwaiter().GetResult());
+        Step(() => _escapeFlushTimer?.Dispose());
+        Step(() => _kgpAnimationTimer?.Dispose());
+        Step(_disposeCts.Cancel);
+        Step(_disposeCts.Dispose);
+        ThrowCleanupFailures(failures);
     }
 
     /// <inheritdoc />
@@ -7074,32 +7196,40 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         await NotifyWorkloadFiltersSessionEndAsync(elapsed);
         await NotifyPresentationFiltersSessionEndAsync(elapsed);
 
-        if (_presentation != null)
+        // Each step runs even when an earlier one failed (for example, a broken pipe makes
+        // every write throw), so raw mode and resources are still released.
+        var failures = new List<Exception>();
+        async ValueTask StepAsync(Func<ValueTask> action)
         {
+            try { await action(); }
+            catch (Exception ex) { failures.Add(ex); }
+        }
+
+        if (_presentation is { } presentation)
+        {
+            await StepAsync(CompleteAppKeyboardPresentationAsync);
             // Write mouse disable sequences and screen restore DIRECTLY to presentation
             // This ensures they're written before raw mode is exited, avoiding race conditions
             // where mouse events could leak to the shell after app exit
-            var exitSequences = Input.MouseParser.DisableMouseTracking + 
+            var exitSequences = Input.MouseParser.DisableMouseTracking +
                 "\x1b[?2004l" + // Disable bracketed paste mode
                 "\x1b[0m" +     // Reset text attributes (prevents inverted text from leaking)
                 "\x1b[?25h" +   // Show cursor
                 "\x1b[?1049l";  // Exit alternate screen
-            await _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default);
-            await _presentation.FlushAsync();
-            
+            await StepAsync(() => presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default));
+            await StepAsync(() => presentation.FlushAsync());
             // Exit raw mode before disposing
-            await _presentation.ExitRawModeAsync();
-            _presentation.Resized -= OnPresentationResized;
-            await _presentation.DisposeAsync();
+            await StepAsync(() => presentation.ExitRawModeAsync());
+            presentation.Resized -= OnPresentationResized;
+            await StepAsync(presentation.DisposeAsync);
         }
 
-        await _workload.DisposeAsync();
-
-        _escapeFlushTimer?.Dispose();
-        _kgpAnimationTimer?.Dispose();
-
-        _disposeCts.Cancel();
-        _disposeCts.Dispose();
+        await StepAsync(_workload.DisposeAsync);
+        await StepAsync(() => { _escapeFlushTimer?.Dispose(); return ValueTask.CompletedTask; });
+        await StepAsync(() => { _kgpAnimationTimer?.Dispose(); return ValueTask.CompletedTask; });
+        await StepAsync(() => { _disposeCts.Cancel(); return ValueTask.CompletedTask; });
+        await StepAsync(() => { _disposeCts.Dispose(); return ValueTask.CompletedTask; });
+        ThrowCleanupFailures(failures);
     }
 
     private bool TryBeginDisposalAndResetScreenOwnedState()
@@ -7294,7 +7424,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private static bool IsEscapeSequenceIntroducer(char c, bool recognizeC1Dcs)
         => c is '\x1b' or '\x9d' or '\x9f' || recognizeC1Dcs && c == '\x90';
 
-    private static bool TryFindEscapeSequenceEnd(string text, int start, out int endExclusive)
+    internal static bool TryFindEscapeSequenceEnd(string text, int start, out int endExclusive)
     {
         endExclusive = start + 1;
 

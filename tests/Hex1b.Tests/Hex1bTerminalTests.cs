@@ -714,6 +714,35 @@ public class Hex1bTerminalTests
         Assert.IsFalse(workload.InputEvents.TryRead(out _));
     }
 
+    // A timeout armed for an earlier prefix may be queued behind newer input; it must not
+    // flush the newer prefix before that prefix's own timeout.
+    [TestMethod]
+    public async Task PresentationInput_StaleQueuedTimeout_DoesNotFlushNewerPrefix()
+    {
+        var clock = new EscapeTimeProvider();
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            TimeProvider = clock
+        });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+
+        presentation.EnqueueInput("\x1b");
+        var first = await clock.Armed.Reader.ReadAsync(ct);
+        presentation.EnqueueInput("[97");
+        await clock.Armed.Reader.ReadAsync(ct);
+        first.Fire();
+        presentation.EnqueueInput("u");
+
+        Assert.AreEqual(Hex1bKey.A, TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Key);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
     [TestMethod]
     [DataRow("")]
     [DataRow("a\x1b\rb")]
@@ -774,7 +803,7 @@ public class Hex1bTerminalTests
     }
 
     [TestMethod]
-    public async Task PresentationInput_SplitProtocolDuringPasteAcrossTimeout_PreservesNonTextDispatch()
+    public async Task PresentationInput_SplitProtocolDuringPasteAcrossTimeout_PreservesOpaqueContent()
     {
         var clock = new EscapeTimeProvider();
         await using var presentation = new QueuedInputPresentationAdapter();
@@ -789,20 +818,17 @@ public class Hex1bTerminalTests
         deadline.CancelAfter(TimeSpan.FromSeconds(5));
         var ct = deadline.Token;
 
-        presentation.EnqueueInput("\x1b[200~a\x1b_Gi=123");
+        presentation.EnqueueInput("\x1b[200~a\x1b");
         var paste = TestSeq.IsType<Hex1bPasteEvent>(await workload.InputEvents.ReadAsync(ct));
         var timer = await clock.Armed.Reader.ReadAsync(ct);
         timer.Fire();
-        presentation.EnqueueInput(";OK\x1b\\\x1b[<0;5;10");
+        presentation.EnqueueInput("_Gi=123;OK\x1b\\\x1b[");
         timer = await clock.Armed.Reader.ReadAsync(ct);
         timer.Fire();
-        presentation.EnqueueInput("Mb\x1b[201~z");
+        presentation.EnqueueInput("<0;5;10Mb\x1b[201~z");
 
-        var mouse = TestSeq.IsType<Hex1bMouseEvent>(await workload.InputEvents.ReadAsync(ct));
-        Assert.AreEqual(MouseButton.Left, mouse.Button);
-        Assert.AreEqual(MouseAction.Down, mouse.Action);
         Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Text);
-        Assert.AreEqual("ab", await paste.Paste.ReadToEndAsync(ct: ct));
+        Assert.AreEqual("a\x1b_Gi=123;OK\x1b\\\x1b[<0;5;10Mb", await paste.Paste.ReadToEndAsync(ct: ct));
         Assert.IsTrue(paste.Paste.IsCompleted);
         Assert.IsFalse(workload.InputEvents.TryRead(out _));
     }
@@ -1343,6 +1369,85 @@ public class Hex1bTerminalTests
 
         cts.Cancel();
         await runTask;
+    }
+
+    [TestMethod]
+    [DataRow("\x1b[", "", true)]
+    [DataRow("\x1b[97", ";5u", false)]
+    [DataRow("\x1b[97", "u", false)]
+    public async Task PresentationInput_AmbiguousPrefixTimeout_PreservesAltBracketWithoutReplayingMalformedText(
+        string prefix, string lateRemainder, bool emitAltBracket)
+    {
+        var clock = new EscapeTimeProvider();
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload, TimeProvider = clock
+        });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+        presentation.EnqueueInput(prefix);
+        (await clock.Armed.Reader.ReadAsync(ct)).Fire();
+        if (emitAltBracket)
+        {
+            var alt = TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct));
+            Assert.AreEqual("[", alt.Text);
+            Assert.AreEqual(Hex1bModifiers.Alt, alt.Modifiers);
+        }
+        // A timed-out partial CSI keeps discarding through its late final byte.
+        presentation.EnqueueInput(lateRemainder + "z");
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Text);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task PresentationInput_TimedOutStringAndCsiSequences_KeepDiscardingAcrossTimeouts()
+    {
+        var clock = new EscapeTimeProvider();
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload, TimeProvider = clock
+        });
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var ct = deadline.Token;
+        var cases = new[]
+        {
+            // The timer armed by the partial OSC expires around the oversize chunk ("~" fires it
+            // without waiting for that chunk); either way the discard survives until BEL.
+            new[] { "\x1b]0;a", "?", new string('a', 4096), "~", "payload\u0007z" },
+            new[] { "\x1b]0;ti", "!", "tle\u0007z" },
+            new[] { "\x1b_Gabc", "!", "def\x1b", "\\z" },
+            new[] { "\u009fGabc", "!", "def\u009cz" },
+            new[] { "\x1bP1$qm", "!", "more\u0018z" },
+            new[] { "\x1b]0;ab", "!", "cd\x1b[Az" },
+            new[] { "\x1b[1;5", "!", "Rz" },
+        };
+        foreach (var chunks in cases)
+        {
+            EscapeTimeProvider.EscapeTimer? armed = null;
+            foreach (var chunk in chunks)
+            {
+                if (chunk == "!")
+                    (await clock.Armed.Reader.ReadAsync(ct)).Fire();
+                else if (chunk == "?")
+                    armed = await clock.Armed.Reader.ReadAsync(ct);
+                else if (chunk == "~")
+                    armed!.Fire();
+                else
+                    presentation.EnqueueInput(chunk);
+            }
+            var label = string.Join(" | ", chunks.Select(c => c.Length > 12 ? c[..12] : c));
+            if (chunks[^1].Contains("[A", StringComparison.Ordinal))
+                Assert.AreEqual(Hex1bKey.UpArrow, TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Key, label);
+            Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct)).Text, label);
+            Assert.IsFalse(workload.InputEvents.TryRead(out _), label);
+        }
+        Assert.IsFalse(clock.Armed.Reader.TryRead(out _), "Discarding must not arm the escape timer.");
     }
 
     [TestMethod]

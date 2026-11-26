@@ -31,7 +31,7 @@ public class PasteLineEndingTests
             "DispatchTokensAsEventsAsync",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-        await (Task)method!.Invoke(terminal, [tokens, workload, CancellationToken.None])!;
+        await (Task)method!.Invoke(terminal, [tokens, workload, 0, CancellationToken.None])!;
 
         var events = new List<Hex1bEvent>();
         while (workload.InputEvents.TryRead(out var evt))

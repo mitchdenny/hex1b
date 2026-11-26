@@ -108,6 +108,16 @@ public record TerminalCapabilities
     /// Presentation supports bracketed paste mode.
     /// </summary>
     public bool SupportsBracketedPaste { get; init; }
+
+    /// <summary>
+    /// Gets whether the presentation supports Kitty keyboard push/pop negotiation.
+    /// Defaults to false; unsupported or unprobed hosts retain legacy input.
+    /// </summary>
+    /// <remarks>
+    /// This declaration permits negotiation; it is not confirmation of effective flags
+    /// or release reporting. The app separately queries the input source after its push.
+    /// </remarks>
+    public bool SupportsKittyKeyboard { get; init; }
     
     /// <summary>
     /// Presentation supports Kitty Graphics Protocol (KGP) for inline image display.
