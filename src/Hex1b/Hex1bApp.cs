@@ -784,6 +784,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// <summary>How long shutdown waits for embedded children to accept neutralizing key releases.</summary>
     internal TimeSpan EmbeddedKeyReleaseTimeout { get; set; } = TimeSpan.FromSeconds(2);
 
+    /// <summary>
+    /// Whether the app's input source reports key releases (<see langword="null"/> when unknown).
+    /// Set from host capability negotiation; observing a release does not imply it.
+    /// </summary>
+    internal bool? InputSourceReportsKeyReleases
+    {
+        get => _inputRouterState.SourceReportsReleases;
+        set => _inputRouterState.SourceReportsReleases = value;
+    }
+
     private async Task<Exception?> ReleaseEmbeddedKeysAsync()
     {
         // Embedded children can outlive the app; release keys they still hold, but never let a

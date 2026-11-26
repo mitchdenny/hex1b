@@ -469,27 +469,34 @@ public sealed class TerminalWidgetHandle :
     // repeat/release still reaches it after it enables event types mid-hold. Each entry records
     // the terminal that actually received the press, so its release survives focus, capture,
     // node, handle-replacement and Reset/reattach changes without reaching a different child.
-    // At the bound, reject a new distinct press before forwarding it. Synthetic sources can
-    // hold arbitrarily many keys; silently evicting or releasing one would corrupt their state.
+    // At the bound, the oldest press not known to be held is dropped without a release: a source
+    // without release reporting accumulates one entry per distinct key typed, so ordinary legacy
+    // typing must stay unlimited. Live presses from a release-reporting source are never evicted
+    // or synthetically released; if all entries are live the new press is rejected instead.
     internal const int MaxForwardedKeys = 256;
     private readonly List<ForwardedKey> _forwardedKeys = [];
     // Keep ownership through the awaited send. Physical release, cleanup and another press
     // must not claim or replace an entry while that delivery is unresolved.
     private readonly SemaphoreSlim _forwardedKeyDelivery = new(1, 1);
 
-    internal sealed class ForwardedKey((Hex1bKey Key, int? Code) identity, Hex1bKeyEvent press, Hex1bTerminal recipient)
+    internal sealed class ForwardedKey(
+        (Hex1bKey Key, int? Code) identity, Hex1bKeyEvent press, Hex1bTerminal recipient,
+        InputRouterState? source, int epoch)
     {
         public (Hex1bKey Key, int? Code) Identity { get; } = identity;
         public Hex1bKeyEvent Press { get; } = press;
         public Hex1bTerminal Recipient { get; } = recipient;
+        /// <summary>Whether the source still guarantees a physical release for this press.</summary>
+        public bool IsLive => source?.IsLiveOwnershipEpoch(epoch) == true;
     }
 
     /// <summary>
     /// Forwards a key event to the attached child. Presses are recorded against the terminal that
     /// receives them; nothing is recorded when no child is attached.
     /// </summary>
-    /// <exception cref="InvalidOperationException">The handle already owns 256 distinct presses.
-    /// The new press is not sent, and existing ownership is retained.</exception>
+    /// <exception cref="InvalidOperationException">The handle already owns 256 distinct presses,
+    /// all from a source that reports releases. The new press is not sent, and existing ownership
+    /// is retained.</exception>
     internal async Task ForwardKeyAsync(Hex1bKeyEvent key, InputRouterState? routerState, CancellationToken ct)
     {
         await _forwardedKeyDelivery.WaitAsync(ct).ConfigureAwait(false);
@@ -500,6 +507,7 @@ public sealed class TerminalWidgetHandle :
                 return;
 
             ForwardedKey? entry = null;
+            ForwardedKey? stale = null;
             if (key.EventType == Hex1bKeyEventType.Press && (key.Key != Hex1bKey.None || key.UnicodeKeyCode is > 0))
             {
                 var identity = InputRouterState.KeyIdentity(key);
@@ -510,9 +518,13 @@ public sealed class TerminalWidgetHandle :
                     if (!_forwardedKeys.Exists(k => k.Identity == identity && k.Recipient == recipient))
                     {
                         if (_forwardedKeys.Count >= MaxForwardedKeys)
-                            throw new InvalidOperationException(
-                                $"An embedded terminal handle cannot track more than {MaxForwardedKeys} unreleased keys.");
-                        entry = new ForwardedKey(identity, key, recipient);
+                        {
+                            stale = _forwardedKeys.Find(k => !k.IsLive)
+                                ?? throw new InvalidOperationException(
+                                    $"An embedded terminal handle cannot track more than {MaxForwardedKeys} held keys from a release-reporting source.");
+                        }
+                        entry = new ForwardedKey(identity, key, recipient, routerState,
+                            routerState?.ReleaseReportingEpoch ?? 0);
                     }
                 }
             }
@@ -521,7 +533,11 @@ public sealed class TerminalWidgetHandle :
             if (entry != null)
             {
                 lock (_forwardedKeys)
+                {
+                    if (stale != null)
+                        _forwardedKeys.Remove(stale);
                     _forwardedKeys.Add(entry);
+                }
                 routerState?.TrackTerminalKeyOwner(this);
             }
         }

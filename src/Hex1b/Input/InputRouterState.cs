@@ -16,8 +16,58 @@ public sealed class InputRouterState
     private readonly object _modifierLock = new();
     private readonly HashSet<int> _pressedModifierKeys = [];
     private int _lastKnownModifiers = -1;
+    private readonly object _releaseReportingLock = new();
+    private bool? _sourceReportsReleases;
+    private int _releaseReportingEpoch;
 
     internal Task<Exception> HoldFailure => _holdFailure.Task;
+
+    /// <summary>
+    /// Whether the input source reports key releases, or <see langword="null"/> when unknown.
+    /// This is set from source capability/negotiation; it is never inferred from an observed
+    /// release, and it is independent of what an embedded child has requested.
+    /// </summary>
+    /// <remarks>
+    /// Forwarded presses made while this is <see langword="true"/> are live ownership: they are
+    /// never evicted or released synthetically before their physical release. Presses made while
+    /// it is unknown or <see langword="false"/> may never be released, so they are bounded
+    /// bookkeeping. Changing the value demotes all earlier presses to bookkeeping.
+    /// </remarks>
+    internal bool? SourceReportsReleases
+    {
+        get
+        {
+            lock (_releaseReportingLock)
+                return _sourceReportsReleases;
+        }
+        set
+        {
+            lock (_releaseReportingLock)
+            {
+                if (_sourceReportsReleases == value)
+                    return;
+                _sourceReportsReleases = value;
+                _releaseReportingEpoch++;
+            }
+        }
+    }
+
+    /// <summary>Identifies the release-reporting period a forwarded press was made in.</summary>
+    internal int ReleaseReportingEpoch
+    {
+        get
+        {
+            lock (_releaseReportingLock)
+                return _releaseReportingEpoch;
+        }
+    }
+
+    /// <summary>Whether a press made in <paramref name="epoch"/> is still guaranteed a physical release.</summary>
+    internal bool IsLiveOwnershipEpoch(int epoch)
+    {
+        lock (_releaseReportingLock)
+            return _sourceReportsReleases == true && epoch == _releaseReportingEpoch;
+    }
 
     /// <summary>The best-known modifier and lock state, including successful cleanup releases.</summary>
     internal Hex1bModifiers? LastKnownModifiers
