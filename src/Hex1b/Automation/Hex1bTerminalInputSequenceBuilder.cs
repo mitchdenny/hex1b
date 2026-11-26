@@ -105,6 +105,30 @@ public sealed class Hex1bTerminalInputSequenceBuilder
         return this;
     }
 
+    /// <summary>Adds Super to the next key or mouse action.</summary>
+    /// <returns>This builder.</returns>
+    public Hex1bTerminalInputSequenceBuilder Super()
+    {
+        _pendingModifiers |= Hex1bModifiers.Super;
+        return this;
+    }
+
+    /// <summary>Adds Hyper to the next key or mouse action.</summary>
+    /// <returns>This builder.</returns>
+    public Hex1bTerminalInputSequenceBuilder Hyper()
+    {
+        _pendingModifiers |= Hex1bModifiers.Hyper;
+        return this;
+    }
+
+    /// <summary>Adds Meta to the next key or mouse action.</summary>
+    /// <returns>This builder.</returns>
+    public Hex1bTerminalInputSequenceBuilder Meta()
+    {
+        _pendingModifiers |= Hex1bModifiers.Meta;
+        return this;
+    }
+
     // ========================================
     // Key input
     // ========================================
@@ -115,7 +139,8 @@ public sealed class Hex1bTerminalInputSequenceBuilder
     /// <remarks>
     /// Printable key defaults use a US-style mapping, independent of the host keyboard layout.
     /// Numeric keypad keys retain their digit or operator identity regardless of Shift.
-    /// Process workloads encode keys using the terminal's current cursor and keypad application modes;
+    /// Known shifted US symbols retain their shifted key identity, even for textless shortcuts.
+    /// Process workloads encode keys using the terminal's current keyboard, cursor and keypad modes;
     /// in-process applications receive the original key event.
     /// </remarks>
     /// <param name="key">The logical key to send.</param>
@@ -123,7 +148,10 @@ public sealed class Hex1bTerminalInputSequenceBuilder
     public Hex1bTerminalInputSequenceBuilder Key(Hex1bKey key)
     {
         var text = GetDefaultTextForKey(key, _pendingModifiers);
-        _steps.Add(new KeyInputStep(key, text, _pendingModifiers));
+        _steps.Add(new KeyInputStep(key, text, _pendingModifiers)
+        {
+            ShiftedKeyCode = GetShiftedKeyCode(key, _pendingModifiers)
+        });
         _pendingModifiers = Hex1bModifiers.None;
         return this;
     }
@@ -143,7 +171,29 @@ public sealed class Hex1bTerminalInputSequenceBuilder
         // Combine with any pending modifiers
         var combinedModifiers = _pendingModifiers | modifiers;
         var text = GetDefaultTextForKey(key, combinedModifiers);
-        _steps.Add(new KeyInputStep(key, text, combinedModifiers));
+        _steps.Add(new KeyInputStep(key, text, combinedModifiers)
+        {
+            ShiftedKeyCode = GetShiftedKeyCode(key, combinedModifiers)
+        });
+        _pendingModifiers = Hex1bModifiers.None;
+        return this;
+    }
+
+    /// <summary>Sends a key event with its event type and available keyboard metadata.</summary>
+    /// <param name="keyEvent">The event to send. Pending modifiers are combined with its modifiers.</param>
+    /// <returns>This builder.</returns>
+    /// <remarks>Wire encoding uses the workload's keyboard mode when the sequence runs.</remarks>
+    /// <exception cref="ArgumentNullException">The event is null.</exception>
+    public Hex1bTerminalInputSequenceBuilder Key(Hex1bKeyEvent keyEvent)
+    {
+        ArgumentNullException.ThrowIfNull(keyEvent);
+        _steps.Add(new KeyInputStep(keyEvent.Key, keyEvent.Text, keyEvent.Modifiers | _pendingModifiers)
+        {
+            EventType = keyEvent.EventType,
+            UnicodeKeyCode = keyEvent.UnicodeKeyCode,
+            ShiftedKeyCode = keyEvent.ShiftedKeyCode,
+            BaseLayoutKeyCode = keyEvent.BaseLayoutKeyCode
+        });
         _pendingModifiers = Hex1bModifiers.None;
         return this;
     }
@@ -151,6 +201,11 @@ public sealed class Hex1bTerminalInputSequenceBuilder
     /// <summary>
     /// Types text quickly (no delay between keystrokes).
     /// </summary>
+    /// <remarks>
+    /// Uses the synthetic US key mapping where known, including shifted identities.
+    /// Other Unicode scalars are text-only events with no inferred key or layout identity.
+    /// Encoding uses the terminal's keyboard mode at execution time.
+    /// </remarks>
     public Hex1bTerminalInputSequenceBuilder Type(string text) => FastType(text);
 
     /// <summary>
@@ -418,6 +473,17 @@ public sealed class Hex1bTerminalInputSequenceBuilder
     // ========================================
     // Helpers
     // ========================================
+
+    internal static int? GetShiftedKeyCode(Hex1bKey key, Hex1bModifiers modifiers)
+    {
+        if ((modifiers & Hex1bModifiers.Shift) == 0)
+            return null;
+
+        var shifted = GetDefaultTextForKey(key, Hex1bModifiers.Shift);
+        var plain = GetDefaultTextForKey(key, Hex1bModifiers.None);
+        return shifted.Length == 1 && shifted != plain && !char.IsControl(shifted[0])
+            ? shifted[0] : null;
+    }
 
     internal static string GetDefaultTextForKey(Hex1bKey key, Hex1bModifiers modifiers)
     {
