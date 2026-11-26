@@ -191,6 +191,7 @@ internal sealed class Hwt1RenderProjection
             indexedColors ? "indexed-v1" : null)
             {
                 ProgramStatus = Hwt1ProgramStatus.From(snapshot.ProgramStatus),
+                KittyKeyboardFlags = snapshot.KittyKeyboardFlags,
                 LineRenditions = Enumerable.Range(0, _rows).Select(y => (int)snapshot.GetLineRendition(y)).ToArray()
             },
             Hwt1JsonSerializerContext.Default.Hwt1FrameMetadata);

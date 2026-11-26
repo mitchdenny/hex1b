@@ -180,6 +180,7 @@ delta.
 | `lineRenditions` | array of integers | Complete physical-row width/height modes, one per visible row; values `0` through `3` as defined in §2. |
 | `cellWidth`, `cellHeight` | integers | Logical pixels per cell; currently exactly `10`, `20`. |
 | `mouseTracking` | integer | Effective mouse tracking mode: `0`, `9`, `1000`, `1002`, or `1003`; see §7. |
+| `kittyKeyboardFlags` | integer, optional | Current Kitty keyboard progressive-enhancement flags (`0`..`127`, all seven low bits as set by the workload); see §6.2.1. Absent or `0` means legacy key input. |
 | `peer` | object | Required complete HMP1 peer/primary state, or standalone defaults, defined below. |
 | `title` | string | Required complete current workload window title on every full/delta frame; `""` means unset or explicitly cleared. At most 4,096 UTF-16 code units, no C0/DEL/C1 controls or unpaired surrogates. |
 | `progress` | object | Required complete OSC 9;4 state: `state` and nullable `percentage`, defined below. |
@@ -786,7 +787,8 @@ semantics: the browser may include `meta: false`, but the core ignores `meta`.
 `input.text` is sent to the workload as UTF-8 without key translation, newline
 normalization, or bracketed-paste wrappers. Empty text is valid. IME/composition
 commits and multi-code-point text belong here, not in `key`. Text is not
-sanitized: escaped control characters are still input characters.
+sanitized: escaped control characters are still input characters. Under Kitty
+report-all mode (§6.2.1) text is instead reported as key events.
 
 ```json
 {"type":"paste","text":"first line\nsecond line"}
@@ -814,8 +816,11 @@ confirmation of workload consumption.
 
 Other key names are rejected. In particular, a supplementary Unicode character
 or a multi-code-point grapheme is not a single-character `key`; send `input`.
-There is no key-up, scan code, physical `code`, repeat count, or negotiated
-extended keyboard protocol. Repeats can be sent as repeated key messages.
+Without Kitty keyboard mode there is no key-up, scan code, physical `code`,
+or repeat count; repeats can be sent as repeated key messages. The optional
+Kitty fields in §6.2.1 are validated but ignored, a `release` is dropped, and
+Kitty-only keys (for example `F13` or a sided modifier) are dropped because the
+workload may have left Kitty mode after the browser sent them.
 
 The server encodes against live terminal modes. With `m = 1 + shift + 2*alt +
 4*ctrl`, each boolean taken as zero or one, current encoding is:
@@ -841,6 +846,66 @@ For other keys:
 
 For example, Ctrl+ArrowUp becomes `1b 5b 31 3b 35 41` (`ESC [ 1 ; 5 A`),
 regardless of application-cursor mode.
+
+#### 6.2.1. Kitty keyboard protocol
+
+A workload can enable the [Kitty keyboard protocol][kitty-keyboard] with
+`CSI > flags u` (and the push/pop/set variants). Frame metadata
+`kittyKeyboardFlags` reports the current flags so the browser knows which
+keys to forward. Bits 5 and 6 are reserved: they are carried in metadata but a
+mode with only reserved bits behaves like `0`. When `flags & 31` is non-zero
+the browser adds these fields:
+
+```json
+{"type":"key","key":"a","code":"KeyA","eventType":"press","ctrl":true,"alt":false,
+ "shift":false,"meta":false,"capsLock":false,"numLock":false}
+```
+
+| Field | Meaning |
+|---|---|
+| `code` | DOM `KeyboardEvent.code` (at most 64 code units). Supplies keypad identities (`Numpad*`), sides of modifier keys, and the base-layout key. |
+| `eventType` | `press`, `repeat`, or `release`. |
+| `meta` | Super/Meta/OS modifier. |
+| `capsLock`, `numLock` | Lock state from `getModifierState`. |
+
+In Kitty mode `key` additionally accepts `F13`..`F35`, `CapsLock`,
+`ScrollLock`, `NumLock`, `PrintScreen`, `Pause`, `ContextMenu`, `Clear`
+(only with `code` `Numpad5`), sided `Shift`/`Control`/`Alt`/`Meta`/`OS`, and any
+single Unicode scalar. The server encodes against live modes, never the
+browser's view of them, so a mode change in flight is safe.
+
+* Identity: a lower-case, unshifted text key is reported with its code point
+  and, under flag 4, the base-layout key from `code`. Shifted or upper-case text
+  has no unshifted identity without OS layout data, so it is reported with key
+  code `0` rather than a guessed case mapping. A modifier with an unknown side
+  is not sent.
+* Event types (flag 2): the server pairs a `release` with the press it
+  forwarded for the same `code` (or `key` when `code` is empty). A release
+  without a forwarded press is dropped; a `repeat` without one is sent as a
+  press. Each view tracks at most 256 held identities. A new identity at
+  capacity is rejected before writing (`InvalidDataException` on the server,
+  the browser's input-error handler on the client); existing presses and repeats
+  remain allowed, and a successful release frees capacity.
+  Held presses are released when the view becomes read-only, the connection
+  closes, or the browser loses focus, and are forgotten when flag 2 is cleared.
+  Synthetic releases preserve the latest modifier and lock state; releasing a
+  modifier clears its bit only after its last held side is released. Ownership
+  and synthetic modifier state advance only after a successful write, so failed
+  releases remain retryable while the view remains connected; browser retries
+  require input to be enabled again. Disposal first cancels pending input and waits for
+  ordered release cleanup. It reports write failures or a one-second timeout,
+  rather than silently skipping held keys. A write that ignores cancellation
+  retains ownership until completion, allowing cleanup to continue after the
+  timeout; new input is rejected throughout.
+* Text: under flag 8 text is not sent; `input` text is reported as key code `0`
+  events, with the text in the third field when flag 16 is also set. `paste`
+  is unaffected.
+* The browser forwards keys the default policy leaves to text input only when
+  the mode reports them; browser shortcuts (Meta, reserved F-keys, Ctrl+T etc.)
+  stay with the browser and are never reported. AltGr, dead and IME keys use
+  text input.
+
+[kitty-keyboard]: https://sw.kovidgoyal.net/kitty/keyboard-protocol/
 
 ### 6.3. Resize
 

@@ -167,7 +167,8 @@ async function drawFrame() {
         progress: metadata.progress, shellIntegration: metadata.shellIntegration,
         programStatus: metadata.programStatus ?? { records: [] },
         workingDirectory: metadata.workingDirectory, commandMark: metadata.commandMark,
-        text, hyperlinks: metadata.hyperlinks, lineRenditions: metadata.lineRenditions, ...links.present(cells, metadata)
+        text, hyperlinks: metadata.hyperlinks, lineRenditions: metadata.lineRenditions,
+        kittyKeyboardFlags: metadata.kittyKeyboardFlags, ...links.present(cells, metadata)
       });
       send({ type: "ack", revision: frame.revision });
       emitStats(text);
