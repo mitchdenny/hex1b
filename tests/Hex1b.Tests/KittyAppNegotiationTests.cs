@@ -184,6 +184,39 @@ public class KittyAppNegotiationTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Dispose_PopAndEveryLaterWriteFail_StillRestoresRawModeAndDisposesResources(bool synchronous)
+    {
+        await using var presentation = new KeyboardHost(supported: true) { FailPop = true, FailAllAfterPop = true };
+        var workload = new Hex1bAppWorkloadAdapter(presentation);
+        var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation, WorkloadAdapter = workload
+        });
+        workload.EnterTuiMode();
+        await presentation.Pushed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var error = synchronous
+            ? Assert.ThrowsExactly<AggregateException>(terminal.Dispose)
+            : await Assert.ThrowsExactlyAsync<AggregateException>(async () => await terminal.DisposeAsync());
+        var messages = error.InnerExceptions.Select(e => TestSeq.IsType<IOException>(e).Message).ToArray();
+        Assert.AreEqual("pop write rejected", messages[0]);
+        Assert.Contains("broken pipe", messages, "The exit-sequence write failure is preserved.");
+        Assert.Contains("write-failed", presentation.Trace);
+        Assert.Contains("flush-failed", presentation.Trace);
+        Assert.IsTrue(presentation.Trace.IndexOf("write-failed") < presentation.Trace.IndexOf("raw-exit"),
+            "Raw mode is restored after the exit write fails.");
+        Assert.AreEqual(1, presentation.DisposeCount);
+        Assert.IsTrue(workload.IsDisposed);
+        if (synchronous)
+            terminal.Dispose();
+        else
+            await terminal.DisposeAsync();
+        Assert.AreEqual(1, presentation.Trace.Count(t => t == "raw-exit"), "A second dispose is a no-op.");
+        Assert.AreEqual(1, presentation.DisposeCount);
+    }
+
+    [TestMethod]
     [DataRow(Hex1bKey.A, 97, "a")]
     [DataRow(Hex1bKey.Enter, 13, "\r")]
     [DataRow(Hex1bKey.Tab, 9, "\t")]
@@ -501,6 +534,9 @@ public class KittyAppNegotiationTests
         public bool DelayStartup { get; init; }
         public bool FailPush { get; init; }
         public bool FailPop { get; init; }
+        public bool FailAllAfterPop { get; init; }
+        private bool _broken;
+        public int DisposeCount { get; private set; }
         public bool AdvertiseSupport { get; set; } = true;
         public int? ReportedFlags { get; init; } = 31;
         private readonly Channel<ReadOnlyMemory<byte>> _input = Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
@@ -535,12 +571,18 @@ public class KittyAppNegotiationTests
                 Host.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[=4u\x1b[?1049h\x1b[=8u\x1b[?1049l"));
                 _initialized = true;
             }
+            if (_broken)
+            {
+                Trace.Add("write-failed");
+                throw new IOException("broken pipe");
+            }
             var text = Encoding.UTF8.GetString(data.Span);
             if (FailPush && text.Contains("\x1b[>31u", StringComparison.Ordinal))
                 throw new IOException("push write rejected");
             if (FailPop && text.Contains("\x1b[<u", StringComparison.Ordinal))
             {
                 Trace.Add("pop-failed");
+                _broken = FailAllAfterPop;
                 throw new IOException("pop write rejected");
             }
             foreach (var token in AnsiTokenizer.Tokenize(text))
@@ -573,9 +615,21 @@ public class KittyAppNegotiationTests
         }
         public ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
             => _input.Reader.ReadAsync(ct);
-        public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask FlushAsync(CancellationToken ct = default)
+        {
+            if (_broken)
+            {
+                Trace.Add("flush-failed");
+                throw new IOException("broken pipe");
+            }
+            return ValueTask.CompletedTask;
+        }
         public (int Row, int Column) GetCursorPosition() => (0, 0);
-        public ValueTask DisposeAsync() => Host.DisposeAsync();
+        public ValueTask DisposeAsync()
+        {
+            DisposeCount++;
+            return Host.DisposeAsync();
+        }
     }
 
     private sealed class PassThroughFilter : IHex1bTerminalPresentationFilter

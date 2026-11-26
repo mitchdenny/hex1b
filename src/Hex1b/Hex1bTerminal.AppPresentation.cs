@@ -28,14 +28,21 @@ public sealed partial class Hex1bTerminal
             // Adapter lifecycle control sequences are each queued as one output item.
             var text = Encoding.UTF8.GetString(data.Span);
             var pushing = text.Contains("\x1b[>31u", StringComparison.Ordinal);
-            // Input read from here on may answer this query; earlier reads cannot.
             // Output is pumped in order, so the latest dequeued epoch belongs to this item.
-            if (pushing)
-                Volatile.Write(ref _presentedKeyboardQueryEpoch, appAdapter.DequeuedKeyboardQueryEpoch);
+            var queryEpoch = appAdapter.DequeuedKeyboardQueryEpoch;
             await _presentation!.WriteOutputAsync(data, ct);
-            // Record ownership only after the presentation accepted the push.
             if (pushing)
+            {
+                // Record ownership only after the presentation accepted the push.
                 _appHostKeyboardPushed = true;
+                // Only input read after the query was delivered may answer it. Input read
+                // while the write was pending keeps the older stamp, so re-query: a genuine
+                // reply that raced the write is not lost, while one read before delivery
+                // cannot confirm. Without request IDs a late reply to an older query that
+                // arrives after this point remains indistinguishable from a genuine one.
+                Volatile.Write(ref _presentedKeyboardQueryEpoch, queryEpoch);
+                await _presentation.WriteOutputAsync("\x1b[?u"u8.ToArray(), ct);
+            }
             if (text.Contains("\x1b[<u", StringComparison.Ordinal))
             {
                 _appHostKeyboardPushed = false;

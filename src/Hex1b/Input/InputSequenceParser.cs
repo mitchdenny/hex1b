@@ -15,24 +15,51 @@ internal sealed class InputSequenceParser
     internal int PendingLength => _pending.Length;
     internal bool InPaste => _inPaste;
     internal bool IsDiscarding => _discard != Discard.None;
-    internal bool NeedsEscapeTimeout => !_inPaste && (_pending.Length > 0 || _discard != Discard.None);
+    // Discarding never needs a timer: it ends only at a terminator or resync boundary.
+    internal bool NeedsEscapeTimeout => !_inPaste && _discard == Discard.None && _pending.Length > 0;
 
-    // An oversized sequence is dropped without retaining its text, but the framer
-    // still remembers it is inside that sequence so its remainder is not replayed
-    // as keys. Discard ends at the sequence terminator, a safe interruption, or flush.
+    // Leading tokens of the last Parse result that began in input carried over from an
+    // earlier call. Callers stamp those with the older arrival epoch.
+    internal int CarriedTokenCount { get; private set; }
+
+    // True when the retained pending prefix began in carried input.
+    internal bool PendingIsCarried { get; private set; }
+
+    // An oversized or timed-out sequence is dropped without retaining its text, but the
+    // framer remembers it is inside that sequence so its remainder is not replayed as
+    // keys, even across escape timeouts. CSI discard ends at its final byte or any other
+    // non-parameter character. Control-string discard ends at ST, BEL (OSC only), CAN, or
+    // SUB, or resynchronizes at ESC, which is then parsed as the start of new input, as
+    // VT-family parsers do. Only a lone ESC is retained while discarding.
     private enum Discard { None, Csi, String, StringOrBell }
 
-    internal IReadOnlyList<AnsiToken> Parse(string text, bool enhanced, bool flush = false)
+    // Unparsed text following a keyboard flags report when Parse was asked to stop there.
+    // A confirming report changes how the rest of the same read must be decoded, so the
+    // caller observes it and then parses this remainder as new input in the updated mode.
+    internal string? Remainder { get; private set; }
+
+    internal static bool IsKeyboardFlagsReport(string sequence)
+        => sequence.Length > 3 && sequence.StartsWith("\x1b[?", StringComparison.Ordinal) && sequence[^1] == 'u';
+
+    internal IReadOnlyList<AnsiToken> Parse(
+        string text, bool enhanced, bool flush = false, bool stopAfterKeyboardReport = false)
     {
+        var carried = _pending.Length;
         text = _pending + text;
         _pending = "";
         var tokens = new List<AnsiToken>();
+        CarriedTokenCount = -1;
+        PendingIsCarried = false;
+        Remainder = null;
         var offset = 0;
         while (offset < text.Length)
         {
+            if (CarriedTokenCount < 0 && offset >= carried)
+                CarriedTokenCount = tokens.Count;
+
             if (_discard != Discard.None)
             {
-                if (!ContinueDiscard(text, ref offset, flush))
+                if (!ContinueDiscard(text, ref offset, carried))
                     break;
                 continue;
             }
@@ -48,7 +75,7 @@ internal sealed class InputSequenceParser
                         keep--;
                     if (text.Length - keep > offset)
                         tokens.Add(new TextToken(text[offset..(text.Length - keep)]));
-                    _pending = text[(text.Length - keep)..];
+                    Retain(text, text.Length - keep, carried);
                     break;
                 }
                 if (end > offset)
@@ -67,35 +94,42 @@ internal sealed class InputSequenceParser
                     offset++;
                 if (offset < text.Length && text[offset] is not (>= '\x40' and <= '\x7e'))
                     continue; // Invalid CSI; resume at the interrupting character.
-                if (offset == text.Length && !flush)
+                if (offset == text.Length)
                 {
-                    if (offset - start < MaximumSequenceLength)
-                        _pending = text[start..];
-                    else
+                    if (!flush && offset - start < MaximumSequenceLength)
+                    {
+                        Retain(text, start, carried);
+                        break;
+                    }
+                    // A bare CSI introducer times out as legacy Alt+[; anything longer
+                    // keeps discarding so its late remainder cannot leak as keys.
+                    if (!flush || offset - start > 2)
+                    {
                         _discard = Discard.Csi;
-                    break;
+                        continue;
+                    }
                 }
-                if (offset < text.Length)
+                else
                     offset++;
             }
             else if (IsIntroducer(text[offset]))
             {
                 if (Hex1bTerminal.TryFindEscapeSequenceEnd(text, offset, out var end))
                     offset = end;
+                else if (ControlStringDiscard(text, start) is { } discard &&
+                    (!flush || text.Length - start > IntroducerLength(text, start)) &&
+                    (flush || text.Length - start >= MaximumSequenceLength))
+                {
+                    _discard = discard;
+                    offset = start + IntroducerLength(text, start);
+                    continue;
+                }
                 else if (flush)
                     offset = text.Length;
-                else if (text.Length - start < MaximumSequenceLength)
-                {
-                    _pending = text[start..];
-                    break;
-                }
                 else
                 {
-                    // Only control strings can outgrow the bound while unterminated.
-                    _discard = text[start] == '\x9d' || text[start] == '\x1b' && text[start + 1] == ']'
-                        ? Discard.StringOrBell : Discard.String;
-                    offset = start + (text[start] == '\x1b' ? 2 : 1);
-                    continue;
+                    Retain(text, start, carried);
+                    break;
                 }
             }
             else
@@ -115,21 +149,51 @@ internal sealed class InputSequenceParser
             // report earlier in this same read can change its F3 ambiguity.
             if (KittyKeyboardInput.IsCursorPositionReport(sequence))
                 tokens.Add(new UnrecognizedSequenceToken(sequence));
+            else if (IsKeyboardFlagsReport(sequence))
+            {
+                tokens.Add(new UnrecognizedSequenceToken(sequence));
+                if (stopAfterKeyboardReport && offset < text.Length)
+                {
+                    Remainder = text[offset..];
+                    break;
+                }
+            }
             else
                 tokens.AddRange(enhanced
                     ? AnsiTokenizer.TokenizeEnhancedInput(sequence)
                     : AnsiTokenizer.Tokenize(sequence));
         }
-        if (flush)
-            _discard = Discard.None;
+        if (CarriedTokenCount < 0)
+            CarriedTokenCount = tokens.Count;
         return tokens;
+    }
+
+    private void Retain(string text, int start, int carried)
+    {
+        _pending = text[start..];
+        PendingIsCarried = start < carried;
     }
 
     // C1 OSC, APC, and DCS are control-string introducers on input, as ESC is.
     private static bool IsIntroducer(char c) => c is '\x1b' or '\x9d' or '\x9f' or '\x90';
 
+    private static int IntroducerLength(string text, int start) => text[start] == '\x1b' ? 2 : 1;
+
+    private static Discard? ControlStringDiscard(string text, int start) => text[start] switch
+    {
+        '\x9d' => Discard.StringOrBell,
+        '\x90' or '\x9f' => Discard.String,
+        '\x1b' when start + 1 < text.Length => text[start + 1] switch
+        {
+            ']' => Discard.StringOrBell,
+            'P' or '_' => Discard.String,
+            _ => null
+        },
+        _ => null
+    };
+
     // Returns false when the remaining text was consumed while still discarding.
-    private bool ContinueDiscard(string text, ref int offset, bool flush)
+    private bool ContinueDiscard(string text, ref int offset, int carried)
     {
         if (_discard == Discard.Csi)
         {
@@ -146,7 +210,7 @@ internal sealed class InputSequenceParser
         while (offset < text.Length)
         {
             var c = text[offset];
-            if (c == '\x9c' || c == '\x07' && _discard == Discard.StringOrBell)
+            if (c is '\x9c' or '\x18' or '\x1a' || c == '\x07' && _discard == Discard.StringOrBell)
             {
                 offset++;
                 _discard = Discard.None;
@@ -156,17 +220,15 @@ internal sealed class InputSequenceParser
             {
                 if (offset + 1 == text.Length)
                 {
-                    if (!flush)
-                        _pending = "\x1b";
+                    // Possibly the first half of ESC \; keep it across timeouts.
+                    Retain(text, offset, carried);
                     offset = text.Length;
                     return false;
                 }
+                _discard = Discard.None;
                 if (text[offset + 1] == '\\')
-                {
                     offset += 2;
-                    _discard = Discard.None;
-                    return true;
-                }
+                return true;
             }
             offset++;
         }

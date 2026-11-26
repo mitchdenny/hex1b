@@ -705,12 +705,24 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             _rawInputTimer = null;
             var chars = new char[_rawInputDecoder.GetCharCount(data.Span, flush: false)];
             var count = _rawInputDecoder.GetChars(data.Span, chars, flush: false);
-            // A report completed here may have started before the query was dequeued.
-            if (_rawInputParser.PendingLength > 0 || _rawInputParser.IsDiscarding)
-                queryEpoch = Math.Min(queryEpoch, _pendingRawInputQueryEpoch);
-            var tokens = _rawInputParser.Parse(new string(chars, 0, count), ConfirmedEnhancedInput == true);
-            _pendingRawInputQueryEpoch = queryEpoch;
-            await DispatchRawTokensAsync(tokens, queryEpoch, ct);
+            // A sequence completed here may have started before the query was dequeued,
+            // so it keeps its first fragment's stamp; sequences that start in this write
+            // take this write's stamp even when an older prefix completes alongside them.
+            var carriedEpoch = _pendingRawInputQueryEpoch;
+            var text = new string(chars, 0, count);
+            while (true)
+            {
+                // Stop after each flags report so input following a confirmation in the
+                // same read is decoded in the mode that report established.
+                var tokens = _rawInputParser.Parse(text, ConfirmedEnhancedInput == true, stopAfterKeyboardReport: true);
+                if (!_rawInputParser.PendingIsCarried)
+                    _pendingRawInputQueryEpoch = queryEpoch;
+                var remainder = _rawInputParser.Remainder;
+                await DispatchRawTokensAsync(tokens, _rawInputParser.CarriedTokenCount, carriedEpoch, queryEpoch, ct);
+                if (remainder is null)
+                    break;
+                text = remainder;
+            }
             if (_rawInputParser.NeedsEscapeTimeout)
             {
                 var generation = _rawInputGeneration;
@@ -741,14 +753,16 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         }
     }
 
-    private async ValueTask DispatchRawTokensAsync(IReadOnlyList<AnsiToken> tokens, int queryEpoch, CancellationToken ct)
+    private async ValueTask DispatchRawTokensAsync(
+        IReadOnlyList<AnsiToken> tokens, int carriedCount, int carriedEpoch, int queryEpoch, CancellationToken ct)
     {
         try
         {
-            foreach (var token in tokens)
+            for (var i = 0; i < tokens.Count; i++)
             {
+                var token = tokens[i];
                 ct.ThrowIfCancellationRequested();
-                if (ObserveKeyboardReport(token, queryEpoch))
+                if (ObserveKeyboardReport(token, i < carriedCount ? carriedEpoch : queryEpoch))
                     continue;
                 if (token is SpecialKeyToken { KeyCode: 200 })
                 {

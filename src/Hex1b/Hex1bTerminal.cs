@@ -673,6 +673,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             ExceptionDispatchInfo.Throw(failure);
     }
 
+    private static void ThrowCleanupFailures(List<Exception> failures)
+    {
+        if (failures.Count == 1)
+            ExceptionDispatchInfo.Throw(failures[0]);
+        if (failures.Count > 1)
+            throw new AggregateException(failures);
+    }
+
     // Owners that capture the final state can defer pump shutdown until disposal.
     internal async Task<int> RunWorkloadAsync(CancellationToken ct)
     {
@@ -948,7 +956,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 // If there is an incomplete escape sequence and the timeout is enabled,
                 // start (or restart) the reusable timer.
-                if ((_presentationInputParser.PendingLength > 0 || _presentationInputParser.IsDiscarding) &&
+                // Discarding never arms the timer: it lasts until a terminator or resync.
+                if (_presentationInputParser.PendingLength > 0 && !_presentationInputParser.IsDiscarding &&
                     _escapeTimeout > TimeSpan.Zero)
                 {
                     // Each arm owns a generation so a stale expiry cannot flush a newer prefix.
@@ -974,36 +983,52 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     private async Task DispatchCompleteInputTextAsync(string completeText, CancellationToken ct, bool flush = false, int queryEpoch = 0)
     {
-        IReadOnlyList<AnsiToken> tokens;
-        await _appPresentationLock.WaitAsync(ct);
-        try
+        // Stop after each flags report: a confirmation changes how the rest of the read
+        // decodes, so the remainder is parsed only after the report has been observed.
+        var stopAtReport = _workloadInputMode == Hex1bTerminalInputMode.ParsedEvents &&
+            _workload is Hex1bAppWorkloadAdapter;
+        string? text = completeText;
+        while (text is not null)
         {
-            // A token completed by this read may have started in an older read; use the
-            // oldest stamp so a split pre-query report cannot borrow the newer epoch.
-            if (_presentationInputParser.PendingLength > 0 || _presentationInputParser.IsDiscarding)
-                queryEpoch = Math.Min(queryEpoch, _pendingInputQueryEpoch);
-            var enhanced = IsEnhancedInputActive(_workload);
-            tokens = _presentationInputParser.Parse(completeText, enhanced, flush);
-            _pendingInputQueryEpoch = queryEpoch;
-        }
-        finally
-        {
-            _appPresentationLock.Release();
-        }
-        if (tokens.Count == 0)
-            return;
+            IReadOnlyList<AnsiToken> tokens;
+            int carriedCount, carriedEpoch;
+            await _appPresentationLock.WaitAsync(ct);
+            try
+            {
+                // A sequence completed by this read may have started in an older read and keeps
+                // that read's stamp, so a split pre-query report cannot borrow the newer epoch.
+                // Sequences starting in this read take its stamp even beside an older prefix.
+                carriedEpoch = _pendingInputQueryEpoch;
+                var enhanced = IsEnhancedInputActive(_workload);
+                tokens = _presentationInputParser.Parse(text, enhanced, flush, stopAtReport);
+                carriedCount = _presentationInputParser.CarriedTokenCount;
+                text = _presentationInputParser.Remainder;
+                if (!_presentationInputParser.PendingIsCarried)
+                    _pendingInputQueryEpoch = queryEpoch;
+            }
+            finally
+            {
+                _appPresentationLock.Release();
+            }
+            if (tokens.Count == 0)
+                continue;
 
-        _metrics.TerminalInputTokens.Record(tokens.Count);
+            _metrics.TerminalInputTokens.Record(tokens.Count);
 
-        // Notify presentation filters of input FROM presentation
-        await NotifyPresentationFiltersInputAsync(tokens);
+            // Notify presentation filters of input FROM presentation
+            await NotifyPresentationFiltersInputAsync(tokens);
 
-        // Notify workload filters of input going TO workload
-        await NotifyWorkloadFiltersInputAsync(tokens);
+            // Notify workload filters of input going TO workload
+            await NotifyWorkloadFiltersInputAsync(tokens);
 
-        if (_workloadInputMode == Hex1bTerminalInputMode.ParsedEvents)
-        {
-            await DispatchTokensAsEventsAsync(tokens, _workload, queryEpoch, ct);
+            if (_workloadInputMode == Hex1bTerminalInputMode.ParsedEvents)
+            {
+                if (carriedCount > 0)
+                    await DispatchTokensAsEventsAsync(tokens.Take(carriedCount).ToArray(), _workload, carriedEpoch, ct);
+                if (carriedCount < tokens.Count)
+                    await DispatchTokensAsEventsAsync(
+                        carriedCount == 0 ? tokens : tokens.Skip(carriedCount).ToArray(), _workload, queryEpoch, ct);
+            }
         }
     }
     
@@ -7087,50 +7112,37 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _ = NotifyWorkloadFiltersSessionEndAsync(elapsed);
         _ = NotifyPresentationFiltersSessionEndAsync(elapsed);
 
-        Exception? keyboardFailure = null;
-        if (_presentation != null)
+        // Each step runs even when an earlier one failed (for example, a broken pipe makes
+        // every write throw), so raw mode and resources are still released.
+        var failures = new List<Exception>();
+        void Step(Action action)
         {
-            try
-            {
-                CompleteAppKeyboardPresentationAsync().AsTask().GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                keyboardFailure = ex;
-            }
+            try { action(); }
+            catch (Exception ex) { failures.Add(ex); }
         }
 
-        try
+        if (_presentation is { } presentation)
         {
-            if (_presentation != null)
-            {
-                // Write mouse disable sequences and screen restore DIRECTLY to presentation
-                // This ensures they're written before raw mode is exited, avoiding race conditions
-                var exitSequences = Input.MouseParser.DisableMouseTracking +
-                    "\x1b[?2004l" + // Disable bracketed paste mode
-                    "\x1b[?25h" +   // Show cursor
-                    "\x1b[?1049l";  // Exit alternate screen
-                _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default).AsTask().GetAwaiter().GetResult();
-                _presentation.FlushAsync().AsTask().GetAwaiter().GetResult();
-
-                _presentation.ExitRawModeAsync().AsTask().GetAwaiter().GetResult();
-                _presentation.Resized -= OnPresentationResized;
-                _presentation.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            }
-
-            _workload.DisposeAsync().AsTask().GetAwaiter().GetResult();
-
-            _escapeFlushTimer?.Dispose();
-            _kgpAnimationTimer?.Dispose();
-
-            _disposeCts.Cancel();
-            _disposeCts.Dispose();
+            Step(() => CompleteAppKeyboardPresentationAsync().AsTask().GetAwaiter().GetResult());
+            // Write mouse disable sequences and screen restore DIRECTLY to presentation
+            // This ensures they're written before raw mode is exited, avoiding race conditions
+            var exitSequences = Input.MouseParser.DisableMouseTracking +
+                "\x1b[?2004l" + // Disable bracketed paste mode
+                "\x1b[?25h" +   // Show cursor
+                "\x1b[?1049l";  // Exit alternate screen
+            Step(() => presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default).AsTask().GetAwaiter().GetResult());
+            Step(() => presentation.FlushAsync().AsTask().GetAwaiter().GetResult());
+            Step(() => presentation.ExitRawModeAsync().AsTask().GetAwaiter().GetResult());
+            presentation.Resized -= OnPresentationResized;
+            Step(() => presentation.DisposeAsync().AsTask().GetAwaiter().GetResult());
         }
-        catch (Exception ex) when (keyboardFailure is not null)
-        {
-            throw new AggregateException(keyboardFailure, ex);
-        }
-        ThrowCleanupFailures(null, keyboardFailure);
+
+        Step(() => _workload.DisposeAsync().AsTask().GetAwaiter().GetResult());
+        Step(() => _escapeFlushTimer?.Dispose());
+        Step(() => _kgpAnimationTimer?.Dispose());
+        Step(_disposeCts.Cancel);
+        Step(_disposeCts.Dispose);
+        ThrowCleanupFailures(failures);
     }
 
     /// <inheritdoc />
@@ -7152,53 +7164,40 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         await NotifyWorkloadFiltersSessionEndAsync(elapsed);
         await NotifyPresentationFiltersSessionEndAsync(elapsed);
 
-        Exception? keyboardFailure = null;
-        if (_presentation != null)
+        // Each step runs even when an earlier one failed (for example, a broken pipe makes
+        // every write throw), so raw mode and resources are still released.
+        var failures = new List<Exception>();
+        async ValueTask StepAsync(Func<ValueTask> action)
         {
-            try
-            {
-                await CompleteAppKeyboardPresentationAsync();
-            }
-            catch (Exception ex)
-            {
-                keyboardFailure = ex;
-            }
+            try { await action(); }
+            catch (Exception ex) { failures.Add(ex); }
         }
 
-        try
+        if (_presentation is { } presentation)
         {
-            if (_presentation != null)
-            {
-                // Write mouse disable sequences and screen restore DIRECTLY to presentation
-                // This ensures they're written before raw mode is exited, avoiding race conditions
-                // where mouse events could leak to the shell after app exit
-                var exitSequences = Input.MouseParser.DisableMouseTracking +
-                    "\x1b[?2004l" + // Disable bracketed paste mode
-                    "\x1b[0m" +     // Reset text attributes (prevents inverted text from leaking)
-                    "\x1b[?25h" +   // Show cursor
-                    "\x1b[?1049l";  // Exit alternate screen
-                await _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default);
-                await _presentation.FlushAsync();
-
-                // Exit raw mode before disposing
-                await _presentation.ExitRawModeAsync();
-                _presentation.Resized -= OnPresentationResized;
-                await _presentation.DisposeAsync();
-            }
-
-            await _workload.DisposeAsync();
-
-            _escapeFlushTimer?.Dispose();
-            _kgpAnimationTimer?.Dispose();
-
-            _disposeCts.Cancel();
-            _disposeCts.Dispose();
+            await StepAsync(CompleteAppKeyboardPresentationAsync);
+            // Write mouse disable sequences and screen restore DIRECTLY to presentation
+            // This ensures they're written before raw mode is exited, avoiding race conditions
+            // where mouse events could leak to the shell after app exit
+            var exitSequences = Input.MouseParser.DisableMouseTracking +
+                "\x1b[?2004l" + // Disable bracketed paste mode
+                "\x1b[0m" +     // Reset text attributes (prevents inverted text from leaking)
+                "\x1b[?25h" +   // Show cursor
+                "\x1b[?1049l";  // Exit alternate screen
+            await StepAsync(() => presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default));
+            await StepAsync(() => presentation.FlushAsync());
+            // Exit raw mode before disposing
+            await StepAsync(() => presentation.ExitRawModeAsync());
+            presentation.Resized -= OnPresentationResized;
+            await StepAsync(presentation.DisposeAsync);
         }
-        catch (Exception ex) when (keyboardFailure is not null)
-        {
-            throw new AggregateException(keyboardFailure, ex);
-        }
-        ThrowCleanupFailures(null, keyboardFailure);
+
+        await StepAsync(_workload.DisposeAsync);
+        await StepAsync(() => { _escapeFlushTimer?.Dispose(); return ValueTask.CompletedTask; });
+        await StepAsync(() => { _kgpAnimationTimer?.Dispose(); return ValueTask.CompletedTask; });
+        await StepAsync(() => { _disposeCts.Cancel(); return ValueTask.CompletedTask; });
+        await StepAsync(() => { _disposeCts.Dispose(); return ValueTask.CompletedTask; });
+        ThrowCleanupFailures(failures);
     }
 
     private bool TryBeginDisposalAndResetScreenOwnedState()
