@@ -404,6 +404,95 @@ public class KittyConsoleProbeTests
         Assert.AreEqual(frame + "x", input);
     }
 
+    public static IEnumerable<object[]> C1PasteDelimiters
+    {
+        get
+        {
+            var encodings = new[]
+            {
+                (Encoding.Latin1, new[] { "\u001b[", "\u009b" }),
+                (Encoding.UTF8, new[] { "\u001b[", "\u009b", "\u00c2\u009b" }),
+            };
+            foreach (var (encoding, introducers) in encodings)
+            {
+                foreach (var start in introducers)
+                foreach (var end in introducers)
+                {
+                    if (start == "\u001b[" && end == "\u001b[")
+                        continue;
+                    yield return [encoding, start, end, false];
+                    yield return [encoding, start, end, true];
+                }
+            }
+        }
+    }
+
+    [TestMethod]
+    [DynamicData(nameof(C1PasteDelimiters))]
+    public async Task EnterRawModeAsync_C1BracketedPaste_KeepsEmbeddedReplyAndConsumesAdjacentReply(
+        Encoding encoding, string start, string end, bool bytewise)
+    {
+        var paste = start + "200~pasted\u001b[?31u" + end + "201~";
+        var bytes = Latin1("a" + paste + "b\u001b[?7uc");
+        var chunks = bytewise ? bytes.Select(b => new[] { b }).ToArray() : [bytes];
+        var (adapter, input) = await ProbeBytesAsync(encoding, chunks);
+        await using var _ = adapter;
+
+        Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual("a" + paste + "bc", input);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task EnterRawModeAsync_C1BracketedPaste_EmbeddedReplyDoesNotEnableSupport(bool bytewise)
+    {
+        const string paste = "\u00c2\u009b200~pasted\u001b[?31u\u00c2\u009b201~";
+        var bytes = Latin1(paste);
+        var chunks = bytewise ? bytes.Select(b => new[] { b }).ToArray() : [bytes];
+        var (adapter, input) = await ProbeBytesAsync(Encoding.UTF8, chunks);
+        await using var _ = adapter;
+
+        Assert.IsFalse(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual(paste, input);
+    }
+
+    [TestMethod]
+    public async Task EnterRawModeAsync_UnterminatedC1Paste_DefersAndPreservesReply()
+    {
+        const string paste = "\u009b200~pasted\u001b[?31u";
+        var (adapter, input) = await ProbeBytesAsync(Encoding.Latin1, Latin1(paste));
+        await using var _ = adapter;
+
+        Assert.IsFalse(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual(paste, input);
+    }
+
+    [TestMethod]
+    [DataRow(437, "\u00a2")]
+    [DataRow(1252, "\u203a")]
+    public async Task EnterRawModeAsync_PrintableCsiByteInsidePaste_DoesNotEndPaste(int codePage, string character)
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        const string paste = "\u001b[200~a\u009b201~\u001b[?31u\u001b[201~";
+        var (adapter, input) = await ProbeBytesAsync(Encoding.GetEncoding(codePage), Latin1(paste));
+        await using var _ = adapter;
+
+        Assert.IsFalse(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual("\u001b[200~a" + character + "201~\u001b[?31u\u001b[201~", input);
+    }
+
+    [TestMethod]
+    public async Task EnterRawModeAsync_Utf8ContinuationInsidePaste_DoesNotEndPaste()
+    {
+        const string paste = "\u001b[200~a\u00c3\u009b201~\u001b[?31u\u001b[201~";
+        var (adapter, input) = await ProbeBytesAsync(Encoding.UTF8, Latin1(paste));
+        await using var _ = adapter;
+
+        Assert.IsFalse(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual(paste, input);
+    }
+
     [TestMethod]
     public async Task EnterRawModeAsync_StrictAscii_ProbesWithoutDecodingUnmappedBytesAsInput()
     {
@@ -501,6 +590,24 @@ public class KittyConsoleProbeTests
         Assert.IsFalse(adapter.Capabilities.SupportsMouse, "The genuine 1003 reply (status 0) decides mouse support.");
         Assert.IsTrue(adapter.Capabilities.SupportsKgp);
         Assert.AreEqual(0x00ff00, adapter.Capabilities.DefaultBackground);
+    }
+
+    [TestMethod]
+    public async Task EnterRawModeAsync_C1Paste_ProtectsOtherProbeReplies()
+    {
+        const string paste = "\u00c2\u009b200~\u001b[?1003;0$y\u001b_Gi=2147483647;OK\u001b\\"
+            + "\u001b]11;rgb:ffff/0000/0000\u0007\u001b[6;20;10t\u00c2\u009b201~";
+        using var driver = FakeConsoleDriver.FromByteChunks(Encoding.UTF8, Latin1(paste));
+        await using var adapter = new ConsolePresentationAdapter(
+            driver, enableMouse: true, kgpProbeTimeout: ShortProbe, kittyDa1Conclusive: true);
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        var input = await adapter.ReadInputAsync(cancellation.Token);
+
+        Assert.AreEqual(paste, Encoding.Latin1.GetString(input.Span));
+        Assert.IsTrue(adapter.Capabilities.SupportsMouse);
+        Assert.IsFalse(adapter.Capabilities.SupportsKgp);
+        Assert.AreEqual(0x000000, adapter.Capabilities.DefaultBackground);
     }
 
     [TestMethod]

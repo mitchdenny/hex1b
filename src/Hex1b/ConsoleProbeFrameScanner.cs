@@ -12,7 +12,8 @@ namespace Hex1b;
 /// String controls may be introduced and terminated by 7-bit escapes (<c>ESC ]</c>,
 /// <c>ESC \</c>), by UTF-8 encoded C1 controls (for example <c>C2 9D</c> and <c>C2 9C</c>),
 /// or by raw 8-bit C1 bytes that are not part of a UTF-8 character. OSC may also end with
-/// BEL. Scanning stops at the first incomplete frame so later bytes wait for more input.
+/// BEL. Bracketed paste delimiters can likewise use either ESC or C1 CSI, independently.
+/// Scanning stops at the first incomplete frame so later bytes wait for more input.
 /// In single-byte encodings, a raw byte is a C1 control only if it decodes to that control,
 /// not a printable character (for example CP437's yen and pound signs). In other
 /// multi-byte code pages (for example GBK or Shift-JIS) bytes 0x80–0x9F are parts of
@@ -21,6 +22,7 @@ namespace Hex1b;
 internal static class ConsoleProbeFrameScanner
 {
     private const byte Esc = 0x1b;
+    private const byte C1Csi = 0x9b;
     private const byte C1StringTerminator = 0x9c;
 
     /// <summary>How bytes 0x80 and above are interpreted.</summary>
@@ -66,7 +68,6 @@ internal static class ConsoleProbeFrameScanner
             : ByteMode.MultiByte;
         var rawC1Mask = mode == ByteMode.SingleByte ? GetRawC1Mask(encoding) : uint.MaxValue;
         ReadOnlySpan<byte> pasteStart = "\x1b[200~"u8;
-        ReadOnlySpan<byte> pasteEnd = "\x1b[201~"u8;
         var frames = new List<Frame>();
         var i = 0;
         while (i < span.Length)
@@ -93,12 +94,10 @@ internal static class ConsoleProbeFrameScanner
                     var end = j + 1;
                     if (span[i..end].SequenceEqual(pasteStart))
                     {
-                        var close = span[end..].IndexOf(pasteEnd);
-                        if (close < 0)
+                        if (!TryFindPasteEnd(span, end, mode, rawC1Mask, out var closeStart, out var closeEnd))
                             break;
-                        var closeStart = end + close;
-                        frames.Add(new Frame(FrameKind.BracketedPaste, i, closeStart + pasteEnd.Length, end, closeStart, true));
-                        i = closeStart + pasteEnd.Length;
+                        frames.Add(new Frame(FrameKind.BracketedPaste, i, closeEnd, end, closeStart, true));
+                        i = closeEnd;
                         continue;
                     }
 
@@ -124,7 +123,35 @@ internal static class ConsoleProbeFrameScanner
 
             if (TryReadC1(span, i, mode, rawC1Mask, out var c1, out var c1Length, out var incomplete))
             {
-                if (TryGetStringKind((byte)(c1 - 0x40), out var kind))
+                if (c1 == C1Csi)
+                {
+                    var contentStart = i + c1Length;
+                    var j = contentStart;
+                    while (j < span.Length && span[j] is >= 0x20 and <= 0x3f)
+                        j++;
+                    if (j >= span.Length)
+                        break;
+                    if (span[j] is not (>= 0x40 and <= 0x7e))
+                    {
+                        i = j;
+                        continue;
+                    }
+
+                    var end = j + 1;
+                    if (span[contentStart..end].SequenceEqual("200~"u8))
+                    {
+                        if (!TryFindPasteEnd(span, end, mode, rawC1Mask, out var closeStart, out var closeEnd))
+                            break;
+                        frames.Add(new Frame(FrameKind.BracketedPaste, i, closeEnd, end, closeStart, false));
+                        i = closeEnd;
+                    }
+                    else
+                    {
+                        frames.Add(new Frame(FrameKind.Csi, i, end, contentStart, j, false));
+                        i = end;
+                    }
+                }
+                else if (TryGetStringKind((byte)(c1 - 0x40), out var kind))
                 {
                     if (!TryFindStringEnd(span, i + c1Length, kind == FrameKind.Osc, mode, rawC1Mask, out var contentEnd, out var end))
                         break;
@@ -146,6 +173,38 @@ internal static class ConsoleProbeFrameScanner
         }
 
         return frames;
+    }
+
+    private static bool TryFindPasteEnd(
+        ReadOnlySpan<byte> span, int start, ByteMode mode, uint rawC1Mask, out int closeStart, out int closeEnd)
+    {
+        var i = start;
+        while (i < span.Length)
+        {
+            if (span[i] == Esc && span[i..].StartsWith("\x1b[201~"u8))
+            {
+                closeStart = i;
+                closeEnd = i + 6;
+                return true;
+            }
+
+            if (TryReadC1(span, i, mode, rawC1Mask, out var c1, out var length, out _))
+            {
+                if (c1 == C1Csi && span[(i + length)..].StartsWith("201~"u8))
+                {
+                    closeStart = i;
+                    closeEnd = i + length + 4;
+                    return true;
+                }
+                i += length;
+                continue;
+            }
+
+            i += CharLength(span, i, mode);
+        }
+
+        closeStart = closeEnd = span.Length;
+        return false;
     }
 
     private static uint GetRawC1Mask(Encoding encoding)
