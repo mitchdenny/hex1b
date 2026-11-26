@@ -104,6 +104,25 @@ test("Releases are sent only for tracked presses, with the release's modifiers",
   assert.deepEqual(await sent(), [key("a", "KeyA"), key("a", "KeyA", "release", { shift: true })]);
 });
 
+test("A failed keyup remains held and is retried during focus cleanup", async t => {
+  const errors = [];
+  const { view, terminal, sent } = await kitty(t, 10, { onInputError: error => errors.push(error) });
+  emit(terminal.element, "keydown", { key: "a", code: "KeyA" });
+  const postMessage = view.worker.postMessage;
+  let fail = true;
+  t.mock.method(view.worker, "postMessage", function (message, ...args) {
+    if (fail && message.command?.eventType === "release") throw new Error("Release failed");
+    return postMessage.call(this, message, ...args);
+  });
+  emit(terminal.element, "keyup", { key: "a", code: "KeyA" });
+  assert.equal(errors.length, 1);
+  assert.deepEqual(await sent(), [key("a", "KeyA")]);
+  fail = false;
+  emit(terminal.element, "focusout", { relatedTarget: null });
+  emit(terminal.element, "keyup", { key: "a", code: "KeyA" });
+  assert.deepEqual(await sent(), [key("a", "KeyA"), key("a", "KeyA", "release")]);
+});
+
 test("Held-key limit rejects new presses before sending, allows existing keys, and frees capacity on release", async t => {
   const errors = [];
   const { terminal, sent } = await kitty(t, 10, { onInputError: error => errors.push(error) });
@@ -133,6 +152,50 @@ test("Held-key limit rejects new presses before sending, allows existing keys, a
   assert.equal(errors.length, 2);
 });
 
+for (const cleanup of ["focusout", "read-only"]) {
+  test(`Synthetic releases preserve other held Shift sides and lock state on ${cleanup}`, async t => {
+    const { terminal, sent } = await kitty(t, 10);
+    emit(terminal.element, "keydown", { key: "x", code: "KeyX", capsLock: true, numLock: true });
+    emit(terminal.element, "keydown", { key: "Shift", code: "ShiftLeft",
+      shiftKey: true, capsLock: true, numLock: true });
+    emit(terminal.element, "keydown", { key: "Shift", code: "ShiftRight",
+      shiftKey: true, capsLock: true, numLock: true });
+    if (cleanup === "read-only") terminal.setReadOnly(true);
+    else emit(terminal.element, "focusout", { relatedTarget: null });
+    assert.deepEqual((await sent()).slice(3), [
+      key("x", "KeyX", "release", { shift: true, capsLock: true, numLock: true }),
+      key("Shift", "ShiftLeft", "release", { shift: true, capsLock: true, numLock: true }),
+      key("Shift", "ShiftRight", "release", { capsLock: true, numLock: true })
+    ]);
+  });
+}
+
+test("Failed synthetic modifier releases preserve ownership and state for a later retry", async t => {
+  const errors = [];
+  const { view, terminal, sent } = await kitty(t, 10, { onInputError: error => errors.push(error) });
+  emit(terminal.element, "keydown", { key: "x", code: "KeyX" });
+  emit(terminal.element, "keydown", { key: "Shift", code: "ShiftLeft", shiftKey: true, capsLock: true });
+  emit(terminal.element, "keydown", { key: "Shift", code: "ShiftRight", shiftKey: true, capsLock: true });
+  const postMessage = view.worker.postMessage;
+  let fail = true;
+  t.mock.method(view.worker, "postMessage", function (message, ...args) {
+    if (fail && message.command?.eventType === "release" && message.command.code === "ShiftLeft")
+      throw new Error("Simulated modifier release failure");
+    return postMessage.call(this, message, ...args);
+  });
+  terminal.setReadOnly(true);
+  assert.equal(errors.length, 1);
+  fail = false;
+  terminal.setReadOnly(false);
+  emit(terminal.element, "focusout", { relatedTarget: null });
+
+  assert.deepEqual((await sent()).slice(3), [
+    key("x", "KeyX", "release", { shift: true, capsLock: true }),
+    key("Shift", "ShiftLeft", "release", { shift: true, capsLock: true }),
+    key("Shift", "ShiftRight", "release", { capsLock: true })
+  ]);
+});
+
 test("Held keys are released on focus loss and read-only, and forgotten on disconnect or mode drop", async t => {
   const { view, terminal, sent } = await kitty(t, 2);
   emit(terminal.element, "keydown", { key: "a", code: "KeyA", capsLock: true });
@@ -149,8 +212,8 @@ test("Held keys are released on focus loss and read-only, and forgotten on disco
   assert.deepEqual(await sent(), [
     key("a", "KeyA", "press", { capsLock: true }),
     key("Enter", "Enter", "press", { ctrl: true, capsLock: true }),
-    key("a", "KeyA", "release", { capsLock: true }),
-    key("Enter", "Enter", "release", { capsLock: true }),
+    key("a", "KeyA", "release", { ctrl: true, capsLock: true }),
+    key("Enter", "Enter", "release", { ctrl: true, capsLock: true }),
     key("b", "KeyB"),
     key("b", "KeyB", "release"),
     key("c", "KeyC")

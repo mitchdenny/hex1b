@@ -118,6 +118,7 @@ public sealed class Hwt1PresentationAdapter :
     private readonly SemaphoreSlim _keyGate = new(1, 1);
     private readonly TaskCompletionSource _disposeCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private static readonly AsyncLocal<Hwt1PresentationAdapter?> s_disposing = new();
+    private Hex1bModifiers _keyModifiers;
 
     /// <summary>Creates an HWT1 presentation adapter with the initial grid dimensions.</summary>
     /// <param name="width">Initial width, from 1 to 300 columns.</param>
@@ -617,6 +618,8 @@ public sealed class Hwt1PresentationAdapter :
         await _keyGate.WaitAsync(cancellationToken);
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
             // Read-only may have been enabled while this key waited; never write it afterwards.
             if (IsReadOnly)
             {
@@ -639,6 +642,7 @@ public sealed class Hwt1PresentationAdapter :
                 if (release.Length > 0)
                     await SendInputAsync(Encoding.UTF8.GetBytes(release), cancellationToken);
                 _heldKeys.Remove(command.HeldKey);
+                _keyModifiers = input.Modifiers;
                 return;
             }
             if (input.EventType == Hex1bKeyEventType.Repeat && !_heldKeys.ContainsKey(command.HeldKey))
@@ -652,6 +656,7 @@ public sealed class Hwt1PresentationAdapter :
             var encoded = TerminalInputEncoder.EncodeKey(input, modes);
             if (encoded.Length > 0)
                 await SendInputAsync(Encoding.UTF8.GetBytes(encoded), cancellationToken);
+            _keyModifiers = input.Modifiers;
             if (track)
                 _heldKeys[command.HeldKey] = input with { EventType = Hex1bKeyEventType.Press };
         }
@@ -690,17 +695,31 @@ public sealed class Hwt1PresentationAdapter :
         }
         foreach (var (heldKey, press) in _heldKeys.ToArray())
         {
+            var modifiers = _keyModifiers;
+            var releasedModifier = ModifierForKey(press);
+            if (!_heldKeys.Any(other => other.Key != heldKey && ModifierForKey(other.Value) == releasedModifier))
+                modifiers &= ~releasedModifier;
             var release = TerminalInputEncoder.EncodeKey(press with
             {
                 EventType = Hex1bKeyEventType.Release,
                 Text = "",
-                Modifiers = press.Modifiers & (Hex1bModifiers.CapsLock | Hex1bModifiers.NumLock),
+                Modifiers = modifiers,
             }, modes);
             if (release.Length > 0)
                 await SendInputAsync(Encoding.UTF8.GetBytes(release), cancellationToken);
             _heldKeys.Remove(heldKey);
+            _keyModifiers = modifiers;
         }
     }
+
+    private static Hex1bModifiers ModifierForKey(Hex1bKeyEvent input) => input.UnicodeKeyCode switch
+    {
+        57441 or 57447 => Hex1bModifiers.Shift,
+        57442 or 57448 => Hex1bModifiers.Control,
+        57443 or 57449 => Hex1bModifiers.Alt,
+        57444 or 57450 => Hex1bModifiers.Super,
+        _ => Hex1bModifiers.None
+    };
 
     internal int HeldKeyCount
     {
@@ -799,6 +818,13 @@ public sealed class Hwt1PresentationAdapter :
     /// An operation that completes after the view's HMP1 peer, if any, is disconnected. Repeated or
     /// concurrent calls observe the same completion or failure as the first call.
     /// </returns>
+    /// <remarks>
+    /// Cancels pending input before releasing held keys in write order. A one-second timeout
+    /// reports incomplete cleanup; an uncooperative write retains ownership until it finishes,
+    /// allowing ordered cleanup to continue without accepting new input.
+    /// </remarks>
+    /// <exception cref="TimeoutException">Held-key cleanup did not finish within one second.</exception>
+    /// <exception cref="IOException">A workload release write failed.</exception>
     public ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -806,44 +832,55 @@ public sealed class Hwt1PresentationAdapter :
             // The muxer disposes this view again from within this view's own disconnect; don't wait on ourselves.
             return s_disposing.Value == this ? ValueTask.CompletedTask : new ValueTask(_disposeCompletion.Task);
         }
-        return new ValueTask(DisposeOnceAsync());
+        _ = DisposeOnceAsync();
+        return new ValueTask(_disposeCompletion.Task);
     }
 
     private async Task DisposeOnceAsync()
     {
-        s_disposing.Value = this;
+        var cleanup = Task.Run(async () =>
+        {
+            s_disposing.Value = this;
+            await DisposeCoreAsync().ConfigureAwait(false);
+        });
+        _ = cleanup.ContinueWith(static task => _ = task.Exception, CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
         try
         {
-            await DisposeCoreAsync().ConfigureAwait(false);
+            await cleanup.WaitAsync(TimeSpan.FromSeconds(1), _timeProvider).ConfigureAwait(false);
             _disposeCompletion.TrySetResult();
         }
         catch (Exception ex)
         {
             _disposeCompletion.TrySetException(ex);
             _ = _disposeCompletion.Task.Exception;
-            throw;
         }
     }
 
     private async Task DisposeCoreAsync()
     {
-        // Best effort: release presses this view delivered, unless a write already owns the gate.
-        if (_keyGate.Wait(0))
+        try
         {
+            await _disposedCancellation.CancelAsync().ConfigureAwait(false);
+            await _keyGate.WaitAsync().ConfigureAwait(false);
             try
             {
-                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(1), _timeProvider);
                 await ReleaseHeldKeysCoreAsync(timeout.Token).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or IOException or InvalidOperationException)
-            {
             }
             finally
             {
-                _heldKeys.Clear();
                 _keyGate.Release();
             }
         }
+        finally
+        {
+            await DisconnectCoreAsync().ConfigureAwait(false);
+        }
+    }
+
+    private async Task DisconnectCoreAsync()
+    {
         if (_terminal is { } terminal)
         {
             _width = terminal.Width;
@@ -851,7 +888,6 @@ public sealed class Hwt1PresentationAdapter :
             terminal.PresentationInvalidated -= InvalidatePresentation;
             terminal.ReleaseBrowserMarkers(_view);
         }
-        _disposedCancellation.Cancel();
         _dirty.Writer.TryComplete();
         lock (_projectionLock)
         {

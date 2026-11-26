@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using Hex1b.Tokens;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Hex1b.Tests;
 
@@ -305,7 +306,7 @@ public class Hwt1KittyKeyboardTests
         harness.Apply("\x1b[>10u");
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        harness.Workload.BeforeWrite = async data =>
+        harness.Workload.BeforeWrite = async (data, _) =>
         {
             if (!data.Span.SequenceEqual("\x1b[97u"u8))
                 return;
@@ -382,12 +383,12 @@ public class Hwt1KittyKeyboardTests
         await using var harness = await Harness.CreateAsync(muxed);
         harness.Apply("\x1b[>10u");
         await harness.KeyAsync("a", "KeyA", ctrl: true, capsLock: true);
-        await harness.KeyAsync("1", "Numpad1");
-        await harness.ExpectAsync("\x1b[97;69u\x1b[57400u");
+        await harness.KeyAsync("1", "Numpad1", capsLock: true);
+        await harness.ExpectAsync("\x1b[97;69u\x1b[57400;65u");
 
         harness.View.IsReadOnly = true;
 
-        await harness.ExpectAsync("\x1b[97;65:3u\x1b[57400;1:3u");
+        await harness.ExpectAsync("\x1b[97;65:3u\x1b[57400;65:3u");
         await harness.KeyAsync("1", "Numpad1", "release");
         harness.View.IsReadOnly = false;
         await harness.AssertNoMoreInputAsync();
@@ -408,6 +409,203 @@ public class Hwt1KittyKeyboardTests
         await harness.View.DisposeAsync();
 
         await harness.ExpectAsync("\x1b[57441;1:3u\x1b[120;1:3u");
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task DisposeAsync_InFlightPress_CancelsInputAndSerializesReleases(bool completeWrite)
+    {
+        await using var harness = await Harness.CreateAsync(muxed: false);
+        harness.Apply("\x1b[>10u");
+        await harness.KeyAsync("a", "KeyA");
+        await harness.ExpectAsync("\x1b[97u");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.Workload.IgnoreWriteCancellation = completeWrite;
+        harness.Workload.BeforeWrite = async (data, ct) =>
+        {
+            if (!data.Span.SequenceEqual("\x1b[98u"u8))
+                return;
+            using var registration = ct.Register(() => cancelled.TrySetResult());
+            entered.TrySetResult();
+            try
+            {
+                await finish.Task.WaitAsync(completeWrite ? CancellationToken.None : ct);
+            }
+            catch (OperationCanceledException)
+            {
+                cancelled.TrySetResult();
+                throw;
+            }
+        };
+        var pending = harness.KeyAsync("b", "KeyB");
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var queued = harness.KeyAsync("c", "KeyC");
+            var disposing = harness.View.DisposeAsync().AsTask();
+            await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            if (completeWrite)
+            {
+                Assert.IsFalse(disposing.IsCompleted);
+                finish.TrySetResult();
+                await pending.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            else
+                await Assert.ThrowsAsync<OperationCanceledException>(() => pending);
+            await Assert.ThrowsAsync<OperationCanceledException>(() => queued);
+            await disposing.WaitAsync(TimeSpan.FromSeconds(5));
+
+            await harness.ExpectAsync(completeWrite
+                ? "\x1b[98u\x1b[97;1:3u\x1b[98;1:3u"
+                : "\x1b[97;1:3u");
+            Assert.AreEqual(0, harness.View.HeldKeyCount);
+            await Assert.ThrowsExactlyAsync<ObjectDisposedException>(() => harness.KeyAsync("d", "KeyD"));
+            await harness.AssertNoMoreInputAsync();
+        }
+        finally
+        {
+            finish.TrySetResult();
+            try { await pending.WaitAsync(TimeSpan.FromSeconds(5)); }
+            catch (OperationCanceledException) { }
+        }
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_UncooperativePress_ReportsTimeoutAndReleasesAfterWriteCompletes()
+    {
+        var clock = new FakeTimeProvider();
+        var harness = await Harness.CreateAsync(muxed: false, clock);
+        harness.Apply("\x1b[>10u");
+        await harness.KeyAsync("a", "KeyA");
+        await harness.ExpectAsync("\x1b[97u");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var disconnected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.Workload.IgnoreWriteCancellation = true;
+        harness.View.Disconnected += () => disconnected.TrySetResult();
+        harness.Workload.BeforeWrite = async (data, ct) =>
+        {
+            if (!data.Span.SequenceEqual("\x1b[98u"u8))
+                return;
+            using var registration = ct.Register(() => cancelled.TrySetResult());
+            entered.TrySetResult();
+            await finish.Task;
+        };
+        var pending = harness.KeyAsync("b", "KeyB");
+        try
+        {
+            try
+            {
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                var disposing = harness.View.DisposeAsync().AsTask();
+                var concurrent = harness.View.DisposeAsync().AsTask();
+                await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.IsFalse(concurrent.IsCompleted);
+                clock.Advance(TimeSpan.FromSeconds(1));
+                var timeout = await Assert.ThrowsExactlyAsync<TimeoutException>(() => disposing);
+                Assert.AreSame(timeout, await Assert.ThrowsExactlyAsync<TimeoutException>(() => concurrent));
+                await Assert.ThrowsExactlyAsync<ObjectDisposedException>(() => harness.KeyAsync("c", "KeyC"));
+            }
+            finally
+            {
+                finish.TrySetResult();
+                await pending.WaitAsync(TimeSpan.FromSeconds(5));
+                await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            await harness.ExpectAsync("\x1b[98u\x1b[97;1:3u\x1b[98;1:3u");
+            Assert.AreEqual(0, harness.View.HeldKeyCount);
+            await harness.AssertNoMoreInputAsync();
+            await Assert.ThrowsExactlyAsync<TimeoutException>(() => harness.View.DisposeAsync().AsTask());
+        }
+        finally
+        {
+            await Assert.ThrowsExactlyAsync<TimeoutException>(() => harness.Terminal.DisposeAsync().AsTask());
+        }
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_ReleaseWriteFails_ReportsFailureAndDisconnects()
+    {
+        var harness = await Harness.CreateAsync(muxed: false);
+        try
+        {
+            harness.Apply("\x1b[>10u");
+            await harness.KeyAsync("a", "KeyA");
+            await harness.ExpectAsync("\x1b[97u");
+            var disconnected = false;
+            harness.View.Disconnected += () => disconnected = true;
+            harness.Workload.FailWrites = true;
+
+            var failure = await Assert.ThrowsExactlyAsync<IOException>(() => harness.View.DisposeAsync().AsTask());
+            Assert.AreSame(failure, await Assert.ThrowsExactlyAsync<IOException>(() => harness.View.DisposeAsync().AsTask()));
+            Assert.IsTrue(disconnected);
+            Assert.AreEqual(1, harness.View.HeldKeyCount);
+            harness.Workload.FailWrites = false;
+            await harness.AssertNoMoreInputAsync();
+        }
+        finally
+        {
+            harness.Workload.FailWrites = false;
+            await Assert.ThrowsExactlyAsync<IOException>(() => harness.Terminal.DisposeAsync().AsTask());
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false, "Shift", "ShiftLeft", "ShiftRight", 57441, 57447, 2)]
+    [DataRow(true, "Shift", "ShiftLeft", "ShiftRight", 57441, 57447, 2)]
+    [DataRow(false, "Control", "ControlLeft", "ControlRight", 57442, 57448, 5)]
+    [DataRow(false, "Alt", "AltLeft", "AltRight", 57443, 57449, 3)]
+    [DataRow(false, "Meta", "MetaLeft", "MetaRight", 57444, 57450, 9)]
+    public async Task IsReadOnly_Cleanup_PreservesRemainingModifierSidesAndLocks(
+        bool muxed, string key, string left, string right, int leftCode, int rightCode, int modifier)
+    {
+        await using var harness = await Harness.CreateAsync(muxed);
+        harness.Apply("\x1b[>10u");
+        await harness.KeyAsync("x", "KeyX", capsLock: true, numLock: true);
+        await harness.KeyAsync(key, left, shift: key == "Shift", ctrl: key == "Control",
+            alt: key == "Alt", meta: key == "Meta", capsLock: true, numLock: true);
+        await harness.KeyAsync(key, right, shift: key == "Shift", ctrl: key == "Control",
+            alt: key == "Alt", meta: key == "Meta", capsLock: true, numLock: true);
+        await harness.ExpectAsync($"\x1b[120;193u\x1b[{leftCode};{modifier + 192}u\x1b[{rightCode};{modifier + 192}u");
+
+        harness.View.IsReadOnly = true;
+
+        await harness.ExpectAsync(
+            $"\x1b[120;{modifier + 192}:3u\x1b[{leftCode};{modifier + 192}:3u\x1b[{rightCode};193:3u");
+        Assert.AreEqual(0, harness.View.HeldKeyCount);
+    }
+
+    [TestMethod]
+    public async Task IsReadOnly_FailedModifierRelease_RetainsStateForRetry()
+    {
+        await using var harness = await Harness.CreateAsync(muxed: false);
+        harness.Apply("\x1b[>10u");
+        await harness.KeyAsync("x", "KeyX");
+        await harness.KeyAsync("Shift", "ShiftLeft", shift: true, capsLock: true);
+        await harness.KeyAsync("Shift", "ShiftRight", shift: true, capsLock: true);
+        await harness.ExpectAsync("\x1b[120u\x1b[57441;66u\x1b[57447;66u");
+        var failed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.Workload.BeforeWrite = (data, _) =>
+        {
+            if (data.Span.SequenceEqual("\x1b[57441;66:3u"u8))
+            {
+                failed.TrySetResult();
+                throw new IOException("Simulated modifier release failure.");
+            }
+            return Task.CompletedTask;
+        };
+        harness.View.IsReadOnly = true;
+        await failed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.AreEqual(2, harness.View.HeldKeyCount);
+        harness.Workload.BeforeWrite = null;
+        await harness.KeyAsync("x", "KeyX", "release");
+
+        await harness.ExpectAsync("\x1b[120;66:3u\x1b[57441;66:3u\x1b[57447;65:3u");
+        Assert.AreEqual(0, harness.View.HeldKeyCount);
     }
 
     [TestMethod]
@@ -508,12 +706,12 @@ public class Hwt1KittyKeyboardTests
         public Hex1bTerminal Terminal { get; }
         public Hwt1PresentationAdapter View { get; }
 
-        public static async Task<Harness> CreateAsync(bool muxed)
+        public static async Task<Harness> CreateAsync(bool muxed, TimeProvider? timeProvider = null)
         {
             var workload = new RecordingWorkload();
             if (!muxed)
             {
-                var direct = new Hwt1PresentationAdapter(20, 10);
+                var direct = new Hwt1PresentationAdapter(20, 10, timeProvider ?? TimeProvider.System);
                 var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
                     .WithPresentation(direct).WithDimensions(20, 10).Build();
                 return new(workload, terminal, direct, null);
@@ -576,7 +774,8 @@ public class Hwt1KittyKeyboardTests
         public Channel<byte[]> Output { get; } = Channel.CreateUnbounded<byte[]>();
         public Channel<byte[]> Input { get; } = Channel.CreateUnbounded<byte[]>();
         public volatile bool FailWrites;
-        public Func<ReadOnlyMemory<byte>, Task>? BeforeWrite;
+        public bool IgnoreWriteCancellation { get; set; }
+        public Func<ReadOnlyMemory<byte>, CancellationToken, Task>? BeforeWrite { get; set; }
         public event Action? Disconnected;
 
         public async ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
@@ -587,8 +786,8 @@ public class Hwt1KittyKeyboardTests
             if (FailWrites)
                 throw new IOException("Simulated workload write failure.");
             if (BeforeWrite is { } beforeWrite)
-                await beforeWrite(data);
-            await Input.Writer.WriteAsync(data.ToArray(), ct);
+                await beforeWrite(data, ct);
+            await Input.Writer.WriteAsync(data.ToArray(), IgnoreWriteCancellation ? CancellationToken.None : ct);
         }
 
         public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)

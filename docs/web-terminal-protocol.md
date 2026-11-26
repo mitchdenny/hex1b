@@ -882,14 +882,21 @@ browser's view of them, so a mode change in flight is safe.
 * Event types (flag 2): the server pairs a `release` with the press it
   forwarded for the same `code` (or `key` when `code` is empty). A release
   without a forwarded press is dropped; a `repeat` without one is sent as a
-  press. Each view tracks at most 256 held identities. A press for a new
-  identity at that limit is rejected before it is written (`InvalidDataException`
-  on the server; the browser reports it to its input-error handler), so no
-  release can go untracked. Repeats and presses for held identities remain
-  allowed, and a release frees capacity. Held presses are released with lock
-  modifiers only when the view
-  becomes read-only, the connection closes, or the browser loses focus, and are
-  forgotten when flag 2 is cleared.
+  press. Each view tracks at most 256 held identities. A new identity at
+  capacity is rejected before writing (`InvalidDataException` on the server,
+  the browser's input-error handler on the client); existing presses and repeats
+  remain allowed, and a successful release frees capacity.
+  Held presses are released when the view becomes read-only, the connection
+  closes, or the browser loses focus, and are forgotten when flag 2 is cleared.
+  Synthetic releases preserve the latest modifier and lock state; releasing a
+  modifier clears its bit only after its last held side is released. Ownership
+  and synthetic modifier state advance only after a successful write, so failed
+  releases remain retryable while the view remains connected; browser retries
+  require input to be enabled again. Disposal first cancels pending input and waits for
+  ordered release cleanup. It reports write failures or a one-second timeout,
+  rather than silently skipping held keys. A write that ignores cancellation
+  retains ownership until completion, allowing cleanup to continue after the
+  timeout; new input is rejected throughout.
 * Text: under flag 8 text is not sent; `input` text is reported as key code `0`
   events, with the text in the third field when flag 16 is also set. `paste`
   is unaffected.

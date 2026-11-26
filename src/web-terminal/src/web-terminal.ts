@@ -51,6 +51,17 @@ const kittyModifierCodes: Record<string, readonly string[]> = {
   Meta: ["MetaLeft", "MetaRight", "OSLeft", "OSRight"], OS: ["MetaLeft", "MetaRight", "OSLeft", "OSRight"]
 };
 
+function kittyModifier(key: string, code: string): keyof InputModifiers | undefined {
+  if (!kittyModifierCodes[key]?.includes(code)) return undefined;
+  switch (key) {
+    case "Shift": return "shift";
+    case "Control": return "ctrl";
+    case "Alt": return "alt";
+    case "Meta": case "OS": return "meta";
+    default: return undefined;
+  }
+}
+
 /** Whether HWT1 has a Kitty identity for the key; unknown, dead, and unsided keys are never guessed. */
 function kittyKeyKnown(key: string, code: string): boolean {
   if (key in kittyModifierCodes) return kittyModifierCodes[key]!.includes(code);
@@ -142,6 +153,7 @@ export class WebTerminal implements WebTerminalHandle {
   #lineRenditions: readonly number[] = [];
   #kittyFlags = 0;
   #heldKeys = new Map<string, { key: string; code: string }>();
+  #keyModifiers: InputModifiers = { ctrl: false, alt: false, shift: false, meta: false };
   #lockState = { capsLock: false, numLock: false };
   #compositionEcho: string | null = null;
   #links: false | TerminalLinkOptions;
@@ -935,7 +947,7 @@ export class WebTerminal implements WebTerminalHandle {
     // End held keys while input is still allowed so the workload never sees a stuck key.
     if (readOnly) {
       try { this.#releaseHeldKeys(); }
-      catch { this.#heldKeys.clear(); }
+      catch (error) { this.#actionFailed(error); }
     }
     this.#readOnly = readOnly;
     this.#inputSerial++;
@@ -1076,8 +1088,10 @@ export class WebTerminal implements WebTerminalHandle {
           throw new Error(`Key exceeds the limit of ${maxHeldKeys} held keys.`);
         this.#inputCommand(this.#kittyKey(input.key, input.code, input.repeat ? "repeat" : "press", input));
         // Track only presses actually sent, so a release never reaches a workload without its press.
-        if ((this.#kittyFlags & 2) && this.#canInput())
+        if ((this.#kittyFlags & 2) && this.#canInput()) {
           this.#heldKeys.set(held, { key: input.key, code: input.code });
+          this.#keyModifiers = { ctrl: input.ctrl, alt: input.alt, shift: input.shift, meta: input.meta };
+        }
         return;
       }
       if (input.meta) throw new Error("Meta has no terminal key encoding; bind this shortcut to a local action instead.");
@@ -1110,16 +1124,23 @@ export class WebTerminal implements WebTerminalHandle {
   #releaseKey(id: string, modifiers: InputModifiers): void {
     const held = this.#heldKeys.get(id);
     if (!held) return;
-    this.#heldKeys.delete(id);
     if (!(this.#kittyFlags & 2) || this.#disposed || !this.#canInput()) return;
     const command = this.#kittyKey(held.key, held.code, "release", modifiers);
     assertCommandSize(command);
     this.#send(command);
+    this.#heldKeys.delete(id);
+    this.#keyModifiers = { ...modifiers };
   }
 
   #releaseHeldKeys(): void {
-    for (const id of [...this.#heldKeys.keys()])
-      this.#releaseKey(id, { ctrl: false, alt: false, shift: false, meta: false });
+    for (const [id, held] of [...this.#heldKeys]) {
+      const modifiers = { ...this.#keyModifiers };
+      const releasedModifier = kittyModifier(held.key, held.code);
+      if (releasedModifier && ![...this.#heldKeys].some(([otherId, other]) =>
+        otherId !== id && kittyModifier(other.key, other.code) === releasedModifier))
+        modifiers[releasedModifier] = false;
+      this.#releaseKey(id, modifiers);
+    }
   }
 
   #dispatchInput(input: TerminalInput, event?: Event, allowApplication = true): void {
