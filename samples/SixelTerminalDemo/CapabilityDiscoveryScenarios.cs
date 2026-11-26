@@ -82,18 +82,19 @@ internal static class CapabilityDiscoveryScenarios
         var beforeProbe = adapter.Capabilities;
         await adapter.EnterRawModeAsync();
 
-        // The KGP/background-colour probe pass still runs unconditionally (it is an
-        // unrelated capability), so written bytes are not zero overall; what a direct
-        // declaration pre-empts is only the five Sixel-specific probe queries below.
+        // The KGP/background-colour/Kitty keyboard probe pass still runs unconditionally
+        // (unrelated capabilities; Kitty detection also sends DA1), so written bytes are
+        // not zero overall; a direct declaration pre-empts only the four Sixel-specific
+        // probe queries below and ignores DA1's Sixel attribute.
         var written = driver.WrittenText;
-        string[] sixelProbeQueries = ["\x1b[c", "\x1b[16t", "\x1b[14t", "\x1b[18t", "\x1b]1337;ReportCellSize\x1b\\"];
+        string[] sixelProbeQueries = ["\x1b[16t", "\x1b[14t", "\x1b[18t", "\x1b]1337;ReportCellSize\x1b\\"];
         var sixelProbeQueriesSent = sixelProbeQueries.Count(written.Contains);
 
         return
             $"before EnterRawModeAsync: SixelSupport={beforeProbe.SixelSupport}, SixelCellMetrics={beforeProbe.SixelCellMetrics}; " +
             $"after EnterRawModeAsync: SixelSupport={adapter.Capabilities.SixelSupport}, SixelCellMetrics={adapter.Capabilities.SixelCellMetrics}, " +
-            $"wrote {written.Length} total probe byte(s) but {sixelProbeQueriesSent}/5 Sixel-specific probe queries " +
-            "(0 expected — a direct declaration pre-empts only the Sixel-specific queries, not the unrelated KGP/background pass), " +
+            $"wrote {written.Length} total probe byte(s) but {sixelProbeQueriesSent}/4 Sixel-specific probe queries " +
+            "(0 expected — a direct declaration pre-empts only the Sixel-specific queries, not the unrelated KGP/background/Kitty pass), " +
             $"diagnostics still NotProbed: {adapter.SixelProbeDiagnostics.Attempts.Count == 0}";
     }
 

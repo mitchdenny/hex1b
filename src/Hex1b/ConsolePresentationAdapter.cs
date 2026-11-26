@@ -143,8 +143,10 @@ public sealed class ConsolePresentationAdapter :
     /// <para>
     /// Per the discovery precedence in
     /// <see href="https://github.com/mitchdenny/hex1b/issues/455">#455</see>, a direct
-    /// declaration is the highest-precedence source and pre-empts probing (no DA1 or
-    /// XTWINOPS queries are sent once this has been called). Use this when the hosting
+    /// declaration is the highest-precedence source and pre-empts Sixel probing (no
+    /// XTWINOPS or cell-size queries are sent, and the Sixel attribute of any DA1 reply is
+    /// ignored). DA1 itself is still sent because Kitty keyboard detection relies on it.
+    /// Use this when the hosting
     /// application already knows the upstream terminal's capabilities out of band (for
     /// example, from its own configuration) and wants to avoid the round trip.
     /// </para>
@@ -458,12 +460,13 @@ public sealed class ConsolePresentationAdapter :
         // probe pass rather than opening a second competing reader.
         _driver.Write(BackgroundProbeQuery);
         _driver.Write(MouseProbeQuery);
-        // The Kitty query precedes DA1 so supporting terminals answer it first. When Sixel
-        // support was declared, DA1 is not sent and the deadline alone bounds the Kitty probe.
+        // The Kitty query is always followed by DA1, which every terminal answers, so a
+        // DA1 reply without a preceding Kitty reply can conclude "unsupported". DA1 is sent
+        // even when Sixel support was declared; its Sixel attribute is then ignored.
         _driver.Write(KittyKeyboardProbeQuery);
+        _driver.Write(Da1ProbeQuery);
         if (sixelProbeNeeded)
         {
-            _driver.Write(Da1ProbeQuery);
             _driver.Write(Csi16ProbeQuery);
             _driver.Write(Csi14ProbeQuery);
             _driver.Write(Csi18ProbeQuery);
@@ -477,7 +480,7 @@ public sealed class ConsolePresentationAdapter :
         int? mouseTrackingStatus = null;
         int? mouseEncodingStatus = null;
 
-        var keyboardProbe = new KeyboardProbeState { Da1Done = !sixelProbeNeeded };
+        var keyboardProbe = new KeyboardProbeState();
 
         (double Height, double Width)? csi16 = null;
         var csi16Done = !sixelProbeNeeded;

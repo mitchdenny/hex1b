@@ -251,16 +251,27 @@ public class KittyConsoleProbeTests
     }
 
     [TestMethod]
-    public async Task EnterRawModeAsync_SixelDeclared_StillDetectsKittyWithoutDa1()
+    [DataRow(false, true, DisplayName = "Kitty then DA1")]
+    [DataRow(true, false, DisplayName = "DA1 then Kitty, spec-conclusive DA1")]
+    public async Task EnterRawModeAsync_SixelDeclared_StillSendsDa1AndFollowsReplyOrder(bool da1First, bool expected)
     {
-        using var driver = new FakeConsoleDriver("\x1b[?1u");
-        await using var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: ShortProbe)
+        const string kitty = "\x1b[?1u";
+        const string da1 = "\x1b[?62;4c";
+        using var driver = new FakeConsoleDriver(da1First ? da1 + kitty + "x" : kitty + da1 + "x");
+        var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: ShortProbe)
             .WithSixelSupport(SixelPresentationSupport.None);
+        await using var _ = adapter;
         await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        var input = await DrainPrefetchedAsync(adapter);
 
-        Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard);
-        Assert.DoesNotContain("\x1b[c", driver.WrittenText);
-        Assert.Contains("\x1b[?u", driver.WrittenText);
+        var written = driver.WrittenText;
+        var kittyQuery = written.IndexOf("\x1b[?u", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, kittyQuery);
+        Assert.IsGreaterThan(kittyQuery, written.IndexOf("\x1b[c", StringComparison.Ordinal));
+        Assert.AreEqual(expected, adapter.Capabilities.SupportsKittyKeyboard);
+        // The declaration still wins over DA1's Sixel attribute.
+        Assert.AreEqual(SixelPresentationSupport.None, adapter.Capabilities.SixelSupport);
+        Assert.AreEqual("x", input, "Both replies belong to the probe and must not reach the app.");
     }
 
     [TestMethod]

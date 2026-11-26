@@ -71,9 +71,9 @@ When the terminal supports the [Kitty keyboard protocol](https://sw.kovidgoyal.n
 Hex1bApp requests enhanced keyboard reporting and restores the previous mode on exit.
 Other hosts continue to use the legacy encoding, and Hex1b sends them no Kitty mode changes.
 
-The console presentation detects support at startup by sending the Kitty query `CSI ? u`.
-A `CSI ? flags u` reply means the terminal supports the protocol. When Hex1b also needs DA1
-for Sixel discovery, a DA1 reply that arrives first means the terminal has no support.
+The console presentation detects support at startup by sending the Kitty query `CSI ? u`
+followed by a DA1 query. A `CSI ? flags u` reply means the terminal supports the protocol,
+and a DA1 reply that arrives first means the terminal has no support.
 On Windows, ConPTY answers DA1 itself and forwards `CSI ? u` to the outer terminal.
 For that reason, a DA1 reply that arrives first does not count as "unsupported" there.
 Instead, detection waits for a Kitty reply until the existing startup probe deadline
