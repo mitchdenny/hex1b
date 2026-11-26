@@ -249,6 +249,132 @@ public class Hwt1KittyKeyboardTests
     }
 
     [TestMethod]
+    [DataRow(false, false)]
+    [DataRow(false, true)]
+    [DataRow(true, false)]
+    [DataRow(true, true)]
+    public async Task Key_HeldKeyLimit_RejectsNewPressUntilReleaseAndCleansUp(bool muxed, bool dispose)
+    {
+        await using var harness = await Harness.CreateAsync(muxed);
+        harness.Apply("\x1b[>10u");
+        var presses = new StringBuilder();
+        for (var code = 0x3400; code < 0x3500; code++)
+        {
+            await harness.KeyAsync(((char)code).ToString(), "");
+            presses.Append($"\x1b[{code}u");
+        }
+        await harness.ExpectAsync(presses.ToString());
+        Assert.AreEqual(256, harness.View.HeldKeyCount);
+
+        // A 257th distinct identity is rejected before writing, so its release has nothing to pair with.
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() => harness.KeyAsync("\u3500", ""));
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() => harness.KeyAsync("\u3500", "", "repeat"));
+        await harness.KeyAsync("\u3500", "", "release");
+        await harness.AssertNoMoreInputAsync();
+        Assert.AreEqual(256, harness.View.HeldKeyCount);
+
+        // Existing identities still repeat and re-press; a release frees capacity.
+        await harness.KeyAsync("\u3400", "", "repeat");
+        await harness.KeyAsync("\u3400", "");
+        await harness.KeyAsync("\u3400", "", "release");
+        await harness.ExpectAsync("\x1b[13312;1:2u\x1b[13312u\x1b[13312;1:3u");
+        Assert.AreEqual(255, harness.View.HeldKeyCount);
+
+        await harness.KeyAsync("\u3500", "");
+        Assert.AreEqual(256, harness.View.HeldKeyCount);
+        await harness.KeyAsync("\u3500", "", "release");
+        await harness.ExpectAsync("\x1b[13568u\x1b[13568;1:3u");
+
+        if (dispose)
+            await harness.View.DisposeAsync();
+        else
+            harness.View.IsReadOnly = true;
+
+        var releases = new StringBuilder();
+        for (var code = 0x3401; code < 0x3500; code++)
+            releases.Append($"\x1b[{code};1:3u");
+        await harness.ExpectAsync(releases.ToString());
+        await harness.AssertNoMoreInputAsync();
+        Assert.AreEqual(0, harness.View.HeldKeyCount);
+    }
+
+    [TestMethod]
+    public async Task IsReadOnly_KeyQueuedBehindInFlightWrite_IsNotWrittenAndPressReleasedOnce()
+    {
+        await using var harness = await Harness.CreateAsync(muxed: false);
+        harness.Apply("\x1b[>10u");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.Workload.BeforeWrite = async data =>
+        {
+            if (!data.Span.SequenceEqual("\x1b[97u"u8))
+                return;
+            entered.TrySetResult();
+            await finish.Task;
+        };
+
+        var a = harness.KeyAsync("a", "KeyA");
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        // B passes the message-level read-only check and queues behind A's write.
+        var b = harness.KeyAsync("b", "KeyB");
+        Assert.IsFalse(b.IsCompleted);
+        harness.View.IsReadOnly = true;
+        finish.SetResult();
+        await a;
+        await b;
+
+        await harness.ExpectAsync("\x1b[97u\x1b[97;1:3u");
+        await harness.AssertNoMoreInputAsync();
+        Assert.AreEqual(0, harness.View.HeldKeyCount);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task DisposeAsync_RepeatedWhileFirstStalled_SharesCompletionAndFailure(bool fail)
+    {
+        var harness = await Harness.CreateAsync(muxed: false);
+        try
+        {
+            var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var release = new ManualResetEventSlim();
+            harness.View.Disconnected += () =>
+            {
+                entered.TrySetResult();
+                release.Wait(TimeSpan.FromSeconds(5));
+                if (fail)
+                    throw new InvalidOperationException("Simulated disconnect failure.");
+            };
+
+            var first = Task.Run(() => harness.View.DisposeAsync().AsTask());
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            var second = harness.View.DisposeAsync().AsTask();
+            Assert.IsFalse(second.IsCompleted);
+            release.Set();
+
+            if (fail)
+            {
+                var expected = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => first);
+                Assert.AreSame(expected, await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => second));
+            }
+            else
+            {
+                await first;
+                await second;
+                await harness.View.DisposeAsync();
+            }
+        }
+        finally
+        {
+            // The terminal also disposes its presentation, so it observes the same shared failure.
+            if (fail)
+                await Assert.ThrowsAsync<Exception>(() => harness.Terminal.DisposeAsync().AsTask());
+            else
+                await harness.Terminal.DisposeAsync();
+        }
+    }
+
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public async Task IsReadOnly_HeldKeys_ReleasedWithLockStateOnly(bool muxed)
@@ -450,6 +576,7 @@ public class Hwt1KittyKeyboardTests
         public Channel<byte[]> Output { get; } = Channel.CreateUnbounded<byte[]>();
         public Channel<byte[]> Input { get; } = Channel.CreateUnbounded<byte[]>();
         public volatile bool FailWrites;
+        public Func<ReadOnlyMemory<byte>, Task>? BeforeWrite;
         public event Action? Disconnected;
 
         public async ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
@@ -459,6 +586,8 @@ public class Hwt1KittyKeyboardTests
         {
             if (FailWrites)
                 throw new IOException("Simulated workload write failure.");
+            if (BeforeWrite is { } beforeWrite)
+                await beforeWrite(data);
             await Input.Writer.WriteAsync(data.ToArray(), ct);
         }
 

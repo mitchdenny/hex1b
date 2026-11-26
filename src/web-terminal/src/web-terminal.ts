@@ -43,6 +43,9 @@ const kittyFunctionalKeys = new Set(["ContextMenu", "Pause", "PrintScreen", "Scr
 const kittyNamedKeys = new Set(["ArrowUp", "ArrowDown", "ArrowRight", "ArrowLeft", "Home", "End", "Insert",
   "Delete", "PageUp", "PageDown", "Enter", "Backspace", "Tab", "Escape", "CapsLock", "NumLock",
   ...kittyFunctionalKeys]);
+/** Mirrors the HWT1 server's held-key limit; new identities beyond it are rejected before sending. */
+const maxHeldKeys = 256;
+
 const kittyModifierCodes: Record<string, readonly string[]> = {
   Shift: ["ShiftLeft", "ShiftRight"], Control: ["ControlLeft", "ControlRight"], Alt: ["AltLeft", "AltRight"],
   Meta: ["MetaLeft", "MetaRight", "OSLeft", "OSRight"], OS: ["MetaLeft", "MetaRight", "OSLeft", "OSRight"]
@@ -1068,9 +1071,12 @@ export class WebTerminal implements WebTerminalHandle {
     if (input.type === "key") {
       if (this.#kittyFlags & 31) {
         const held = input.code || input.key;
+        // Never send a press whose release could not be tracked, or the workload would see a stuck key.
+        if ((this.#kittyFlags & 2) && this.#canInput() && !this.#heldKeys.has(held) && this.#heldKeys.size >= maxHeldKeys)
+          throw new Error(`Key exceeds the limit of ${maxHeldKeys} held keys.`);
         this.#inputCommand(this.#kittyKey(input.key, input.code, input.repeat ? "repeat" : "press", input));
         // Track only presses actually sent, so a release never reaches a workload without its press.
-        if ((this.#kittyFlags & 2) && this.#canInput() && (this.#heldKeys.has(held) || this.#heldKeys.size < 256))
+        if ((this.#kittyFlags & 2) && this.#canInput())
           this.#heldKeys.set(held, { key: input.key, code: input.code });
         return;
       }

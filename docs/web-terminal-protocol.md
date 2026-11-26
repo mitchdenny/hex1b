@@ -882,7 +882,12 @@ browser's view of them, so a mode change in flight is safe.
 * Event types (flag 2): the server pairs a `release` with the press it
   forwarded for the same `code` (or `key` when `code` is empty). A release
   without a forwarded press is dropped; a `repeat` without one is sent as a
-  press. Held presses are released with lock modifiers only when the view
+  press. Each view tracks at most 256 held identities. A press for a new
+  identity at that limit is rejected before it is written (`InvalidDataException`
+  on the server; the browser reports it to its input-error handler), so no
+  release can go untracked. Repeats and presses for held identities remain
+  allowed, and a release frees capacity. Held presses are released with lock
+  modifiers only when the view
   becomes read-only, the connection closes, or the browser loses focus, and are
   forgotten when flag 2 is cleared.
 * Text: under flag 8 text is not sent; `input` text is reported as key code `0`

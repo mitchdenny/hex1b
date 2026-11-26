@@ -104,6 +104,35 @@ test("Releases are sent only for tracked presses, with the release's modifiers",
   assert.deepEqual(await sent(), [key("a", "KeyA"), key("a", "KeyA", "release", { shift: true })]);
 });
 
+test("Held-key limit rejects new presses before sending, allows existing keys, and frees capacity on release", async t => {
+  const errors = [];
+  const { terminal, sent } = await kitty(t, 10, { onInputError: error => errors.push(error) });
+  const keys = Array.from({ length: 256 }, (_, i) => String.fromCodePoint(0x3400 + i));
+  for (const value of keys) emit(terminal.element, "keydown", { key: value, code: "" });
+  assert.deepEqual(await sent(), keys.map(value => key(value, "")));
+
+  // A 257th distinct identity is rejected before sending, so its release is never forwarded.
+  emit(terminal.element, "keydown", { key: "\u3500", code: "" });
+  emit(terminal.element, "keydown", { key: "\u3500", code: "", repeat: true });
+  emit(terminal.element, "keyup", { key: "\u3500", code: "" });
+  assert.equal(errors.length, 2);
+  for (const error of errors) assert.match(error.message, /limit of 256 held keys/);
+  assert.deepEqual(await sent(), keys.map(value => key(value, "")));
+
+  emit(terminal.element, "keydown", { key: keys[0], code: "", repeat: true });
+  emit(terminal.element, "keydown", { key: keys[0], code: "" });
+  emit(terminal.element, "keyup", { key: keys[0], code: "" });
+  emit(terminal.element, "keydown", { key: "\u3500", code: "" });
+  emit(terminal.element, "keyup", { key: "\u3500", code: "" });
+  assert.deepEqual((await sent()).slice(256), [
+    key(keys[0], "", "repeat"), key(keys[0], ""), key(keys[0], "", "release"),
+    key("\u3500", ""), key("\u3500", "", "release")
+  ]);
+  terminal.setReadOnly(true);
+  assert.deepEqual((await sent()).slice(261), keys.slice(1).map(value => key(value, "", "release")));
+  assert.equal(errors.length, 2);
+});
+
 test("Held keys are released on focus loss and read-only, and forgotten on disconnect or mode drop", async t => {
   const { view, terminal, sent } = await kitty(t, 2);
   emit(terminal.element, "keydown", { key: "a", code: "KeyA", capsLock: true });

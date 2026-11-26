@@ -116,6 +116,8 @@ public sealed class Hwt1PresentationAdapter :
     // Kitty presses delivered by this view, keyed by DOM code, so releases pair with their press.
     private readonly Dictionary<string, Hex1bKeyEvent> _heldKeys = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _keyGate = new(1, 1);
+    private readonly TaskCompletionSource _disposeCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static readonly AsyncLocal<Hwt1PresentationAdapter?> s_disposing = new();
 
     /// <summary>Creates an HWT1 presentation adapter with the initial grid dimensions.</summary>
     /// <param name="width">Initial width, from 1 to 300 columns.</param>
@@ -483,6 +485,8 @@ public sealed class Hwt1PresentationAdapter :
     /// mode is active, key messages may add code, eventType, meta, capsLock, and numLock.
     /// Releases are forwarded only for presses this view delivered; held presses are released
     /// when the view becomes read-only or is disposed, and forgotten when event reporting stops.
+    /// At most 256 identities may be held; a press for a new identity beyond that is rejected
+    /// before writing, while repeats and presses for held identities remain allowed.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The adapter is unattached or a JSON field has the wrong type.</exception>
     /// <exception cref="InvalidDataException">The command, its values, or its size are unsupported.</exception>
@@ -613,6 +617,12 @@ public sealed class Hwt1PresentationAdapter :
         await _keyGate.WaitAsync(cancellationToken);
         try
         {
+            // Read-only may have been enabled while this key waited; never write it afterwards.
+            if (IsReadOnly)
+            {
+                await ReleaseHeldKeysCoreAsync(cancellationToken);
+                return;
+            }
             var modes = terminal.InputModes;
             // Without event-type reporting the workload expects no releases for earlier presses.
             if ((modes.KittyKeyboardFlags & 2) == 0)
@@ -633,13 +643,16 @@ public sealed class Hwt1PresentationAdapter :
             }
             if (input.EventType == Hex1bKeyEventType.Repeat && !_heldKeys.ContainsKey(command.HeldKey))
                 input = input with { EventType = Hex1bKeyEventType.Press };
+            var track = (modes.KittyKeyboardFlags & 2) != 0 && (input.Key != Hex1bKey.None || input.UnicodeKeyCode is not null);
+            // Never forward a press whose release could not be tracked, or the workload would see a stuck key.
+            if (track && _heldKeys.Count >= MaxHeldKeys && !_heldKeys.ContainsKey(command.HeldKey))
+                throw new InvalidDataException($"HWT1 key exceeds the limit of {MaxHeldKeys} held keys.");
             terminal.ResetBrowserView(_view);
             InvalidatePresentation();
             var encoded = TerminalInputEncoder.EncodeKey(input, modes);
             if (encoded.Length > 0)
                 await SendInputAsync(Encoding.UTF8.GetBytes(encoded), cancellationToken);
-            if ((modes.KittyKeyboardFlags & 2) != 0 && (input.Key != Hex1bKey.None || input.UnicodeKeyCode is not null) &&
-                (_heldKeys.Count < MaxHeldKeys || _heldKeys.ContainsKey(command.HeldKey)))
+            if (track)
                 _heldKeys[command.HeldKey] = input with { EventType = Hex1bKeyEventType.Press };
         }
         finally
@@ -782,11 +795,38 @@ public sealed class Hwt1PresentationAdapter :
     public (int Row, int Column) GetCursorPosition() => (0, 0);
 
     /// <summary>Disconnects this adapter and cancels pending frame, input, and acknowledgement waits.</summary>
-    /// <returns>An operation that completes after the view's HMP1 peer, if any, is disconnected.</returns>
-    public async ValueTask DisposeAsync()
+    /// <returns>
+    /// An operation that completes after the view's HMP1 peer, if any, is disconnected. Repeated or
+    /// concurrent calls observe the same completion or failure as the first call.
+    /// </returns>
+    public ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
-            return;
+        {
+            // The muxer disposes this view again from within this view's own disconnect; don't wait on ourselves.
+            return s_disposing.Value == this ? ValueTask.CompletedTask : new ValueTask(_disposeCompletion.Task);
+        }
+        return new ValueTask(DisposeOnceAsync());
+    }
+
+    private async Task DisposeOnceAsync()
+    {
+        s_disposing.Value = this;
+        try
+        {
+            await DisposeCoreAsync().ConfigureAwait(false);
+            _disposeCompletion.TrySetResult();
+        }
+        catch (Exception ex)
+        {
+            _disposeCompletion.TrySetException(ex);
+            _ = _disposeCompletion.Task.Exception;
+            throw;
+        }
+    }
+
+    private async Task DisposeCoreAsync()
+    {
         // Best effort: release presses this view delivered, unless a write already owns the gate.
         if (_keyGate.Wait(0))
         {
