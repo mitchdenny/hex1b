@@ -540,6 +540,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// </summary>
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
+        _inputRouterState.BeginKeyHolds();
         _stopSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var waitLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task<bool>? frameWaitTask = null;
@@ -576,6 +577,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         {
             _outputGate.Release();
         }
+        var runFaulted = true;
         try
         {
             // Count startup against the same start-to-start budget as later frames.
@@ -607,7 +609,10 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
                 var timeUntilTimer = _animationTimer.GetTimeUntilNextDue();
                 animationWakeTimer.Change(timeUntilTimer ?? Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-                var completedTask = await Task.WhenAny(inputWaitTask, frameWaitTask, timerWaitTask, shutdownTask);
+                var completedTask = await Task.WhenAny(inputWaitTask, frameWaitTask, timerWaitTask, shutdownTask, _inputRouterState.HoldFailure);
+
+                if (_inputRouterState.HoldFailure.IsCompleted)
+                    throw new InvalidOperationException("A held-key input handler failed.", await _inputRouterState.HoldFailure);
 
                 if (cancellationToken.IsCancellationRequested)
                     break;
@@ -637,7 +642,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 var inputReady = false;
                 if (inputWaitTask.IsCompleted)
                 {
-                    inputReady = await inputWaitTask;
+                    try
+                    {
+                        inputReady = await inputWaitTask;
+                    }
+                    catch (ChannelClosedException)
+                    {
+                        // App input completed with an error: exit gracefully. Only this read
+                        // identifies app-input closure; embedded child write failures propagate.
+                        break;
+                    }
                     inputWaitTask = null;
                     if (!inputReady)
                         break;
@@ -714,46 +728,85 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 if (_frameScheduler.TryBeginFrame(bypassPacing: inputReady || _stopRequested))
                     await RenderFrameAsync(cancellationToken);
             }
+            runFaulted = false;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // Normal cancellation, exit gracefully
-        }
-        catch (ChannelClosedException)
-        {
-            // Terminal input channel closed, exit gracefully
+            runFaulted = false;
         }
         finally
         {
-            waitLifetime.Cancel();
-            if (frameWaitTask is not null)
-            {
-                try
-                {
-                    await frameWaitTask.ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (waitLifetime.IsCancellationRequested)
-                {
-                }
-            }
-            // Always exit alternate buffer, even on error
-            await _outputGate.WaitAsync().ConfigureAwait(false);
+            _inputRouterState.CancelKeyHolds();
+            Exception? releaseFailure = null;
             try
             {
-                _context.ExitAlternateScreen();
+                releaseFailure = await ReleaseEmbeddedKeysAsync().ConfigureAwait(false);
+                waitLifetime.Cancel();
+                if (frameWaitTask is not null)
+                {
+                    try
+                    {
+                        await frameWaitTask.ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (waitLifetime.IsCancellationRequested)
+                    {
+                    }
+                }
+                // Always exit alternate buffer, even on error
+                await _outputGate.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    _context.ExitAlternateScreen();
+                }
+                finally
+                {
+                    _outputGate.Release();
+                }
+
+                // Drop the repaint handler so we don't keep this app alive via
+                // the workload adapter's delegate slot if RunAsync is restarted
+                // or the host swaps adapters.
+                if (_adapter is Hex1bAppWorkloadAdapter wa)
+                {
+                    wa.SetRepaintRequestHandler(null);
+                }
             }
             finally
             {
-                _outputGate.Release();
+                await _inputRouterState.StopKeyHoldsAsync().ConfigureAwait(false);
             }
+            if (releaseFailure != null && !runFaulted)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(releaseFailure);
+        }
+    }
 
-            // Drop the repaint handler so we don't keep this app alive via
-            // the workload adapter's delegate slot if RunAsync is restarted
-            // or the host swaps adapters.
-            if (_adapter is Hex1bAppWorkloadAdapter wa)
-            {
-                wa.SetRepaintRequestHandler(null);
-            }
+    /// <summary>How long shutdown waits for embedded children to accept neutralizing key releases.</summary>
+    internal TimeSpan EmbeddedKeyReleaseTimeout { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Whether the app's input source reports key releases (<see langword="null"/> when unknown).
+    /// Set from host capability negotiation; observing a release does not imply it.
+    /// </summary>
+    internal bool? InputSourceReportsKeyReleases
+    {
+        get => _inputRouterState.SourceReportsReleases;
+        set => _inputRouterState.SourceReportsReleases = value;
+    }
+
+    private async Task<Exception?> ReleaseEmbeddedKeysAsync()
+    {
+        // Embedded children can outlive the app; release keys they still hold, but never let a
+        // stalled child block shutdown indefinitely. A timeout is reported as a failure.
+        using var timeout = new CancellationTokenSource(EmbeddedKeyReleaseTimeout);
+        try
+        {
+            await _inputRouterState.ReleaseAllTerminalKeysAsync(timeout.Token).ConfigureAwait(false);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex;
         }
     }
 
@@ -792,7 +845,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             // Key events are routed to the focused node through the tree
             case Hex1bKeyEvent keyEvent when _rootNode != null:
                 // Escape during an active paste cancels the paste
-                if (keyEvent.Key == Hex1bKey.Escape && _activePaste is { IsCompleted: false, IsCancelled: false })
+                if (keyEvent.EventType != Hex1bKeyEventType.Release &&
+                    keyEvent.Key == Hex1bKey.Escape && _activePaste is { IsCompleted: false, IsCancelled: false })
                 {
                     _activePaste.Cancel();
                     _activePaste = null;
@@ -2474,6 +2528,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _inputRouterState.CancelKeyHolds();
         _programStatusLifetime.Cancel();
         // Signal RunAsync to exit immediately
         _stopRequested = true;
@@ -2490,6 +2545,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _inputRouterState.CancelKeyHolds();
         _programStatusLifetime.Cancel();
         // Signal RunAsync to exit immediately
         _stopRequested = true;

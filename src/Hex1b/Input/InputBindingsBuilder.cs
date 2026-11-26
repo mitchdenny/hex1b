@@ -56,6 +56,18 @@ public sealed class InputBindingsBuilder
     /// </summary>
     public KeyStepBuilder Alt() => new KeyStepBuilder(this).Alt();
 
+    /// <summary>Starts building a key step with the Super modifier.</summary>
+    /// <returns>The key step builder.</returns>
+    public KeyStepBuilder Super() => new KeyStepBuilder(this).Super();
+
+    /// <summary>Starts building a key step with the Hyper modifier.</summary>
+    /// <returns>The key step builder.</returns>
+    public KeyStepBuilder Hyper() => new KeyStepBuilder(this).Hyper();
+
+    /// <summary>Starts building a key step with the Meta modifier.</summary>
+    /// <returns>The key step builder.</returns>
+    public KeyStepBuilder Meta() => new KeyStepBuilder(this).Meta();
+
     /// <summary>
     /// Starts building a key step with the given key (no modifiers).
     /// </summary>

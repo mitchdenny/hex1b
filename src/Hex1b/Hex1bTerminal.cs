@@ -700,10 +700,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         var exitCode = await runTask;
+        _workloadCompleted = true;
         if (_presentation is ITerminalLifecycleAwarePresentationAdapter completedAdapter)
             completedAdapter.TerminalCompleted(exitCode);
         return exitCode;
     }
+
+    private volatile bool _workloadCompleted;
+
+    /// <summary>
+    /// Whether this terminal can still deliver input to its workload. Embedded key ownership
+    /// uses it to address the child that received a press even after its handle is reset.
+    /// </summary>
+    internal bool AcceptsWorkloadInput => !_disposed && !_workloadCompleted;
 
     private async Task<int> DrainWorkloadOutputAsync(Task<int> runTask, CancellationToken ct)
     {

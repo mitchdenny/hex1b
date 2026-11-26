@@ -307,6 +307,35 @@ public sealed class TerminalNode : Hex1bNode
     /// <inheritdoc />
     public override InputResult HandleInput(Hex1bEvent inputEvent)
     {
+        var result = HandleInputCore(inputEvent, out var forward);
+        if (forward)
+            _ = ForwardAsync(_handle!, inputEvent, null, CancellationToken.None);
+        return result;
+    }
+
+    internal async Task<InputResult> HandleInputAsync(
+        Hex1bEvent inputEvent, CancellationToken cancellationToken, InputRouterState? routerState = null)
+    {
+        var handle = _handle;
+        var result = HandleInputCore(inputEvent, out var forward);
+        if (forward)
+            await ForwardAsync(handle!, inputEvent, routerState, cancellationToken);
+        return result;
+    }
+
+    private static Task ForwardAsync(
+        TerminalWidgetHandle handle, Hex1bEvent inputEvent, InputRouterState? routerState, CancellationToken cancellationToken)
+        => inputEvent switch
+        {
+            Hex1bKeyEvent { EventType: Hex1bKeyEventType.Release } release
+                => handle.ReleaseForwardedKeyAsync(release, cancellationToken),
+            Hex1bKeyEvent key => handle.ForwardKeyAsync(key, routerState, cancellationToken),
+            _ => handle.SendEventAsync(inputEvent, cancellationToken),
+        };
+
+    private InputResult HandleInputCore(Hex1bEvent inputEvent, out bool forward)
+    {
+        forward = false;
         // If terminal is not running and we have a fallback, don't forward to terminal
         if (_handle != null && _handle.State != TerminalState.Running && FallbackChild != null)
         {
@@ -316,6 +345,22 @@ public sealed class TerminalNode : Hex1bNode
         
         // Forward input to the terminal
         if (_handle == null) return InputResult.NotHandled;
+
+        if (inputEvent is Hex1bKeyEvent keyEvent)
+        {
+            var identity = InputRouterState.KeyIdentity(keyEvent);
+            if (keyEvent.EventType == Hex1bKeyEventType.Release)
+            {
+                // Copy mode must not consume releases belonging to the child, or invent
+                // releases for entry keys and shortcuts whose presses it never received.
+                // Unforwarded releases keep bubbling so ancestor custom handlers still see them.
+                forward = _handle.OwnsForwardedKey(identity);
+                return forward ? InputResult.Handled : InputResult.NotHandled;
+            }
+            // A child only receives repeats for presses it received, whatever its current mode.
+            if (keyEvent.EventType == Hex1bKeyEventType.Repeat && !_handle.HasForwardedKey(identity))
+                return InputResult.Handled;
+        }
         
         // When in copy mode, intercept all input (keyboard and mouse).
         // Delegate to the handle's CopyModeInput event.
@@ -358,8 +403,7 @@ public sealed class TerminalNode : Hex1bNode
             _invalidateCallback?.Invoke();
         }
         
-        // Fire and forget - we don't want to block the input loop
-        _ = _handle.SendEventAsync(inputEvent);
+        forward = true;
         return InputResult.Handled;
     }
     

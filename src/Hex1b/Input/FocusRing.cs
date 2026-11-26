@@ -9,6 +9,7 @@ namespace Hex1b.Input;
 public sealed class FocusRing
 {
     private readonly List<Hex1bNode> _focusables = [];
+    internal event Action? RoutingChanged;
     
     /// <summary>
     /// Tracks the previously focused node so we can clear its focus if it leaves the ring.
@@ -55,6 +56,7 @@ public sealed class FocusRing
     public void CaptureInput(Hex1bNode node)
     {
         _capturedNode = node;
+        RoutingChanged?.Invoke();
     }
     
     /// <summary>
@@ -63,6 +65,7 @@ public sealed class FocusRing
     public void ReleaseCapture()
     {
         _capturedNode = null;
+        RoutingChanged?.Invoke();
     }
 
     /// <summary>
@@ -115,6 +118,7 @@ public sealed class FocusRing
         {
             _capturedNode = null;
         }
+        RoutingChanged?.Invoke();
     }
 
     private static bool ContainsInputNode(Hex1bNode root, Hex1bNode target)
@@ -154,6 +158,7 @@ public sealed class FocusRing
         // DEBUG: Log the focus change
         LastFocusChange = $"FocusNext: from index {currentIndex} to {nextIndex}, from {fromNode?.GetType().Name} to {toNode.GetType().Name}";
         LastFocusChangeGlobal = LastFocusChange + $" (total focusables: {_focusables.Count})";
+        RoutingChanged?.Invoke();
         
         return true;
     }
@@ -186,6 +191,7 @@ public sealed class FocusRing
         var prevIndex = currentIndex <= 0 ? _focusables.Count - 1 : currentIndex - 1;
         _focusables[prevIndex].IsFocused = true;
         SyncAncestorFocusState(_focusables[prevIndex]);
+        RoutingChanged?.Invoke();
         
         return true;
     }
@@ -214,6 +220,7 @@ public sealed class FocusRing
         SyncAncestorFocusState(node);
         
         LastFocusDebug += $" => focused (was {currentIndex})";
+        RoutingChanged?.Invoke();
         return true;
     }
     
@@ -244,6 +251,7 @@ public sealed class FocusRing
         {
             _focusables[0].IsFocused = true;
             SyncAncestorFocusState(_focusables[0]);
+            RoutingChanged?.Invoke();
         }
     }
 

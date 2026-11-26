@@ -664,6 +664,24 @@ reset, overlap, ordering, and replay after mode changes; constructing a sequence
 must not freeze its wire encoding. Keep physical layout, AltGr/IME, and negotiated
 keyboard protocols distinct from this logical-key encoding contract.
 
+### Held Keys and Embedded Input
+
+Inject literal `Hex1bKeyEvent` press/repeat/release events through
+`Hex1bAppWorkloadAdapter.TryWriteInputEvent` when testing app routing, independently
+of presentation parsing and negotiation. Test raw parsing separately. For
+embedded terminals, negotiate the child's flags independently of the host and
+assert literal workload bytes. Gate the first child write to exercise backpressure;
+enqueue repeat, release and a following app binding as an ordering sentinel.
+See `KittyEmbeddedInputTests`.
+
+For held-key cancellation, register a callback that signals entry and waits on a
+test-controlled gate. Route release on a worker with `WaitAsync`, prove subsequent
+input progresses while the registration is blocked, then release the gate in
+`finally`. Shutdown must drain both the handler and cancellation registration
+before disposing the token source. Do not rely on sleeps or on cancellation
+callbacks always returning promptly. See
+`InputRouterTests.RouteInput_BlockingCancellationRegistration_DoesNotBlockReleaseOrNextInput`.
+
 ### Workload Binary Compatibility
 
 Compile a separate fixture against a pinned published Hex1b package, not the

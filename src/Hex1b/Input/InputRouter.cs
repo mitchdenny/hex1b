@@ -68,8 +68,32 @@ public static class InputRouter
         WindowManagerRegistry? windowManagerRegistry = null,
         TerminalProgramStatusReporter? programStatus = null)
     {
+        state.ObserveKeyEvent(keyEvent);
+        if (keyEvent.EventType == Hex1bKeyEventType.Release)
+        {
+            state.ReleaseKeyHold(keyEvent);
+            // The terminal that received the press owns its release, wherever focus or capture is now.
+            if (await state.ReleaseTerminalKeyAsync(keyEvent, cancellationToken))
+                return InputResult.Handled;
+            var captured = focusRing.CapturedNode;
+            if (captured != null && await HandleUnboundInputAsync(captured, keyEvent, cancellationToken, state) == InputResult.Handled)
+                return InputResult.Handled;
+
+            var releasePath = BuildPathToFocused(root);
+            if (releasePath.Count > 0 && releasePath[^1].IsFocusable && releasePath[^1].IsFocused)
+            {
+                for (var i = releasePath.Count - 1; i >= 0; i--)
+                {
+                    if (releasePath[i] != captured &&
+                        await HandleUnboundInputAsync(releasePath[i], keyEvent, cancellationToken, state) == InputResult.Handled)
+                        return InputResult.Handled;
+                }
+            }
+            return InputResult.NotHandled;
+        }
+
         // Create the action context for this input routing
-        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry, programStatus: programStatus);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry, programStatus: programStatus, routerState: state, keyEvent: keyEvent);
         
         // Check global bindings first (evaluated regardless of focus)
         // Global bindings are collected from the entire tree
@@ -90,7 +114,7 @@ public static class InputRouter
             }
             
             // Send input to the captured node (translate mouse coordinates if needed)
-            var captureResult = capturedNode.HandleInput(keyEvent);
+            var captureResult = await HandleUnboundInputAsync(capturedNode, keyEvent, cancellationToken, state);
             if (captureResult == InputResult.Handled)
             {
                 return InputResult.Handled;
@@ -185,7 +209,7 @@ public static class InputRouter
         var lastNode = path[^1];
         if (lastNode.IsFocusable && lastNode.IsFocused)
         {
-            var inputResult = lastNode.HandleInput(keyEvent);
+            var inputResult = await HandleUnboundInputAsync(lastNode, keyEvent, cancellationToken, state);
             if (inputResult == InputResult.Handled)
             {
                 return inputResult;
@@ -194,7 +218,7 @@ public static class InputRouter
             // Focused node didn't handle it, bubble UP to container nodes
             for (int i = path.Count - 2; i >= 0; i--)
             {
-                inputResult = path[i].HandleInput(keyEvent);
+                inputResult = await HandleUnboundInputAsync(path[i], keyEvent, cancellationToken, state);
                 if (inputResult == InputResult.Handled)
                 {
                     return inputResult;
@@ -204,6 +228,12 @@ public static class InputRouter
 
         return InputResult.NotHandled;
     }
+
+    private static Task<InputResult> HandleUnboundInputAsync(
+        Hex1bNode node, Hex1bEvent inputEvent, CancellationToken cancellationToken, InputRouterState? state = null)
+        => node is Nodes.TerminalNode terminal
+            ? terminal.HandleInputAsync(inputEvent, cancellationToken, state)
+            : Task.FromResult(node.HandleInput(inputEvent));
 
     /// <summary>
     /// Routes a paste event through the node tree.
@@ -352,9 +382,12 @@ public static class InputRouter
         WindowManagerRegistry? windowManagerRegistry = null,
         TerminalProgramStatusReporter? programStatus = null)
     {
+        if (keyEvent.EventType == Hex1bKeyEventType.Release)
+            return await HandleUnboundInputAsync(node, keyEvent, cancellationToken);
+
         // Create focus ring if not provided
         focusRing ??= new FocusRing();
-        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry, programStatus: programStatus);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry, programStatus: programStatus, keyEvent: keyEvent);
         
         // Build bindings for this node and look up the key
         var builder = node.BuildBindings();
@@ -386,7 +419,7 @@ public static class InputRouter
         }
         
         // No binding matched, fall through to HandleInput
-        return node.HandleInput(keyEvent);
+        return await HandleUnboundInputAsync(node, keyEvent, cancellationToken);
     }
     
     /// <summary>
@@ -644,7 +677,8 @@ public static class InputRouter
     public static bool IsGlobalBindingRegistered(Hex1bNode root, Hex1bKey key, Hex1bModifiers modifiers, Hex1bNode? excludeNode = null)
     {
         var bindings = GetGlobalBindings(root, excludeNode);
-        return bindings.Any(b => b.FirstStep.Key == key && b.FirstStep.Modifiers == modifiers);
+        return bindings.Any(b => b.FirstStep.Key == key &&
+            KeyStep.WithoutLocks(b.FirstStep.Modifiers) == KeyStep.WithoutLocks(modifiers));
     }
     
     /// <summary>
@@ -697,7 +731,7 @@ public static class InputRouter
                 foreach (var existing in bindings)
                 {
                     if (existing.FirstStep.Key == firstStep.Key && 
-                        existing.FirstStep.Modifiers == firstStep.Modifiers)
+                        KeyStep.WithoutLocks(existing.FirstStep.Modifiers) == KeyStep.WithoutLocks(firstStep.Modifiers))
                     {
                         var ownerName = existing.OwnerNode?.GetType().Name ?? "unknown";
                         var newOwnerName = node.GetType().Name;
