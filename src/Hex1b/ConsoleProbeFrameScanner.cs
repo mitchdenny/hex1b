@@ -156,8 +156,15 @@ internal static class ConsoleProbeFrameScanner
         for (var b = 0x80; b <= 0x9f; b++)
         {
             value[0] = (byte)b;
-            if (encoding.GetChars(value, decoded) == 1 && decoded[0] == b)
-                mask |= 1u << (b - 0x80);
+            try
+            {
+                if (encoding.GetChars(value, decoded) == 1 && decoded[0] == b)
+                    mask |= 1u << (b - 0x80);
+            }
+            catch (DecoderFallbackException)
+            {
+                // This candidate byte has no character mapping under the configured fallback.
+            }
         }
         return mask;
     }

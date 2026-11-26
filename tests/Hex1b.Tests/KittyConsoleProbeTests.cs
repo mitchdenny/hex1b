@@ -405,6 +405,18 @@ public class KittyConsoleProbeTests
     }
 
     [TestMethod]
+    public async Task EnterRawModeAsync_StrictAscii_ProbesWithoutDecodingUnmappedBytesAsInput()
+    {
+        var encoding = (Encoding)Encoding.ASCII.Clone();
+        encoding.DecoderFallback = DecoderFallback.ExceptionFallback;
+        var (adapter, input) = await ProbeBytesAsync(encoding, Encoding.ASCII.GetBytes("a\u001b[?31ub"));
+        await using var _ = adapter;
+
+        Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual("ab", input);
+    }
+
+    [TestMethod]
     public async Task EnterRawModeAsync_MultiByteCodePage_DoesNotTreatCharacterBytesAsC1()
     {
         // In GBK, 9D 9C is one character; it must not open an OSC that hides the genuine reply.
