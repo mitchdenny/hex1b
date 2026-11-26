@@ -88,6 +88,9 @@ public sealed record TextInputStep(string Text, TimeSpan DelayBetweenKeys) : Tes
             _ => (Hex1bKey.None, Hex1bModifiers.None),
         };
         
-        return new Hex1bKeyEvent(key, c.ToString(), modifiers);
+        return new Hex1bKeyEvent(key, c.ToString(), modifiers)
+        {
+            ShiftedKeyCode = Hex1bTerminalInputSequenceBuilder.GetShiftedKeyCode(key, modifiers)
+        };
     }
 }
