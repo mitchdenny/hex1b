@@ -605,7 +605,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// workload lifecycle.
     /// </para>
     /// <para>
-    /// For process and HMP1 workloads, normal completion
+    /// For built-in app, flow, process and HMP1 workloads, normal completion
     /// also waits for remaining output to be applied to the terminal and sent to
     /// the presentation adapter. Cancellation can interrupt this drain.
     /// </para>
@@ -709,10 +709,17 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         // Completion queues final output; finish applying and presenting it
         // before shutdown cancels the output pump.
+        // Apps acknowledge cancellation by returning normally; do not turn that
+        // graceful exit into an exception by starting a drain with a canceled token.
         if ((_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess or Hmp1WorkloadAdapter ||
-             _workload is ICompletableOutputWorkloadAdapter { OutputCompletionRequested: true }) &&
+             (_workload is ICompletableOutputWorkloadAdapter { OutputCompletionRequested: true } &&
+              !ct.IsCancellationRequested)) &&
             _outputProcessingTask is not null)
+        {
             await _outputProcessingTask.WaitAsync(ct);
+            if (_presentation is not null)
+                await _presentation.FlushAsync(ct);
+        }
 
         if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess)
             await ExpireLocalProgramStatusAsync(ct);
