@@ -19,6 +19,12 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// </summary>
     public int ScrollbackLineCount { get; }
 
+    /// <summary>
+    /// Gets the active screen's Kitty keyboard progressive enhancement flags.
+    /// Zero selects legacy keyboard encoding.
+    /// </summary>
+    public int KittyKeyboardFlags { get; }
+
     internal Hex1bTerminalSnapshot(Hex1bTerminal terminal)
         : this(terminal, scrollbackLines: 0, scrollbackWidth: ScrollbackWidth.CurrentTerminal, voidCell: TerminalCell.Empty)
     {
@@ -38,6 +44,7 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         CursorX = state.CursorX;
         CursorY = state.CursorY;
         InAlternateScreen = state.InAlternateScreen;
+        KittyKeyboardFlags = state.KittyKeyboardFlags;
         CursorVisible = state.CursorVisible;
         BracketedPasteEnabled = state.BracketedPasteEnabled;
         ApplicationCursorKeysEnabled = state.ApplicationCursorKeysEnabled;

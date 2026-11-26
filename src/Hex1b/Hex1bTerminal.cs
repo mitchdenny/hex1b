@@ -107,6 +107,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private TrackedObject<HyperlinkData>? _currentHyperlink; // Active hyperlink from OSC 8
     private volatile bool _disposed;
     private bool _inAlternateScreen;
+    private readonly KittyKeyboardMode _mainKeyboardMode = new();
+    private readonly KittyKeyboardMode _alternateKeyboardMode = new();
     private TerminalScreenBuffer? _savedMainScreenBuffer; // Saved main screen when entering alternate screen
     private bool _alternateScreenSavedPendingWrap;
     private int _alternateScreenSavedCursorX; // Saved cursor X for alternate screen (mode 1049)
@@ -1288,7 +1290,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var encoding = evt is Hex1bMouseEvent && modes.MouseEncoding == TerminalMouseEncoding.Legacy
             ? Encoding.Latin1 : Encoding.UTF8;
         var text = encoding.GetString(bytes);
-        if (evt is Hex1bKeyEvent { Key: Hex1bKey.None, Modifiers: Hex1bModifiers.None })
+        if (evt is Hex1bKeyEvent { Key: Hex1bKey.None, Modifiers: Hex1bModifiers.None } &&
+            (modes.KittyKeyboardFlags & 8) == 0)
         {
             tokens = [new TextToken(text)];
         }
@@ -2087,7 +2090,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _mouseEncodingSgr ? TerminalMouseEncoding.Sgr :
                         _mouseEncodingUrxvt ? TerminalMouseEncoding.Urxvt :
                         _mouseEncodingUtf8 ? TerminalMouseEncoding.Utf8 : TerminalMouseEncoding.Legacy,
-                    _width, _height);
+                    _width, _height,
+                    (_inAlternateScreen ? _alternateKeyboardMode : _mainKeyboardMode).Flags);
             }
         }
     }
@@ -2273,7 +2277,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 [.. _commandMarks])
             {
                 LineRenditions = lineRenditions,
-                ProgramStatus = _programStatus
+                ProgramStatus = _programStatus,
+                KittyKeyboardFlags = (_inAlternateScreen ? _alternateKeyboardMode : _mainKeyboardMode).Flags
             };
         }
     }
@@ -3600,6 +3605,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
 
             case RisToken:
+                _mainKeyboardMode.Reset();
+                _alternateKeyboardMode.Reset();
                 foreach (var anchor in _textAnchors)
                     anchor.RowId = null;
                 InvalidateTextAnchorRetention();
@@ -3777,8 +3784,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _appKeypadMode = kpToken.Application;
                 break;
                 
-            case UnrecognizedSequenceToken:
-                // Ignore unrecognized sequences
+            case UnrecognizedSequenceToken unrecognized:
+                var keyboardMode = _inAlternateScreen ? _alternateKeyboardMode : _mainKeyboardMode;
+                if (keyboardMode.Apply(unrecognized.Sequence, out var keyboardQuery) && keyboardQuery &&
+                    !_presentation.AnswersProtocolQueriesDirectly)
+                {
+                    _ = SendProtocolResponseAsync(Encoding.ASCII.GetBytes($"\x1b[?{keyboardMode.Flags}u"));
+                }
                 break;
                 
             case KgpToken kgpToken:
