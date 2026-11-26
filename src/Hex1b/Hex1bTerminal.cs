@@ -710,7 +710,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Completion queues final output; finish applying and presenting it
         // before shutdown cancels the output pump.
         if ((_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess or Hmp1WorkloadAdapter ||
-             _workload is Hex1bAppWorkloadAdapter { OutputCompletionRequested: true }) &&
+             _workload is ICompletableOutputWorkloadAdapter { OutputCompletionRequested: true }) &&
             _outputProcessingTask is not null)
             await _outputProcessingTask.WaitAsync(ct);
 
@@ -1386,7 +1386,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Other workloads can return empty between frames and must keep pumping.
                     if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess ||
                         _workload is Hmp1WorkloadAdapter { OutputCompleted: true } ||
-                        _workload is Hex1bAppWorkloadAdapter { OutputCompleted: true })
+                        _workload is ICompletableOutputWorkloadAdapter { OutputCompleted: true })
                     {
                         if (_workload is Hex1bTerminalChildProcess { HasExited: false } child)
                             await child.WaitForExitAsync(ct);
