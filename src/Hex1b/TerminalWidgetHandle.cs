@@ -465,56 +465,141 @@ public sealed class TerminalWidgetHandle :
         await _terminal.SendEventAsync(evt, ct);
     }
 
-    // Presses forwarded to the child, tracked regardless of its current reporting mode so a
-    // repeat/release still reaches it after it enables event types mid-hold. Owned by the handle
-    // rather than the node so the release survives focus, capture or node changes. Bounded
-    // because hosts without release reporting never clear entries.
-    internal const int MaxForwardedKeys = 32;
-    private readonly List<((Hex1bKey Key, int? Code) Identity, Hex1bKeyEvent Press)> _forwardedKeys = [];
+    // Presses forwarded to a child, tracked regardless of its current reporting mode so a
+    // repeat/release still reaches it after it enables event types mid-hold. Each entry records
+    // the terminal that actually received the press, so its release survives focus, capture,
+    // node, handle-replacement and Reset/reattach changes without reaching a different child.
+    // The bound exceeds any physical keyboard's simultaneously held keys, so overflow only
+    // happens for sources that never report releases; overflowed presses are neutralized with
+    // a release rather than silently dropped.
+    internal const int MaxForwardedKeys = 256;
+    private readonly List<ForwardedKey> _forwardedKeys = [];
 
-    internal void TrackForwardedKey((Hex1bKey Key, int? Code) identity, Hex1bKeyEvent press)
+    internal sealed class ForwardedKey((Hex1bKey Key, int? Code) identity, Hex1bKeyEvent press, Hex1bTerminal recipient)
     {
-        lock (_forwardedKeys)
+        public (Hex1bKey Key, int? Code) Identity { get; } = identity;
+        public Hex1bKeyEvent Press { get; } = press;
+        public Hex1bTerminal Recipient { get; } = recipient;
+    }
+
+    /// <summary>
+    /// Forwards a key event to the attached child. Presses are recorded against the terminal that
+    /// receives them; nothing is recorded when no child is attached.
+    /// </summary>
+    internal async Task ForwardKeyAsync(Hex1bKeyEvent key, InputRouterState? routerState, CancellationToken ct)
+    {
+        var recipient = _terminal;
+        if (recipient == null || _disposed)
+            return;
+
+        ForwardedKey? entry = null;
+        ForwardedKey? overflow = null;
+        if (key.EventType == Hex1bKeyEventType.Press && (key.Key != Hex1bKey.None || key.UnicodeKeyCode is > 0))
         {
-            _forwardedKeys.RemoveAll(k => k.Identity == identity);
-            if (_forwardedKeys.Count == MaxForwardedKeys)
-                _forwardedKeys.RemoveAt(0);
-            _forwardedKeys.Add((identity, press));
+            entry = new ForwardedKey(InputRouterState.KeyIdentity(key), key, recipient);
+            lock (_forwardedKeys)
+            {
+                // A second press of a key this child already holds needs only one release.
+                _forwardedKeys.RemoveAll(k => k.Identity == entry.Identity && k.Recipient == recipient);
+                if (_forwardedKeys.Count >= MaxForwardedKeys)
+                {
+                    overflow = _forwardedKeys[0];
+                    _forwardedKeys.RemoveAt(0);
+                }
+                _forwardedKeys.Add(entry);
+            }
+            routerState?.TrackTerminalKeyOwner(this);
+        }
+
+        try
+        {
+            if (overflow != null && overflow.Recipient.AcceptsWorkloadInput)
+                await overflow.Recipient.SendEventAsync(
+                    InputRouterState.NeutralizingRelease(overflow.Press, routerState?.LastKnownModifiers), ct)
+                    .ConfigureAwait(false);
+            await recipient.SendEventAsync(key, ct).ConfigureAwait(false);
+        }
+        catch when (entry != null)
+        {
+            // The child may not have received the press; do not later release it.
+            lock (_forwardedKeys)
+                _forwardedKeys.Remove(entry);
+            throw;
         }
     }
 
+    /// <summary>
+    /// Delivers <paramref name="release"/> to every child that holds the matching press.
+    /// Returns <see langword="true"/> when this handle owned the press.
+    /// </summary>
+    internal async Task<bool> ReleaseForwardedKeyAsync(Hex1bKeyEvent release, CancellationToken ct)
+    {
+        var identity = InputRouterState.KeyIdentity(release);
+        ForwardedKey[] owned;
+        lock (_forwardedKeys)
+        {
+            owned = _forwardedKeys.Where(k => k.Identity == identity).ToArray();
+            _forwardedKeys.RemoveAll(k => k.Identity == identity);
+        }
+
+        foreach (var key in owned)
+        {
+            if (key.Recipient.AcceptsWorkloadInput)
+                await key.Recipient.SendEventAsync(release, ct).ConfigureAwait(false);
+        }
+        return owned.Length > 0;
+    }
+
+    /// <summary>
+    /// Sends a neutralizing release for every press still held, removing each only once its
+    /// release has been delivered so a failed or timed-out cleanup leaves ownership intact.
+    /// </summary>
+    internal async Task ReleaseAllForwardedKeysAsync(Hex1bModifiers? lastKnownModifiers, CancellationToken ct)
+    {
+        ForwardedKey[] owned;
+        lock (_forwardedKeys)
+            owned = [.. _forwardedKeys];
+
+        foreach (var key in owned)
+        {
+            lock (_forwardedKeys)
+            {
+                if (!_forwardedKeys.Contains(key))
+                    continue;
+            }
+            if (key.Recipient.AcceptsWorkloadInput)
+                await key.Recipient.SendEventAsync(
+                    InputRouterState.NeutralizingRelease(key.Press, lastKnownModifiers), ct).ConfigureAwait(false);
+            lock (_forwardedKeys)
+                _forwardedKeys.Remove(key);
+        }
+    }
+
+    /// <summary>Whether the currently attached child holds a press with this identity.</summary>
     internal bool HasForwardedKey((Hex1bKey Key, int? Code) identity)
+    {
+        var recipient = _terminal;
+        lock (_forwardedKeys)
+            return _forwardedKeys.Exists(k => k.Identity == identity && k.Recipient == recipient);
+    }
+
+    /// <summary>Whether any child, attached or previously attached, holds this press.</summary>
+    internal bool OwnsForwardedKey((Hex1bKey Key, int? Code) identity)
     {
         lock (_forwardedKeys)
             return _forwardedKeys.Exists(k => k.Identity == identity);
     }
 
-    internal bool HasAnyForwardedKeys
+    internal int ForwardedKeyCount
     {
         get
         {
             lock (_forwardedKeys)
-                return _forwardedKeys.Count > 0;
+                return _forwardedKeys.Count;
         }
     }
 
-    internal bool TryTakeForwardedKey((Hex1bKey Key, int? Code) identity)
-    {
-        lock (_forwardedKeys)
-            return _forwardedKeys.RemoveAll(k => k.Identity == identity) > 0;
-    }
-
-    internal Hex1bKeyEvent[] TakeForwardedKeys()
-    {
-        lock (_forwardedKeys)
-        {
-            var presses = _forwardedKeys.Select(k => k.Press).ToArray();
-            _forwardedKeys.Clear();
-            return presses;
-        }
-    }
-
-    internal bool IsAcceptingInput => _terminal != null && !_disposed && State != TerminalState.Completed;
+    internal bool HasAnyForwardedKeys => ForwardedKeyCount > 0;
     
     /// <summary>
     /// Handles RIS (Reset to Initial State, ESC c) — clears terminal state that

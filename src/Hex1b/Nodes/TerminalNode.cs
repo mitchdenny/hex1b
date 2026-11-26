@@ -309,7 +309,7 @@ public sealed class TerminalNode : Hex1bNode
     {
         var result = HandleInputCore(inputEvent, out var forward);
         if (forward)
-            _ = _handle!.SendEventAsync(inputEvent);
+            _ = ForwardAsync(_handle!, inputEvent, null, CancellationToken.None);
         return result;
     }
 
@@ -319,14 +319,19 @@ public sealed class TerminalNode : Hex1bNode
         var handle = _handle;
         var result = HandleInputCore(inputEvent, out var forward);
         if (forward)
-        {
-            if (routerState != null && inputEvent is Hex1bKeyEvent key &&
-                handle!.HasForwardedKey(InputRouterState.KeyIdentity(key)))
-                routerState.TrackTerminalKeyOwner(handle);
-            await handle!.SendEventAsync(inputEvent, cancellationToken);
-        }
+            await ForwardAsync(handle!, inputEvent, routerState, cancellationToken);
         return result;
     }
+
+    private static Task ForwardAsync(
+        TerminalWidgetHandle handle, Hex1bEvent inputEvent, InputRouterState? routerState, CancellationToken cancellationToken)
+        => inputEvent switch
+        {
+            Hex1bKeyEvent { EventType: Hex1bKeyEventType.Release } release
+                => handle.ReleaseForwardedKeyAsync(release, cancellationToken),
+            Hex1bKeyEvent key => handle.ForwardKeyAsync(key, routerState, cancellationToken),
+            _ => handle.SendEventAsync(inputEvent, cancellationToken),
+        };
 
     private InputResult HandleInputCore(Hex1bEvent inputEvent, out bool forward)
     {
@@ -349,7 +354,7 @@ public sealed class TerminalNode : Hex1bNode
                 // Copy mode must not consume releases belonging to the child, or invent
                 // releases for entry keys and shortcuts whose presses it never received.
                 // Unforwarded releases keep bubbling so ancestor custom handlers still see them.
-                forward = _handle.TryTakeForwardedKey(identity);
+                forward = _handle.OwnsForwardedKey(identity);
                 return forward ? InputResult.Handled : InputResult.NotHandled;
             }
             // A child only receives repeats for presses it received, whatever its current mode.
@@ -398,9 +403,6 @@ public sealed class TerminalNode : Hex1bNode
             _invalidateCallback?.Invoke();
         }
         
-        if (inputEvent is Hex1bKeyEvent { EventType: Hex1bKeyEventType.Press } forwardedKey &&
-            (forwardedKey.Key != Hex1bKey.None || forwardedKey.UnicodeKeyCode is > 0))
-            _handle.TrackForwardedKey(InputRouterState.KeyIdentity(forwardedKey), forwardedKey);
         forward = true;
         return InputResult.Handled;
     }

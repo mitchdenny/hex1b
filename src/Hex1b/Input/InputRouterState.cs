@@ -13,9 +13,39 @@ public sealed class InputRouterState
     private TaskCompletionSource<Exception> _holdFailure = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private readonly List<TerminalWidgetHandle> _terminalKeyOwners = [];
-    private bool _releasesObserved;
+    private int _lastKnownModifiers = -1;
 
     internal Task<Exception> HoldFailure => _holdFailure.Task;
+
+    /// <summary>The modifier and lock state reported by the most recent key event, if any.</summary>
+    internal Hex1bModifiers? LastKnownModifiers
+    {
+        get
+        {
+            var value = Volatile.Read(ref _lastKnownModifiers);
+            return value < 0 ? null : (Hex1bModifiers)value;
+        }
+    }
+
+    internal void ObserveKeyEvent(Hex1bKeyEvent keyEvent)
+        => Volatile.Write(ref _lastKnownModifiers, (int)keyEvent.Modifiers);
+
+    /// <summary>
+    /// Creates a release that neutralizes a forwarded press without a physical release, using the
+    /// last-known modifier and lock state where available.
+    /// </summary>
+    internal static Hex1bKeyEvent NeutralizingRelease(Hex1bKeyEvent press, Hex1bModifiers? lastKnownModifiers)
+    {
+        var modifiers = lastKnownModifiers ?? press.Modifiers;
+        return press with
+        {
+            Text = "",
+            Modifiers = modifiers,
+            // A shifted alternate only describes the key while Shift is held.
+            ShiftedKeyCode = (modifiers & Hex1bModifiers.Shift) != 0 ? press.ShiftedKeyCode : null,
+            EventType = Hex1bKeyEventType.Release
+        };
+    }
 
     /// <summary>
     /// Records an embedded terminal that received a press it must later be released for,
@@ -37,52 +67,58 @@ public sealed class InputRouterState
     /// </summary>
     internal async Task<bool> ReleaseTerminalKeyAsync(Hex1bKeyEvent release, CancellationToken cancellationToken)
     {
-        Volatile.Write(ref _releasesObserved, true);
-        var identity = KeyIdentity(release);
         TerminalWidgetHandle[] owners;
         lock (_terminalKeyOwners)
             owners = _terminalKeyOwners.ToArray();
 
         var delivered = false;
         foreach (var owner in owners)
-        {
-            if (!owner.TryTakeForwardedKey(identity))
-                continue;
-            delivered = true;
-            if (owner.IsAcceptingInput)
-                await owner.SendEventAsync(release, cancellationToken).ConfigureAwait(false);
-        }
+            delivered |= await owner.ReleaseForwardedKeyAsync(release, cancellationToken).ConfigureAwait(false);
         lock (_terminalKeyOwners)
             _terminalKeyOwners.RemoveAll(owner => !owner.HasAnyForwardedKeys);
         return delivered;
     }
 
     /// <summary>
-    /// Releases every key still held in embedded terminals when the app stops routing input.
-    /// Embedded children can outlive the app, so their release ownership must not be discarded.
-    /// Releases are only synthesized once the host has delivered a release: hosts without
-    /// release reporting never clear tracked presses, which are then discarded instead.
+    /// Neutralizes every press still held by embedded terminals when the app stops routing input.
+    /// Embedded children can outlive the app, and a tracked press proves the child received it,
+    /// so cleanup releases are sent even when the host never reported a release. Children that
+    /// do not report releases encode nothing for them.
     /// </summary>
+    /// <exception cref="TimeoutException">A child did not accept its releases in time; its
+    /// remaining presses stay tracked.</exception>
     internal async Task ReleaseAllTerminalKeysAsync(CancellationToken cancellationToken)
     {
         TerminalWidgetHandle[] owners;
         lock (_terminalKeyOwners)
-        {
             owners = _terminalKeyOwners.ToArray();
-            _terminalKeyOwners.Clear();
-        }
 
+        var modifiers = LastKnownModifiers;
+        List<Exception>? failures = null;
         foreach (var owner in owners)
         {
-            // Taking the presses atomically prevents a duplicate when a real release races cleanup.
-            foreach (var press in owner.TakeForwardedKeys())
+            try
             {
-                if (Volatile.Read(ref _releasesObserved) && owner.IsAcceptingInput)
-                    await owner.SendEventAsync(
-                        press with { Text = "", EventType = Hex1bKeyEventType.Release },
-                        cancellationToken).ConfigureAwait(false);
+                await owner.ReleaseAllForwardedKeysAsync(modifiers, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
+            {
+                (failures ??= []).Add(new TimeoutException(
+                    "Timed out releasing keys held by an embedded terminal.", ex));
+                break;
+            }
+            catch (Exception ex)
+            {
+                (failures ??= []).Add(ex);
             }
         }
+
+        lock (_terminalKeyOwners)
+            _terminalKeyOwners.RemoveAll(owner => !owner.HasAnyForwardedKeys);
+        if (failures is [var single])
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(single);
+        if (failures != null)
+            throw new AggregateException(failures);
     }
 
     internal void BeginKeyHolds()

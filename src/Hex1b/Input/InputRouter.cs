@@ -68,6 +68,7 @@ public static class InputRouter
         WindowManagerRegistry? windowManagerRegistry = null,
         TerminalProgramStatusReporter? programStatus = null)
     {
+        state.ObserveKeyEvent(keyEvent);
         if (keyEvent.EventType == Hex1bKeyEventType.Release)
         {
             state.ReleaseKeyHold(keyEvent);

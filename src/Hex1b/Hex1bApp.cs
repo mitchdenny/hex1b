@@ -781,18 +781,17 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         }
     }
 
+    /// <summary>How long shutdown waits for embedded children to accept neutralizing key releases.</summary>
+    internal TimeSpan EmbeddedKeyReleaseTimeout { get; set; } = TimeSpan.FromSeconds(2);
+
     private async Task<Exception?> ReleaseEmbeddedKeysAsync()
     {
         // Embedded children can outlive the app; release keys they still hold, but never let a
-        // stalled child block shutdown indefinitely.
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        // stalled child block shutdown indefinitely. A timeout is reported as a failure.
+        using var timeout = new CancellationTokenSource(EmbeddedKeyReleaseTimeout);
         try
         {
             await _inputRouterState.ReleaseAllTerminalKeysAsync(timeout.Token).ConfigureAwait(false);
-            return null;
-        }
-        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
-        {
             return null;
         }
         catch (Exception ex)
