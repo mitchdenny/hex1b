@@ -72,6 +72,27 @@ public sealed class KeyStepBuilder
         return this;
     }
 
+    /// <summary>Adds the Super modifier to the current step.</summary>
+    public KeyStepBuilder Super()
+    {
+        _currentModifiers |= Hex1bModifiers.Super;
+        return this;
+    }
+
+    /// <summary>Adds the Hyper modifier to the current step.</summary>
+    public KeyStepBuilder Hyper()
+    {
+        _currentModifiers |= Hex1bModifiers.Hyper;
+        return this;
+    }
+
+    /// <summary>Adds the Meta modifier to the current step.</summary>
+    public KeyStepBuilder Meta()
+    {
+        _currentModifiers |= Hex1bModifiers.Meta;
+        return this;
+    }
+
     /// <summary>
     /// Sets the key for the current step.
     /// </summary>
@@ -119,6 +140,36 @@ public sealed class KeyStepBuilder
         CommitCurrentStep();
         var binding = new InputBinding([.. _completedSteps], handler, description, _isGlobal, _actionId, _overridesCapture);
         _parent.Add(binding);
+    }
+
+    /// <summary>
+    /// Runs an asynchronous callback while the matched key is held.
+    /// </summary>
+    /// <param name="handler">The callback and a token cancelled when the key is released or input ownership changes.</param>
+    /// <param name="description">Optional description for help and documentation.</param>
+    /// <remarks>
+    /// The callback runs independently of input routing, so it may wait for its token.
+    /// Repeats do not start another callback while the key remains held. Hosts without
+    /// release reporting cannot signal a physical release; their token is cancelled
+    /// when focus or capture changes, or when the application stops. Call
+    /// <see cref="InputBindingActionContext.Invalidate"/> after changing UI state.
+    /// </remarks>
+    public void OnHold(Func<InputBindingActionContext, CancellationToken, Task> handler, string? description = null)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        Action(context => context.StartKeyHold(handler), description);
+    }
+
+    /// <summary>
+    /// Runs a callback when the matched key is pressed, providing a token for its held lifetime.
+    /// </summary>
+    /// <param name="handler">The callback and a token cancelled when the key is released or input ownership changes.</param>
+    /// <param name="description">Optional description for help and documentation.</param>
+    /// <remarks>See <see cref="OnHold(Func{InputBindingActionContext, CancellationToken, Task}, string?)"/> for host limitations.</remarks>
+    public void OnHold(Action<InputBindingActionContext, CancellationToken> handler, string? description = null)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        OnHold((context, token) => { handler(context, token); return Task.CompletedTask; }, description);
     }
 
     /// <summary>

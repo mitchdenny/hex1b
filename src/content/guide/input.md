@@ -65,6 +65,51 @@ b.Key(Hex1bKey.S).Ctrl().Shift().Action(() => SaveAs(), "Save as"); // Ctrl+Shif
 b.Key(Hex1bKey.F1).Alt().Action(() => ShowHelp(), "Help");         // Alt+F1
 ```
 
+### Enhanced Keyboard Events
+
+When the presentation supports the [Kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/),
+Hex1bApp requests enhanced keyboard reporting and restores the previous mode on exit.
+Hosted PTY programs negotiate their own modes. On hosts without support, input continues
+to use the legacy encoding.
+
+`Hex1bKeyEvent.EventType` distinguishes presses, repeats, and releases. Events may also
+carry Unicode key identity, alternate key codes, associated text, and additional
+modifiers when the input source supplies them. Custom node input handlers can receive
+releases; existing key and character bindings and built-in widget actions do not run
+on release. Releases also do not interrupt a pending chord.
+
+Use `OnHold` to start work on a key press and cancel it when the key is released:
+
+```csharp
+// Inside an InputBindings callback; position is a captured int.
+b.Key(Hex1bKey.RightArrow).OnHold(async (context, held) =>
+{
+    while (!held.IsCancellationRequested)
+    {
+        Interlocked.Increment(ref position);
+        context.Invalidate();
+        await Task.Delay(TimeSpan.FromMilliseconds(50), held);
+    }
+}, "Move right while held");
+```
+
+The callback runs independently of input routing, so synchronize any shared state it
+changes. Repeats do not start another callback while the key is held. The token is also
+cancelled if focus or capture changes, or the app stops. A legacy host cannot report a
+physical release, so its token remains active until one of those other events occurs.
+
+Browser input reports only the key and modifier information available from the browser;
+layout-specific alternate keys and some composed input cannot be inferred. Blur and
+switching to read-only mode release tracked browser keys. Terminal and operating-system
+shortcuts can still intercept input. An abrupt browser disconnect cannot send keyup,
+so disposing its HWT1 adapter releases the keys already received by the server.
+HMP negotiates keyboard-stack replay for capable viewers and scopes each raw
+host's keyboard mode so it can be restored on disconnect. Older viewers receive
+legacy input without enhanced key releases; an older producer cannot replay a
+stack it did not retain. As with any Kitty push, a host stack already at its
+capacity may evict its oldest entry. Support through Windows Console/ConPTY
+depends on the host.
+
 > **Terminal reachability caveat (`Ctrl+Shift+letter`).** Most terminals
 > cannot distinguish `Ctrl+Shift+A` from `Ctrl+A`: the `Ctrl` modifier
 > strips ASCII bit 6 of a letter and `Shift` is dropped. Bindings on

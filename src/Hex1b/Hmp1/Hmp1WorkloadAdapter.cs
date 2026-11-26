@@ -37,6 +37,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     private readonly string _localDisplayName;
     private Stream? _stream;
     private readonly Channel<Hmp1WorkloadOutput> _outputChannel;
+    private readonly Hmp1OutputProjection _rawKeyboardProjection = new(Hmp1KeyboardPresentation.StripKeyboardCommand, projectOwnedProtocols: false);
     private CancellationTokenSource? _readCts;
     private Task? _readTask;
     private bool _disposed;
@@ -313,7 +314,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             _stream,
             _localDisplayName,
             _options.DefaultRole?.ToWireString(),
-            ct, requestedHistoryRows, requestedCommandMarks, programStatus: true).ConfigureAwait(false);
+            ct, requestedHistoryRows, requestedCommandMarks, programStatus: true, kittyKeyboard: true).ConfigureAwait(false);
 
         // Read Hello frame
         var helloFrame = await Hmp1Protocol.ReadFrameAsync(_stream, ct).ConfigureAwait(false)
@@ -323,6 +324,8 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             throw new InvalidOperationException($"Expected Hello frame, got {helloFrame.Type}.");
 
         var hello = Hmp1Protocol.ParseHello(helloFrame.Payload);
+        if (hello.KittyKeyboardVersion is not (0 or 1))
+            throw new InvalidDataException("Server selected an unsupported Kitty keyboard capability.");
         if (hello.ProgramStatusVersion != 0 && hello.ProgramStatusVersion != Hmp1ProgramStatusState.Version)
             throw new InvalidDataException("Server selected an unsupported program status capability.");
         _programStatus = hello.ProgramStatusVersion == Hmp1ProgramStatusState.Version;
@@ -418,6 +421,11 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Direct raw readers receive screen output without Kitty keyboard stack
+    /// commands. A <see cref="Hex1bTerminal"/> consumes the negotiated stack
+    /// state separately and protects its presentation's existing keyboard mode.
+    /// </remarks>
     public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
     {
         if (_disposed)
@@ -431,10 +439,13 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         while (!ct.IsCancellationRequested)
         {
             var item = await ReadOutputItemCoreAsync(ct).ConfigureAwait(false);
-            if (!item.Bytes.IsEmpty)
-                return item.Bytes;
+            if (item.IsStateSync)
+                _rawKeyboardProjection.Reset();
+            var bytes = _rawKeyboardProjection.Process(item.Bytes.Span);
+            if (!bytes.IsEmpty)
+                return bytes;
             if (_outputChannel.Reader.Completion.IsCompleted)
-                break;
+                return _rawKeyboardProjection.Complete();
         }
         return ReadOnlyMemory<byte>.Empty;
     }

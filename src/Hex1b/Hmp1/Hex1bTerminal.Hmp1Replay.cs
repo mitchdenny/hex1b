@@ -13,6 +13,65 @@ public sealed partial class Hex1bTerminal
     internal bool Hmp1ApplyingWorkloadOutput { get; private set; }
 
     private bool _deferHmp1ReplayCallbacks;
+    private readonly SemaphoreSlim _hmp1KeyboardPresentationLock = new(1, 1);
+    private Hmp1KeyboardPresentation? _hmp1KeyboardPresentation;
+
+    private async ValueTask WriteHmp1PresentationAsync(
+        ReadOnlyMemory<byte> bytes, bool fromHmp, bool stateSync, CancellationToken ct)
+    {
+        if (_presentation is null)
+            return;
+        if (_workload is not IHmp1TerminalOutputSource)
+        {
+            await _presentation.WriteOutputAsync(bytes, ct).ConfigureAwait(false);
+            return;
+        }
+        var projectKeyboard = fromHmp &&
+            _presentation is not Hmp1PresentationAdapter &&
+            _presentation is not ICellImpactAwarePresentationAdapter;
+        await _hmp1KeyboardPresentationLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            if (_disposed)
+                return;
+            if (!projectKeyboard && _hmp1KeyboardPresentation is not null)
+            {
+                var restore = _hmp1KeyboardPresentation.Complete();
+                _hmp1KeyboardPresentation = null;
+                await _presentation.WriteOutputAsync(restore, ct).ConfigureAwait(false);
+            }
+            if (projectKeyboard)
+            {
+                _hmp1KeyboardPresentation ??= new Hmp1KeyboardPresentation();
+                bytes = _hmp1KeyboardPresentation.Process(bytes.Span, stateSync);
+            }
+            if (!bytes.IsEmpty)
+                await _presentation.WriteOutputAsync(bytes, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _hmp1KeyboardPresentationLock.Release();
+        }
+    }
+
+    private async ValueTask CompleteHmp1KeyboardPresentationAsync()
+    {
+        await _hmp1KeyboardPresentationLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_hmp1KeyboardPresentation is null || _presentation is null)
+                return;
+            var restore = _hmp1KeyboardPresentation.Complete();
+            _hmp1KeyboardPresentation = null;
+            if (!restore.IsEmpty)
+                await _presentation.WriteOutputAsync(restore).ConfigureAwait(false);
+        }
+        finally
+        {
+            _hmp1KeyboardPresentationLock.Release();
+        }
+    }
 
     internal async Task WaitForHmp1InitialReplayAsync(CancellationToken cancellationToken)
     {
@@ -75,7 +134,7 @@ public sealed partial class Hex1bTerminal
         if (rawPassthrough && !_disposed && _presentation is not null)
         {
             var started = Stopwatch.GetTimestamp();
-            await _presentation.WriteOutputAsync(bytes, ct).ConfigureAwait(false);
+            await WriteHmp1PresentationAsync(bytes, fromHmp: true, stateSync: true, ct).ConfigureAwait(false);
             _metrics.TerminalRawPassthroughDuration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             _metrics.TerminalOutputBytes.Record(bytes.Length);
         }
@@ -99,6 +158,8 @@ public sealed partial class Hex1bTerminal
             try
             {
                 _titleStack.Clear();
+                _mainKeyboardMode.Reset();
+                _alternateKeyboardMode.Reset();
                 resized = state is not null && state.Width > 0 && state.Height > 0 &&
                     (_width != state.Width || _height != state.Height);
                 if (state is not null)
@@ -181,7 +242,7 @@ public sealed partial class Hex1bTerminal
             ct.ThrowIfCancellationRequested();
             ObjectDisposedException.ThrowIf(_disposed, this);
             var filteredBytes = AnsiTokenUtf8Serializer.Serialize(filtered);
-            await _presentation.WriteOutputAsync(filteredBytes, ct).ConfigureAwait(false);
+            await WriteHmp1PresentationAsync(filteredBytes, fromHmp: true, stateSync: true, ct).ConfigureAwait(false);
             _metrics.TerminalOutputBytes.Record(filteredBytes.Length);
         }
     }

@@ -68,8 +68,27 @@ public static class InputRouter
         WindowManagerRegistry? windowManagerRegistry = null,
         TerminalProgramStatusReporter? programStatus = null)
     {
+        if (keyEvent.EventType == Hex1bKeyEventType.Release)
+        {
+            state.ReleaseKeyHold(keyEvent);
+            var captured = focusRing.CapturedNode;
+            if (captured != null && captured.HandleInput(keyEvent) == InputResult.Handled)
+                return InputResult.Handled;
+
+            var releasePath = BuildPathToFocused(root);
+            for (var i = releasePath.Count - 1; i >= 0; i--)
+            {
+                var node = releasePath[i];
+                if (node == captured || (i == releasePath.Count - 1 && (!node.IsFocusable || !node.IsFocused)))
+                    continue;
+                if (node.HandleInput(keyEvent) == InputResult.Handled)
+                    return InputResult.Handled;
+            }
+            return InputResult.NotHandled;
+        }
+
         // Create the action context for this input routing
-        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry, programStatus: programStatus);
+        var actionContext = new InputBindingActionContext(focusRing, requestStop, cancellationToken, copyToClipboard: copyToClipboard, invalidate: invalidate, windowManagerRegistry: windowManagerRegistry, programStatus: programStatus, routerState: state, keyEvent: keyEvent);
         
         // Check global bindings first (evaluated regardless of focus)
         // Global bindings are collected from the entire tree

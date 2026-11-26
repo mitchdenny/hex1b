@@ -6,6 +6,98 @@ namespace Hex1b.Tests;
 public class Hmp1OutputProjectionTests
 {
     [TestMethod]
+    public void KeyboardPresentation_StackAndScreenChanges_PreserveScopedEntryAcrossSplits()
+    {
+        var input = Encoding.UTF8.GetBytes(
+            "\x1b[>3u\x1b]0;inside\x1b[<u\a\x1b[?1049h\x1b[>8u\x1b[?1049h\x1b[<128u\x1b[?1049l");
+        const string expected =
+            "\x1b[>3u\x1b]0;inside\x1b[<u\a" +
+            "\x1b[<u\x1b[?1049h\x1b[>0u\x1b[=8u" +
+            "\x1b[<u\x1b[?1049h\x1b[>8u\x1b[=0u" +
+            "\x1b[<u\x1b[?1049l\x1b[>3u\x1b[<u";
+        for (var split = 0; split <= input.Length; split++)
+        {
+            var projection = new Hmp1KeyboardPresentation();
+            var first = projection.Process(input.AsSpan(0, split), stateSync: false);
+            var second = projection.Process(input.AsSpan(split), stateSync: false);
+            var close = projection.Complete();
+            Assert.AreEqual(expected, Encoding.UTF8.GetString([.. first.Span, .. second.Span, .. close.Span]), $"Split {split}");
+            Assert.IsTrue(projection.Complete().IsEmpty);
+        }
+    }
+
+    [TestMethod]
+    public void Process_LegacyKeyboardProjection_PreservesOtherControlsAcrossSplits()
+    {
+        var input = Encoding.UTF8.GetBytes("\x1b[?1049h\x1b[>31u\x1b[c\x1b[<uDONE");
+        for (var split = 0; split <= input.Length; split++)
+        {
+            var projection = new Hmp1OutputProjection(
+                Hmp1KeyboardPresentation.StripKeyboardCommand, projectOwnedProtocols: false);
+            var first = projection.Process(input.AsSpan(0, split));
+            var second = projection.Process(input.AsSpan(split));
+            Assert.AreEqual("\x1b[?1049h\x1b[cDONE", Encoding.UTF8.GetString([.. first.Span, .. second.Span]), $"Split {split}");
+        }
+    }
+
+    [TestMethod]
+    [DataRow("\x1b_other;inside\x1b[c\x1b\\")]
+    [DataRow("\x1b_Ga=q,i=1;AAAA\x1b\\")]
+    [DataRow("\x1b_Ga=t,i=1;AAAA\x1b\\")]
+    [DataRow("\u009fother;inside\x1b[c\u009c")]
+    [DataRow("\u009fGa=q,i=1;AAAA\u009c")]
+    public void Process_KeyboardOnlyProjection_PreservesApcAcrossSplits(string text)
+    {
+        var input = Encoding.UTF8.GetBytes(text);
+        for (var split = 0; split <= input.Length; split++)
+        {
+            var projection = new Hmp1OutputProjection(
+                Hmp1KeyboardPresentation.StripKeyboardCommand, projectOwnedProtocols: false);
+            var first = projection.Process(input.AsSpan(0, split));
+            var second = projection.Process(input.AsSpan(split));
+            TestSeq.AreEqual(input, (byte[])[.. first.Span, .. second.Span, .. projection.Complete().Span], $"Split {split}");
+        }
+    }
+
+    [TestMethod]
+    public void Process_RawApcQuery_ConsumesOnlyProducerOwnedQuery()
+    {
+        byte[] input = [0x9f, .. "Ga=q,i=1;AAAA"u8, 0x9c, .. "after"u8];
+        for (var split = 0; split <= input.Length; split++)
+        {
+            var projection = new Hmp1OutputProjection();
+            var first = projection.Process(input.AsSpan(0, split));
+            var second = projection.Process(input.AsSpan(split));
+            TestSeq.AreEqual("after"u8.ToArray(), (byte[])[.. first.Span, .. second.Span], $"Split {split}");
+        }
+    }
+
+    [TestMethod]
+    [DataRow("\x1b")]
+    [DataRow("\x1b[")]
+    [DataRow("\x1b[>31")]
+    [DataRow("\x1b_Ga=t")]
+    [DataRow("\u00c2")]
+    public void Complete_UnfinishedInput_PreservesPendingBytesAndResets(string text)
+    {
+        var input = Encoding.Latin1.GetBytes(text);
+        var projection = new Hmp1KeyboardPresentation();
+        var first = projection.Process(input, stateSync: false);
+        var close = projection.Complete();
+        TestSeq.AreEqual(input, (byte[])[.. first.Span, .. close.Span]);
+        Assert.IsTrue(projection.Complete().IsEmpty);
+    }
+
+    [TestMethod]
+    public void Complete_PendingInputAfterKeyboardCommand_FlushesBeforeRestoringHost()
+    {
+        var projection = new Hmp1KeyboardPresentation();
+        var output = projection.Process("\x1b[>3u\x1b["u8, stateSync: false);
+        var close = projection.Complete();
+        TestSeq.AreEqual("\x1b[>3u\x1b[\x1b[<u"u8.ToArray(), (byte[])[.. output.Span, .. close.Span]);
+    }
+
+    [TestMethod]
     [DataRow("\x1b[c")]
     [DataRow("\x1b[0c")]
     [DataRow("\x1b[14t")]
@@ -13,6 +105,7 @@ public class Hmp1OutputProjectionTests
     [DataRow("\x1b[18t")]
     [DataRow("\x1b[5n")]
     [DataRow("\x1b[6n")]
+    [DataRow("\x1b[?u")]
     [DataRow("\x1b_Ga=q,i=1,f=32,s=1,v=1;AAAAAA==\x1b\\")]
     [DataRow("\x1b_Ga=q,i=1\x1b\\")]
     [DataRow("\u009fGa=q,i=1;AAAAAA==\u009c")]
@@ -34,6 +127,7 @@ public class Hmp1OutputProjectionTests
 
     [TestMethod]
     [DataRow("\x1b[>c\x1b[?62;4c\x1b[22t\x1b[1;2H\x1b[0m")]
+    [DataRow("\x1b[>31u\x1b[=3;2u\x1b[<u\x1b[?31u")]
     [DataRow("\x1b]0;inside\x1b[c\x07after")]
     [DataRow("\x1b]8;;https://example.test\x1b[18t\x1b\\")]
     [DataRow("\x1bPqinside\x1b[c\x1b\\")]
@@ -80,6 +174,7 @@ public class Hmp1OutputProjectionTests
     [DataRow("\x1b[c", "")]
     [DataRow("\x1b]7501;?\x1b\\", "")]
     [DataRow("\x1b[16t", "")]
+    [DataRow("\x1b[?u", "")]
     [DataRow("\x1b_Ga=q,i=1;AAAAAA==\x1b\\", "")]
     [DataRow("\x1b[4;8H", "\x1b[4;8H")]
     [DataRow("\x1b]0;hello\x1b\\", "\x1b]0;hello\x1b\\")]

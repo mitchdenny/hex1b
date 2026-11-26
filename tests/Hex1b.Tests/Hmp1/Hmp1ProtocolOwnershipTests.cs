@@ -11,6 +11,193 @@ namespace Hex1b.Tests;
 public class Hmp1ProtocolOwnershipTests
 {
     [TestMethod]
+    public async Task KittyOutput_Ris_ResetsRemoteKeyboardState()
+    {
+        await using var workload = new QueryWorkload();
+        await using var server = new Hmp1PresentationAdapter(40, 12);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(40, 12).Build();
+        var connection = await ConnectAsync(server);
+        await using var handle = connection.Handle;
+        await using var client = connection.Client;
+        await using var mirror = Hex1bTerminal.CreateBuilder().WithWorkload(client)
+            .WithHeadless().Build();
+        workload.Emit("\x1b[>31uREADY");
+        await WaitForTextAsync(mirror, "READY");
+        Assert.AreEqual(31, mirror.InputModes.KittyKeyboardFlags);
+        workload.Emit("\x1b" + "cRESET");
+        await WaitForTextAsync(mirror, "RESET");
+        Assert.AreEqual(0, producer.InputModes.KittyKeyboardFlags);
+        Assert.AreEqual(0, mirror.InputModes.KittyKeyboardFlags);
+    }
+
+    [TestMethod]
+    public async Task Hex1bApp_HmpBrowser_ReceivesPressAndRelease()
+    {
+        var started = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var server = new Hmp1PresentationAdapter(40, 12);
+        await using var producer = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp(ctx => ctx.Button("Ready").InputBindings(bindings =>
+            {
+                bindings.Key(Hex1bKey.A).OnHold((_, held) =>
+                {
+                    held.Register(() => released.TrySetResult());
+                    started.TrySetResult(held);
+                });
+                bindings.Key(Hex1bKey.Escape).Action(context => context.RequestStop());
+            }))
+            .WithPresentation(server).WithDimensions(40, 12).Build();
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        var run = producer.RunAsync(timeout.Token);
+        using var ready = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Ready") && s.KittyKeyboardFlags == 31,
+                TimeSpan.FromSeconds(10), "HMP app negotiated keyboard events")
+            .Build().ApplyAsync(producer, timeout.Token);
+        await using var browser = await server.CreateBrowserViewAsync(cancellationToken: timeout.Token);
+        await browser.HandleMessageAsync("""{"type":"key","key":"a","code":"KeyA","eventType":"press"}"""u8.ToArray(), timeout.Token);
+        var heldToken = await started.Task.WaitAsync(timeout.Token);
+        Assert.IsFalse(heldToken.IsCancellationRequested);
+        await browser.HandleMessageAsync("""{"type":"key","key":"a","code":"KeyA","eventType":"release"}"""u8.ToArray(), timeout.Token);
+        await released.Task.WaitAsync(timeout.Token);
+        Assert.IsTrue(heldToken.IsCancellationRequested);
+        await browser.HandleMessageAsync("""{"type":"key","key":"Escape","code":"Escape","eventType":"press"}"""u8.ToArray(), timeout.Token);
+        await run.WaitAsync(timeout.Token);
+    }
+
+    [TestMethod]
+    public async Task KittyReplay_TwoHopsAndResynchronization_PreservesHostStacks()
+    {
+        var toClient = new Pipe();
+        var toServer = new Pipe();
+        await using var wire = new DuplexStream(toServer.Reader.AsStream(), toClient.Writer.AsStream());
+        var clientStream = new DuplexStream(toClient.Reader.AsStream(), toServer.Writer.AsStream());
+        await using var upstream = new Hmp1WorkloadAdapter(new Hmp1ClientOptions
+        {
+            StreamFactory = _ => Task.FromResult<Stream>(clientStream)
+        });
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        var connecting = upstream.ConnectAsync(timeout.Token);
+        var clientHello = await Hmp1Protocol.ReadFrameAsync(wire, timeout.Token);
+        Assert.AreEqual(1, Hmp1Protocol.ParseClientHello(clientHello!.Value.Payload).KittyKeyboardVersion);
+        await Hmp1Protocol.WriteHelloAsync(wire, 40, 12, "peer", null, [], timeout.Token, kittyKeyboard: true);
+        await WriteKeyboardSyncAsync(wire,
+            "\x1b[?1049l\x1b[<128u\x1b[>1u\x1b[>3u\x1b[?1049h\x1b[<128u\x1b[>8u\x1b[2J\x1b[Hinitial",
+            timeout.Token);
+        await connecting;
+
+        await using var relayServer = new Hmp1PresentationAdapter(40, 12);
+        await using var relay = Hex1bTerminal.CreateBuilder().WithWorkload(upstream)
+            .WithPresentation(relayServer).Build();
+        var downstream = await ConnectAsync(relayServer);
+        await using var downstreamHandle = downstream.Handle;
+        await using var downstreamClient = downstream.Client;
+        await using var native = new NativePresentation();
+        await using var host = Hex1bTerminal.CreateBuilder().WithWorkload(native.Workload)
+            .WithHeadless().WithDimensions(40, 12).Build();
+        host.ApplyTokens(AnsiTokenizer.Tokenize(
+            "\x1b[>16u\x1b[>3u\x1b[?1049h\x1b[>4u\x1b[>5u\x1b[?1049l"));
+        await using var mirror = Hex1bTerminal.CreateBuilder().WithWorkload(downstreamClient)
+            .WithPresentation(native).Build();
+
+        await WaitForTextAsync(host, "initial");
+        using (var snapshot = host.CreateSnapshot())
+        {
+            TestSeq.AreEqual(new[] { 16, 3 }, snapshot.MainKittyKeyboardStack);
+            TestSeq.AreEqual(new[] { 4, 5, 8 }, snapshot.AlternateKittyKeyboardStack);
+        }
+
+        await Hmp1Protocol.WriteFrameAsync(wire, Hmp1FrameType.Output, "\x1b[>31u\x1b[<2u\x1b[?1049l\x1b[2J\x1b[Hlive"u8.ToArray(), timeout.Token);
+        await WaitForTextAsync(host, "live");
+        using (var snapshot = host.CreateSnapshot())
+        {
+            TestSeq.AreEqual(new[] { 16, 3, 3 }, snapshot.MainKittyKeyboardStack);
+            TestSeq.AreEqual(new[] { 4, 5 }, snapshot.AlternateKittyKeyboardStack);
+        }
+
+        await WriteKeyboardSyncAsync(wire, "\x1b[?1049l\x1b[2J\x1b[Hempty", timeout.Token);
+        await WaitForTextAsync(host, "empty");
+        await WaitForTextAsync(mirror, "empty");
+        using (var snapshot = mirror.CreateSnapshot())
+        {
+            Assert.AreEqual(0, snapshot.KittyKeyboardFlags);
+            Assert.AreEqual(0, snapshot.MainKittyKeyboardStack.Length);
+            Assert.AreEqual(0, snapshot.AlternateKittyKeyboardStack.Length);
+        }
+        using (var snapshot = host.CreateSnapshot())
+        {
+            TestSeq.AreEqual(new[] { 16, 3, 0 }, snapshot.MainKittyKeyboardStack);
+            TestSeq.AreEqual(new[] { 4, 5 }, snapshot.AlternateKittyKeyboardStack);
+        }
+
+        await WriteKeyboardSyncAsync(wire,
+            "\x1b[?1049l\x1b[<128u\x1b[>7u\x1b[?1049h\x1b[<128u\x1b[>8u\x1b[?1049l\x1b[2J\x1b[Hagain",
+            timeout.Token);
+        await WaitForTextAsync(host, "again");
+        using (var snapshot = host.CreateSnapshot())
+            TestSeq.AreEqual(new[] { 16, 3, 7 }, snapshot.MainKittyKeyboardStack);
+
+        await downstreamHandle.DisposeAsync();
+        using var restored = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.KittyKeyboardFlags == 3, TimeSpan.FromSeconds(10), "host keyboard restored")
+            .Build().ApplyAsync(host, timeout.Token);
+        TestSeq.AreEqual(new[] { 16, 3 }, restored.MainKittyKeyboardStack);
+        TestSeq.AreEqual(new[] { 4, 5 }, restored.AlternateKittyKeyboardStack);
+        await mirror.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task KittyOutput_LegacyPeerAndPublicRawReader_DoNotReceiveStackCommands()
+    {
+        await using var workload = new QueryWorkload();
+        await using var server = new Hmp1PresentationAdapter(40, 12);
+        await using var producer = Hex1bTerminal.CreateBuilder().WithWorkload(workload)
+            .WithPresentation(server).WithDimensions(40, 12).Build();
+        producer.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>3u"));
+        var toClient = new Pipe();
+        var toServer = new Pipe();
+        await using var wire = new DuplexStream(toClient.Reader.AsStream(), toServer.Writer.AsStream());
+        var serverStream = new DuplexStream(toServer.Reader.AsStream(), toClient.Writer.AsStream());
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        var accepting = server.AddClient(serverStream, timeout.Token);
+        await Hmp1Protocol.WriteFrameAsync(wire, Hmp1FrameType.ClientHello, """{"displayName":"legacy"}"""u8.ToArray(), timeout.Token);
+        var hello = await Hmp1Protocol.ReadFrameAsync(wire, timeout.Token);
+        Assert.AreEqual(0, Hmp1Protocol.ParseHello(hello!.Value.Payload).KittyKeyboardVersion);
+        var sync = await Hmp1Protocol.ReadFrameAsync(wire, timeout.Token);
+        Assert.DoesNotContain("\x1b[<128u", Encoding.UTF8.GetString(sync!.Value.Payload.Span));
+        Assert.DoesNotContain("\x1b[>3u", Encoding.UTF8.GetString(sync.Value.Payload.Span));
+        await Hmp1Protocol.ReadActivityStateAsync(wire, timeout.Token);
+        await using var legacyHandle = await accepting;
+        var modern = await ConnectAsync(server);
+        await using var modernHandle = modern.Handle;
+        await using var raw = modern.Client;
+
+        workload.Emit("\x1b[>31u\x1b[=2u\x1b[<uDONE");
+        var legacyOutput = new StringBuilder();
+        while (!legacyOutput.ToString().Contains("DONE", StringComparison.Ordinal))
+        {
+            var frame = await Hmp1Protocol.ReadFrameAsync(wire, timeout.Token);
+            Assert.IsNotNull(frame);
+            if (frame.Value.Type == Hmp1FrameType.Output)
+                legacyOutput.Append(Encoding.UTF8.GetString(frame.Value.Payload.Span));
+        }
+        Assert.AreEqual("DONE", legacyOutput.ToString());
+        var rawOutput = await ReadThroughAsync(raw, "DONE");
+        Assert.DoesNotContain("\x1b[>31u", rawOutput);
+        Assert.DoesNotContain("\x1b[=2u", rawOutput);
+        Assert.DoesNotContain("\x1b[<u", rawOutput);
+    }
+
+    private static async Task WriteKeyboardSyncAsync(Stream wire, string ansi, CancellationToken ct)
+    {
+        await Hmp1Protocol.WriteFrameAsync(wire, Hmp1FrameType.StateSync, Encoding.UTF8.GetBytes(ansi), ct);
+        await Hmp1Protocol.WriteActivityStateAsync(wire, Hmp1ActivityState.Default, ct);
+    }
+
+    [TestMethod]
     [DataRow(Hex1bModifiers.Alt, "\u001be")]
     [DataRow(Hex1bModifiers.Alt | Hex1bModifiers.Shift, "\u001bE")]
     [DataRow(Hex1bModifiers.Alt | Hex1bModifiers.Control, "\u001b\u0005")]
@@ -160,6 +347,7 @@ public class Hmp1ProtocolOwnershipTests
     [DataRow("\x1b[5n", "\x1b[0n")]
     [DataRow("\x1b[6n", "\x1b[1;1R")]
     [DataRow("\x1b[18t", "\x1b[8;12;40t")]
+    [DataRow("\x1b[?u", "\x1b[?0u")]
     [DataRow("\x1b]7501;?\x07", "\x1b]7501;?:states=idle,working,done,blocked,error:kinds=permission,question,auth\x1b\\")]
     [DataRow("\x1b_Ga=q,i=73,f=32,s=1,v=1;AAAAAA==\x1b\\", "\x1b_Gi=73;OK\x1b\\")]
     public async Task Output_MultipleHopsAndNativeClient_OnlyProducerResponds(string query, string reply)
@@ -319,6 +507,8 @@ public class Hmp1ProtocolOwnershipTests
     [TestMethod]
     [DataRow(false, "\x1b[c", "\x1b[?62;4c")]
     [DataRow(true, "\x1b[c", "\x1b[?62;4c")]
+    [DataRow(false, "\x1b[?u", "\x1b[?0u")]
+    [DataRow(true, "\x1b[?u", "\x1b[?0u")]
     [DataRow(false, "\x1b]7501;?\x07", "\x1b]7501;?:states=idle,working,done,blocked,error:kinds=permission,question,auth\x1b\\")]
     [DataRow(true, "\x1b]7501;?\x07", "\x1b]7501;?:states=idle,working,done,blocked,error:kinds=permission,question,auth\x1b\\")]
     public async Task Output_DirectAndRelayedHwt1_ReceiveSameSingleReply(bool relayed, string query, string reply)
@@ -357,6 +547,7 @@ public class Hmp1ProtocolOwnershipTests
     [TestMethod]
     [DataRow("\x1b[c", "\x1b[?62;4c")]
     [DataRow("\x1b[16t", "\x1b[6;20;10t")]
+    [DataRow("\x1b[?u", "\x1b[?0u")]
     [DataRow("\x1b_Ga=q,i=73,f=32,s=1,v=1;AAAAAA==\x1b\\", "\x1b_Gi=73;OK\x1b\\")]
     public async Task Attach_InsideQueryAtEveryBoundary_DoesNotSeedQueryOrTail(string query, string expectedReply)
     {
@@ -376,6 +567,7 @@ public class Hmp1ProtocolOwnershipTests
             workload.Emit(query[split..] + "DONE");
             var output = await ReadThroughAsync(client, "DONE");
             Assert.AreEqual(expectedReply, await workload.ReadInputAsync());
+            Assert.DoesNotContain(query, output);
             var tokens = AnsiTokenizer.Tokenize(output);
             Assert.IsFalse(tokens.Any(token => token is DeviceAttributesQueryToken or WindowOperationToken or KgpToken),
                 $"Split {split}: no query may be replayed.");

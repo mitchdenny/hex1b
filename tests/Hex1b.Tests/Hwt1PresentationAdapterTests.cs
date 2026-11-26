@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
+using Hex1b.Input;
 using Hex1b.Tokens;
 using Microsoft.Extensions.Time.Testing;
 
@@ -536,6 +537,108 @@ public class Hwt1PresentationAdapterTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task DisposeAsync_ReleasesKeysHeldByDisconnectedBrowser(bool releaseBeforeDispose)
+    {
+        var workload = new RecordingWorkload();
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = CreateTerminal(presentation, workload);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>31u"));
+
+        await presentation.HandleMessageAsync(
+            """{"type":"key","key":"a","code":"KeyA","eventType":"press"}"""u8.ToArray());
+        if (releaseBeforeDispose)
+        {
+            await presentation.HandleMessageAsync(
+                """{"type":"key","key":"a","code":"KeyA","eventType":"release"}"""u8.ToArray());
+        }
+
+        await presentation.DisposeAsync();
+
+        Assert.AreEqual(2, workload.Input.Count);
+        Assert.AreEqual("\x1b[97;1;97u", Encoding.UTF8.GetString(workload.Input[0]));
+        Assert.AreEqual("\x1b[97;1:3u", Encoding.UTF8.GetString(workload.Input[1]));
+    }
+
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(3)]
+    public async Task HandleMessageAsync_ModeChangesWhileKeyHeld_ReleasesUsingOriginalMode(int newFlags)
+    {
+        var workload = new RecordingWorkload();
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = CreateTerminal(presentation, workload);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>31u"));
+
+        await presentation.HandleMessageAsync(
+            """{"type":"key","key":"a","code":"KeyA","eventType":"press"}"""u8.ToArray());
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize($"\x1b[={newFlags}u"));
+        await presentation.HandleMessageAsync(
+            """{"type":"key","key":"a","code":"KeyA","eventType":"release"}"""u8.ToArray());
+        await presentation.DisposeAsync();
+
+        Assert.AreEqual(2, workload.Input.Count);
+        Assert.AreEqual("\x1b[97;1;97u", Encoding.UTF8.GetString(workload.Input[0]));
+        Assert.AreEqual("\x1b[97;1:3u", Encoding.UTF8.GetString(workload.Input[1]));
+    }
+
+    [TestMethod]
+    public async Task HandleMessageAsync_ModeChangesWhileKeyHeld_ReleasesParsedAppEvent()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            Width = 20, Height = 10, PresentationAdapter = presentation, WorkloadAdapter = workload,
+            RunCallback = _ => Task.FromResult(0)
+        });
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>31u"));
+        await presentation.HandleMessageAsync(
+            """{"type":"key","key":"a","code":"KeyA","eventType":"press"}"""u8.ToArray());
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[=0u"));
+        await presentation.HandleMessageAsync(
+            """{"type":"key","key":"a","code":"KeyA","eventType":"release"}"""u8.ToArray());
+        await presentation.DisposeAsync();
+
+        Assert.IsTrue(workload.InputEvents.TryRead(out var press));
+        Assert.IsTrue(workload.InputEvents.TryRead(out var release));
+        Assert.AreEqual(Hex1bKeyEventType.Press, TestSeq.IsType<Hex1bKeyEvent>(press).EventType);
+        Assert.AreEqual(Hex1bKeyEventType.Release, TestSeq.IsType<Hex1bKeyEvent>(release).EventType);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_InFlightKeyPress_ReleasesAfterDelivery()
+    {
+        var workload = new GatedKeyWorkload();
+        await using var presentation = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = CreateTerminal(presentation, workload);
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>31u"));
+
+        var press = presentation.HandleMessageAsync(
+            """{"type":"key","key":"a","code":"KeyA","eventType":"press"}"""u8.ToArray());
+        try
+        {
+            await workload.PressAccepted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var disposal = presentation.DisposeAsync().AsTask();
+            Assert.IsFalse(disposal.IsCompleted);
+            workload.FinishPress.TrySetResult();
+            await press.WaitAsync(TimeSpan.FromSeconds(5));
+            await disposal.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            workload.FinishPress.TrySetResult();
+        }
+
+        Assert.AreEqual(2, workload.Input.Count);
+        Assert.AreEqual("\x1b[97;1;97u", Encoding.UTF8.GetString(workload.Input[0]));
+        Assert.AreEqual("\x1b[97;1:3u", Encoding.UTF8.GetString(workload.Input[1]));
+    }
+
+    [TestMethod]
     public async Task ReadFrameAsync_ConcurrentReaders_RejectsAdditionalReader()
     {
         await using var presentation = new Hwt1PresentationAdapter(20, 10);
@@ -644,7 +747,7 @@ public class Hwt1PresentationAdapterTests
     }
 
     private static Hex1bTerminal CreateTerminal(
-        Hwt1PresentationAdapter presentation, RecordingWorkload workload, bool startPumps = false,
+        Hwt1PresentationAdapter presentation, IHex1bTerminalWorkloadAdapter workload, bool startPumps = false,
         TimeProvider? timeProvider = null)
         => new(new Hex1bTerminalOptions
         {
@@ -701,5 +804,29 @@ public class Hwt1PresentationAdapterTests
             Disconnected?.Invoke();
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class GatedKeyWorkload : IHex1bTerminalWorkloadAdapter
+    {
+        public TaskCompletionSource PressAccepted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource FinishPress { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<byte[]> Input { get; } = [];
+        public event Action? Disconnected { add { } remove { } }
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+            => ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+
+        public async ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+        {
+            Input.Add(data.ToArray());
+            if (Input.Count == 1)
+            {
+                PressAccepted.TrySetResult();
+                await FinishPress.Task;
+            }
+        }
+
+        public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Layout;
+using System.Reflection;
 
 namespace Hex1b.Tests;
 
@@ -11,6 +12,27 @@ namespace Hex1b.Tests;
 [TestClass]
 public class PasteRoutingTests
 {
+    [TestMethod]
+    public async Task App_EscapeRelease_DoesNotCancelActivePaste()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var app = new Hex1bApp(ctx => ctx.Text(""), new Hex1bAppOptions { WorkloadAdapter = workload });
+        await using var paste = new PasteContext();
+        var fields = BindingFlags.Instance | BindingFlags.NonPublic;
+        typeof(Hex1bApp).GetField("_rootNode", fields)!.SetValue(app, new PasteFocusableNode { IsFocused = true });
+        typeof(Hex1bApp).GetField("_activePaste", fields)!.SetValue(app, paste);
+        var process = typeof(Hex1bApp).GetMethod("ProcessInputEventAsync", fields)!;
+
+        await (Task)process.Invoke(app, [
+            new Hex1bKeyEvent(Hex1bKey.Escape, "", Hex1bModifiers.None) { EventType = Hex1bKeyEventType.Release },
+            CancellationToken.None])!;
+        Assert.IsFalse(paste.IsCancelled);
+
+        await (Task)process.Invoke(app, [
+            Hex1bKeyEvent.Plain(Hex1bKey.Escape), CancellationToken.None])!;
+        Assert.IsTrue(paste.IsCancelled);
+    }
+
     /// <summary>
     /// Focusable node that can optionally handle paste events.
     /// </summary>

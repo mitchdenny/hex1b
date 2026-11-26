@@ -172,6 +172,49 @@ public class Hmp1ShutdownCompatibilityTests
             "The client cannot recover output after Exit or apply an incomplete wire frame.");
     }
 
+    [TestMethod]
+    [DataRow(false, "\x1b[")]
+    [DataRow(true, "\x1b[")]
+    [DataRow(false, "\u00c2")]
+    [DataRow(true, "\u00c2")]
+    public async Task LegacyWireServer_IncompleteFinalControl_IsPresentedBeforeCompletion(bool directReader, string tail)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var ct = timeout.Token;
+        var (serverPipe, clientPipe) = DuplexPipeStream.CreatePair();
+        await using var legacyServer = serverPipe;
+        await using var clientStream = clientPipe;
+        await using var client = Hmp1TestHelpers.NewClient(clientStream);
+        await ConnectLegacyServerAsync(legacyServer, client, ct);
+        var expected = Encoding.Latin1.GetBytes(tail);
+        await WriteLegacyFrameAsync(legacyServer, 0x03, expected, ct);
+        await legacyServer.DisposeAsync();
+        await client.DisconnectedTask.WaitAsync(ct);
+
+        if (directReader)
+        {
+            var output = new List<byte>();
+            while (true)
+            {
+                var bytes = await client.ReadOutputAsync(ct);
+                if (bytes.IsEmpty)
+                    break;
+                output.AddRange(bytes.ToArray());
+            }
+            TestSeq.AreEqual(expected, output.TakeLast(expected.Length));
+        }
+        else
+        {
+            var presentation = new GatedPresentationAdapter();
+            presentation.ReleaseWrite.TrySetResult();
+            await using var replica = Hex1bTerminal.CreateBuilder()
+                .WithWorkload(client).WithPresentation(presentation).WithDimensions(80, 10).Build();
+            await replica.RunAsync(ct);
+            await presentation.Completed.Task.WaitAsync(ct);
+            TestSeq.AreEqual(expected, presentation.OutputAtCompletion!.TakeLast(expected.Length));
+        }
+    }
+
     // Pin the pre-change wire contract rather than sharing the production codec.
     private static byte[] EncodeLegacyFrame(byte type, ReadOnlyMemory<byte> payload)
     {
@@ -234,6 +277,7 @@ public class Hmp1ShutdownCompatibilityTests
         public TaskCompletionSource ReleaseWrite { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<string[]> Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<byte> Output { get; } = [];
+        public byte[]? OutputAtCompletion { get; private set; }
         public int Width => _headless.Width;
         public int Height => _headless.Height;
         public TerminalCapabilities Capabilities => _headless.Capabilities;
@@ -249,6 +293,7 @@ public class Hmp1ShutdownCompatibilityTests
         public void TerminalStarted() { }
         public void TerminalCompleted(int exitCode)
         {
+            OutputAtCompletion = Output.ToArray();
             using var snapshot = _terminal!.CreateSnapshot();
             Completed.TrySetResult(Enumerable.Range(0, 3).Select(snapshot.GetLineTrimmed).ToArray());
         }

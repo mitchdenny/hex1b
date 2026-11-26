@@ -105,6 +105,27 @@ public sealed class Hex1bTerminalInputSequenceBuilder
         return this;
     }
 
+    /// <summary>Adds Super to the next key or mouse action.</summary>
+    public Hex1bTerminalInputSequenceBuilder Super()
+    {
+        _pendingModifiers |= Hex1bModifiers.Super;
+        return this;
+    }
+
+    /// <summary>Adds Hyper to the next key or mouse action.</summary>
+    public Hex1bTerminalInputSequenceBuilder Hyper()
+    {
+        _pendingModifiers |= Hex1bModifiers.Hyper;
+        return this;
+    }
+
+    /// <summary>Adds Meta to the next key or mouse action.</summary>
+    public Hex1bTerminalInputSequenceBuilder Meta()
+    {
+        _pendingModifiers |= Hex1bModifiers.Meta;
+        return this;
+    }
+
     // ========================================
     // Key input
     // ========================================
@@ -144,6 +165,24 @@ public sealed class Hex1bTerminalInputSequenceBuilder
         var combinedModifiers = _pendingModifiers | modifiers;
         var text = GetDefaultTextForKey(key, combinedModifiers);
         _steps.Add(new KeyInputStep(key, text, combinedModifiers));
+        _pendingModifiers = Hex1bModifiers.None;
+        return this;
+    }
+
+    /// <summary>Sends a key event with its event type and available keyboard metadata.</summary>
+    /// <param name="keyEvent">The event to send. Pending modifiers are combined with its modifiers.</param>
+    /// <returns>This builder.</returns>
+    /// <remarks>Wire encoding uses the workload's keyboard mode when the sequence runs.</remarks>
+    public Hex1bTerminalInputSequenceBuilder Key(Hex1bKeyEvent keyEvent)
+    {
+        ArgumentNullException.ThrowIfNull(keyEvent);
+        _steps.Add(new KeyInputStep(keyEvent.Key, keyEvent.Text, keyEvent.Modifiers | _pendingModifiers)
+        {
+            EventType = keyEvent.EventType,
+            UnicodeKeyCode = keyEvent.UnicodeKeyCode,
+            ShiftedKeyCode = keyEvent.ShiftedKeyCode,
+            BaseLayoutKeyCode = keyEvent.BaseLayoutKeyCode
+        });
         _pendingModifiers = Hex1bModifiers.None;
         return this;
     }

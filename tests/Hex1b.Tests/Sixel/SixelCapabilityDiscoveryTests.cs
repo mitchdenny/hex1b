@@ -68,7 +68,7 @@ public class SixelCapabilityDiscoveryTests
     }
 
     [TestMethod]
-    public async Task WithSixelSupport_DeclaredDirectly_SkipsProbingEntirely()
+    public async Task WithSixelSupport_DeclaredDirectly_SkipsSixelProbing()
     {
         using var driver = new FakeConsoleDriver(); // No replies queued at all.
         var declared = new SixelCellMetrics(11, 22, SixelCellMetricsSource.Direct, SixelCellMetricsReliability.Authoritative);
@@ -82,8 +82,8 @@ public class SixelCapabilityDiscoveryTests
 
         await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
 
-        // No Sixel probe queries were ever written to the driver.
-        Assert.DoesNotContain("\x1b[c", driver.WrittenText);
+        // DA1 is still sent as the delimiter for the independent Kitty probe.
+        Assert.Contains("\x1b[?u\x1b[c", driver.WrittenText);
         Assert.DoesNotContain("\x1b[16t", driver.WrittenText);
         Assert.DoesNotContain("\x1b[14t", driver.WrittenText);
         Assert.DoesNotContain("\x1b[18t", driver.WrittenText);
@@ -97,7 +97,7 @@ public class SixelCapabilityDiscoveryTests
     [TestMethod]
     public async Task WithSixelSupport_DeclaredNone_IsConfirmedUnsupportedNotUnknown()
     {
-        using var driver = new FakeConsoleDriver();
+        using var driver = new FakeConsoleDriver(Da1Reply(declaresSixel: true));
         await using var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: ProbeTimeout);
         adapter.WithSixelSupport(SixelPresentationSupport.None);
 
@@ -105,27 +105,28 @@ public class SixelCapabilityDiscoveryTests
 
         Assert.AreEqual(SixelPresentationSupport.None, adapter.Capabilities.SixelSupport);
         Assert.IsFalse(adapter.Capabilities.SupportsSixel);
-        // A direct "none" declaration still pre-empted probing (no DA1 sent),
-        // which is what makes it distinct from an unanswered/unknown probe.
-        Assert.DoesNotContain("\x1b[c", driver.WrittenText);
+        // The DA1 reply is needed for Kitty detection, not Sixel discovery.
+        Assert.Contains("\x1b[?u\x1b[c", driver.WrittenText);
+        Assert.AreEqual(SixelCapabilityProbeDiagnostics.NotProbed, adapter.SixelProbeDiagnostics);
     }
 
     [TestMethod]
     public async Task WithSixelSupport_DeclaredUnknown_PreemptsProbingAndStaysUnknown()
     {
-        using var driver = new FakeConsoleDriver();
+        using var driver = new FakeConsoleDriver(Da1Reply(declaresSixel: true));
         await using var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: ProbeTimeout);
         // An adapter can also declare "unknown" directly (for example, one that
         // deliberately defers the decision to a later stage). This must remain
         // distinct from both an affirmative declaration and an unanswered probe,
-        // and must still pre-empt DA1 probing exactly like any other declared value.
+        // and must still pre-empt Sixel probing exactly like any other declared value.
         adapter.WithSixelSupport(SixelPresentationSupport.Unknown);
 
         await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
 
         Assert.AreEqual(SixelPresentationSupport.Unknown, adapter.Capabilities.SixelSupport);
         Assert.IsFalse(adapter.Capabilities.SupportsSixel);
-        Assert.DoesNotContain("\x1b[c", driver.WrittenText);
+        Assert.Contains("\x1b[?u\x1b[c", driver.WrittenText);
+        Assert.AreEqual(SixelCapabilityProbeDiagnostics.NotProbed, adapter.SixelProbeDiagnostics);
     }
 
     // Single-source acceptance -------------------------------------------------

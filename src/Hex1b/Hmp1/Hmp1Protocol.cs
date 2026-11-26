@@ -140,12 +140,14 @@ internal static class Hmp1Protocol
         CancellationToken ct = default,
         int scrollbackHistoryRows = 0,
         bool commandMarkHistory = false,
-        bool programStatus = false)
+        bool programStatus = false,
+        bool kittyKeyboard = false)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(
             new HelloPayload
             {
                 Version = Version,
+                KittyKeyboardVersion = kittyKeyboard ? 1 : 0,
                 ProgramStatusVersion = programStatus ? Hmp1ProgramStatusState.Version : 0,
                 Width = width,
                 Height = height,
@@ -194,12 +196,14 @@ internal static class Hmp1Protocol
         CancellationToken ct = default,
         int scrollbackHistoryRows = 0,
         bool commandMarkHistory = false,
-        bool programStatus = false)
+        bool programStatus = false,
+        bool kittyKeyboard = false)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(
             new ClientHelloPayload
             {
                 DisplayName = displayName,
+                KittyKeyboardVersion = kittyKeyboard ? 1 : 0,
                 ProgramStatusVersion = programStatus ? Hmp1ProgramStatusState.Version : 0,
                 DefaultRole = defaultRole,
                 ScrollbackHistoryVersion = scrollbackHistoryRows > 0 ? Hmp1ScrollbackState.Version : 0,

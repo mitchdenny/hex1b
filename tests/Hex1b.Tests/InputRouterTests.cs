@@ -7,6 +7,169 @@ namespace Hex1b.Tests;
 [TestClass]
 public class InputRouterTests
 {
+    [TestMethod]
+    public async Task HeldKey_RepeatAndRelease_CancelsOnceWithoutBlockingRouting()
+    {
+        var started = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var node = new MockFocusableNode { IsFocused = true };
+        node.BindingsConfig = bindings => bindings.Key(Hex1bKey.A).OnHold(async (_, token) =>
+        {
+            Interlocked.Increment(ref calls);
+            started.TrySetResult(token);
+            try { await Task.Delay(Timeout.Infinite, token); }
+            finally { finished.TrySetResult(); }
+        });
+        var container = new MockContainerNode();
+        container.Children.Add(node);
+        node.Parent = container;
+        var ring = new FocusRing();
+        ring.Rebuild(container);
+        var state = new InputRouterState();
+        var press = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a');
+
+        await InputRouter.RouteInputAsync(container, press, ring, state);
+        var token = await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await InputRouter.RouteInputAsync(container, press with { EventType = Hex1bKeyEventType.Repeat }, ring, state);
+        Assert.AreEqual(1, calls);
+        Assert.IsFalse(token.IsCancellationRequested);
+        await InputRouter.RouteInputAsync(container, press with { EventType = Hex1bKeyEventType.Release, Modifiers = Hex1bModifiers.Shift }, ring, state);
+        await finished.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsTrue(token.IsCancellationRequested);
+        state.CancelKeyHolds();
+    }
+
+    [TestMethod]
+    public async Task HeldKey_CompletedCallback_TokenStillCancelsOnRelease()
+    {
+        var started = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var node = new MockFocusableNode { IsFocused = true };
+        node.BindingsConfig = bindings => bindings.Key(Hex1bKey.A).OnHold((_, token) => started.TrySetResult(token));
+        var container = new MockContainerNode();
+        container.Children.Add(node);
+        node.Parent = container;
+        var ring = new FocusRing();
+        ring.Rebuild(container);
+        var state = new InputRouterState();
+        var press = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a');
+        await InputRouter.RouteInputAsync(container, press, ring, state);
+        var token = await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await InputRouter.RouteInputAsync(container, press with { EventType = Hex1bKeyEventType.Release }, ring, state);
+        Assert.IsTrue(token.IsCancellationRequested);
+        state.CancelKeyHolds();
+    }
+
+    [TestMethod]
+    public async Task HeldKey_FocusCaptureAndShutdown_CancelTokens()
+    {
+        var started = new System.Threading.Channels.UnboundedChannelOptions { SingleReader = true };
+        var tokens = System.Threading.Channels.Channel.CreateUnbounded<CancellationToken>(started);
+        var first = new MockFocusableNode { IsFocused = true };
+        var second = new MockFocusableNode();
+        first.BindingsConfig = second.BindingsConfig = bindings =>
+            bindings.Key(Hex1bKey.A).OnHold((_, token) => tokens.Writer.TryWrite(token));
+        var container = new MockContainerNode();
+        container.Children.AddRange([first, second]);
+        first.Parent = second.Parent = container;
+        var ring = new FocusRing();
+        ring.Rebuild(container);
+        var state = new InputRouterState();
+        var press = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a');
+
+        await InputRouter.RouteInputAsync(container, press, ring, state);
+        var firstToken = await tokens.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        ring.Focus(second);
+        Assert.IsTrue(firstToken.IsCancellationRequested);
+        await InputRouter.RouteInputAsync(container, press, ring, state);
+        var secondToken = await tokens.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        ring.CaptureInput(second);
+        Assert.IsTrue(secondToken.IsCancellationRequested);
+        ring.ReleaseCapture();
+        await InputRouter.RouteInputAsync(container, press, ring, state);
+        var thirdToken = await tokens.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        state.CancelKeyHolds();
+        Assert.IsTrue(thirdToken.IsCancellationRequested);
+    }
+
+    [TestMethod]
+    public async Task HeldKey_FailureAfterShutdown_DoesNotFailNextRun()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var node = new MockFocusableNode { IsFocused = true };
+        node.BindingsConfig = bindings => bindings.Key(Hex1bKey.A).OnHold(async (_, _) =>
+        {
+            started.TrySetResult();
+            await finish.Task;
+            throw new InvalidOperationException("old run");
+        });
+        var container = new MockContainerNode();
+        container.Children.Add(node);
+        node.Parent = container;
+        var ring = new FocusRing();
+        ring.Rebuild(container);
+        var state = new InputRouterState();
+        state.BeginKeyHolds();
+        var oldFailure = state.HoldFailure;
+
+        await InputRouter.RouteInputAsync(container, Hex1bKeyEvent.Plain(Hex1bKey.A), ring, state);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        state.CancelKeyHolds();
+        state.BeginKeyHolds();
+        finish.TrySetResult();
+
+        Assert.AreEqual("old run", (await oldFailure.WaitAsync(TimeSpan.FromSeconds(5))).Message);
+        Assert.IsFalse(state.HoldFailure.IsCompleted);
+    }
+
+    [TestMethod]
+    public async Task RouteInput_EnhancedModifiersAndLocks_MatchesBinding()
+    {
+        var actions = 0;
+        var focusedNode = new MockFocusableNode { IsFocused = true };
+        focusedNode.BindingsConfig = bindings =>
+            bindings.Super().Ctrl().Key(Hex1bKey.A).Action(() => actions++);
+        var container = new MockContainerNode();
+        container.Children.Add(focusedNode);
+        focusedNode.Parent = container;
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(container);
+        focusRing.EnsureFocus();
+
+        await InputRouter.RouteInputAsync(container,
+            new Hex1bKeyEvent(Hex1bKey.A, "", Hex1bModifiers.Super | Hex1bModifiers.Control |
+                Hex1bModifiers.CapsLock | Hex1bModifiers.NumLock),
+            focusRing, new InputRouterState());
+        Assert.AreEqual(1, actions);
+    }
+
+    [TestMethod]
+    public async Task RouteInput_Release_DoesNotTriggerBindingsOrCancelChord()
+    {
+        var actions = 0;
+        var focusedNode = new MockFocusableNode { IsFocused = true };
+        focusedNode.BindingsConfig = bindings =>
+            bindings.Key(Hex1bKey.G).Then().Key(Hex1bKey.G)
+                .Action(_ => { actions++; return Task.CompletedTask; }, "Go");
+        var container = new MockContainerNode();
+        container.Children.Add(focusedNode);
+        focusedNode.Parent = container;
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(container);
+        focusRing.EnsureFocus();
+        var state = new InputRouterState();
+        var press = Hex1bKeyEvent.Plain(Hex1bKey.G, 'g');
+        var release = press with { EventType = Hex1bKeyEventType.Release };
+
+        await InputRouter.RouteInputAsync(container, press, focusRing, state);
+        await InputRouter.RouteInputAsync(container, release, focusRing, state);
+        Assert.AreEqual(release, TestSeq.Single(focusedNode.ReceivedInputs));
+        Assert.AreEqual(0, actions);
+        await InputRouter.RouteInputAsync(container, press, focusRing, state);
+        Assert.AreEqual(1, actions);
+    }
+
     /// <summary>
     /// Mock focusable node for testing input routing.
     /// </summary>

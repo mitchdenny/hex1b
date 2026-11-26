@@ -9,6 +9,24 @@ namespace Hex1b.Tests;
 public class Hwt1ActivityTests
 {
     [TestMethod]
+    public async Task ReadFrameAsync_KeyboardModeChanges_TracksActiveScreen()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var view = new Hwt1PresentationAdapter(20, 10);
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithPresentation(view).WithDimensions(20, 10).Build();
+        Assert.AreEqual(0, (await ReadFrameAsync(view)).Metadata.GetProperty("kittyKeyboardFlags").GetInt32());
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>3u"));
+        Assert.AreEqual(3, (await ReadFrameAsync(view)).Metadata.GetProperty("kittyKeyboardFlags").GetInt32());
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049h\x1b[>27u"));
+        Assert.AreEqual(27, (await ReadFrameAsync(view)).Metadata.GetProperty("kittyKeyboardFlags").GetInt32());
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049l"));
+        Assert.AreEqual(3, (await ReadFrameAsync(view)).Metadata.GetProperty("kittyKeyboardFlags").GetInt32());
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[<u"));
+        Assert.AreEqual(0, (await ReadFrameAsync(view)).Metadata.GetProperty("kittyKeyboardFlags").GetInt32());
+    }
+
+    [TestMethod]
     public async Task ReadFrameAsync_ActivityOnlyOutput_CarriesDefaultsChangesAndClearsWithoutCells()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

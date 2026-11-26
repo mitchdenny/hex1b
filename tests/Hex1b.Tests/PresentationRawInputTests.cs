@@ -11,6 +11,149 @@ namespace Hex1b.Tests;
 public class PresentationRawInputTests
 {
     [TestMethod]
+    public async Task PresentationInput_FragmentedKittyEvents_PreservesIdentityAndOrdering()
+    {
+        await using var presentation = new QueuedPresentation();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+
+        foreach (var value in "a\x1b[97:65;2:2;65u\x1b[97;1:3uz"u8)
+            presentation.Enqueue([value]);
+
+        Assert.AreEqual(Hex1bKey.A, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+        var repeat = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents));
+        Assert.AreEqual(Hex1bKey.A, repeat.Key);
+        Assert.AreEqual(Hex1bKeyEventType.Repeat, repeat.EventType);
+        Assert.AreEqual(65, repeat.ShiftedKeyCode);
+        Assert.AreEqual("A", repeat.Text);
+        var release = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents));
+        Assert.AreEqual(Hex1bKey.A, release.Key);
+        Assert.AreEqual(Hex1bKeyEventType.Release, release.EventType);
+        Assert.AreEqual(Hex1bKey.Z, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task KittyF3_FragmentedWireEvents_PreservePressRepeatAndRelease(bool rawWorkload)
+    {
+        await using var presentation = new QueuedPresentation();
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities { SupportsKittyKeyboard = true });
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        if (rawWorkload)
+            workload.EnterTuiMode();
+        else
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>31u"));
+
+        foreach (var value in "\x1b[13~\x1b[13;65~\x1b[13;5:2~\x1b[13;1:3~"u8.ToArray())
+        {
+            if (rawWorkload)
+                await workload.WriteInputAsync(new byte[] { value }, TestContext.Current.CancellationToken);
+            else
+                presentation.Enqueue([value]);
+        }
+
+        foreach (var (type, modifiers) in new[]
+        {
+            (Hex1bKeyEventType.Press, Hex1bModifiers.None),
+            (Hex1bKeyEventType.Press, Hex1bModifiers.CapsLock),
+            (Hex1bKeyEventType.Repeat, Hex1bModifiers.Control),
+            (Hex1bKeyEventType.Release, Hex1bModifiers.None)
+        })
+        {
+            var key = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents));
+            Assert.AreEqual(Hex1bKey.F3, key.Key);
+            Assert.AreEqual(type, key.EventType);
+            Assert.AreEqual(modifiers, key.Modifiers);
+        }
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task PresentationInput_CursorReportInKittyMode_DoesNotBecomeF3(bool rawWorkload)
+    {
+        await using var presentation = new QueuedPresentation();
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities { SupportsKittyKeyboard = true });
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        if (rawWorkload)
+        {
+            workload.EnterTuiMode();
+            await workload.WriteInputAsync("\x1b[1;5Rz"u8.ToArray(), TestContext.Current.CancellationToken);
+        }
+        else
+        {
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>31u"));
+            presentation.Enqueue("\x1b[1;5Rz"u8.ToArray());
+        }
+
+        Assert.AreEqual(Hex1bKey.Z, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task PresentationInput_LegacyModifiedF3_StillRoutes()
+    {
+        await using var presentation = new QueuedPresentation();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        presentation.Enqueue("\x1b[1;5R"u8.ToArray());
+
+        var key = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents));
+        Assert.AreEqual(Hex1bKey.F3, key.Key);
+        Assert.AreEqual(Hex1bModifiers.Control, key.Modifiers);
+    }
+
+    [TestMethod]
+    [DataRow("\x1b[1;65A", Hex1bKey.UpArrow, Hex1bModifiers.CapsLock)]
+    [DataRow("\x1b[3;129~", Hex1bKey.Delete, Hex1bModifiers.NumLock)]
+    [DataRow("\x1b[1;9H", Hex1bKey.Home, Hex1bModifiers.Super)]
+    [DataRow("\x1b[1;65P", Hex1bKey.F1, Hex1bModifiers.CapsLock)]
+    [DataRow("\x1b[1;129Q", Hex1bKey.F2, Hex1bModifiers.NumLock)]
+    [DataRow("\x1b[1;33S", Hex1bKey.F4, Hex1bModifiers.Meta)]
+    public async Task PresentationInput_ExtendedFunctionalModifiers_ArePreserved(
+        string sequence, Hex1bKey expectedKey, Hex1bModifiers expectedModifiers)
+    {
+        await using var presentation = new QueuedPresentation();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+
+        foreach (var value in Encoding.UTF8.GetBytes(sequence))
+            presentation.Enqueue([value]);
+
+        var key = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents));
+        Assert.AreEqual(expectedKey, key.Key);
+        Assert.AreEqual(expectedModifiers, key.Modifiers);
+    }
+
+    [TestMethod]
     [DataRow("a", false)]
     [DataRow("\r", false)]
     [DataRow("\n", false)]
@@ -653,6 +796,131 @@ public class PresentationRawInputTests
         Assert.AreEqual("😀", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
         Assert.AreEqual("b", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
         Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task WriteInputAsync_AppFallback_FragmentedPastePreservesLiteralInput()
+    {
+        var clock = new RawInputTimeProvider();
+        using var workload = new Hex1bAppWorkloadAdapter { RawInputTimeProvider = clock };
+        var input = "a\x1b[200~é\x1b[97;1:3u\r\n😀\x1b[201~z"u8.ToArray();
+        var events = workload.InputEvents;
+        var write = Task.Run(async () =>
+        {
+            foreach (var value in input)
+                await workload.WriteInputAsync(new byte[] { value });
+        });
+
+        Assert.AreEqual("a", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(events)).Text);
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(await ReadAsync(events));
+        Assert.AreEqual("é\x1b[97;1:3u\r\n😀", await paste.Paste.ReadToEndAsync()
+            .WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(events)).Text);
+        await write.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsFalse(events.TryRead(out _));
+        await paste.Paste.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task WriteInputAsync_DisposeDuringCompletedPaste_UnblocksPendingWrite()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await workload.WriteInputAsync("\x1b[200~"u8.ToArray());
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(await ReadAsync(workload.InputEvents)).Paste;
+        for (var i = 0; i < 64; i++)
+            await workload.WriteInputAsync("x"u8.ToArray());
+
+        var blockedWrite = workload.WriteInputAsync("x\x1b[201~"u8.ToArray()).AsTask();
+        Assert.IsFalse(blockedWrite.IsCompleted);
+        workload.Dispose();
+
+        await blockedWrite.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsTrue(paste.IsCancelled);
+        await paste.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task WriteInputAsync_CancelDuringPaste_CancelsPasteAndPropagatesCancellation()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await workload.WriteInputAsync("\x1b[200~"u8.ToArray());
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(await ReadAsync(workload.InputEvents)).Paste;
+        for (var i = 0; i < 64; i++)
+            await workload.WriteInputAsync("x"u8.ToArray());
+        using var cancellation = new CancellationTokenSource();
+
+        var blockedWrite = workload.WriteInputAsync("x\x1b[201~"u8.ToArray(), cancellation.Token).AsTask();
+        Assert.IsFalse(blockedWrite.IsCompleted);
+        cancellation.Cancel();
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(
+            async () => await blockedWrite.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.IsTrue(paste.IsCancelled);
+        await paste.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task WriteInputAsync_AppFallback_FragmentedKittyInputPreservesEventsAndUtf8()
+    {
+        var clock = new RawInputTimeProvider();
+        using var workload = new Hex1bAppWorkloadAdapter { RawInputTimeProvider = clock };
+        foreach (var value in "a\x1b[97:65;2:2;65u\x1b[97;1:3uéz"u8.ToArray())
+            await workload.WriteInputAsync(new byte[] { value }, TestContext.Current.CancellationToken);
+
+        Assert.AreEqual("a", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+        var repeat = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents));
+        Assert.AreEqual(Hex1bKey.A, repeat.Key);
+        Assert.AreEqual(Hex1bKeyEventType.Repeat, repeat.EventType);
+        Assert.AreEqual(65, repeat.ShiftedKeyCode);
+        Assert.AreEqual("A", repeat.Text);
+        var release = TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents));
+        Assert.AreEqual(Hex1bKey.A, release.Key);
+        Assert.AreEqual(Hex1bKeyEventType.Release, release.EventType);
+        Assert.AreEqual("é", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+        Assert.AreEqual("z", TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Text);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    [TestMethod]
+    public async Task WriteInputAsync_AppFallback_EscapeTimeoutAndStaleTimerPreserveOrdering()
+    {
+        var clock = new RawInputTimeProvider();
+        using var workload = new Hex1bAppWorkloadAdapter { RawInputTimeProvider = clock };
+        await workload.WriteInputAsync("\x1b"u8.ToArray());
+        await workload.WriteInputAsync("[97"u8.ToArray());
+        clock.Fire(0);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+        await workload.WriteInputAsync("u"u8.ToArray());
+        Assert.AreEqual(Hex1bKey.A, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+
+        await workload.WriteInputAsync("\x1b"u8.ToArray());
+        clock.FireLast();
+        Assert.AreEqual(Hex1bKey.Escape, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+        await workload.WriteInputAsync("z"u8.ToArray());
+        Assert.AreEqual(Hex1bKey.Z, TestSeq.IsType<Hex1bKeyEvent>(await ReadAsync(workload.InputEvents)).Key);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
+    }
+
+    private sealed class RawInputTimeProvider : TimeProvider
+    {
+        private readonly List<(TimerCallback Callback, object? State)> _callbacks = [];
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            Assert.AreEqual(TimeSpan.FromMilliseconds(50), dueTime);
+            Assert.AreEqual(Timeout.InfiniteTimeSpan, period);
+            _callbacks.Add((callback, state));
+            return new RawInputTimer();
+        }
+
+        public void Fire(int index) => _callbacks[index].Callback(_callbacks[index].State);
+        public void FireLast() => Fire(_callbacks.Count - 1);
+
+        private sealed class RawInputTimer : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+            public void Dispose() { }
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
     }
 
     private static async Task<T> ReadAsync<T>(ChannelReader<T> reader)

@@ -155,8 +155,8 @@ public class TerminalKeyboardMatrixTests
     {
         TestSeq.AreEqual(Enum.GetValues<Hex1bKey>().Where(key => key != Hex1bKey.None).Order(),
             Vectors.Select(vector => vector.Key).Order());
-        Assert.AreEqual(7, Enum.GetValues<Hex1bModifiers>().Aggregate(0, (mask, value) => mask | (int)value),
-            "New modifiers require an explicit expansion of the wire matrix.");
+        Assert.AreEqual(255, Enum.GetValues<Hex1bModifiers>().Aggregate(0, (mask, value) => mask | (int)value),
+            "New modifiers require explicit keyboard protocol coverage.");
         foreach (var vector in Vectors)
         foreach (var row in new[] { vector.Normal, vector.Cursor, vector.Keypad }.OfType<string>())
         {
@@ -324,6 +324,51 @@ public class TerminalKeyboardMatrixTests
     }
 
     [TestMethod]
+    public async Task Keyboard_EnhancedEventAutomation_PreservesMetadataAndLiveMode()
+    {
+        var workload = new RecordingWorkload();
+        await using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().Build();
+        var automator = new Hex1bTerminalAutomator(terminal, TimeSpan.FromSeconds(5));
+        var release = new Hex1bKeyEvent(Hex1bKey.A, "", Hex1bModifiers.Shift)
+        {
+            EventType = Hex1bKeyEventType.Release,
+            UnicodeKeyCode = 97, ShiftedKeyCode = 65, BaseLayoutKeyCode = 113
+        };
+        var sequence = new Hex1bTerminalInputSequenceBuilder().Super().Key(release).Build();
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>31u"));
+
+        using (await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken))
+            workload.AssertNext("1B5B39373A36353A3131333B31303A3375", "sequence release");
+        await automator.Super().KeyAsync(release, TestContext.Current.CancellationToken);
+        workload.AssertNext("1B5B39373A36353A3131333B31303A3375", "automator release");
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[<u"));
+        using (await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken))
+            Assert.IsFalse(workload.Input.TryRead(out _), "Legacy mode must not send a release.");
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Keyboard_TextEvent_WorkloadFilterObservesEncodedInput(bool enhanced)
+    {
+        var workload = new RecordingWorkload();
+        var filter = new InputRecordingFilter();
+        var options = new Hex1bTerminalOptions { WorkloadAdapter = workload };
+        options.WorkloadFilters.Add(filter);
+        await using var terminal = new Hex1bTerminal(options);
+        if (enhanced)
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>31u"));
+
+        await terminal.SendEventAsync(Hex1bKeyEvent.FromText("🙂"), TestContext.Current.CancellationToken);
+
+        var token = TestSeq.Single(filter.InputTokens);
+        if (enhanced)
+            Assert.AreEqual("\x1b[0;1;128578u", TestSeq.IsType<UnrecognizedSequenceToken>(token).Sequence);
+        else
+            Assert.AreEqual("🙂", TestSeq.IsType<TextToken>(token).Text);
+    }
+
+    [TestMethod]
     [DataRow("CAS")]
     [DataRow("CSA")]
     [DataRow("ACS")]
@@ -376,6 +421,21 @@ public class TerminalKeyboardMatrixTests
     }
 
     private sealed record KeyVector(Hex1bKey Key, string Normal, string? Cursor = null, string? Keypad = null);
+
+    private sealed class InputRecordingFilter : IHex1bTerminalWorkloadFilter
+    {
+        internal List<AnsiToken> InputTokens { get; } = [];
+        public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask OnOutputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask OnFrameCompleteAsync(TimeSpan elapsed, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask OnInputAsync(IReadOnlyList<AnsiToken> tokens, TimeSpan elapsed, CancellationToken ct = default)
+        {
+            InputTokens.AddRange(tokens);
+            return ValueTask.CompletedTask;
+        }
+        public ValueTask OnResizeAsync(int width, int height, TimeSpan elapsed, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask OnSessionEndAsync(TimeSpan elapsed, CancellationToken ct = default) => ValueTask.CompletedTask;
+    }
 
     private sealed class RecordingWorkload : IHex1bTerminalWorkloadAdapter
     {

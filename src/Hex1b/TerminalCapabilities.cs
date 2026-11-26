@@ -113,6 +113,18 @@ public record TerminalCapabilities
     /// Presentation supports Kitty Graphics Protocol (KGP) for inline image display.
     /// </summary>
     public bool SupportsKgp { get; init; }
+
+    /// <summary>
+    /// Gets whether the presentation can provide Kitty keyboard protocol input.
+    /// </summary>
+    /// <remarks>
+    /// Console presentations set this after a successful protocol query. Other
+    /// presentations should set it only when their input source can report the
+    /// enhanced events; a terminal model alone does not establish host support.
+    /// HMP can receive enhanced events from capable viewers, while legacy viewers
+    /// continue to send legacy input.
+    /// </remarks>
+    public bool SupportsKittyKeyboard { get; init; }
     
     /// <summary>
     /// Whether the terminal supports retroactive variation selector width changes.

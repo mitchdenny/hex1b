@@ -228,6 +228,27 @@ public sealed class Hex1bTerminalAutomator
         return this;
     }
 
+    /// <summary>Adds Super to the next key or mouse action.</summary>
+    public Hex1bTerminalAutomator Super()
+    {
+        _pendingModifiers |= Hex1bModifiers.Super;
+        return this;
+    }
+
+    /// <summary>Adds Hyper to the next key or mouse action.</summary>
+    public Hex1bTerminalAutomator Hyper()
+    {
+        _pendingModifiers |= Hex1bModifiers.Hyper;
+        return this;
+    }
+
+    /// <summary>Adds Meta to the next key or mouse action.</summary>
+    public Hex1bTerminalAutomator Meta()
+    {
+        _pendingModifiers |= Hex1bModifiers.Meta;
+        return this;
+    }
+
     // ========================================
     // Key input
     // ========================================
@@ -254,6 +275,28 @@ public sealed class Hex1bTerminalAutomator
             : $"Key({key})";
 
         await RunAndRecordAsync(sequence, desc, ct, callerFilePath, callerLineNumber);
+    }
+
+    /// <summary>Sends a key event with its event type and available keyboard metadata.</summary>
+    /// <param name="keyEvent">The event to send. Pending modifiers are combined with its modifiers.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <param name="callerFilePath">Auto-captured caller file path.</param>
+    /// <param name="callerLineNumber">Auto-captured caller line number.</param>
+    public async Task KeyAsync(
+        Hex1bKeyEvent keyEvent,
+        CancellationToken ct = default,
+        [CallerFilePath] string? callerFilePath = null,
+        [CallerLineNumber] int callerLineNumber = 0)
+    {
+        ArgumentNullException.ThrowIfNull(keyEvent);
+        var combined = keyEvent with { Modifiers = keyEvent.Modifiers | _pendingModifiers };
+        _pendingModifiers = Hex1bModifiers.None;
+        var sequence = new Hex1bTerminalInputSequenceBuilder()
+            .WithOptions(_options)
+            .Key(combined)
+            .Build();
+        await RunAndRecordAsync(sequence, $"Key({combined.EventType}, {FormatModifiers(combined.Modifiers)}{combined.Key})",
+            ct, callerFilePath, callerLineNumber);
     }
 
     /// <summary>
@@ -692,6 +735,11 @@ public sealed class Hex1bTerminalAutomator
         if ((modifiers & Hex1bModifiers.Control) != 0) parts.Add("Ctrl+");
         if ((modifiers & Hex1bModifiers.Alt) != 0) parts.Add("Alt+");
         if ((modifiers & Hex1bModifiers.Shift) != 0) parts.Add("Shift+");
+        if ((modifiers & Hex1bModifiers.Super) != 0) parts.Add("Super+");
+        if ((modifiers & Hex1bModifiers.Hyper) != 0) parts.Add("Hyper+");
+        if ((modifiers & Hex1bModifiers.Meta) != 0) parts.Add("Meta+");
+        if ((modifiers & Hex1bModifiers.CapsLock) != 0) parts.Add("CapsLock+");
+        if ((modifiers & Hex1bModifiers.NumLock) != 0) parts.Add("NumLock+");
         return string.Join("", parts);
     }
 }

@@ -41,6 +41,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 {
     private readonly List<Hmp1ClientSession> _sessions = [];
     private readonly Hmp1OutputProjection _outputProjection = new();
+    private readonly Hmp1OutputProjection _legacyKeyboardProjection = new(Hmp1KeyboardPresentation.StripKeyboardCommand, projectOwnedProtocols: false);
     private readonly object _sessionsLock = new();
     private readonly Channel<ReadOnlyMemory<byte>> _inputChannel;
     private Hex1bTerminal? _terminal;
@@ -159,6 +160,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         Supports256Colors = true,
         SupportsAlternateScreen = true,
         SupportsBracketedPaste = true,
+        SupportsKittyKeyboard = true,
         SupportsKgp = true,
         SupportsSixel = true,
         SixelSupport = SixelPresentationSupport.Headless,
@@ -316,6 +318,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
         try
         {
+            session.KittyKeyboard = clientHello.KittyKeyboardVersion == 1;
             session.ProgramStatus = clientHello.ProgramStatusVersion == Hmp1ProgramStatusState.Version;
             session.CommandMarkHistory = clientHello.CommandMarkHistoryVersion == Hmp1CommandMarkState.Version &&
                 EnableCommandMarkHistory && _terminal is not null;
@@ -464,7 +467,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                     out scrollbackState, out commandMarkState);
                 widthSnapshot = snap.Width;
                 heightSnapshot = snap.Height;
-                var prefix = BuildStateReplayPrefix(snap);
+                var prefix = BuildStateReplayPrefix(snap, session.KittyKeyboard);
                 var ansi = snap.ToAnsi(new TerminalAnsiOptions
                 {
                     IncludeClearScreen = true,
@@ -571,6 +574,9 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             // live output can deliver the remainder of that sequence.
             var pendingAnsi = _terminal?.CapturePendingAnsiOutput() ?? ReadOnlyMemory<byte>.Empty;
             pendingAnsi = Hmp1OutputProjection.ProjectContinuation(pendingAnsi.Span);
+            if (!session.KittyKeyboard)
+                pendingAnsi = new Hmp1OutputProjection(Hmp1KeyboardPresentation.StripKeyboardCommand)
+                    .Process(pendingAnsi.Span);
             if (!pendingAnsi.IsEmpty)
             {
                 EnqueueControlFrameAsync(session, async stream =>
@@ -618,7 +624,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         // hasn't yet received a handle.
         await Hmp1Protocol.WriteHelloAsync(
             stream, widthSnapshot, heightSnapshot, peerId, primarySnapshot, roster, ct,
-            session.ScrollbackHistoryRows, session.CommandMarkHistory, session.ProgramStatus).ConfigureAwait(false);
+            session.ScrollbackHistoryRows, session.CommandMarkHistory, session.ProgramStatus,
+            session.KittyKeyboard).ConfigureAwait(false);
 
         await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.StateSync, syncBytes, ct).ConfigureAwait(false);
         await Hmp1Protocol.WriteActivityStateAsync(stream, activityState, ct).ConfigureAwait(false);
@@ -657,22 +664,36 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     /// the alternate screen so the painter's clear+home target the right
     /// buffer) is emitted here.
     /// </summary>
-    private static string BuildStateReplayPrefix(Hex1bTerminalSnapshot snapshot)
+    private static string BuildStateReplayPrefix(Hex1bTerminalSnapshot snapshot, bool kittyKeyboard)
     {
         var sb = new StringBuilder();
 
-        // ToAnsi paints onto whichever buffer the viewer is currently on and
-        // does its own \x1b[2J + \x1b[H. If the workload had switched to the
-        // alternate screen, we have to enter alt screen first so the
-        // subsequent clear+home target the alt buffer. DECSET 1049 also saves
-        // and restores the cursor as a side-effect, which lines up with how a
-        // viewer would have observed the original entry.
-        if (snapshot.InAlternateScreen)
+        if (kittyKeyboard)
         {
+            // StateSync is authoritative for both screen-specific Kitty stacks.
+            // Reset and rebuild them before painting, so a replay onto an existing
+            // viewer does not accumulate stale pushes or leave a stale active screen.
+            sb.Append("\x1b[?1049l");
+            AppendKittyKeyboardStack(sb, snapshot.MainKittyKeyboardStack);
+            sb.Append("\x1b[?1049h");
+            AppendKittyKeyboardStack(sb, snapshot.AlternateKittyKeyboardStack);
+            if (!snapshot.InAlternateScreen)
+                sb.Append("\x1b[?1049l");
+        }
+        else if (snapshot.InAlternateScreen)
+        {
+            // ToAnsi paints the active buffer after its clear+home sequence.
             sb.Append("\x1b[?1049h");
         }
 
         return sb.ToString();
+    }
+
+    private static void AppendKittyKeyboardStack(StringBuilder sb, IReadOnlyList<int> stack)
+    {
+        sb.Append("\x1b[<128u");
+        foreach (var flags in stack)
+            sb.Append("\x1b[>").Append(flags).Append('u');
     }
 
     /// <summary>
@@ -785,10 +806,14 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         lock (_sessionsLock)
         {
             if (replayActivity is not null)
+            {
                 _outputProjection.Reset();
+                _legacyKeyboardProjection.Reset();
+            }
             // Project once, even without clients. The producer still parses the
             // original bytes and owns replies; viewers receive only rendering output.
             var copy = _terminal is null ? data.ToArray() : _outputProjection.Process(data.Span);
+            var legacyCopy = _legacyKeyboardProjection.Process(copy.Span);
             for (var i = _sessions.Count - 1; i >= 0; i--)
             {
                 var session = _sessions[i];
@@ -797,13 +822,14 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                     browserView.RecordOutputBatch();
                     continue;
                 }
-                if (copy.IsEmpty && replayActivity is null)
+                var sessionCopy = session.KittyKeyboard ? copy : legacyCopy;
+                if (sessionCopy.IsEmpty && replayActivity is null)
                     continue;
                 var work = replayActivity is null
-                    ? new Hmp1OutboundWork(copy, null)
+                    ? new Hmp1OutboundWork(sessionCopy, null)
                     : new Hmp1OutboundWork(default, async stream =>
                     {
-                        await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.StateSync, copy, session.Cts.Token)
+                        await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.StateSync, sessionCopy, session.Cts.Token)
                             .ConfigureAwait(false);
                         await Hmp1Protocol.WriteActivityStateAsync(stream, replayActivity, session.Cts.Token)
                             .ConfigureAwait(false);
@@ -1362,6 +1388,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         public int ScrollbackHistoryRows { get; set; }
         public bool ProgramStatus { get; set; }
         public bool CommandMarkHistory { get; set; }
+        public bool KittyKeyboard { get; set; }
 
         /// <summary>
         /// Per-client outbound queue. When full, the client is disconnected rather than

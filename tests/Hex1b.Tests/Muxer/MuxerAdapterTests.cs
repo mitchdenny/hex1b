@@ -245,6 +245,7 @@ public class MuxerAdapterTests
         Assert.DoesNotContain("\x1b[?25l", stateSync);
         Assert.DoesNotContain("\x1b[?1h", stateSync);
         Assert.DoesNotContain("\x1b=", stateSync);
+        Assert.DoesNotContain("\x1b[<128u", stateSync);
 
         await handle.DisposeAsync();
         await client.DisposeAsync();
@@ -281,6 +282,44 @@ public class MuxerAdapterTests
 
         Assert.IsTrue(altIndex >= 0, "Alt-screen DECSET 1049h must be emitted when the workload is on the alt screen.");
         Assert.IsTrue(clearIndex > altIndex, "Alt-screen DECSET must come before the clear-screen sequence.");
+
+        await handle.DisposeAsync();
+        await client.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task StateReplay_RestoresBothKittyKeyboardStacks()
+    {
+        await using var adapter = new Hmp1PresentationAdapter(80, 24);
+        using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            Width = 80,
+            Height = 24,
+            WorkloadAdapter = new NoOpWorkloadAdapter(),
+            PresentationAdapter = adapter
+        });
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>1u\x1b[>3u\x1b[?1049h\x1b[>8u"));
+
+        var (stream1, stream2) = CreateFullDuplexPair();
+        var client = Hmp1TestHelpers.NewClient(stream2);
+        var (handle, _) = await ConnectPairAsync(adapter, stream1, client);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var stateSyncBytes = await client.ReadTerminalOutputAsync(cts.Token);
+        var stateSync = Encoding.UTF8.GetString(stateSyncBytes.Bytes.Span);
+        Assert.Contains("\x1b[?1049l\x1b[<128u\x1b[>1u\x1b[>3u\x1b[?1049h\x1b[<128u\x1b[>8u", stateSync);
+
+        using var replayed = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            Width = 80,
+            Height = 24,
+            WorkloadAdapter = new NoOpWorkloadAdapter()
+        });
+        replayed.ApplyTokens(AnsiTokenizer.Tokenize(stateSync));
+        Assert.AreEqual(8, replayed.InputModes.KittyKeyboardFlags);
+        replayed.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[?1049l"));
+        Assert.AreEqual(3, replayed.InputModes.KittyKeyboardFlags);
 
         await handle.DisposeAsync();
         await client.DisposeAsync();

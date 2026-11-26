@@ -8,6 +8,74 @@ namespace Hex1b.Tests;
 public class ConsolePresentationAdapterTests
 {
     [TestMethod]
+    public async Task KittyKeyboardProbe_FragmentedReply_PreservesInputAndBalancesAppMode()
+    {
+        using var driver = new FakeConsoleDriver("a\x1b[?", "0u", "b\x1b[?62;4c", "c");
+        await using var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+
+        Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard);
+        StringAssert.Contains(driver.WrittenText, "\x1b[?u\x1b[c");
+        Assert.AreEqual("abc", Encoding.ASCII.GetString((await adapter.ReadInputAsync(TestContext.Current.CancellationToken)).Span));
+        using var workload = new Hex1bAppWorkloadAdapter(adapter);
+        workload.EnterTuiMode();
+        workload.ExitTuiMode();
+        var output = new StringBuilder();
+        while (workload.TryReadOutput(out var bytes))
+            output.Append(Encoding.ASCII.GetString(bytes.Span));
+        var value = output.ToString();
+        Assert.IsTrue(value.IndexOf("\x1b[?1049h", StringComparison.Ordinal) < value.IndexOf("\x1b[>31u", StringComparison.Ordinal));
+        Assert.IsTrue(value.IndexOf("\x1b[>31u", StringComparison.Ordinal) < value.IndexOf("\x1b[<u", StringComparison.Ordinal));
+        Assert.IsTrue(value.IndexOf("\x1b[<u", StringComparison.Ordinal) < value.IndexOf("\x1b[?1049l", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task KittyKeyboardProbe_ReplyAfterDeviceAttributes_StillClaimsSupport()
+    {
+        using var driver = new FakeConsoleDriver("a\x1b[?62c\x1b[?0ub");
+        await using var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual("ab", Encoding.ASCII.GetString((await adapter.ReadInputAsync(TestContext.Current.CancellationToken)).Span));
+        using var workload = new Hex1bAppWorkloadAdapter(adapter);
+        workload.EnterTuiMode();
+        workload.ExitTuiMode();
+        var output = new StringBuilder();
+        while (workload.TryReadOutput(out var bytes))
+            output.Append(Encoding.ASCII.GetString(bytes.Span));
+        Assert.Contains("\x1b[>31u", output.ToString());
+        Assert.Contains("\x1b[<u", output.ToString());
+    }
+
+    [TestMethod]
+    public async Task KittyKeyboardProbe_FragmentedReplyAfterDeviceAttributes_PreservesInput()
+    {
+        using var driver = new FakeConsoleDriver("a\x1b[?62c", "\x1b[?", "0u", "b");
+        await using var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual("ab", Encoding.ASCII.GetString((await adapter.ReadInputAsync(TestContext.Current.CancellationToken)).Span));
+    }
+
+    [TestMethod]
+    public async Task KittyKeyboardProbe_NoReplyAfterDeviceAttributes_UsesLegacyInput()
+    {
+        using var driver = new FakeConsoleDriver("a\x1b[?62cb");
+        await using var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        Assert.IsFalse(adapter.Capabilities.SupportsKittyKeyboard);
+        Assert.AreEqual("ab", Encoding.ASCII.GetString((await adapter.ReadInputAsync(TestContext.Current.CancellationToken)).Span));
+        using var workload = new Hex1bAppWorkloadAdapter(adapter);
+        workload.EnterTuiMode();
+        workload.ExitTuiMode();
+        var output = new StringBuilder();
+        while (workload.TryReadOutput(out var bytes))
+            output.Append(Encoding.ASCII.GetString(bytes.Span));
+        Assert.DoesNotContain("\x1b[>31u", output.ToString());
+        Assert.DoesNotContain("\x1b[<u", output.ToString());
+    }
+
+    [TestMethod]
     [DataRow("0", "2", false)]
     [DataRow("1", "1", true)]
     [DataRow("2", "2", true)]

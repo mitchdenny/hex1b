@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using Hex1b.Sixel;
 using Hex1b.Tokens;
 using Hex1b.Automation;
+using Hex1b.Input;
 using Hex1b.Reflow;
 
 namespace Hex1b;
@@ -84,8 +85,12 @@ public sealed class Hwt1PresentationAdapter :
     private readonly Hwt1RenderProjection _projection = new();
     private readonly object _projectionLock = new();
     internal const int MarkerPageSize = 2048;
+    private const int MaxTrackedKeys = 256;
     private readonly Queue<(byte[] Bytes, uint Revision)> _markerFrames = new();
     private readonly object _ackLock = new();
+    private readonly object _pressedKeyLock = new();
+    private readonly Dictionary<string, HeldKey> _pressedKeys = new(StringComparer.Ordinal);
+    private readonly SemaphoreSlim _keyInputLock = new(1, 1);
     private readonly CancellationTokenSource _disposedCancellation = new();
     private readonly TimeProvider _timeProvider;
     private readonly long _started = Stopwatch.GetTimestamp();
@@ -215,6 +220,7 @@ public sealed class Hwt1PresentationAdapter :
     /// <inheritdoc />
     public TerminalCapabilities Capabilities { get; } = new()
     {
+        SupportsKittyKeyboard = true,
         SupportsTrueColor = true,
         Supports256Colors = true,
         SupportsAlternateScreen = true,
@@ -541,15 +547,30 @@ public sealed class Hwt1PresentationAdapter :
                     break;
                 terminal.ResetBrowserView(_view);
                 InvalidatePresentation();
+                if (command.GetProperty("type").GetString() == "input" &&
+                    (terminal.InputModes.KittyKeyboardFlags & 24) == 24)
+                {
+                    var textEvent = Hex1bKeyEvent.FromText(text);
+                    if (_muxer is null)
+                    {
+                        await terminal.SendEventAsync(textEvent, linked.Token);
+                        break;
+                    }
+                    text = TerminalInputEncoder.EncodeKey(textEvent, terminal.InputModes);
+                }
                 await SendInputAsync(Encoding.UTF8.GetBytes(text), linked.Token);
                 break;
             case "key":
-                var key = Hwt1Input.EncodeKey(command, terminal);
-                if (IsReadOnly)
-                    break;
-                terminal.ResetBrowserView(_view);
-                InvalidatePresentation();
-                await SendInputAsync(Encoding.UTF8.GetBytes(key), linked.Token);
+                await _keyInputLock.WaitAsync(linked.Token).ConfigureAwait(false);
+                try
+                {
+                    linked.Token.ThrowIfCancellationRequested();
+                    await HandleKeyAsync(command, terminal, linked.Token).ConfigureAwait(false);
+                }
+                finally
+                {
+                    _keyInputLock.Release();
+                }
                 break;
             case "mouse":
                 var mouse = Hwt1Input.EncodeMouse(command, terminal);
@@ -567,6 +588,62 @@ public sealed class Hwt1PresentationAdapter :
                 break;
             default:
                 throw new InvalidDataException("Unknown HWT1 command.");
+        }
+    }
+
+    private async Task HandleKeyAsync(JsonElement command, Hex1bTerminal terminal, CancellationToken cancellationToken)
+    {
+        var keyboardFlags = terminal.InputModes.KittyKeyboardFlags;
+        var keyEvent = Hwt1Input.DecodeKey(command, (keyboardFlags & 8) != 0);
+        if (IsReadOnly)
+            return;
+        var keyIdentity = (keyboardFlags & 2) != 0 || keyEvent.EventType == Hex1bKeyEventType.Release
+            ? ReadKeyIdentity(command, keyEvent) : null;
+        HeldKey? held = null;
+        if (keyIdentity is not null && keyEvent.EventType == Hex1bKeyEventType.Release)
+        {
+            lock (_pressedKeyLock)
+                _pressedKeys.TryGetValue(keyIdentity, out held);
+            if (held is not null)
+                keyEvent = held.Event with
+                {
+                    Text = "",
+                    Modifiers = keyEvent.Modifiers,
+                    EventType = Hex1bKeyEventType.Release
+                };
+            else if ((keyboardFlags & 2) == 0)
+                return;
+        }
+        EnsureKeyCapacity(keyIdentity, keyEvent);
+        terminal.ResetBrowserView(_view);
+        InvalidatePresentation();
+        if (held is not null)
+        {
+            if (_muxer is not null)
+            {
+                var modes = terminal.InputModes with { KittyKeyboardFlags = held.KeyboardFlags };
+                var key = TerminalInputEncoder.EncodeKey(keyEvent, modes);
+                await SendInputAsync(Encoding.UTF8.GetBytes(key), cancellationToken);
+            }
+            else
+            {
+                await terminal.SendEventAsync(keyEvent, cancellationToken, held.KeyboardFlags);
+            }
+            TrackKey(keyIdentity, keyEvent, keyboardFlags);
+        }
+        else if (_muxer is not null || terminal.InputModes.KittyKeyboardFlags == 0)
+        {
+            var key = TerminalInputEncoder.EncodeKey(keyEvent, terminal.InputModes);
+            await SendInputAsync(Encoding.UTF8.GetBytes(key), cancellationToken);
+            TrackKey(keyIdentity, keyEvent, keyboardFlags);
+        }
+        else if (keyEvent.EventType != Hex1bKeyEventType.Release ||
+            (terminal.InputModes.KittyKeyboardFlags & 2) != 0)
+        {
+            if ((terminal.InputModes.KittyKeyboardFlags & 2) == 0)
+                keyEvent = keyEvent with { EventType = Hex1bKeyEventType.Press };
+            await terminal.SendEventAsync(keyEvent, cancellationToken);
+            TrackKey(keyIdentity, keyEvent, keyboardFlags);
         }
     }
 
@@ -654,45 +731,131 @@ public sealed class Hwt1PresentationAdapter :
     /// <inheritdoc />
     public (int Row, int Column) GetCursorPosition() => (0, 0);
 
-    /// <summary>Disconnects this adapter and cancels pending frame, input, and acknowledgement waits.</summary>
+    /// <summary>Disconnects this adapter, releases tracked pressed keys, and cancels pending waits.</summary>
     /// <returns>An operation that completes after the view's HMP1 peer, if any, is disconnected.</returns>
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
-        if (_terminal is { } terminal)
-        {
-            _width = terminal.Width;
-            _height = terminal.Height;
-            terminal.PresentationInvalidated -= InvalidatePresentation;
-            terminal.ReleaseBrowserMarkers(_view);
-        }
-        _disposedCancellation.Cancel();
-        _dirty.Writer.TryComplete();
-        lock (_projectionLock)
-        {
-            _markerFrames.Clear();
-            _projection.Clear();
-        }
-        var muxer = _muxer;
-        var session = _session;
-        _terminal = null;
-        _hmp1OutputSource = null;
-        _muxer = null;
-        _session = null;
         try
         {
-            Disconnected?.Invoke();
+            _disposedCancellation.Cancel();
+            await _keyInputLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (_terminal is { } terminal)
+                    await ReleasePressedKeysAsync(terminal).ConfigureAwait(false);
+            }
+            finally
+            {
+                _keyInputLock.Release();
+            }
         }
         finally
         {
-            Disconnected = null;
-            Resized = null;
-            if (muxer is not null)
-                await muxer.RemoveSessionAsync(session!).ConfigureAwait(false);
-            _disposedCancellation.Dispose();
+            if (_terminal is { } terminal)
+            {
+                _width = terminal.Width;
+                _height = terminal.Height;
+                terminal.PresentationInvalidated -= InvalidatePresentation;
+                terminal.ReleaseBrowserMarkers(_view);
+            }
+            _dirty.Writer.TryComplete();
+            lock (_projectionLock)
+            {
+                _markerFrames.Clear();
+                _projection.Clear();
+            }
+            var muxer = _muxer;
+            var session = _session;
+            _terminal = null;
+            _hmp1OutputSource = null;
+            _muxer = null;
+            _session = null;
+            try
+            {
+                Disconnected?.Invoke();
+            }
+            finally
+            {
+                Disconnected = null;
+                Resized = null;
+                if (muxer is not null)
+                    await muxer.RemoveSessionAsync(session!).ConfigureAwait(false);
+                _disposedCancellation.Dispose();
+            }
         }
     }
+
+    private static string ReadKeyIdentity(JsonElement command, Hex1bKeyEvent keyEvent)
+    {
+        if (command.TryGetProperty("code", out var codeValue))
+        {
+            if (codeValue.ValueKind != JsonValueKind.String)
+                throw new InvalidDataException("Key code must be a string.");
+            var code = codeValue.GetString()!;
+            if (code.Length > 128)
+                throw new InvalidDataException("Key code exceeds 128 characters.");
+            if (code.Length > 0)
+                return $"code:{code}";
+        }
+        return keyEvent.UnicodeKeyCode is int unicode
+            ? $"unicode:{unicode}"
+            : $"key:{(int)keyEvent.Key}";
+    }
+
+    private void TrackKey(string? identity, Hex1bKeyEvent keyEvent, int keyboardFlags)
+    {
+        if (identity is null)
+            return;
+        lock (_pressedKeyLock)
+        {
+            if (keyEvent.EventType == Hex1bKeyEventType.Release)
+            {
+                _pressedKeys.Remove(identity);
+                return;
+            }
+            _pressedKeys.TryAdd(identity, new HeldKey(keyEvent, keyboardFlags));
+        }
+    }
+
+    private void EnsureKeyCapacity(string? identity, Hex1bKeyEvent keyEvent)
+    {
+        if (identity is null || keyEvent.EventType == Hex1bKeyEventType.Release)
+            return;
+        lock (_pressedKeyLock)
+        {
+            if (!_pressedKeys.ContainsKey(identity) && _pressedKeys.Count >= MaxTrackedKeys)
+                throw new InvalidDataException($"At most {MaxTrackedKeys} held keys can be tracked per HWT1 view.");
+        }
+    }
+
+    private async Task ReleasePressedKeysAsync(Hex1bTerminal terminal)
+    {
+        KeyValuePair<string, HeldKey>[] pressedKeys;
+        lock (_pressedKeyLock)
+        {
+            pressedKeys = [.. _pressedKeys];
+            _pressedKeys.Clear();
+        }
+        foreach (var (_, held) in pressedKeys)
+        {
+            var release = held.Event with { Text = "", EventType = Hex1bKeyEventType.Release };
+            if (_muxer is not null)
+            {
+                var modes = terminal.InputModes with { KittyKeyboardFlags = held.KeyboardFlags };
+                var bytes = Encoding.UTF8.GetBytes(TerminalInputEncoder.EncodeKey(release, modes));
+                if (bytes.Length > 0)
+                    _muxer.SendBrowserInput(_session!, bytes);
+            }
+            else
+            {
+                await terminal.SendEventAsync(release, kittyKeyboardFlags: held.KeyboardFlags).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private sealed record HeldKey(Hex1bKeyEvent Event, int KeyboardFlags);
 
     private static int ReadBounded(JsonElement command, string name, int min, int max)
     {

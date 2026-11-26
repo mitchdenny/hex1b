@@ -8,6 +8,50 @@ namespace Hex1b.Tests;
 public class Hwt1InputTests
 {
     [TestMethod]
+    [DataRow("""{"key":"c","ctrl":true}""", "\x1b[99;5u")]
+    [DataRow("""{"key":"x","alt":true}""", "\x1b[120;3u")]
+    [DataRow("""{"key":"x","super":true}""", "\x1b[120;9u")]
+    [DataRow("""{"key":"A","shift":true}""", "\x1b[97;2;65u")]
+    public void EncodeKey_AllKeyReporting_OnlyReportsKnownText(string json, string expected)
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().Build();
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[>31u"));
+        using var command = JsonDocument.Parse(json);
+
+        Assert.AreEqual(expected, Hwt1Input.EncodeKey(command.RootElement, terminal));
+    }
+
+    [TestMethod]
+    [DataRow("ControlLeft", 57442, "\x1b[57442;5u")]
+    [DataRow("ShiftRight", 57447, "\x1b[57447;5u")]
+    [DataRow("CapsLock", 57358, "\x1b[57358;5u")]
+    public void DecodeKey_EnhancedModifier_PreservesFunctionalIdentity(string key, int code, string expected)
+    {
+        using var command = JsonDocument.Parse(JsonSerializer.Serialize(new { key, ctrl = true }));
+        var input = Hwt1Input.DecodeKey(command.RootElement);
+        Assert.AreEqual(Hex1bKey.None, input.Key);
+        Assert.AreEqual(code, input.UnicodeKeyCode);
+        Assert.AreEqual("", input.Text);
+        var modes = new TerminalInputModes(false, false, false, TerminalMouseTracking.None,
+            TerminalMouseEncoding.Legacy, 80, 24, 31);
+        Assert.AreEqual(expected, TerminalInputEncoder.EncodeKey(input, modes));
+    }
+
+    [TestMethod]
+    public void DecodeKey_EnhancedLetter_PreservesIdentityAndEventType()
+    {
+        using var command = JsonDocument.Parse(
+            """{"key":"A","shift":true,"super":true,"capsLock":true,"eventType":"release"}""");
+        var input = Hwt1Input.DecodeKey(command.RootElement);
+        Assert.AreEqual(Hex1bKey.A, input.Key);
+        Assert.AreEqual(97, input.UnicodeKeyCode);
+        Assert.AreEqual(Hex1bKeyEventType.Release, input.EventType);
+        Assert.AreEqual(Hex1bModifiers.Shift | Hex1bModifiers.Super | Hex1bModifiers.CapsLock, input.Modifiers);
+        Assert.AreEqual("", input.Text);
+    }
+
+    [TestMethod]
     [DataRow("ArrowUp", "\x1b[A")]
     [DataRow("ArrowDown", "\x1b[B")]
     [DataRow("ArrowRight", "\x1b[C")]
@@ -131,7 +175,6 @@ public class Hwt1InputTests
     [DataRow("""{"key":"a","alt":null}""")]
     [DataRow("""{"key":"Unknown"}""")]
     [DataRow("""{"key":""}""")]
-    [DataRow("""{"key":"😀"}""")]
     public void EncodeKey_InvalidIntent_RejectsCommand(string json)
     {
         using var workload = new Hex1bAppWorkloadAdapter();

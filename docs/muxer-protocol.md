@@ -126,7 +126,8 @@ role hint, and an optional retained-history request.
   "defaultRole": "secondary",
   "scrollbackHistoryVersion": 2,
   "scrollbackHistoryRows": 10000,
-  "commandMarkHistoryVersion": 1
+  "commandMarkHistoryVersion": 1,
+  "kittyKeyboardVersion": 1
 }
 ```
 
@@ -152,6 +153,9 @@ role hint, and an optional retained-history request.
 - `programStatusVersion` — Optional `program-status-v1` inventory extension,
   currently `1`. The .NET client requests it automatically. Omission or an
   unsupported request means no program-status checkpoints.
+- `kittyKeyboardVersion` — Optional keyboard-stack replay extension, currently
+  `1`. Request it only when the receiver virtualizes the producer's keyboard
+  stack and does not forward its stack commands directly to a parent terminal.
 
 The .NET `Hmp1ClientOptions.ScrollbackHistoryRows` setting defaults to 10,000,
 accepts 0 through 100,000, and uses `0` to opt out (omitting both JSON fields).
@@ -177,6 +181,7 @@ Sent once by the server after it has received the client's `ClientHello`.
   "scrollbackHistoryVersion": 2,
   "scrollbackHistoryRows": 10000,
   "commandMarkHistoryVersion": 1,
+  "kittyKeyboardVersion": 1,
   "peers": [
     { "peerId": "p9f8e7d6", "displayName": "dashboard" }
   ]
@@ -206,6 +211,9 @@ Sent once by the server after it has received the client's `ClientHello`.
 - `programStatusVersion` — Present as `1` only when a version-1 request is
   accepted. Without acknowledgement, no `ProgramStatusState` frames are sent
   or expected. Unknown selected versions fail the connection.
+- `kittyKeyboardVersion` — Present as `1` only when requested. Without it,
+  the server omits Kitty keyboard stack commands from replay and live output;
+  legacy input remains usable.
 
 `Hmp1ServerOptions.EnableScrollbackHistory` and the directly configured
 `Hmp1PresentationAdapter.EnableScrollbackHistory` both default to `true`.
@@ -224,6 +232,16 @@ Sent by the server immediately after the Hello frame. Contains a full snapshot o
 **Payload:** Raw ANSI bytes (UTF-8). Includes clear-screen and cursor positioning sequences.
 
 The payload may be empty if no screen content is available yet.
+
+With `kittyKeyboardVersion: 1`, replay reconstructs both virtual screen-specific
+keyboard stacks, including empty stacks, and subsequent output carries their
+set/push/pop commands. These commands are **not** safe to forward directly to a
+physical host: the receiver must virtualize them and own only its own host stack
+entry, restoring it on screen changes and disconnect. The .NET terminal does
+this for raw presentations. `Hmp1WorkloadAdapter.ReadOutputAsync` strips these
+commands for direct raw readers; managed terminals consume the virtual state
+through their internal output path. Viewers attached to older producers cannot
+recover keyboard state that those producers did not replay.
 
 Viewport cell hyperlinks are replayed with their OSC 8 destinations and parameters,
 including links spanning rows or wide characters. The active hyperlink is restored

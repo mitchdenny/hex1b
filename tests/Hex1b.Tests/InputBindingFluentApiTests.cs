@@ -10,6 +10,67 @@ namespace Hex1b.Tests;
 [TestClass]
 public class InputBindingFluentApiTests
 {
+    [TestMethod]
+    public async Task HeldKey_FullApp_ReleaseCancelsWithoutBlockingInput()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var app = new Hex1bApp(ctx =>
+            Task.FromResult<Hex1bWidget>(new VStackWidget([ctx.Test().OnRender(_ => ready.TrySetResult())])
+                .InputBindings(bindings => bindings.Key(Hex1bKey.A).OnHold(async (_, token) =>
+                {
+                    started.TrySetResult();
+                    try { await Task.Delay(Timeout.Infinite, token); }
+                    finally { released.TrySetResult(); }
+                }))), new Hex1bAppOptions { WorkloadAdapter = workload });
+        using var cts = new CancellationTokenSource();
+        var run = app.RunAsync(cts.Token);
+        try
+        {
+            await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var press = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a');
+            await terminal.SendEventAsync(press);
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await terminal.SendEventAsync(press with { EventType = Hex1bKeyEventType.Release });
+            await released.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            cts.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
+    [TestMethod]
+    public async Task HeldKey_FullApp_HandlerFailureStopsAppWithError()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var app = new Hex1bApp(ctx =>
+            Task.FromResult<Hex1bWidget>(new VStackWidget([ctx.Test().OnRender(_ => ready.TrySetResult())])
+                .InputBindings(bindings => bindings.Key(Hex1bKey.A).OnHold((_, _) =>
+                    Task.FromException(new InvalidOperationException("held callback failure"))))),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+        using var cts = new CancellationTokenSource();
+        var run = app.RunAsync(cts.Token);
+        try
+        {
+            await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await terminal.SendEventAsync(Hex1bKeyEvent.Plain(Hex1bKey.A, 'a'));
+            var error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
+                await run.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.AreEqual("held callback failure", error.InnerException?.Message);
+        }
+        finally
+        {
+            cts.Cancel();
+        }
+    }
+
     /// <summary>
     /// Returns all Hex1bKey enum values except None, for use in Theory tests.
     /// </summary>

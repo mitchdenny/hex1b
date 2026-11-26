@@ -16,11 +16,24 @@ internal sealed class Hmp1OutputProjection
     private State _state;
     private StringKind _stringKind;
     private readonly List<byte> _pending = [];
+    private readonly Func<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>?>? _csiProjection;
+    private readonly Func<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>?>? _escapeProjection;
+    private readonly bool _projectOwnedProtocols;
     private bool _discardString;
     private int _kgpControlOffset;
     private int _oscControlOffset;
     private int _utf8Remaining;
     private byte _previous;
+
+    internal Hmp1OutputProjection(
+        Func<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>?>? csiProjection = null,
+        bool projectOwnedProtocols = true,
+        Func<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>?>? escapeProjection = null)
+    {
+        _csiProjection = csiProjection;
+        _projectOwnedProtocols = projectOwnedProtocols;
+        _escapeProjection = escapeProjection;
+    }
 
     internal ReadOnlyMemory<byte> Process(ReadOnlySpan<byte> bytes)
     {
@@ -51,6 +64,13 @@ internal sealed class Hmp1OutputProjection
         _previous = 0;
     }
 
+    internal ReadOnlyMemory<byte> Complete()
+    {
+        var pending = _pending.ToArray();
+        Reset();
+        return pending;
+    }
+
     // Only bytes already emitted by the projection belong in a late viewer's seed.
     internal static ReadOnlyMemory<byte> ProjectContinuation(ReadOnlySpan<byte> pending) =>
         new Hmp1OutputProjection().Process(pending);
@@ -75,6 +95,11 @@ internal sealed class Hmp1OutputProjection
                     _pending.Add(value);
                     _oscControlOffset = _pending.Count;
                     _state = State.OscProbe;
+                }
+                else if (!continuation && value == 0x9f)
+                {
+                    _pending.Add(value);
+                    _state = State.ApcStart;
                 }
                 else
                 {
@@ -113,7 +138,20 @@ internal sealed class Hmp1OutputProjection
                 break;
 
             case State.Escape:
-                if (value == '[')
+                if (value == 'c' && _escapeProjection is not null)
+                {
+                    _pending.Add(value);
+                    var replacement = _escapeProjection(_pending.ToArray());
+                    if (replacement.HasValue)
+                    {
+                        output.Write(replacement.Value.Span);
+                        _pending.Clear();
+                    }
+                    else
+                        FlushPending(output);
+                    _state = State.Ground;
+                }
+                else if (value == '[')
                 {
                     _pending.Add(value);
                     _state = State.Csi;
@@ -154,8 +192,8 @@ internal sealed class Hmp1OutputProjection
                 AppendHeader(value);
                 if (value is >= 0x40 and <= 0x7e)
                 {
-                    var query = false;
-                    if (value is (byte)'c' or (byte)'t' or (byte)'n')
+                    var query = _projectOwnedProtocols && CollectionsMarshal.AsSpan(_pending).SequenceEqual("\x1b[?u"u8);
+                    if (_projectOwnedProtocols && value is ((byte)'c' or (byte)'t' or (byte)'n'))
                     {
                         var sequence = Encoding.UTF8.GetString(CollectionsMarshal.AsSpan(_pending));
                         var tokens = AnsiTokenizer.Tokenize(sequence);
@@ -164,10 +202,15 @@ internal sealed class Hmp1OutputProjection
                             WindowOperationToken or
                             DeviceStatusReportToken { Type: DeviceStatusReportToken.StatusReport or DeviceStatusReportToken.CursorPositionReport };
                     }
-                    if (!query)
-                        FlushPending(output);
-                    else
+                    if (query)
                         _pending.Clear();
+                    else if (_csiProjection?.Invoke(_pending.ToArray()) is { } replacement)
+                    {
+                        output.Write(replacement.Span);
+                        _pending.Clear();
+                    }
+                    else
+                        FlushPending(output);
                     _state = State.Ground;
                 }
                 break;
@@ -178,7 +221,7 @@ internal sealed class Hmp1OutputProjection
                 if (stringTerminator || value == 7 || (_previous == 0x1b && value == '\\'))
                 {
                     var terminatorBytes = value == 7 ? 1 : _previous is 0xc2 or 0x1b ? 2 : 1;
-                    if (!probe[..^terminatorBytes].SequenceEqual("7501;?"u8))
+                    if (!_projectOwnedProtocols || !probe[..^terminatorBytes].SequenceEqual("7501;?"u8))
                         FlushPending(output);
                     else
                         _pending.Clear();
@@ -193,7 +236,7 @@ internal sealed class Hmp1OutputProjection
                 break;
 
             case State.ApcStart:
-                if (value == 'G')
+                if (_projectOwnedProtocols && value == 'G')
                 {
                     _pending.Add(value);
                     _kgpControlOffset = _pending.Count;

@@ -540,6 +540,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// </summary>
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
+        _inputRouterState.BeginKeyHolds();
         _stopSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var waitLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task<bool>? frameWaitTask = null;
@@ -607,7 +608,10 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
                 var timeUntilTimer = _animationTimer.GetTimeUntilNextDue();
                 animationWakeTimer.Change(timeUntilTimer ?? Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-                var completedTask = await Task.WhenAny(inputWaitTask, frameWaitTask, timerWaitTask, shutdownTask);
+                var completedTask = await Task.WhenAny(inputWaitTask, frameWaitTask, timerWaitTask, shutdownTask, _inputRouterState.HoldFailure);
+
+                if (_inputRouterState.HoldFailure.IsCompleted)
+                    throw new InvalidOperationException("A held-key input handler failed.", await _inputRouterState.HoldFailure);
 
                 if (cancellationToken.IsCancellationRequested)
                     break;
@@ -725,34 +729,41 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         }
         finally
         {
-            waitLifetime.Cancel();
-            if (frameWaitTask is not null)
-            {
-                try
-                {
-                    await frameWaitTask.ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (waitLifetime.IsCancellationRequested)
-                {
-                }
-            }
-            // Always exit alternate buffer, even on error
-            await _outputGate.WaitAsync().ConfigureAwait(false);
             try
             {
-                _context.ExitAlternateScreen();
+                _inputRouterState.CancelKeyHolds();
             }
             finally
             {
-                _outputGate.Release();
-            }
+                waitLifetime.Cancel();
+                if (frameWaitTask is not null)
+                {
+                    try
+                    {
+                        await frameWaitTask.ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (waitLifetime.IsCancellationRequested)
+                    {
+                    }
+                }
+                // Always exit alternate buffer, even on error
+                await _outputGate.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    _context.ExitAlternateScreen();
+                }
+                finally
+                {
+                    _outputGate.Release();
+                }
 
-            // Drop the repaint handler so we don't keep this app alive via
-            // the workload adapter's delegate slot if RunAsync is restarted
-            // or the host swaps adapters.
-            if (_adapter is Hex1bAppWorkloadAdapter wa)
-            {
-                wa.SetRepaintRequestHandler(null);
+                // Drop the repaint handler so we don't keep this app alive via
+                // the workload adapter's delegate slot if RunAsync is restarted
+                // or the host swaps adapters.
+                if (_adapter is Hex1bAppWorkloadAdapter wa)
+                {
+                    wa.SetRepaintRequestHandler(null);
+                }
             }
         }
     }
@@ -792,7 +803,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             // Key events are routed to the focused node through the tree
             case Hex1bKeyEvent keyEvent when _rootNode != null:
                 // Escape during an active paste cancels the paste
-                if (keyEvent.Key == Hex1bKey.Escape && _activePaste is { IsCompleted: false, IsCancelled: false })
+                if (keyEvent.EventType != Hex1bKeyEventType.Release &&
+                    keyEvent.Key == Hex1bKey.Escape && _activePaste is { IsCompleted: false, IsCancelled: false })
                 {
                     _activePaste.Cancel();
                     _activePaste = null;

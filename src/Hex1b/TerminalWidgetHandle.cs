@@ -680,6 +680,7 @@ public sealed class TerminalWidgetHandle :
         var supportsSixel = Nodes.SixelNode.IsSixelSupported(hostCapabilities);
         var updated = current with
         {
+            SupportsKittyKeyboard = hostCapabilities.SupportsKittyKeyboard,
             SupportsKgp = hostCapabilities.SupportsKgp,
             SupportsSixel = supportsSixel,
             SixelSupport = supportsSixel ? Sixel.SixelPresentationSupport.Headless : Sixel.SixelPresentationSupport.None,

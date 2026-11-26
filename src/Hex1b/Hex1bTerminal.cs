@@ -107,6 +107,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private TrackedObject<HyperlinkData>? _currentHyperlink; // Active hyperlink from OSC 8
     private volatile bool _disposed;
     private bool _inAlternateScreen;
+    private readonly KittyKeyboardMode _mainKeyboardMode = new();
+    private readonly KittyKeyboardMode _alternateKeyboardMode = new();
     private TerminalScreenBuffer? _savedMainScreenBuffer; // Saved main screen when entering alternate screen
     private bool _alternateScreenSavedPendingWrap;
     private int _alternateScreenSavedCursorX; // Saved cursor X for alternate screen (mode 1049)
@@ -632,6 +634,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Exit raw mode
             if (_presentation != null)
             {
+                await CompleteHmp1KeyboardPresentationAsync();
                 try
                 {
                     await _presentation.ExitRawModeAsync(default);
@@ -705,7 +708,19 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private async Task<int> DrainWorkloadOutputAsync(Task<int> runTask, CancellationToken ct)
     {
-        var exitCode = await runTask;
+        int exitCode;
+        try
+        {
+            exitCode = await runTask;
+        }
+        finally
+        {
+            // The app closes its adapter after queuing its alternate-screen and
+            // keyboard-mode restoration. Drain those bytes even on cancellation.
+            if (_workload is Hex1bAppWorkloadAdapter { IsDisposed: true } &&
+                _outputProcessingTask is not null)
+                await _outputProcessingTask.WaitAsync(_disposeCts.Token);
+        }
 
         // Process exit drains stdout/stderr into the adapter's channel, not into
         // the terminal. Finish applying and presenting those bytes before shutdown.
@@ -924,7 +939,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     private async Task DispatchCompleteInputTextAsync(string completeText, CancellationToken ct)
     {
-        var tokens = AnsiTokenizer.Tokenize(completeText);
+        var tokens = InputModes.KittyKeyboardFlags != 0
+            ? AnsiTokenizer.TokenizeEnhancedInput(completeText)
+            : AnsiTokenizer.Tokenize(completeText);
 
         _metrics.TerminalInputTokens.Record(tokens.Count);
 
@@ -1072,6 +1089,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             KgpToken => null,
             
             // Unrecognized sequences may contain Alt+key combinations or bare Escape
+            UnrecognizedSequenceToken unrec when KittyKeyboardInput.TryDecode(unrec.Sequence, out var key) => key,
             UnrecognizedSequenceToken unrec => UnrecognizedToKeyEvent(unrec),
             
             // Other tokens don't represent user input
@@ -1129,17 +1147,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (key == Hex1bKey.None)
             return null;
         
-        // Decode modifiers from the modifier code
-        var modifiers = Hex1bModifiers.None;
-        if (token.Modifiers >= 2)
-        {
-            var modifierBits = token.Modifiers - 1;
-            if ((modifierBits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
-            if ((modifierBits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
-            if ((modifierBits & 4) != 0) modifiers |= Hex1bModifiers.Control;
-        }
-        
-        return new Hex1bKeyEvent(key, '\0', modifiers);
+        return new Hex1bKeyEvent(key, '\0', DecodeXtermModifiers(token.Modifiers));
     }
     
     private static Hex1bKeyEvent? ArrowKeyTokenToKeyEvent(ArrowKeyToken token)
@@ -1157,18 +1165,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (key == Hex1bKey.None)
             return null;
         
-        // Decode modifier bits: modifier code - 1 gives the bit pattern
-        // Bit 0 = Shift, Bit 1 = Alt, Bit 2 = Ctrl
-        var modifiers = Hex1bModifiers.None;
-        if (token.Modifiers >= 2)
-        {
-            var modifierBits = token.Modifiers - 1;
-            if ((modifierBits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
-            if ((modifierBits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
-            if ((modifierBits & 4) != 0) modifiers |= Hex1bModifiers.Control;
-        }
-        
-        return new Hex1bKeyEvent(key, '\0', modifiers);
+        return new Hex1bKeyEvent(key, '\0', DecodeXtermModifiers(token.Modifiers));
     }
     
     private static Hex1bKeyEvent? CursorMoveTokenToKeyEvent(CursorMoveToken token)
@@ -1268,9 +1265,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         return null;
     }
     
-    private byte[] EncodeInputEvent(Hex1bEvent evt, out IReadOnlyList<AnsiToken> tokens)
+    private byte[] EncodeInputEvent(Hex1bEvent evt, out IReadOnlyList<AnsiToken> tokens, int? kittyKeyboardFlags = null)
     {
         var modes = InputModes;
+        if (kittyKeyboardFlags.HasValue)
+            modes = modes with { KittyKeyboardFlags = kittyKeyboardFlags.Value };
         var bytes = evt switch
         {
             Hex1bKeyEvent key => Encoding.UTF8.GetBytes(TerminalInputEncoder.EncodeKey(key, modes)),
@@ -1288,7 +1287,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         var encoding = evt is Hex1bMouseEvent && modes.MouseEncoding == TerminalMouseEncoding.Legacy
             ? Encoding.Latin1 : Encoding.UTF8;
         var text = encoding.GetString(bytes);
-        if (evt is Hex1bKeyEvent { Key: Hex1bKey.None, Modifiers: Hex1bModifiers.None })
+        if (evt is Hex1bKeyEvent { Key: Hex1bKey.None, Modifiers: Hex1bModifiers.None } &&
+            (modes.KittyKeyboardFlags & 8) == 0)
         {
             tokens = [new TextToken(text)];
         }
@@ -1314,12 +1314,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private static Hex1bModifiers DecodeXtermModifiers(int modifierCode)
     {
         if (modifierCode < 2) return Hex1bModifiers.None;
-        var bits = modifierCode - 1;
-        var modifiers = Hex1bModifiers.None;
-        if ((bits & 1) != 0) modifiers |= Hex1bModifiers.Shift;
-        if ((bits & 2) != 0) modifiers |= Hex1bModifiers.Alt;
-        if ((bits & 4) != 0) modifiers |= Hex1bModifiers.Control;
-        return modifiers;
+        return (Hex1bModifiers)((modifierCode - 1) & 0xff);
     }
     
     private async Task PumpWorkloadOutputAsync(CancellationToken ct)
@@ -1384,7 +1379,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Process reads return empty only at EOF (or cancellation).
                     // Other workloads can return empty between frames and must keep pumping.
                     if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess ||
-                        _workload is Hmp1WorkloadAdapter { OutputCompleted: true })
+                        _workload is Hmp1WorkloadAdapter { OutputCompleted: true } ||
+                        _workload is Hex1bAppWorkloadAdapter { IsDisposed: true })
                     {
                         if (_workload is Hex1bTerminalChildProcess { HasExited: false } child)
                             await child.WaitForExitAsync(ct);
@@ -1418,7 +1414,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     continue;
                 }
                 if (remoteState is not null)
+                {
+                    if (!remoteState.Connected)
+                        await CompleteHmp1KeyboardPresentationAsync();
                     await ApplyHmp1StateAsync(remoteState);
+                }
                 if (animationState is not null)
                     ApplyHmp1KgpAnimationState(animationState);
                 if (programStatusState is not null)
@@ -1436,7 +1436,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Native/raw presentations own the original workload bytes. Forward each
                     // read before framing, decoding, filters, raster work, or snapshots.
                     var passthroughStarted = Stopwatch.GetTimestamp();
-                    await _presentation.WriteOutputAsync(data, ct);
+                    await WriteHmp1PresentationAsync(data, remoteSource is not null, stateSync: false, ct);
                     _metrics.TerminalRawPassthroughDuration.Record(
                         Stopwatch.GetElapsedTime(passthroughStarted).TotalMilliseconds);
                     _metrics.TerminalOutputBytes.Record(data.Length);
@@ -1507,7 +1507,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                         if (_disposed)
                             continue;
                         var filteredBytes = Tokens.AnsiTokenUtf8Serializer.Serialize(filteredTokens);
-                        await _presentation.WriteOutputAsync(filteredBytes, ct);
+                        await WriteHmp1PresentationAsync(filteredBytes, remoteSource is not null, stateSync: false, ct);
                         _metrics.TerminalOutputBytes.Record(filteredBytes.Length);
                     }
                 }
@@ -2087,7 +2087,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _mouseEncodingSgr ? TerminalMouseEncoding.Sgr :
                         _mouseEncodingUrxvt ? TerminalMouseEncoding.Urxvt :
                         _mouseEncodingUtf8 ? TerminalMouseEncoding.Utf8 : TerminalMouseEncoding.Legacy,
-                    _width, _height);
+                    _width, _height,
+                    (_inAlternateScreen ? _alternateKeyboardMode : _mainKeyboardMode).Flags);
             }
         }
     }
@@ -2273,7 +2274,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 [.. _commandMarks])
             {
                 LineRenditions = lineRenditions,
-                ProgramStatus = _programStatus
+                ProgramStatus = _programStatus,
+                KittyKeyboardFlags = (_inAlternateScreen ? _alternateKeyboardMode : _mainKeyboardMode).Flags,
+                MainKittyKeyboardStack = _mainKeyboardMode.CaptureStack(),
+                AlternateKittyKeyboardStack = _alternateKeyboardMode.CaptureStack()
             };
         }
     }
@@ -2459,7 +2463,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// </summary>
     /// <param name="evt">The event to send.</param>
     /// <param name="ct">Cancellation token.</param>
-    internal async Task SendEventAsync(Hex1bEvent evt, CancellationToken ct = default)
+    /// <param name="kittyKeyboardFlags">Optional original keyboard mode for a tracked release.</param>
+    internal async Task SendEventAsync(Hex1bEvent evt, CancellationToken ct = default, int? kittyKeyboardFlags = null)
     {
         if (_workloadInputMode == Hex1bTerminalInputMode.ParsedEvents)
         {
@@ -2467,7 +2472,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         else
         {
-            var bytes = EncodeInputEvent(evt, out var tokens);
+            var bytes = EncodeInputEvent(evt, out var tokens, kittyKeyboardFlags);
             if (bytes.Length > 0)
             {
                 await WriteWorkloadInputAsync(bytes, ct);
@@ -3600,6 +3605,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
 
             case RisToken:
+                _mainKeyboardMode.Reset();
+                _alternateKeyboardMode.Reset();
                 foreach (var anchor in _textAnchors)
                     anchor.RowId = null;
                 InvalidateTextAnchorRetention();
@@ -3777,7 +3784,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _appKeypadMode = kpToken.Application;
                 break;
                 
-            case UnrecognizedSequenceToken:
+            case UnrecognizedSequenceToken unrecognized:
+                var keyboardMode = _inAlternateScreen ? _alternateKeyboardMode : _mainKeyboardMode;
+                if (keyboardMode.Apply(unrecognized.Sequence, out var keyboardQuery) && keyboardQuery &&
+                    !_presentation.AnswersProtocolQueriesDirectly)
+                {
+                    _ = SendProtocolResponseAsync(Encoding.ASCII.GetBytes($"\x1b[?{keyboardMode.Flags}u"));
+                }
                 // Ignore unrecognized sequences
                 break;
                 
@@ -7011,6 +7024,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         if (_presentation != null)
         {
+            CompleteHmp1KeyboardPresentationAsync().AsTask().GetAwaiter().GetResult();
             // Write mouse disable sequences and screen restore DIRECTLY to presentation
             // This ensures they're written before raw mode is exited, avoiding race conditions
             var exitSequences = Input.MouseParser.DisableMouseTracking + 
@@ -7055,6 +7069,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         if (_presentation != null)
         {
+            await CompleteHmp1KeyboardPresentationAsync();
             // Write mouse disable sequences and screen restore DIRECTLY to presentation
             // This ensures they're written before raw mode is exited, avoiding race conditions
             // where mouse events could leak to the shell after app exit

@@ -35,6 +35,7 @@ public sealed class ConsolePresentationAdapter :
     // reports with no visible side effect. See docs/sixel-terminal-behavior.md
     // for the full discovery precedence these responses feed into.
     private static readonly byte[] Da1ProbeQuery = Encoding.ASCII.GetBytes("\x1b[c");
+    private static readonly byte[] KittyKeyboardProbeQuery = "\x1b[?u"u8.ToArray();
     private static readonly byte[] Csi14ProbeQuery = Encoding.ASCII.GetBytes("\x1b[14t");
     private static readonly byte[] Csi16ProbeQuery = Encoding.ASCII.GetBytes("\x1b[16t");
     private static readonly byte[] Csi18ProbeQuery = Encoding.ASCII.GetBytes("\x1b[18t");
@@ -451,9 +452,10 @@ public sealed class ConsolePresentationAdapter :
         // probe pass rather than opening a second competing reader.
         _driver.Write(BackgroundProbeQuery);
         _driver.Write(MouseProbeQuery);
+        _driver.Write(KittyKeyboardProbeQuery);
+        _driver.Write(Da1ProbeQuery);
         if (sixelProbeNeeded)
         {
-            _driver.Write(Da1ProbeQuery);
             _driver.Write(Csi16ProbeQuery);
             _driver.Write(Csi14ProbeQuery);
             _driver.Write(Csi18ProbeQuery);
@@ -468,7 +470,8 @@ public sealed class ConsolePresentationAdapter :
         int? mouseEncodingStatus = null;
 
         bool? da1DeclaresSixel = null;
-        var da1Done = !sixelProbeNeeded;
+        var da1Done = false;
+        var keyboardProbeDone = false;
         var da1Malformed = false;
 
         (double Height, double Width)? csi16 = null;
@@ -524,15 +527,22 @@ public sealed class ConsolePresentationAdapter :
                     mouseEncodingStatus = encodingStatus;
                 }
 
+                if (!keyboardProbeDone && TryConsumeKittyKeyboardProbeResponse(bufferedInput))
+                {
+                    keyboardProbeDone = true;
+                    _capabilities = _capabilities with { SupportsKittyKeyboard = true };
+                }
+
+                if (!da1Done && TryConsumeDeviceAttributesResponse(bufferedInput, out var sixelDeclared, out var da1Bad))
+                {
+                    // ConPTY can answer DA1 before the frontend's Kitty response arrives.
+                    da1Done = true;
+                    da1Malformed = da1Bad;
+                    da1DeclaresSixel = da1Bad ? null : sixelDeclared;
+                }
+
                 if (sixelProbeNeeded)
                 {
-                    if (!da1Done && TryConsumeDeviceAttributesResponse(bufferedInput, out var sixelDeclared, out var da1Bad))
-                    {
-                        da1Done = true;
-                        da1Malformed = da1Bad;
-                        da1DeclaresSixel = da1Bad ? null : sixelDeclared;
-                    }
-
                     if (!csi16Done && TryConsumeWindowOperationResponse(bufferedInput, reportCode: 6, out var c16A, out var c16B, out var c16Bad))
                     {
                         csi16Done = true;
@@ -566,7 +576,7 @@ public sealed class ConsolePresentationAdapter :
                     }
                 }
 
-                if (kgpDone && _backgroundProbeCompleted &&
+                if (kgpDone && _backgroundProbeCompleted && keyboardProbeDone &&
                     da1Done && csi16Done && csi14Done && csi18Done && osc1337Done &&
                     mouseTrackingStatus is not null && mouseEncodingStatus is not null)
                     break;
@@ -603,6 +613,27 @@ public sealed class ConsolePresentationAdapter :
                 AppendPrefetchedInput(CollectionsMarshal.AsSpan(bufferedInput));
             }
         }
+    }
+
+    private static bool TryConsumeKittyKeyboardProbeResponse(List<byte> buffer)
+    {
+        var span = CollectionsMarshal.AsSpan(buffer);
+        for (var start = 0; start <= span.Length - 4; start++)
+        {
+            if (span[start] != 0x1b || span[start + 1] != (byte)'[' || span[start + 2] != (byte)'?')
+                continue;
+            var end = start + 3;
+            while (end < span.Length && (span[end] is >= (byte)'0' and <= (byte)'9' || span[end] == (byte)';'))
+                end++;
+            if (end == span.Length)
+                continue;
+            if (span[end] != (byte)'u' || end == start + 3 ||
+                !int.TryParse(Encoding.ASCII.GetString(span[(start + 3)..end]), out _))
+                continue;
+            buffer.RemoveRange(start, end - start + 1);
+            return true;
+        }
+        return false;
     }
 
     private static bool TryConsumeMouseModeResponse(List<byte> buffer, int mode, out int status)

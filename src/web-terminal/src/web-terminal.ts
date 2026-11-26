@@ -38,6 +38,16 @@ import type { HyperlinkRange, InputCommand, TerminalCommand, WorkerInputMessage,
 import { errorMessage, isRecord } from "./validation.js";
 export { InputRoute, TerminalAction, defaultInputBindings } from "./input-policy.js";
 
+const kittyModifierCodes = new Map([
+  ["ShiftLeft", "Shift"], ["ShiftRight", "Shift"], ["ControlLeft", "Control"], ["ControlRight", "Control"],
+  ["AltLeft", "Alt"], ["AltRight", "Alt"], ["MetaLeft", "Meta"], ["MetaRight", "Meta"],
+  ["CapsLock", "CapsLock"], ["NumLock", "NumLock"], ["ScrollLock", "ScrollLock"]
+]);
+
+function kittyModifierKey(key: string, code?: string): string | undefined {
+  return code && kittyModifierCodes.get(code) === key ? code : undefined;
+}
+
 function requiredElement<T extends Element>(root: ParentNode, selector: string, type: new () => T): T {
   const element = root.querySelector(selector);
   if (!(element instanceof type)) throw new Error(`Missing terminal element: ${selector}`);
@@ -72,6 +82,8 @@ export class WebTerminal implements WebTerminalHandle {
   #size = { width: 0, height: 0 };
   #sizing = normalizeSizing();
   #geometry: TerminalGeometry = { columns: 80, rows: 24, cellWidth: 10, cellHeight: 20, mouseTracking: 0 };
+  #kittyKeyboardFlags = 0;
+  #pressedKeys = new Map<string, string>();
   #peer: TerminalPeer = { id: null, primaryId: null, isPrimary: false };
   #connected = false;
   #closed = false;
@@ -473,6 +485,11 @@ export class WebTerminal implements WebTerminalHandle {
       }
       this.#options.onStatus?.(message.message, message.level);
     } else if (message.type === "geometry") {
+      const kittyKeyboardFlags = message.kittyKeyboardFlags ?? 0;
+      if (!(kittyKeyboardFlags & 2) && (this.#kittyKeyboardFlags & 2))
+        this.#releasePressedKeys();
+      this.#kittyKeyboardFlags = kittyKeyboardFlags;
+      if (!(this.#kittyKeyboardFlags & 2)) this.#pressedKeys.clear();
       this.#lineRenditions = message.lineRenditions ?? [];
       this.#linkRevision = message.revision;
       this.#osc8Rows.clear();
@@ -904,8 +921,10 @@ export class WebTerminal implements WebTerminalHandle {
     if (this.#readOnly === readOnly) return;
     const inputFocused = document.activeElement === this.element &&
       (!this.element.shadowRoot?.activeElement || this.element.shadowRoot.activeElement === this.#input);
+    if (readOnly) this.#releasePressedKeys();
     this.#readOnly = readOnly;
     this.#inputSerial++;
+    this.#pressedKeys.clear();
     this.#resetComposition?.();
     if (this.#input) {
       this.#input.value = "";
@@ -1036,8 +1055,16 @@ export class WebTerminal implements WebTerminalHandle {
 
   #forwardInput(input: TerminalInput): void {
     if (input.type === "key") {
-      if (input.meta) throw new Error("Meta has no terminal key encoding; bind this shortcut to a local action instead.");
-      this.#inputCommand({ type: "key", key: input.key, ctrl: input.ctrl, alt: input.alt, shift: input.shift });
+      if (input.meta && !this.#kittyKeyboardFlags)
+        throw new Error("Meta has no terminal key encoding; bind this shortcut to a local action instead.");
+      const key = (this.#kittyKeyboardFlags & 8) ? kittyModifierKey(input.key, input.code) ?? input.key : input.key;
+      this.#inputCommand({ type: "key", key, ctrl: input.ctrl, alt: input.alt, shift: input.shift,
+        ...(this.#kittyKeyboardFlags ? {
+          eventType: input.repeat ? "repeat" : "press", super: input.meta,
+          capsLock: input.capsLock, numLock: input.numLock
+        } : {}), ...((this.#kittyKeyboardFlags & 2) ? { code: input.code } : {}) });
+      if (this.#canInput() && (this.#kittyKeyboardFlags & 2) && input.code && !this.#pressedKeys.has(input.code))
+        this.#pressedKeys.set(input.code, key);
     } else if (input.type === "paste") {
       if (this.#canInput()) this.paste(input.text);
     } else if (input.type === "text") {
@@ -1050,7 +1077,9 @@ export class WebTerminal implements WebTerminalHandle {
     // Shortcuts may run on inspection controls, but Enter/Space must still activate the control.
     if (!allowApplication && decision.action === undefined && decision.route !== InputRoute.Consume) return;
     if (decision.route === InputRoute.Browser ||
-        (decision.route === InputRoute.Continue && input.type === "key")) return;
+        (decision.route === InputRoute.Continue && input.type === "key" &&
+         (!(this.#kittyKeyboardFlags & 8) ||
+          (Array.from(input.key).length !== 1 && !kittyModifierKey(input.key, input.code))))) return;
     event?.preventDefault();
     event?.stopPropagation();
     if (decision.action !== undefined) this.#executeInputAction(decision, input);
@@ -1058,6 +1087,14 @@ export class WebTerminal implements WebTerminalHandle {
       try { this.#forwardInput(input); }
       catch (error) { this.#actionFailed(error); }
     }
+  }
+
+  #releasePressedKeys(): void {
+    if ((this.#kittyKeyboardFlags & 2) && this.#canInput()) {
+      for (const [code, key] of this.#pressedKeys)
+        this.#inputCommand({ type: "key", key, code, ctrl: false, alt: false, shift: false, eventType: "release" });
+    }
+    this.#pressedKeys.clear();
   }
 
   #bindKeyboard() {
@@ -1077,8 +1114,19 @@ export class WebTerminal implements WebTerminalHandle {
       if (!this.#connected || event.isComposing || composing || event.key === "Process" || event.key === "Dead") return;
       if (event.getModifierState("AltGraph")) return;
       this.#dispatchInput({ type: "key", key: event.key, code: event.code, repeat: event.repeat,
+        capsLock: event.getModifierState("CapsLock"), numLock: event.getModifierState("NumLock"),
         ...inputModifiers(event) }, event, target === input || target === this.element);
     }, { ...options, capture: true });
+    this.element.addEventListener("keyup", event => {
+      const key = this.#pressedKeys.get(event.code);
+      if (key === undefined) return;
+      this.#pressedKeys.delete(event.code);
+      if (!(this.#kittyKeyboardFlags & 2) || !this.#canInput()) return;
+      this.#inputCommand({ type: "key", key, code: event.code, ctrl: event.ctrlKey, alt: event.altKey, shift: event.shiftKey,
+        super: event.metaKey, capsLock: event.getModifierState("CapsLock"),
+        numLock: event.getModifierState("NumLock"), eventType: "release" });
+    }, { ...options, capture: true });
+    input.addEventListener("blur", () => this.#releasePressedKeys(), options);
     input.addEventListener("paste", event => {
       if (event.defaultPrevented || !this.#connected || !event.clipboardData) return;
       this.#dispatchInput({ type: "paste", text: event.clipboardData.getData("text/plain") }, event);
@@ -1160,6 +1208,7 @@ export class WebTerminal implements WebTerminalHandle {
 
   #disconnect() {
     this.#inputSerial++;
+    this.#pressedKeys.clear();
     this.#connected = false;
     this.#hyperlinks.update([]);
     this.#osc8Rows.clear();

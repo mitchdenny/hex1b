@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text;
 using Hex1b.Automation;
 using Hex1b.Input;
 
@@ -12,8 +13,20 @@ internal static class Hwt1Input
             snapshot.MouseProtocolButtonEnabled, snapshot.MouseProtocolAnyEnabled);
 
     internal static string EncodeKey(JsonElement command, Hex1bTerminal terminal)
+        => TerminalInputEncoder.EncodeKey(
+            DecodeKey(command, (terminal.InputModes.KittyKeyboardFlags & 8) != 0), terminal.InputModes);
+
+    internal static Hex1bKeyEvent DecodeKey(JsonElement command, bool reportAllKeys = false)
     {
         var key = command.GetProperty("key").GetString() ?? throw new InvalidDataException("Missing key.");
+        var functionalCode = key switch
+        {
+            "CapsLock" => 57358, "ScrollLock" => 57359, "NumLock" => 57360,
+            "ShiftLeft" => 57441, "ControlLeft" => 57442, "AltLeft" => 57443,
+            "MetaLeft" => 57444, "ShiftRight" => 57447, "ControlRight" => 57448,
+            "AltRight" => 57449, "MetaRight" => 57450,
+            _ => (int?)null,
+        };
         var typedKey = key switch
         {
             "ArrowUp" => Hex1bKey.UpArrow,
@@ -42,11 +55,32 @@ internal static class Hwt1Input
             "Backspace" => Hex1bKey.Backspace,
             "Tab" => Hex1bKey.Tab,
             "Escape" => Hex1bKey.Escape,
-            _ when key.Length == 1 => Hex1bKey.None,
+            _ when functionalCode.HasValue => Hex1bKey.None,
+            _ when key.Length > 0 && Rune.TryGetRuneAt(key, 0, out var rune) && rune.Utf16SequenceLength == key.Length => Hex1bKey.None,
             _ => throw new InvalidDataException($"Unsupported key: {key}")
         };
-        return TerminalInputEncoder.EncodeKey(
-            new Hex1bKeyEvent(typedKey, key.Length == 1 ? key : "", Modifiers(command)), terminal.InputModes);
+        var type = command.TryGetProperty("eventType", out var eventType) ? eventType.GetString() : "press";
+        var kind = type switch
+        {
+            "press" => Hex1bKeyEventType.Press,
+            "repeat" => Hex1bKeyEventType.Repeat,
+            "release" => Hex1bKeyEventType.Release,
+            _ => throw new InvalidDataException("Unsupported keyboard event type.")
+        };
+        var modifiers = Modifiers(command);
+        var text = typedKey == Hex1bKey.None && !functionalCode.HasValue &&
+            kind != Hex1bKeyEventType.Release &&
+            (!reportAllKeys || (modifiers & (Hex1bModifiers.Control | Hex1bModifiers.Alt | Hex1bModifiers.Super)) == 0)
+            ? key : "";
+        var unicodeKey = functionalCode ?? (typedKey == Hex1bKey.None && Rune.TryGetRuneAt(key, 0, out var keyRune)
+            ? Rune.ToLowerInvariant(keyRune).Value : (int?)null);
+        if (unicodeKey is int code)
+            typedKey = KittyKeyboardInput.MapKey('u', code);
+        return new Hex1bKeyEvent(typedKey, text, modifiers)
+        {
+            EventType = kind,
+            UnicodeKeyCode = unicodeKey,
+        };
     }
 
     internal static string EncodePaste(string text, Hex1bTerminal terminal)
@@ -92,7 +126,10 @@ internal static class Hwt1Input
     private static Hex1bModifiers Modifiers(JsonElement command)
         => (Flag(command, "shift") ? Hex1bModifiers.Shift : Hex1bModifiers.None) |
             (Flag(command, "alt") ? Hex1bModifiers.Alt : Hex1bModifiers.None) |
-            (Flag(command, "ctrl") ? Hex1bModifiers.Control : Hex1bModifiers.None);
+            (Flag(command, "ctrl") ? Hex1bModifiers.Control : Hex1bModifiers.None) |
+            (Flag(command, "super") ? Hex1bModifiers.Super : Hex1bModifiers.None) |
+            (Flag(command, "capsLock") ? Hex1bModifiers.CapsLock : Hex1bModifiers.None) |
+            (Flag(command, "numLock") ? Hex1bModifiers.NumLock : Hex1bModifiers.None);
 
     private static bool Flag(JsonElement command, string name)
     {

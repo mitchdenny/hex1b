@@ -27,7 +27,7 @@ public sealed class ChordTrie
             return;
         }
 
-        var step = steps[index];
+        var step = steps[index] with { Modifiers = KeyStep.WithoutLocks(steps[index].Modifiers) };
         if (!_children.TryGetValue(step, out var child))
         {
             child = new ChordTrie();
@@ -41,7 +41,7 @@ public sealed class ChordTrie
     /// </summary>
     public ChordLookupResult Lookup(KeyStep step)
     {
-        if (_children.TryGetValue(step, out var child))
+        if (_children.TryGetValue(step with { Modifiers = KeyStep.WithoutLocks(step.Modifiers) }, out var child))
         {
             return new ChordLookupResult(child);
         }

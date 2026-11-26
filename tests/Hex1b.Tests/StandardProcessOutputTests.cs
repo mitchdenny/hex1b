@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Buffers.Binary;
 using System.Text;
 using System.Text.Json;
+using Hex1b.Widgets;
 using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
@@ -9,6 +10,50 @@ namespace Hex1b.Tests;
 [TestClass]
 public class StandardProcessOutputTests
 {
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task RunAsync_AppExit_DrainsKeyboardAndScreenRestoration(bool cancel)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
+        var presentation = new GatedPresentationAdapter { SupportsKittyKeyboard = true };
+        var rendered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Hex1bApp? app = null;
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithPresentation(presentation)
+            .WithHex1bApp(_ => { }, current =>
+            {
+                app = current;
+                return ctx => ctx.Test().OnRender(_ => rendered.TrySetResult());
+            })
+            .WithDimensions(80, 10)
+            .Build();
+        var run = terminal.RunAsync(runCancellation.Token);
+        try
+        {
+            await presentation.WriteStarted.Task.WaitAsync(timeout.Token);
+            await rendered.Task.WaitAsync(timeout.Token);
+            if (cancel)
+                await runCancellation.CancelAsync();
+            else
+                app!.RequestStop();
+            Assert.IsFalse(run.IsCompleted, "Restoration must be presented before the run completes.");
+            presentation.ReleaseWrite.TrySetResult();
+            await run.WaitAsync(timeout.Token);
+            var output = presentation.Output.ToString();
+            var push = output.IndexOf("\x1b[>31u", StringComparison.Ordinal);
+            var pop = output.IndexOf("\x1b[<u", StringComparison.Ordinal);
+            var exit = output.IndexOf("\x1b[?1049l", StringComparison.Ordinal);
+            Assert.IsTrue(push >= 0 && pop > push && exit > pop, "Keyboard mode and alternate screen must be restored in order.");
+        }
+        finally
+        {
+            presentation.ReleaseWrite.TrySetResult();
+            await runCancellation.CancelAsync();
+        }
+    }
+
     [TestMethod]
     [DataRow(0, false)]
     [DataRow(7, false)]
@@ -271,9 +316,12 @@ public class StandardProcessOutputTests
         public int? CompletedExitCode { get; private set; }
         public bool CompletedAfterOutput { get; private set; }
         public Exception? WriteError { get; set; }
+        public bool SupportsKittyKeyboard { get; init; }
         public int Width => _headless.Width;
         public int Height => _headless.Height;
-        public TerminalCapabilities Capabilities => _headless.Capabilities;
+        public TerminalCapabilities Capabilities => SupportsKittyKeyboard
+            ? _headless.Capabilities with { SupportsKittyKeyboard = true, HandlesAlternateScreenNatively = true }
+            : _headless.Capabilities;
         public event Action<int, int>? Resized { add { } remove { } }
         public event Action? Disconnected { add { } remove { } }
 

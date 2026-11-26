@@ -163,6 +163,7 @@ async function drawFrame() {
         type: "geometry", columns: metadata.columns, rows: metadata.rows,
         cellWidth: metadata.cellWidth, cellHeight: metadata.cellHeight,
         mouseTracking: metadata.mouseTracking, peer: metadata.peer,
+        kittyKeyboardFlags: metadata.kittyKeyboardFlags,
         history: metadata.history, revision: frame.revision, title: metadata.title,
         progress: metadata.progress, shellIntegration: metadata.shellIntegration,
         programStatus: metadata.programStatus ?? { records: [] },

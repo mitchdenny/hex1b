@@ -316,6 +316,12 @@ public sealed class TerminalNode : Hex1bNode
         
         // Forward input to the terminal
         if (_handle == null) return InputResult.NotHandled;
+
+        if (inputEvent is Hex1bKeyEvent { EventType: Hex1bKeyEventType.Release })
+        {
+            _ = _handle.SendEventAsync(inputEvent);
+            return InputResult.Handled;
+        }
         
         // When in copy mode, intercept all input (keyboard and mouse).
         // Delegate to the handle's CopyModeInput event.

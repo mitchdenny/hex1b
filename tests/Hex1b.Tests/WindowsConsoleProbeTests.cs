@@ -1,5 +1,7 @@
 using System.Text;
 using System.Runtime.InteropServices;
+using Hex1b.Automation;
+using Hex1b.Input;
 
 namespace Hex1b.Tests;
 
@@ -10,6 +12,137 @@ public class WindowsConsoleProbeTests
     private const string ProbeStarted = "PROBE_STARTED";
     internal const string PtyIoChildEnvironmentVariable = "HEX1B_WINDOWS_PTY_IO_TEST";
     private const string MouseChildEnvironmentVariable = "HEX1B_WINDOWS_MOUSE_TEST";
+    private const string KeyboardChildEnvironmentVariable = "HEX1B_WINDOWS_KEYBOARD_TEST";
+    private const string KeyboardNegotiationChildEnvironmentVariable = "HEX1B_WINDOWS_KEYBOARD_NEGOTIATION_TEST";
+
+    [TestMethod]
+    [TestCategory("Windows")]
+    public async Task KittyKeyboard_ThroughConPty_NegotiatesAndRoutesEvents()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(30));
+        var ct = cancellation.Token;
+        await using var pty = new WindowsProxyPtyHandle();
+        await pty.StartAsync(
+            Path.Combine(AppContext.BaseDirectory, "Hex1b.Tests.exe"),
+            ["--filter", "FullyQualifiedName=Hex1b.Tests.WindowsConsoleProbeTests.KeyboardNegotiationChild", "--no-progress", "--no-ansi"],
+            AppContext.BaseDirectory,
+            new Dictionary<string, string> { [KeyboardNegotiationChildEnvironmentVariable] = "1" },
+            80, 24, ct);
+        var output = new StringBuilder();
+        var replied = false;
+        var sent = false;
+        while (!output.ToString().Contains("KITTY_NEGOTIATION_RESULT:OK", StringComparison.Ordinal))
+        {
+            var bytes = await pty.ReadAsync(ct);
+            Assert.IsFalse(bytes.IsEmpty, $"Keyboard negotiation child exited before success: {output}");
+            output.Append(Encoding.UTF8.GetString(bytes.Span));
+            if (!replied && output.ToString().Contains("KITTY_PROBE_READY", StringComparison.Ordinal))
+            {
+                replied = true;
+                await pty.WriteAsync("\x1b[?0u"u8.ToArray(), ct);
+            }
+            if (!sent && output.ToString().Contains("KITTY_INPUT_READY", StringComparison.Ordinal))
+            {
+                sent = true;
+                await pty.WriteAsync("\x1b[97;1;97u\x1b[97;1:2;97u\x1b[97;1:3u"u8.ToArray(), ct);
+            }
+        }
+        Assert.IsTrue(replied && sent);
+        Assert.AreEqual(0, await pty.WaitForExitAsync(ct), output.ToString());
+    }
+
+    [TestMethod]
+    public async Task KeyboardNegotiationChild()
+    {
+        if (Environment.GetEnvironmentVariable(KeyboardNegotiationChildEnvironmentVariable) != "1")
+            return;
+
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var ct = cancellation.Token;
+        using var driver = new WindowsConsoleDriver();
+        await using var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: TimeSpan.FromSeconds(2));
+        var probe = adapter.EnterRawModeAsync(ct);
+        driver.Write("KITTY_PROBE_READY\r\n"u8);
+        await probe;
+        Assert.IsTrue(adapter.Capabilities.SupportsKittyKeyboard, "The Kitty reply must survive ConPTY's DA1 response.");
+        using var workload = new Hex1bAppWorkloadAdapter(adapter);
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = adapter,
+            WorkloadAdapter = workload,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+        workload.EnterTuiMode();
+        using var ready = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.KittyKeyboardFlags == 31, TimeSpan.FromSeconds(5), "Kitty mode enabled")
+            .Build().ApplyAsync(terminal, ct);
+        driver.Write("KITTY_INPUT_READY\r\n"u8);
+
+        foreach (var (expected, text) in new[]
+        {
+            (Hex1bKeyEventType.Press, "a"),
+            (Hex1bKeyEventType.Repeat, "a"),
+            (Hex1bKeyEventType.Release, "")
+        })
+        {
+            var key = TestSeq.IsType<Hex1bKeyEvent>(await workload.InputEvents.ReadAsync(ct));
+            Assert.AreEqual(Hex1bKey.A, key.Key);
+            Assert.AreEqual(expected, key.EventType);
+            Assert.AreEqual(text, key.Text);
+        }
+        driver.Write("KITTY_NEGOTIATION_RESULT:OK\r\n"u8);
+    }
+
+    [TestMethod]
+    [TestCategory("Windows")]
+    public async Task KittyKeyboard_ThroughConPty_PreservesEnhancedEvents()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(30));
+        var ct = cancellation.Token;
+        await using var pty = new WindowsProxyPtyHandle();
+        await pty.StartAsync(
+            Path.Combine(AppContext.BaseDirectory, "Hex1b.Tests.exe"),
+            ["--filter", "FullyQualifiedName=Hex1b.Tests.WindowsConsoleProbeTests.KeyboardChild", "--no-progress", "--no-ansi"],
+            AppContext.BaseDirectory,
+            new Dictionary<string, string> { [KeyboardChildEnvironmentVariable] = "1" },
+            80, 24, ct);
+        var output = new StringBuilder();
+        var sent = false;
+        while (!output.ToString().Contains("KEYBOARD_RESULT:OK", StringComparison.Ordinal))
+        {
+            var bytes = await pty.ReadAsync(ct);
+            Assert.IsFalse(bytes.IsEmpty, $"Keyboard child exited before success: {output}");
+            output.Append(Encoding.UTF8.GetString(bytes.Span));
+            if (!sent && output.ToString().Contains("KEYBOARD_READY", StringComparison.Ordinal))
+            {
+                sent = true;
+                await pty.WriteAsync("\x1b[97;1:2u\x1b[97;1:3uz"u8.ToArray(), ct);
+            }
+        }
+        Assert.IsTrue(sent);
+        Assert.AreEqual(0, await pty.WaitForExitAsync(ct), output.ToString());
+    }
+
+    [TestMethod]
+    public async Task KeyboardChild()
+    {
+        if (Environment.GetEnvironmentVariable(KeyboardChildEnvironmentVariable) != "1")
+            return;
+        using var driver = new WindowsConsoleDriver();
+        driver.EnterRawMode();
+        driver.Write("KEYBOARD_READY\r\n"u8);
+        Assert.AreEqual("\x1b[97;1:2u\x1b[97;1:3u", await ReadUntilSentinelAsync(driver));
+        driver.ExitRawMode();
+        driver.Write("KEYBOARD_RESULT:OK\r\n"u8);
+    }
 
     [TestMethod]
     [TestCategory("Windows")]

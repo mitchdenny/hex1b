@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Text;
 using System.Threading.Channels;
 using Hex1b.Input;
@@ -40,12 +41,19 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     private readonly Channel<Hex1bEvent> _inputChannel;
     private readonly SemaphoreSlim _rawInputWriteLock = new(1, 1);
     private byte[] _pendingRawInput = [];
+    private PasteContext? _rawPaste;
+    private readonly ConcurrentDictionary<PasteContext, byte> _rawPastes = new();
+    private ITimer? _rawInputTimer;
+    private int _rawInputGeneration;
+    internal TimeProvider RawInputTimeProvider { get; set; } = TimeProvider.System;
     private readonly IHex1bTerminalPresentationAdapter? _presentationAdapter;
     private readonly TerminalCapabilities? _staticCapabilities;
     private int _width;
     private int _height;
-    private bool _disposed;
+    private volatile bool _disposed;
+    internal bool IsDisposed => _disposed;
     private bool _inTuiMode;
+    private bool _kittyKeyboardPushed;
     private bool _dimensionsInitialized;
     private int _outputQueueDepth; // Manual tracking since unbounded channels don't support Count
     private readonly int _maxQueuedOutputItems;
@@ -138,7 +146,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         _inputChannel = Channel.CreateUnbounded<Hex1bEvent>(new UnboundedChannelOptions
         {
             SingleReader = true,
-            SingleWriter = true
+            SingleWriter = false
         });
     }
 
@@ -172,7 +180,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         _inputChannel = Channel.CreateUnbounded<Hex1bEvent>(new UnboundedChannelOptions
         {
             SingleReader = true,
-            SingleWriter = true
+            SingleWriter = false
         });
     }
 
@@ -446,6 +454,11 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         {
             sb.Append("\x1b[?2004h");  // Enable bracketed paste mode
         }
+        if (Capabilities.SupportsKittyKeyboard)
+        {
+            sb.Append("\x1b[>31u");
+            _kittyKeyboardPushed = true;
+        }
         Write(sb.ToString());
     }
 
@@ -458,6 +471,11 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         _inTuiMode = false;
 
         var sb = new StringBuilder();
+        if (_kittyKeyboardPushed)
+        {
+            sb.Append("\x1b[<u");
+            _kittyKeyboardPushed = false;
+        }
         if (Capabilities.SupportsBracketedPaste)
         {
             sb.Append("\x1b[?2004l");  // Disable bracketed paste mode
@@ -501,7 +519,6 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     public bool TryReadOutput(out ReadOnlyMemory<byte> data)
     {
         data = ReadOnlyMemory<byte>.Empty;
-        if (_disposed) return false;
         
         if (_outputChannel.Reader.TryRead(out var item))
         {
@@ -515,7 +532,6 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     internal bool TryReadOutputItem(out WorkloadOutputItem item)
     {
         item = default;
-        if (_disposed) return false;
 
         if (_outputChannel.Reader.TryRead(out item))
         {
@@ -536,8 +552,6 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// <inheritdoc />
     public async ValueTask<WorkloadOutputItem> ReadOutputItemAsync(CancellationToken ct = default)
     {
-        if (_disposed) return default;
-
         try
         {
             if (await _outputChannel.Reader.WaitToReadAsync(ct))
@@ -572,8 +586,45 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         try
         {
             if (_disposed) return;
-            foreach (var evt in DecodeRawInput(data))
-                await _inputChannel.Writer.WriteAsync(evt, ct);
+            Interlocked.Increment(ref _rawInputGeneration);
+            _rawInputTimer?.Dispose();
+            _rawInputTimer = null;
+            var operations = DecodeRawInput(data);
+            try
+            {
+                foreach (var operation in operations)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (operation.Event is not null)
+                        await _inputChannel.Writer.WriteAsync(operation.Event, ct);
+                    else if (operation.Text is not null)
+                    {
+                        await operation.Paste!.WriteAsync(operation.Text, ct);
+                        ct.ThrowIfCancellationRequested();
+                    }
+                    else
+                    {
+                        operation.Paste!.Complete();
+                        _rawPastes.TryRemove(operation.Paste, out _);
+                    }
+                }
+            }
+            catch
+            {
+                foreach (var paste in operations.Select(operation => operation.Paste ??
+                    (operation.Event as Hex1bPasteEvent)?.Paste).OfType<PasteContext>().Distinct())
+                {
+                    paste.Cancel();
+                    _rawPastes.TryRemove(paste, out _);
+                }
+                throw;
+            }
+            if (!_disposed && _rawPaste is null && _pendingRawInput.Length > 0 && _pendingRawInput[0] == 0x1b)
+            {
+                var generation = _rawInputGeneration;
+                _rawInputTimer = RawInputTimeProvider.CreateTimer(
+                    FlushRawInput, generation, TimeSpan.FromMilliseconds(50), Timeout.InfiniteTimeSpan);
+            }
         }
         finally
         {
@@ -581,7 +632,30 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         }
     }
 
-    private List<Hex1bKeyEvent> DecodeRawInput(ReadOnlyMemory<byte> data)
+    private void FlushRawInput(object? state)
+    {
+        _rawInputWriteLock.Wait();
+        try
+        {
+            if (_disposed || state is not int generation || generation != _rawInputGeneration)
+                return;
+            foreach (var operation in DecodeRawInput(ReadOnlyMemory<byte>.Empty, flushEscape: true))
+            {
+                if (operation.Event is null)
+                    throw new InvalidOperationException("A paste operation cannot be flushed by the escape timer.");
+                if (!_inputChannel.Writer.TryWrite(operation.Event) && !_disposed)
+                    throw new InvalidOperationException("The input channel was closed while flushing raw input.");
+            }
+        }
+        finally
+        {
+            _rawInputWriteLock.Release();
+        }
+    }
+
+    private readonly record struct RawInputOperation(Hex1bEvent? Event, PasteContext? Paste = null, string? Text = null);
+
+    private List<RawInputOperation> DecodeRawInput(ReadOnlyMemory<byte> data, bool flushEscape = false)
     {
         var input = data;
         if (_pendingRawInput.Length > 0)
@@ -592,10 +666,78 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             input = combined;
         }
 
-        var events = new List<Hex1bKeyEvent>();
+        var operations = new List<RawInputOperation>();
+        var pasteText = new StringBuilder();
         var offset = 0;
         while (offset < input.Length)
         {
+            var remaining = input.Span[offset..];
+            if (_rawPaste is not null)
+            {
+                ReadOnlySpan<byte> endMarker = "\x1b[201~"u8;
+                if (remaining[0] == 0x1b &&
+                    (remaining.Length < endMarker.Length ? endMarker.StartsWith(remaining) : remaining.StartsWith(endMarker)))
+                {
+                    if (remaining.Length < endMarker.Length)
+                        break;
+                    if (pasteText.Length > 0)
+                    {
+                        operations.Add(new(null, _rawPaste, pasteText.ToString()));
+                        pasteText.Clear();
+                    }
+                    operations.Add(new(null, _rawPaste));
+                    _rawPaste = null;
+                    offset += endMarker.Length;
+                    continue;
+                }
+                var pasteStatus = Rune.DecodeFromUtf8(remaining, out var pasteRune, out var pasteConsumed);
+                if (pasteStatus == OperationStatus.NeedMoreData)
+                    break;
+                if (pasteStatus == OperationStatus.InvalidData)
+                    pasteRune = Rune.ReplacementChar;
+                pasteText.Append(pasteRune.ToString());
+                offset += pasteConsumed;
+                continue;
+            }
+            if (remaining[0] == 0x1b)
+            {
+                if (remaining.Length == 1 && !flushEscape)
+                    break;
+                if (remaining.Length > 1 && remaining[1] == (byte)'[')
+                {
+                    var end = 2;
+                    while (end < remaining.Length && remaining[end] is not (>= 0x40 and <= 0x7e))
+                        end++;
+                    if (end == remaining.Length && remaining.Length < 4096 && !flushEscape)
+                        break;
+                    if (end < remaining.Length && remaining[..(end + 1)].SequenceEqual("\x1b[200~"u8))
+                    {
+                        _rawPaste = new PasteContext();
+                        _rawPastes.TryAdd(_rawPaste, 0);
+                        if (_disposed)
+                            _rawPaste.Cancel();
+                        operations.Add(new(new Hex1bPasteEvent(_rawPaste)));
+                        offset += end + 1;
+                        continue;
+                    }
+                    if (end < remaining.Length && end < 4096)
+                    {
+                        var sequence = Encoding.ASCII.GetString(remaining[..(end + 1)]);
+                        if (KittyKeyboardInput.TryDecode(sequence, out var key))
+                        {
+                            operations.Add(new(key!));
+                            offset += end + 1;
+                            continue;
+                        }
+                        if (_kittyKeyboardPushed && KittyKeyboardInput.IsCursorPositionReport(sequence))
+                        {
+                            offset += end + 1;
+                            continue;
+                        }
+                    }
+                }
+            }
+
             var status = Rune.DecodeFromUtf8(input.Span[offset..], out var rune, out var consumed);
             if (status == OperationStatus.NeedMoreData)
                 break;
@@ -606,10 +748,12 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
                 ? ParseKeyInput((char)rune.Value)
                 : Hex1bKeyEvent.FromText(rune.ToString());
             if (evt != null)
-                events.Add(evt);
+                operations.Add(new(evt));
         }
+        if (pasteText.Length > 0)
+            operations.Add(new(null, _rawPaste, pasteText.ToString()));
         _pendingRawInput = input.Span[offset..].ToArray();
-        return events;
+        return operations;
     }
 
     /// <inheritdoc />
@@ -749,6 +893,10 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     {
         if (_disposed) return;
         _disposed = true;
+        Interlocked.Increment(ref _rawInputGeneration);
+        _rawInputTimer?.Dispose();
+        foreach (var paste in _rawPastes.Keys)
+            paste.Cancel();
 
         // Note: ExitTuiMode is NOT called here because Hex1bTerminal handles
         // writing mouse-disable and screen-restore sequences directly to the

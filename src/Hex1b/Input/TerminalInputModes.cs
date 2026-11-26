@@ -7,4 +7,5 @@ internal readonly record struct TerminalInputModes(
     TerminalMouseTracking MouseTracking,
     TerminalMouseEncoding MouseEncoding,
     int Width,
-    int Height);
+    int Height,
+    int KittyKeyboardFlags = 0);

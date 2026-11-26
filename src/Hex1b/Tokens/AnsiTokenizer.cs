@@ -12,6 +12,10 @@ public static class AnsiTokenizer
     {
         RecognizeDcs = false,
     };
+    private static readonly TokenizerOptions s_enhancedInputOptions = new()
+    {
+        RecognizeAmbiguousF3 = false,
+    };
 
     /// <summary>
     /// Tokenizes the given text into a list of ANSI tokens.
@@ -23,6 +27,9 @@ public static class AnsiTokenizer
 
     internal static IReadOnlyList<AnsiToken> TokenizeWithoutDcs(string text) =>
         Tokenize(text, s_withoutDcsOptions);
+
+    internal static IReadOnlyList<AnsiToken> TokenizeEnhancedInput(string text) =>
+        Tokenize(text, s_enhancedInputOptions);
 
     private static IReadOnlyList<AnsiToken> Tokenize(string text, TokenizerOptions options)
     {
@@ -86,7 +93,7 @@ public static class AnsiTokenizer
             else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '[')
             {
                 FlushTextToken(text, ref textStart, i, tokens);
-                i = ParseCsiSequence(text, i, tokens);
+                i = ParseCsiSequence(text, i, tokens, options);
             }
             // Check for SS3 sequence (ESC O) - function keys F1-F4 and arrow keys in application mode
             else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == 'O' && i + 2 < text.Length)
@@ -280,7 +287,7 @@ public static class AnsiTokenizer
         }
     }
 
-    private static int ParseCsiSequence(string text, int start, List<AnsiToken> tokens)
+    private static int ParseCsiSequence(string text, int start, List<AnsiToken> tokens, TokenizerOptions options)
     {
         // Find the CSI final byte after ESC [.
         int end = start + 2;
@@ -319,6 +326,26 @@ public static class AnsiTokenizer
         var command = text[end];
         var paramStart = start + 2 + (isPrivateMode ? 1 : 0);
         var parameters = text[paramStart..end];
+
+        // Keyboard event-type subparameters must survive tokenization intact.
+        if (!isPrivateMode && parameters.Contains(':') &&
+            command is 'A' or 'B' or 'C' or 'D' or 'F' or 'H' or 'P' or 'Q' or 'R' or 'S' or '~')
+        {
+            tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+            return end + 1;
+        }
+        // P/Q/S with an extended keyboard modifier are not valid output
+        // commands, but must retain their exact parameters for input decoding.
+        if (!isPrivateMode && command is 'P' or 'Q' or 'S')
+        {
+            var parts = parameters.Split(';');
+            if (parts.Length == 2 && parts[0] == "1" &&
+                int.TryParse(parts[1], out var modifier) && modifier is > 16 and <= 256)
+            {
+                tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                return end + 1;
+            }
+        }
 
         switch (command)
         {
@@ -438,7 +465,7 @@ public static class AnsiTokenizer
                 // CSI u with no prefix is ANSI restore cursor. The prefixed forms belong to the
                 // kitty keyboard protocol (CSI ? u query, CSI > flags u push, CSI = flags;mode u
                 // set) and must pass through verbatim instead of moving the cursor.
-                if (isPrivateMode || (parameters.Length > 0 && parameters[0] is '>' or '=' or '<'))
+                if (isPrivateMode || parameters.Length > 0)
                 {
                     tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
                 }
@@ -567,12 +594,9 @@ public static class AnsiTokenizer
                 break;
                 
             case 'R':
-                // CSI 1;m R = F3 with modifiers (xterm). Note: plain CSI {row};{col} R is the
-                // Cursor Position Report response (DSR). The narrow "1;mod" with mod in 2..16
-                // pattern only collides with CPR for row=1, col=2..16, which is highly unlikely
-                // to coincide with a modifier-key press (CPR is only emitted in response to a
-                // DSR query).
-                if (TryParseFunctionKeyWithModifier(parameters, out var rMod))
+                // Legacy xterm F3 collides with a row-1 cursor report. Enhanced input
+                // uses Kitty's unambiguous CSI 13~ form instead.
+                if (options.RecognizeAmbiguousF3 && TryParseFunctionKeyWithModifier(parameters, out var rMod))
                 {
                     tokens.Add(new SpecialKeyToken(13, rMod));
                 }
@@ -1201,5 +1225,6 @@ public static class AnsiTokenizer
     private sealed class TokenizerOptions
     {
         public bool RecognizeDcs { get; init; } = true;
+        public bool RecognizeAmbiguousF3 { get; init; } = true;
     }
 }

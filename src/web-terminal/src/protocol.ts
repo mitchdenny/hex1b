@@ -212,6 +212,8 @@ function validateMetadata(metadata: unknown): asserts metadata is FrameMetadata 
   if (typeof metadata.mouseTracking !== "number" || ![0, 9, 1000, 1002, 1003].includes(metadata.mouseTracking)) {
     throw new Error("Unsupported mouse tracking mode");
   }
+  if (metadata.kittyKeyboardFlags !== undefined)
+    integer(metadata.kittyKeyboardFlags, "Kitty keyboard flags", 0, 31);
   if (!isRecord(metadata.peer) || typeof metadata.peer.isPrimary !== "boolean") throw new Error("Invalid peer state");
   for (const field of ["id", "primaryId"]) {
     const id = metadata.peer[field];

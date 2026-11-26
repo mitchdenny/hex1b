@@ -18,6 +18,9 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// Number of scrollback lines included in this snapshot (prepended above visible content).
     /// </summary>
     public int ScrollbackLineCount { get; }
+    internal int KittyKeyboardFlags { get; }
+    internal int[] MainKittyKeyboardStack { get; }
+    internal int[] AlternateKittyKeyboardStack { get; }
 
     internal Hex1bTerminalSnapshot(Hex1bTerminal terminal)
         : this(terminal, scrollbackLines: 0, scrollbackWidth: ScrollbackWidth.CurrentTerminal, voidCell: TerminalCell.Empty)
@@ -69,6 +72,9 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         WorkingDirectory = state.WorkingDirectory;
         CommandMarks = state.CommandMarks;
         ProgramStatus = state.ProgramStatus;
+        KittyKeyboardFlags = state.KittyKeyboardFlags;
+        MainKittyKeyboardStack = state.MainKittyKeyboardStack;
+        AlternateKittyKeyboardStack = state.AlternateKittyKeyboardStack;
 
         var scrollbackRows = state.ScrollbackRows;
         ScrollbackLineCount = scrollbackRows.Length;
@@ -83,6 +89,7 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
                 if (row.OriginalWidth > snapshotWidth)
                     snapshotWidth = row.OriginalWidth;
             }
+
         }
         else
         {

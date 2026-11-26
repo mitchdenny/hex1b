@@ -102,7 +102,7 @@ export interface InputModifiers { ctrl: boolean; alt: boolean; shift: boolean; m
 export type PointerButton = "left" | "middle" | "right";
 /** Input intents contain no browser event. Returning a route controls browser cancellation. */
 export type TerminalInput =
-  | ({ type: "key"; key: string; code: string; repeat: boolean } & InputModifiers)
+  | ({ type: "key"; key: string; code: string; repeat: boolean; capsLock?: boolean; numLock?: boolean } & InputModifiers)
   | ({ type: "pointer"; button: PointerButton; point: Readonly<TerminalPoint> } & InputModifiers)
   | ({ type: "wheel"; deltaX: number; deltaY: number; deltaMode: number;
        point: Readonly<TerminalPoint> | null } & InputModifiers)

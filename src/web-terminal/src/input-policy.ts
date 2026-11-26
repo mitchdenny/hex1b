@@ -9,6 +9,7 @@ export const TerminalAction = Object.freeze({
 
 const browserCtrlKeys = new Set(["l", "t", "v", "w", "+", "-", "=", "0"]);
 const browserFunctionKeys = new Set(["F1", "F3", "F5", "F6", "F7", "F10", "F11", "F12"]);
+const modifierKeys = new Set(["Shift", "Control", "Alt", "Meta"]);
 const terminalKeys = new Set(["Tab", "Enter", "Backspace", "Delete", "Escape", "ArrowUp", "ArrowDown",
   "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown", "Insert",
   ...Array.from({ length: 12 }, (_, index) => `F${index + 1}`)]);
@@ -25,7 +26,7 @@ export function defaultInputBindings(): InputBinding[] {
     },
     {
       id: "browser.shortcuts",
-      match: input => input.type === "key" && (input.meta || browserFunctionKeys.has(input.key) ||
+      match: input => input.type === "key" && !modifierKeys.has(input.key) && (input.meta || browserFunctionKeys.has(input.key) ||
         (input.ctrl && (input.key === "Tab" || input.key === "F4" || browserCtrlKeys.has(input.key.toLowerCase()) ||
           (input.shift && input.key.length === 1))) || (input.alt && !input.ctrl)),
       route: InputRoute.Browser

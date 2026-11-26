@@ -41,6 +41,7 @@ export interface ImagePlacement {
   clipX: number; clipY: number; clipWidth: number; clipHeight: number; z: number;
 }
 export interface FrameMetadata extends TerminalGeometry {
+  kittyKeyboardFlags?: number;
   lineRenditions?: number[];
   version: 1; full: boolean; revision: number; baseRevision: number;
   colorEncodings?: string[];
@@ -66,7 +67,8 @@ export type MouseCommand = {
 } & CellPosition;
 export type InputCommand =
   | { type: "input" | "paste"; text: string }
-  | { type: "key"; key: string; ctrl: boolean; alt: boolean; shift: boolean }
+  | { type: "key"; key: string; code?: string; ctrl: boolean; alt: boolean; shift: boolean;
+      eventType?: "press" | "repeat" | "release"; super?: boolean; capsLock?: boolean; numLock?: boolean }
   | MouseCommand;
 export type TerminalCommand = InputCommand
   | { type: "colorEncoding"; value: "indexed-v1" }
@@ -117,6 +119,7 @@ export type WorkerOutputMessage =
   | { type: "closed"; details: TerminalTransportCloseDetails }
   | { type: "status"; message: string; level: TerminalStatusLevel }
   | ({ type: "geometry"; peer: TerminalPeer; history: HistoryMetadata | null;
+       kittyKeyboardFlags?: number;
        lineRenditions?: number[];
        revision: number; title: string; progress: TerminalProgress; shellIntegration: TerminalShellIntegration;
        programStatus: TerminalProgramStatusInventory;

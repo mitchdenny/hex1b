@@ -13,6 +13,8 @@ public sealed class InputBindingActionContext
     private readonly Action<string>? _copyToClipboard;
     private readonly Action? _invalidate;
     private readonly TerminalProgramStatusReporter? _programStatus;
+    private readonly InputRouterState? _routerState;
+    private readonly Hex1bKeyEvent? _keyEvent;
 
     /// <summary>Gets the application's program-status reporting service.</summary>
     /// <exception cref="InvalidOperationException">This context is not attached to an application.</exception>
@@ -48,7 +50,9 @@ public sealed class InputBindingActionContext
         Action<string>? copyToClipboard = null,
         Action? invalidate = null,
         WindowManagerRegistry? windowManagerRegistry = null,
-        TerminalProgramStatusReporter? programStatus = null)
+        TerminalProgramStatusReporter? programStatus = null,
+        InputRouterState? routerState = null,
+        Hex1bKeyEvent? keyEvent = null)
     {
         _focusRing = focusRing;
         _requestStop = requestStop;
@@ -56,9 +60,18 @@ public sealed class InputBindingActionContext
         _invalidate = invalidate;
         _windowManagerRegistry = windowManagerRegistry;
         _programStatus = programStatus;
+        _routerState = routerState;
+        _keyEvent = keyEvent;
         CancellationToken = cancellationToken;
         MouseX = mouseX;
         MouseY = mouseY;
+    }
+
+    internal void StartKeyHold(Func<InputBindingActionContext, CancellationToken, Task> handler)
+    {
+        if (_routerState is null || _keyEvent is null)
+            throw new InvalidOperationException("Held-key bindings must be executed by the input router.");
+        _routerState.StartKeyHold(_keyEvent, _focusRing, this, handler);
     }
 
     /// <summary>

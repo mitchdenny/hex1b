@@ -25,6 +25,107 @@ function emit(target, type, data = {}) {
   return event;
 }
 
+test("Kitty keyboard mode sends tracked press, repeat and release without stealing browser shortcuts", async t => {
+  const workers = browser(t);
+  const view = await mounting(t, workers);
+  await view.worker.request("open");
+  await present(view, { kittyKeyboardFlags: 27 });
+  const terminal = await view.promise;
+  const input = terminal.element.shadowRoot.querySelector("textarea");
+  const path = () => [input, terminal.element];
+  assert.equal(emit(terminal.element, "keydown", { key: "a", code: "KeyA", composedPath: path }).defaultPrevented, true);
+  emit(terminal.element, "keydown", { key: "a", code: "KeyA", repeat: true, composedPath: path });
+  emit(terminal.element, "keyup", { key: "a", code: "KeyA", composedPath: path });
+  assert.equal(emit(terminal.element, "keydown", { key: "l", code: "KeyL", ctrlKey: true, composedPath: path }).defaultPrevented, false);
+  emit(terminal.element, "keyup", { key: "l", code: "KeyL", ctrlKey: true, composedPath: path });
+  await view.worker.request("flush");
+  const keys = view.worker.commands.filter(command => command.type === "key");
+  assert.deepEqual(keys.map(command => command.eventType),
+    ["press", "repeat", "release"]);
+  assert.deepEqual(keys.map(command => command.code), ["KeyA", "KeyA", "KeyA"]);
+});
+
+test("Kitty all-key mode reports known modifier sides and leaves browser shortcuts intact", async t => {
+  const workers = browser(t);
+  const view = await mounting(t, workers);
+  await view.worker.request("open");
+  await present(view, { kittyKeyboardFlags: 31 });
+  const terminal = await view.promise;
+  const input = terminal.element.shadowRoot.querySelector("textarea");
+  const path = () => [input, terminal.element];
+  emit(terminal.element, "keydown", { key: "Control", code: "ControlLeft", ctrlKey: true, composedPath: path });
+  assert.equal(emit(terminal.element, "keydown", { key: "l", code: "KeyL", ctrlKey: true, composedPath: path }).defaultPrevented, false);
+  emit(terminal.element, "keyup", { key: "Control", code: "ControlLeft", ctrlKey: false, composedPath: path });
+  emit(terminal.element, "keydown", { key: "Shift", code: "", shiftKey: true, composedPath: path });
+  await view.worker.request("flush");
+  assert.deepEqual(view.worker.commands.filter(command => command.type === "key").map(command => [command.key, command.eventType, command.ctrl]),
+    [["ControlLeft", "press", true], ["ControlLeft", "release", false]]);
+});
+
+test("Kitty key releases do not leak across focus or read-only transitions", async t => {
+  const workers = browser(t);
+  const view = await mounting(t, workers);
+  await view.worker.request("open");
+  await present(view, { kittyKeyboardFlags: 27 });
+  const terminal = await view.promise;
+  const input = terminal.element.shadowRoot.querySelector("textarea");
+  const key = { key: "a", code: "KeyA", composedPath: () => [input, terminal.element] };
+  emit(terminal.element, "keydown", key);
+  terminal.setReadOnly(true);
+  terminal.setReadOnly(false);
+  emit(terminal.element, "keyup", key);
+  emit(terminal.element, "keydown", key);
+  emit(input, "blur");
+  emit(terminal.element, "keyup", key);
+  await view.worker.request("flush");
+  assert.deepEqual(view.worker.commands.filter(command => command.type === "key").map(command => command.eventType),
+    ["press", "release", "press", "release"]);
+});
+
+test("Disabling Kitty event reporting releases keys that are still held", async t => {
+  const workers = browser(t);
+  const view = await mounting(t, workers);
+  await view.worker.request("open");
+  await present(view, { kittyKeyboardFlags: 27 });
+  const terminal = await view.promise;
+  const input = terminal.element.shadowRoot.querySelector("textarea");
+  const key = { key: "a", code: "KeyA", composedPath: () => [input, terminal.element] };
+
+  emit(terminal.element, "keydown", key);
+  await present(view, { kittyKeyboardFlags: 25 });
+  emit(terminal.element, "keyup", key);
+  await view.worker.request("flush");
+
+  assert.deepEqual(view.worker.commands.filter(command => command.type === "key").map(command => command.eventType),
+    ["press", "release"]);
+});
+
+test("Kitty keyboard mode leaves AltGr and IME text to the text input path", async t => {
+  const workers = browser(t, { InputEvent: class extends Event {} });
+  const view = await mounting(t, workers);
+  await view.worker.request("open");
+  await present(view, { kittyKeyboardFlags: 27 });
+  const terminal = await view.promise;
+  const input = terminal.element.shadowRoot.querySelector("textarea");
+  const path = () => [input, terminal.element];
+  const altGr = { key: "@", code: "KeyQ", ctrlKey: true, altKey: true, composedPath: path,
+    getModifierState: key => key === "AltGraph" };
+  assert.equal(emit(terminal.element, "keydown", altGr).defaultPrevented, false);
+  input.value = "@";
+  emit(input, "input");
+  emit(terminal.element, "keyup", altGr);
+  emit(input, "compositionstart");
+  emit(terminal.element, "keydown", { key: "Process", code: "KeyA", isComposing: true, composedPath: path });
+  emit(input, "compositionend", { data: "漢" });
+  input.value = "漢";
+  emit(input, "input");
+  await view.worker.request("flush");
+  assert.deepEqual(view.worker.commands.filter(command => ["input", "key"].includes(command.type)), [
+    { type: "input", text: "@" },
+    { type: "input", text: "漢" }
+  ]);
+});
+
 test("Runtime readOnly updates public context, keyboard focus and selection UI without reconnecting", async t => {
   const workers = browser(t);
   const states = [];

@@ -12,6 +12,9 @@ internal static class TerminalInputEncoder
 
     internal static string EncodeKey(Hex1bKeyEvent input, TerminalInputModes modes)
     {
+        if (KittyKeyboardEncoder.TryEncode(input, modes.KittyKeyboardFlags, out var kitty))
+            return kitty;
+
         var modifier = 1 + (input.Shift ? 1 : 0) + (input.Alt ? 2 : 0) + (input.Control ? 4 : 0);
         var final = input.Key switch
         {
