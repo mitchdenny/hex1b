@@ -443,6 +443,109 @@ public class KittyEmbeddedInputTests
     }
 
     [TestMethod]
+    [DataRow(null)]
+    [DataRow(false)]
+    public async Task RouteInput_SameKeyAfterSourceStartsReportingReleases_PromotesOwnershipBeforeOverflow(bool? initialCapability)
+    {
+        await using var workload = new GatedWorkload();
+        await using var child = CreateEnhancedChild(workload, out var handle);
+        var node = new TerminalNode { Handle = handle, IsFocused = true };
+        var ring = new FocusRing();
+        ring.Rebuild(node);
+        var state = new InputRouterState { SourceReportsReleases = initialCapability };
+        var held = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a') with { UnicodeKeyCode = 97 };
+        await InputRouter.RouteInputAsync(node, held, ring, state);
+        Assert.AreEqual("\x1b[97u", await workload.ReadInputAsync());
+        foreach (var code in Enumerable.Range(0x4E00, TerminalWidgetHandle.MaxForwardedKeys - 1))
+        {
+            await InputRouter.RouteInputAsync(node, StructuredPress(code), ring, state);
+            Assert.AreEqual($"\x1b[{code}u", await workload.ReadInputAsync());
+        }
+
+        state.SourceReportsReleases = true;
+        await InputRouter.RouteInputAsync(node, held, ring, state);
+        Assert.AreEqual("\x1b[97u", await workload.ReadInputAsync());
+        Assert.AreEqual(TerminalWidgetHandle.MaxForwardedKeys, handle.ForwardedKeyCount,
+            "The same identity replaces bookkeeping rather than adding a second owner.");
+
+        foreach (var code in Enumerable.Range(0x6000, TerminalWidgetHandle.MaxForwardedKeys + 20))
+        {
+            await InputRouter.RouteInputAsync(node, StructuredPress(code), ring, state);
+            Assert.AreEqual($"\x1b[{code}u", await workload.ReadInputAsync());
+            await InputRouter.RouteInputAsync(node, StructuredRelease(code), ring, state);
+            Assert.AreEqual($"\x1b[{code};1:3u", await workload.ReadInputAsync());
+        }
+        Assert.IsTrue(handle.OwnsForwardedKey((Hex1bKey.A, null)),
+            "The successful same-key press in the new epoch must not be evicted as stale.");
+
+        var release = held with { Text = "", EventType = Hex1bKeyEventType.Release };
+        await InputRouter.RouteInputAsync(node, release, ring, state);
+        Assert.AreEqual("\x1b[97;1:3u", await workload.ReadInputAsync());
+        await InputRouter.RouteInputAsync(node, release, ring, state);
+        Assert.IsFalse(workload.Input.Reader.TryRead(out _), "The promoted owner is released exactly once.");
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ForwardKey_SameKeyPromotionWriteFailsOrCancels_RetainsOriginalBookkeeping(bool cancel)
+    {
+        await using var workload = new GatedWorkload
+        {
+            BlockAtWrite = 2,
+            FailAtWrite = 2,
+            WriteFailure = cancel ? null : new IOException("promotion failed")
+        };
+        await using var child = CreateEnhancedChild(workload, out var handle);
+        var state = new InputRouterState { SourceReportsReleases = false };
+        var press = Hex1bKeyEvent.Plain(Hex1bKey.A, 'a') with { UnicodeKeyCode = 97 };
+        await handle.ForwardKeyAsync(press, state, CancellationToken.None);
+        Assert.AreEqual("\x1b[97u", await workload.ReadInputAsync());
+        state.SourceReportsReleases = true;
+        using var cancellation = new CancellationTokenSource();
+        var delivery = handle.ForwardKeyAsync(press, state, cancellation.Token);
+        try
+        {
+            await workload.Blocked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.IsTrue(handle.OwnsForwardedKey((Hex1bKey.A, null)));
+            if (cancel)
+            {
+                cancellation.Cancel();
+                await Assert.ThrowsAsync<OperationCanceledException>(() => delivery.WaitAsync(TimeSpan.FromSeconds(5)));
+            }
+            else
+            {
+                workload.Unblock.TrySetResult();
+                var failure = await Assert.ThrowsAsync<IOException>(() => delivery.WaitAsync(TimeSpan.FromSeconds(5)));
+                Assert.AreSame(workload.WriteFailure, failure);
+            }
+            Assert.IsTrue(handle.OwnsForwardedKey((Hex1bKey.A, null)),
+                "A failed promotion must retain the original owner.");
+            Assert.IsFalse(workload.Input.Reader.TryRead(out _));
+
+            var codes = Enumerable.Range(0x4E00, TerminalWidgetHandle.MaxForwardedKeys).ToArray();
+            foreach (var code in codes[..^1])
+            {
+                await handle.ForwardKeyAsync(StructuredPress(code), state, CancellationToken.None);
+                Assert.AreEqual($"\x1b[{code}u", await workload.ReadInputAsync());
+            }
+            Assert.IsTrue(handle.OwnsForwardedKey((Hex1bKey.A, null)),
+                "The earlier ownership survives until bookkeeping actually overflows.");
+            await handle.ForwardKeyAsync(StructuredPress(codes[^1]), state, CancellationToken.None);
+            Assert.AreEqual($"\x1b[{codes[^1]}u", await workload.ReadInputAsync());
+            Assert.IsFalse(handle.OwnsForwardedKey((Hex1bKey.A, null)),
+                "The failed press must not promote the earlier bookkeeping to live ownership.");
+            Assert.AreEqual(TerminalWidgetHandle.MaxForwardedKeys, handle.ForwardedKeyCount);
+            Assert.IsFalse(workload.Input.Reader.TryRead(out _), "Eviction does not send an unmatched release.");
+        }
+        finally
+        {
+            workload.Unblock.TrySetResult();
+            cancellation.Cancel();
+        }
+    }
+
+    [TestMethod]
     public async Task RouteInput_SourceStopsReportingReleases_DemotesHeldPressToBookkeeping()
     {
         await using var workload = new GatedWorkload();
@@ -466,9 +569,11 @@ public class KittyEmbeddedInputTests
     }
 
     [TestMethod]
-    [DataRow("")]
-    [DataRow("\x1b[>1u")]
-    public async Task RunAsync_RawLegacyCjkText_PastTrackingLimit_IsForwardedWithoutOwnership(string childMode)
+    [DataRow("", false)]
+    [DataRow("\x1b[>1u", false)]
+    [DataRow("\x1b[>11u", true)]
+    public async Task RunAsync_RawLegacyCjkText_PastTrackingLimit_UsesChildEncodingWithoutOwnership(
+        string childMode, bool reportAll)
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var presentation = new RawBytePresentation();
@@ -493,7 +598,8 @@ public class KittyEmbeddedInputTests
             foreach (var character in text)
                 presentation.Enqueue(Encoding.UTF8.GetBytes(character));
             foreach (var character in text)
-                Assert.AreEqual(character, await childWorkload.ReadInputAsync());
+                Assert.AreEqual(reportAll ? "\x1b[0u" : character, await childWorkload.ReadInputAsync(),
+                    "Report-all omits associated text unless flag 16 is also enabled.");
             Assert.IsFalse(run.IsCompleted);
             Assert.AreEqual(0, handle.ForwardedKeyCount);
 

@@ -513,11 +513,13 @@ public sealed class TerminalWidgetHandle :
                 var identity = InputRouterState.KeyIdentity(key);
                 lock (_forwardedKeys)
                 {
-                    // Repeated presses share ownership; a failed write must not erase the
-                    // earlier, successfully forwarded press.
-                    if (!_forwardedKeys.Exists(k => k.Identity == identity && k.Recipient == recipient))
+                    // Refresh bookkeeping for a new press's capability epoch, but retain the
+                    // earlier ownership until delivery succeeds. Live ownership is shared.
+                    var existing = _forwardedKeys.Find(k => k.Identity == identity && k.Recipient == recipient);
+                    if (existing == null || !existing.IsLive)
                     {
-                        if (_forwardedKeys.Count >= MaxForwardedKeys)
+                        stale = existing;
+                        if (stale == null && _forwardedKeys.Count >= MaxForwardedKeys)
                         {
                             stale = _forwardedKeys.Find(k => !k.IsLive)
                                 ?? throw new InvalidOperationException(
