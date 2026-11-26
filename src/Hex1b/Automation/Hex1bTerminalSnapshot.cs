@@ -25,6 +25,10 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// </summary>
     public int KittyKeyboardFlags { get; }
 
+    // Complete per-screen stacks, oldest first, for HMP replay.
+    internal int[] MainKittyKeyboardStack { get; }
+    internal int[] AlternateKittyKeyboardStack { get; }
+
     internal Hex1bTerminalSnapshot(Hex1bTerminal terminal)
         : this(terminal, scrollbackLines: 0, scrollbackWidth: ScrollbackWidth.CurrentTerminal, voidCell: TerminalCell.Empty)
     {
@@ -45,6 +49,8 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         CursorY = state.CursorY;
         InAlternateScreen = state.InAlternateScreen;
         KittyKeyboardFlags = state.KittyKeyboardFlags;
+        MainKittyKeyboardStack = state.MainKittyKeyboardStack;
+        AlternateKittyKeyboardStack = state.AlternateKittyKeyboardStack;
         CursorVisible = state.CursorVisible;
         BracketedPasteEnabled = state.BracketedPasteEnabled;
         ApplicationCursorKeysEnabled = state.ApplicationCursorKeysEnabled;

@@ -75,7 +75,10 @@ public sealed partial class Hex1bTerminal
         if (rawPassthrough && !_disposed && _presentation is not null)
         {
             var started = Stopwatch.GetTimestamp();
-            await _presentation.WriteOutputAsync(bytes, ct).ConfigureAwait(false);
+            if (UsesHmp1KeyboardPresentation)
+                await WriteHmp1PresentationAsync(bytes, stateSync: true, ct).ConfigureAwait(false);
+            else
+                await _presentation.WriteOutputAsync(bytes, ct).ConfigureAwait(false);
             _metrics.TerminalRawPassthroughDuration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             _metrics.TerminalOutputBytes.Record(bytes.Length);
         }
@@ -99,6 +102,9 @@ public sealed partial class Hex1bTerminal
             try
             {
                 _titleStack.Clear();
+                // The baseline carries the remote stacks; old producers send none.
+                _mainKeyboardMode.Reset();
+                _alternateKeyboardMode.Reset();
                 resized = state is not null && state.Width > 0 && state.Height > 0 &&
                     (_width != state.Width || _height != state.Height);
                 if (state is not null)
@@ -181,7 +187,10 @@ public sealed partial class Hex1bTerminal
             ct.ThrowIfCancellationRequested();
             ObjectDisposedException.ThrowIf(_disposed, this);
             var filteredBytes = AnsiTokenUtf8Serializer.Serialize(filtered);
-            await _presentation.WriteOutputAsync(filteredBytes, ct).ConfigureAwait(false);
+            if (UsesHmp1KeyboardPresentation)
+                await WriteHmp1PresentationAsync(filteredBytes, stateSync: true, ct).ConfigureAwait(false);
+            else
+                await _presentation.WriteOutputAsync(filteredBytes, ct).ConfigureAwait(false);
             _metrics.TerminalOutputBytes.Record(filteredBytes.Length);
         }
     }

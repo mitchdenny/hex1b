@@ -23,6 +23,12 @@ internal static class Hmp1Protocol
     public const int Version = 1;
 
     /// <summary>
+    /// Kitty keyboard presentation capability version advertised in
+    /// ClientHello and acknowledged in Hello.
+    /// </summary>
+    internal const int KittyKeyboardVersion = 1;
+
+    /// <summary>
     /// Size of the frame header in bytes (1 byte type + 4 bytes length).
     /// </summary>
     internal const int HeaderSize = 5;
@@ -140,12 +146,14 @@ internal static class Hmp1Protocol
         CancellationToken ct = default,
         int scrollbackHistoryRows = 0,
         bool commandMarkHistory = false,
-        bool programStatus = false)
+        bool programStatus = false,
+        bool kittyKeyboard = false)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(
             new HelloPayload
             {
                 Version = Version,
+                KittyKeyboardVersion = kittyKeyboard ? KittyKeyboardVersion : 0,
                 ProgramStatusVersion = programStatus ? Hmp1ProgramStatusState.Version : 0,
                 Width = width,
                 Height = height,
@@ -194,11 +202,13 @@ internal static class Hmp1Protocol
         CancellationToken ct = default,
         int scrollbackHistoryRows = 0,
         bool commandMarkHistory = false,
-        bool programStatus = false)
+        bool programStatus = false,
+        bool kittyKeyboard = false)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(
             new ClientHelloPayload
             {
+                KittyKeyboardVersion = kittyKeyboard ? KittyKeyboardVersion : 0,
                 DisplayName = displayName,
                 ProgramStatusVersion = programStatus ? Hmp1ProgramStatusState.Version : 0,
                 DefaultRole = defaultRole,

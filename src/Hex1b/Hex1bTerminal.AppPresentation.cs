@@ -11,8 +11,110 @@ public sealed partial class Hex1bTerminal
     // Query epoch of the oldest input still pending in the presentation parser.
     private int _pendingInputQueryEpoch;
 
+    private Hmp1KeyboardPresentation? _hmp1KeyboardPresentation;
+    // A pop that failed when a connection ended; reported once by terminal cleanup.
+    private Exception? _hmp1KeyboardRestoreFailure;
+
+    // Remote HMP1 output reaches a byte presentation (a physical host) directly. HMP
+    // relays negotiate with their own peers, and cell-impact presentations never see
+    // the raw keyboard controls.
+    private bool UsesHmp1KeyboardPresentation =>
+        _workload is IHmp1TerminalOutputSource &&
+        _presentation is not null and not Hmp1PresentationAdapter and not ICellImpactAwarePresentationAdapter;
+
+    private async ValueTask WriteHmp1PresentationAsync(ReadOnlyMemory<byte> data, bool stateSync, CancellationToken ct)
+    {
+        // Raw-mode entry may still be probing host capabilities. No remote byte may reach
+        // the host before it settles, and support must not be latched from a pending probe.
+        if (_rawModeEntryTask is not null)
+            await _rawModeEntryTask.WaitAsync(ct);
+        await _appPresentationLock.WaitAsync(ct);
+        try
+        {
+            if (_disposed)
+                return;
+            _hmp1KeyboardPresentation ??= new Hmp1KeyboardPresentation(_presentation!.Capabilities.SupportsKittyKeyboard);
+            await _hmp1KeyboardPresentation.WriteAsync(_presentation!, data, stateSync, ct);
+        }
+        finally
+        {
+            _appPresentationLock.Release();
+        }
+    }
+
+    // Final terminal cleanup step. A failed pop leaves ownership unknown and is never
+    // retried; it, or an earlier failed pop from a connection end, is reported once.
+    private async ValueTask CompleteHmp1KeyboardPresentationAsync()
+    {
+        if (_hmp1KeyboardPresentation is null || _presentation is null)
+            return;
+        await _appPresentationLock.WaitAsync();
+        try
+        {
+            await PopHmp1KeyboardEntryAsync();
+            if (Interlocked.Exchange(ref _hmp1KeyboardRestoreFailure, null) is { } earlier)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(earlier);
+        }
+        finally
+        {
+            _appPresentationLock.Release();
+        }
+    }
+
+    // A connection end must not fault the output pump: the workload may continue with
+    // a new connection. The failure is kept for the final cleanup step instead.
+    private async ValueTask CompleteHmp1KeyboardPresentationOnDisconnectAsync()
+    {
+        if (_hmp1KeyboardPresentation is null || _presentation is null)
+            return;
+        await _appPresentationLock.WaitAsync();
+        try
+        {
+            await PopHmp1KeyboardEntryAsync();
+        }
+        catch (Exception ex)
+        {
+            Interlocked.CompareExchange(ref _hmp1KeyboardRestoreFailure, ex, null);
+        }
+        finally
+        {
+            _appPresentationLock.Release();
+        }
+    }
+
+    private async ValueTask PopHmp1KeyboardEntryAsync()
+    {
+        try
+        {
+            await _hmp1KeyboardPresentation!.CompleteAsync(_presentation!);
+        }
+        catch (Exception ex)
+        {
+            throw new IOException(
+                "Failed to pop the HMP1 viewer's Kitty keyboard entry from the host; the host stack may retain it.", ex);
+        }
+    }
+
+    private async ValueTask<Exception?> TryCompleteHmp1KeyboardPresentationAsync()
+    {
+        try
+        {
+            await CompleteHmp1KeyboardPresentationAsync();
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex;
+        }
+    }
+
     private async ValueTask WriteAppPresentationAsync(ReadOnlyMemory<byte> data, CancellationToken ct)
     {
+        if (UsesHmp1KeyboardPresentation)
+        {
+            await WriteHmp1PresentationAsync(data, stateSync: false, ct);
+            return;
+        }
         if (_workload is not Hex1bAppWorkloadAdapter appAdapter)
         {
             await _presentation!.WriteOutputAsync(data, ct);

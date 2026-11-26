@@ -23,6 +23,8 @@ The Hex1b Muxer Protocol is a binary framing protocol for multiplexing terminal 
 > Retained OSC 133 command marks use a separate optional
 > `commandMarkHistoryVersion: 1` negotiation with the same compatibility rules.
 > Text history and command marks can fall back independently.
+> Kitty keyboard presentation (`kittyKeyboardVersion: 1`) is likewise optional
+> and falls back to legacy behavior with either an older client or server.
 
 ## Frame Format
 
@@ -152,6 +154,9 @@ role hint, and an optional retained-history request.
 - `programStatusVersion` — Optional `program-status-v1` inventory extension,
   currently `1`. The .NET client requests it automatically. Omission or an
   unsupported request means no program-status checkpoints.
+- `kittyKeyboardVersion` — Optional Kitty keyboard presentation extension,
+  currently `1`. The .NET client always requests it. Omit it (or send `0`) to
+  remain a legacy peer. See [Kitty keyboard presentation](#kitty-keyboard-presentation).
 
 The .NET `Hmp1ClientOptions.ScrollbackHistoryRows` setting defaults to 10,000,
 accepts 0 through 100,000, and uses `0` to opt out (omitting both JSON fields).
@@ -206,6 +211,9 @@ Sent once by the server after it has received the client's `ClientHello`.
 - `programStatusVersion` — Present as `1` only when a version-1 request is
   accepted. Without acknowledgement, no `ProgramStatusState` frames are sent
   or expected. Unknown selected versions fail the connection.
+- `kittyKeyboardVersion` — Present as `1` only when a version-1 request is
+  accepted by a server with an attached producer terminal. A missing field (or
+  `0`) means legacy keyboard handling; any other value fails the connection.
 
 `Hmp1ServerOptions.EnableScrollbackHistory` and the directly configured
 `Hmp1PresentationAdapter.EnableScrollbackHistory` both default to `true`.
@@ -661,6 +669,92 @@ continues to forward bytes unchanged: it has no terminal responsible for replies
 
 > **Important:** Output frames are stateful — ANSI escape sequences build on previous state (colors, cursor position, modes). Dropping or reordering Output frames will cause visual corruption. If a client falls behind, it should be disconnected and reconnected (which triggers a fresh Hello + StateSync).
 
+### Kitty keyboard presentation
+
+Negotiated per connection with `kittyKeyboardVersion: 1` in `ClientHello` and
+`Hello`. Keyboard controls are the 7-bit Kitty progressive-enhancement CSIs
+`CSI > flags u` (push), `CSI < n u` (pop), `CSI = flags ; mode u`
+(replace/OR/clear) and `CSI ? u` (query). The producer terminal keeps
+independent main and alternate screen stacks (at most 128 entries, flags masked
+to the low seven bits); excessive pops empty the stack.
+
+**Producer (server).**
+
+- Answers `CSI ? u` once from its own model. The query is never forwarded to any
+  viewer, modern or legacy, on either screen.
+- A modern peer's `Output` keeps the push/pop/set controls. A legacy peer's copy has
+  them removed by a fragment-safe stripper that runs continuously, so a legacy
+  peer that joins later starts in phase.
+- A modern peer's `StateSync` starts with a stack replay prefix:
+  `CSI ? 1049 l`, `CSI < 128 u`, then one push per main-stack entry, oldest
+  first. If the alternate screen is active or its stack is non-empty, this
+  follows with `CSI ? 1049 h`, `CSI < 128 u` and the alternate pushes, then
+  returns to main if main is active. A legacy peer's prefix contains no keyboard
+  controls.
+
+**Viewer (client).**
+
+- A viewer with keyboard support tracks the remote stacks itself and does not
+  forward remote controls to its physical host. It pushes one owned host entry on
+  first output and keeps that entry's flags equal to the remote active screen's
+  flags with `CSI = flags u`, synchronised before text and at the end of each
+  batch.
+- On a remote screen switch it pops the owned entry, forwards the switch, and
+  pushes a fresh entry on the new host screen.
+- `StateSync` discards any held fragment and resets both modelled stacks.
+- On detach it pops the owned entry only if ownership is certain.
+- No remote byte, whether live output or a `StateSync` replay, reaches the host
+  before the host's raw-mode entry, including any capability probe, completes.
+  Keyboard support is read only after entry.
+- If the physical host lacks Kitty keyboard support, the viewer removes keyboard
+  controls and forwards everything else, including RIS, unchanged.
+- Input from the viewer's host is encoded using the remote active flags, so
+  modified keys reach the producer in the protocol that the remote application
+  requested.
+
+**RIS.** On a host with keyboard support, the viewer never forwards a remote RIS
+(`ESC c`), because that would also clear host stack entries that predate the
+viewer. Instead it:
+
+1. pops its owned entry;
+2. sends a bounded replacement: leave alternate screen, `DECSTR`, disable mouse
+   and focus/paste modes, enable autowrap and cursor, reset SGR, home, and clear
+   screen and scrollback;
+3. pushes a new owned entry with flags `0`.
+
+The replacement does not reset tab stops, titles, the palette or other state
+that full RIS would reset.
+
+**Failures.**
+
+- Output cancelled before delivery rolls back the viewer's ownership and emitted
+  flags.
+- A failed or partial write containing a push or pop leaves ownership unknown. The
+  viewer then never pops on detach, because a pop could remove a host entry it
+  does not own.
+- A failed write without a push or pop resends the current flags on the next
+  write.
+- A failed final pop during terminal cleanup (`RunAsync`, `Dispose`,
+  `DisposeAsync`) is reported as an `IOException` and is not retried. Later
+  cleanup, including leaving raw mode, still runs.
+- When a connection ends while the terminal keeps running, the pop is best
+  effort: a failure does not stop output, and is reported once by the
+  terminal's later cleanup.
+
+**Limitations.**
+
+- The host stack's depth, contents and overflow eviction cannot be observed:
+  `CSI ? u` only reports the active flags. Host restoration therefore relies on
+  pairing one push with one pop, not on recovery.
+- If the host stack was already full, the owned push evicts the host's oldest
+  entry, and the pop cannot restore it.
+- After detach, the host remains on whichever screen the remote application
+  last selected.
+- 8-bit C1 introducers are not recognised as keyboard controls.
+- A legacy viewer receives stripped output but no keyboard re-encoding. An
+  older producer cannot replay stacks to a newer viewer, so the newer viewer
+  treats that connection as legacy.
+
 ### Input (0x04)
 
 Keyboard input from the client to the server.
@@ -921,7 +1015,7 @@ The protocol version is communicated in the Hello frame. Clients **must** reject
 > place rather than versioned. The `version` field still reads `1` after the
 > multi-head primary/secondary additions; the protocol identity has not
 > changed, but those baseline changes were incompatible with prior implementations.
-> The optional scrollback, command-mark, and program-status extensions instead use capability fields in
+> The optional scrollback, command-mark, program-status, and Kitty keyboard extensions instead use capability fields in
 > `ClientHello` and `Hello`. It preserves compatibility with the current
 > mandatory-`ActivityState` baseline: without acknowledgement, neither peer
 > expects those checkpoint frames. They do not make pre-`ActivityState` peers compatible.
@@ -934,6 +1028,11 @@ Future versions may add:
 
 ## Changelog
 
+- **(optional, HMP1 version unchanged)** Negotiated Kitty keyboard presentation,
+  `kittyKeyboardVersion: 1`. Modern peers receive keyboard stack controls and a
+  per-screen stack replay prefix in `StateSync`; legacy peers receive output with
+  those controls removed. The producer alone answers `CSI ? u`. Viewers own one
+  host stack entry and replace RIS to preserve pre-existing host entries.
 - **(optional, HMP1 version unchanged)** Negotiated `program-status-v1` with
   `ProgramStatusState (0x11)`. Transfers bounded, ordered OSC 7501 inventories
   atomically with attach/resync and carries byte-free live lifecycle changes

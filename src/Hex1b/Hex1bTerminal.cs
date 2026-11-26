@@ -649,6 +649,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 keyboardFailure = ex;
             }
+            // App and HMP1 ownership are exclusive by workload type, so at most one pop fails.
+            if (await TryCompleteHmp1KeyboardPresentationAsync() is { } hmp1KeyboardFailure)
+                keyboardFailure ??= hmp1KeyboardFailure;
 
             // Raw mode must be restored even when the keyboard pop could not be written.
             try
@@ -2401,7 +2404,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 LineRenditions = lineRenditions,
                 ProgramStatus = _programStatus,
-                KittyKeyboardFlags = (_inAlternateScreen ? _alternateKeyboardMode : _mainKeyboardMode).Flags
+                KittyKeyboardFlags = (_inAlternateScreen ? _alternateKeyboardMode : _mainKeyboardMode).Flags,
+                MainKittyKeyboardStack = _mainKeyboardMode.CaptureStack(),
+                AlternateKittyKeyboardStack = _alternateKeyboardMode.CaptureStack()
             };
         }
     }
@@ -2656,6 +2661,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private async Task ApplyHmp1StateAsync(Hmp1TerminalState state)
     {
+        if (!state.Connected && UsesHmp1KeyboardPresentation)
+            await CompleteHmp1KeyboardPresentationOnDisconnectAsync();
         bool resized;
         lock (_bufferLock)
         {
@@ -7156,6 +7163,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_presentation is { } presentation)
         {
             Step(() => CompleteAppKeyboardPresentationAsync().AsTask().GetAwaiter().GetResult());
+            Step(() => CompleteHmp1KeyboardPresentationAsync().AsTask().GetAwaiter().GetResult());
             // Write mouse disable sequences and screen restore DIRECTLY to presentation
             // This ensures they're written before raw mode is exited, avoiding race conditions
             var exitSequences = Input.MouseParser.DisableMouseTracking +
@@ -7208,6 +7216,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_presentation is { } presentation)
         {
             await StepAsync(CompleteAppKeyboardPresentationAsync);
+            await StepAsync(CompleteHmp1KeyboardPresentationAsync);
             // Write mouse disable sequences and screen restore DIRECTLY to presentation
             // This ensures they're written before raw mode is exited, avoiding race conditions
             // where mouse events could leak to the shell after app exit

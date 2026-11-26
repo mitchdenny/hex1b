@@ -23,6 +23,9 @@ internal sealed class KittyKeyboardMode
 
     internal void Reset() => _stack.Clear();
 
+    /// <summary>Returns the stack entries, oldest first.</summary>
+    internal int[] CaptureStack() => [.. _stack];
+
     internal bool Apply(string sequence, out bool query)
     {
         query = false;

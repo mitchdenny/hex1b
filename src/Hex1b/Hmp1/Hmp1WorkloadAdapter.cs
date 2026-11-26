@@ -68,6 +68,9 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     private int _scrollbackHistoryRows;
     private bool _commandMarkHistory;
     private bool _programStatus;
+    private bool _kittyKeyboard;
+    private readonly Hmp1KeyboardControlStripper _legacyKeyboardStripper = new();
+    private readonly Hmp1KeyboardControlStripper _rawKeyboardStripper = new();
 
     internal bool ConnectionStarted => Volatile.Read(ref _connectionStarted) != 0;
     /// <summary>
@@ -313,7 +316,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             _stream,
             _localDisplayName,
             _options.DefaultRole?.ToWireString(),
-            ct, requestedHistoryRows, requestedCommandMarks, programStatus: true).ConfigureAwait(false);
+            ct, requestedHistoryRows, requestedCommandMarks, programStatus: true, kittyKeyboard: true).ConfigureAwait(false);
 
         // Read Hello frame
         var helloFrame = await Hmp1Protocol.ReadFrameAsync(_stream, ct).ConfigureAwait(false)
@@ -326,6 +329,9 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         if (hello.ProgramStatusVersion != 0 && hello.ProgramStatusVersion != Hmp1ProgramStatusState.Version)
             throw new InvalidDataException("Server selected an unsupported program status capability.");
         _programStatus = hello.ProgramStatusVersion == Hmp1ProgramStatusState.Version;
+        if (hello.KittyKeyboardVersion != 0 && hello.KittyKeyboardVersion != Hmp1Protocol.KittyKeyboardVersion)
+            throw new InvalidDataException("Server selected an unsupported Kitty keyboard capability.");
+        _kittyKeyboard = hello.KittyKeyboardVersion == Hmp1Protocol.KittyKeyboardVersion;
         if (hello.CommandMarkHistoryVersion != 0)
         {
             if (!requestedCommandMarks || hello.CommandMarkHistoryVersion != Hmp1CommandMarkState.Version)
@@ -374,7 +380,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         var commandMarkState = _commandMarkHistory
             ? await Hmp1CommandMarkState.ReadAsync(_stream, terminalState, scrollbackState, ct).ConfigureAwait(false)
             : null;
-        _outputChannel.Writer.TryWrite(new(syncFrame.Payload, terminalState,
+        _outputChannel.Writer.TryWrite(new(FilterProducerOutput(syncFrame.Payload, stateSync: true), terminalState,
             IsStateSync: true, ActivityState: activityState, ScrollbackState: scrollbackState,
             CommandMarkState: commandMarkState, ProgramStatusState: programStatusState));
 
@@ -431,12 +437,32 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         while (!ct.IsCancellationRequested)
         {
             var item = await ReadOutputItemCoreAsync(ct).ConfigureAwait(false);
-            if (!item.Bytes.IsEmpty)
-                return item.Bytes;
+            // Raw consumers cannot own a host keyboard entry, so they never receive
+            // Kitty keyboard stack controls that could leak into their host.
+            if (item.IsStateSync)
+                _rawKeyboardStripper.Reset();
+            var bytes = _rawKeyboardStripper.Process(item.Bytes);
+            if (!bytes.IsEmpty)
+                return bytes;
             if (_outputChannel.Reader.Completion.IsCompleted)
                 break;
         }
         return ReadOnlyMemory<byte>.Empty;
+    }
+
+    /// <summary>
+    /// Whether the producer acknowledged Kitty keyboard presentation. When false,
+    /// keyboard stack controls are removed from all producer output.
+    /// </summary>
+    internal bool KittyKeyboardNegotiated => _kittyKeyboard;
+
+    private ReadOnlyMemory<byte> FilterProducerOutput(ReadOnlyMemory<byte> payload, bool stateSync)
+    {
+        if (_kittyKeyboard)
+            return payload;
+        if (stateSync)
+            _legacyKeyboardStripper.Reset();
+        return _legacyKeyboardStripper.Process(payload);
     }
 
     internal async ValueTask<Hmp1WorkloadOutput> ReadTerminalOutputAsync(CancellationToken ct)
@@ -646,7 +672,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                             ? await Hmp1CommandMarkState.ReadAsync(_stream, terminalState, scrollbackState, ct).ConfigureAwait(false)
                             : null;
                         await _outputChannel.Writer.WriteAsync(
-                            new(frame.Payload, terminalState,
+                            new(FilterProducerOutput(frame.Payload, stateSync: true), terminalState,
                                 IsStateSync: true, ActivityState: activityState, ScrollbackState: scrollbackState,
                                 CommandMarkState: commandMarkState, ProgramStatusState: programStatusState), ct).ConfigureAwait(false);
                         break;
@@ -670,7 +696,9 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                         // WriteAsync (not TryWrite) so the bounded channel back-pressures
                         // the network when the consumer is slow, instead of silently
                         // losing frames. Restored from Hex1b PR #308 (Phase 9c).
-                        await _outputChannel.Writer.WriteAsync(new(frame.Payload), ct).ConfigureAwait(false);
+                        var output = FilterProducerOutput(frame.Payload, stateSync: false);
+                        if (!output.IsEmpty)
+                            await _outputChannel.Writer.WriteAsync(new(output), ct).ConfigureAwait(false);
                         break;
 
                     case Hmp1FrameType.KgpAnimationState:
