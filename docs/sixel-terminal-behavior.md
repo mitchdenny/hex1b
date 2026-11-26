@@ -831,7 +831,7 @@ resolved by an undocumented tie-break.
 
 A parser limitation is worth naming explicitly because it shapes what
 `Malformed` can and cannot mean for the `CSI 16/14/18 t` tiers specifically:
-`TryConsumeWindowOperationResponse`'s response scanner only continues through
+`TryClaimWindowOperationReply`'s response scanner only continues through
 bytes that are digits or `;`. The instant it meets any other byte before the
 terminating `t`, it treats the candidate as "not a window-operation reply at
 all" and leaves the buffered bytes untouched, rather than classifying it as
@@ -867,9 +867,10 @@ timed out or replied unparseably → unknown (`SixelSupport = Unknown`,
 unsupported (`SixelSupport = None`, `Da1DeclaresSixel = false`); DA1 replied
 with parameter 4 → confirmed native support (`SixelSupport = Native`,
 `Da1DeclaresSixel = true`). A direct declaration via `WithSixelSupport` skips
-this probe entirely, including on paths declared `None` or `Unknown` where
-sending a visible DA1 query would be unnecessary and, on some terminals,
-produce a visible response.
+Sixel discovery entirely, including on paths declared `None` or `Unknown`: no
+XTWINOPS or cell-size queries are sent and the Sixel attribute of any DA1 reply
+is ignored. DA1 itself is still sent, because Kitty keyboard detection uses it
+to conclude that a terminal without a `CSI ? flags u` reply is unsupported.
 
 ### Caching and invalidation
 

@@ -82,8 +82,9 @@ public class SixelCapabilityDiscoveryTests
 
         await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
 
-        // No Sixel probe queries were ever written to the driver.
-        Assert.DoesNotContain("\x1b[c", driver.WrittenText);
+        // DA1 is still sent (Kitty keyboard detection relies on it), but none of the
+        // Sixel-specific probe queries were written.
+        Assert.AreEqual(1, CountOccurrences(driver.WrittenText, "\x1b[c"));
         Assert.DoesNotContain("\x1b[16t", driver.WrittenText);
         Assert.DoesNotContain("\x1b[14t", driver.WrittenText);
         Assert.DoesNotContain("\x1b[18t", driver.WrittenText);
@@ -97,7 +98,8 @@ public class SixelCapabilityDiscoveryTests
     [TestMethod]
     public async Task WithSixelSupport_DeclaredNone_IsConfirmedUnsupportedNotUnknown()
     {
-        using var driver = new FakeConsoleDriver();
+        // A DA1 reply declaring Sixel must not override the direct declaration.
+        using var driver = new FakeConsoleDriver(Da1Reply(declaresSixel: true));
         await using var adapter = new ConsolePresentationAdapter(driver, kgpProbeTimeout: ProbeTimeout);
         adapter.WithSixelSupport(SixelPresentationSupport.None);
 
@@ -105,9 +107,10 @@ public class SixelCapabilityDiscoveryTests
 
         Assert.AreEqual(SixelPresentationSupport.None, adapter.Capabilities.SixelSupport);
         Assert.IsFalse(adapter.Capabilities.SupportsSixel);
-        // A direct "none" declaration still pre-empted probing (no DA1 sent),
-        // which is what makes it distinct from an unanswered/unknown probe.
-        Assert.DoesNotContain("\x1b[c", driver.WrittenText);
+        // A direct "none" declaration still pre-empted Sixel discovery, which is what
+        // makes it distinct from an unanswered/unknown probe.
+        Assert.AreEqual(SixelCapabilityProbeDiagnostics.NotProbed, adapter.SixelProbeDiagnostics);
+        Assert.DoesNotContain("\x1b[16t", driver.WrittenText);
     }
 
     [TestMethod]
@@ -118,14 +121,24 @@ public class SixelCapabilityDiscoveryTests
         // An adapter can also declare "unknown" directly (for example, one that
         // deliberately defers the decision to a later stage). This must remain
         // distinct from both an affirmative declaration and an unanswered probe,
-        // and must still pre-empt DA1 probing exactly like any other declared value.
+        // and must still pre-empt Sixel discovery exactly like any other declared value,
+        // even though DA1 is still sent for Kitty keyboard detection.
         adapter.WithSixelSupport(SixelPresentationSupport.Unknown);
 
         await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
 
         Assert.AreEqual(SixelPresentationSupport.Unknown, adapter.Capabilities.SixelSupport);
         Assert.IsFalse(adapter.Capabilities.SupportsSixel);
-        Assert.DoesNotContain("\x1b[c", driver.WrittenText);
+        Assert.AreEqual(SixelCapabilityProbeDiagnostics.NotProbed, adapter.SixelProbeDiagnostics);
+        Assert.DoesNotContain("\x1b[16t", driver.WrittenText);
+    }
+
+    private static int CountOccurrences(string text, string value)
+    {
+        var count = 0;
+        for (var i = text.IndexOf(value, StringComparison.Ordinal); i >= 0; i = text.IndexOf(value, i + value.Length, StringComparison.Ordinal))
+            count++;
+        return count;
     }
 
     // Single-source acceptance -------------------------------------------------
@@ -255,7 +268,7 @@ public class SixelCapabilityDiscoveryTests
 
     // Note: negative dimensions cannot arrive over the wire as a recognized CSI
     // 16 t reply at all -- the parser's digit/semicolon character class (see
-    // TryConsumeWindowOperationResponse) deliberately stops scanning the moment
+    // TryClaimWindowOperationReply) deliberately stops scanning the moment
     // it meets a byte that could not plausibly belong to a numeric window-op
     // reply (to avoid ever misconsuming ordinary keyboard input that merely
     // starts like one, e.g. "CSI 3 ~" for Delete). A literal '-' falls outside
