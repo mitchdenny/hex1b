@@ -281,6 +281,90 @@ public class KittyKeyboardAutomationTests
         }
     }
 
+    // Kitty spec: left/right modifier keys are distinct functional keys (Ctrl 57442/57448) that are
+    // reported only with report-all-keys (8); repeat/release types additionally need flag 2.
+    // The caller supplies post-event modifier state, so Ctrl stays set until the last Ctrl releases.
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task ModifierKeyEvents_LeftAndRightCtrl_ReplayAcrossLiveModesOnBothPaths(bool releaseLeftFirst)
+    {
+        var workload = new RecordingWorkload();
+        await using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().Build();
+        var automator = new Hex1bTerminalAutomator(terminal, TimeSpan.FromSeconds(5));
+        static Hex1bKeyEvent Ctrl(int code, Hex1bKeyEventType type, Hex1bModifiers modifiers)
+            => new(Hex1bKey.None, "", modifiers) { UnicodeKeyCode = code, EventType = type };
+        var (first, second) = releaseLeftFirst ? (57442, 57448) : (57448, 57442);
+        Hex1bKeyEvent[] events =
+        [
+            Ctrl(57442, Hex1bKeyEventType.Press, Hex1bModifiers.Control),
+            Ctrl(57448, Hex1bKeyEventType.Press, Hex1bModifiers.Control),
+            Ctrl(57442, Hex1bKeyEventType.Repeat, Hex1bModifiers.Control),
+            Ctrl(57448, Hex1bKeyEventType.Repeat, Hex1bModifiers.Control),
+            Ctrl(first, Hex1bKeyEventType.Release, Hex1bModifiers.Control),
+            Ctrl(second, Hex1bKeyEventType.Release, Hex1bModifiers.None)
+        ];
+        var builder = new Hex1bTerminalInputSequenceBuilder();
+        foreach (var input in events)
+            builder.Key(input);
+        var sequence = builder.Build();
+
+        const string presses = "\x1b[57442;5u\x1b[57448;5u";
+        var reportAll = presses + "\x1b[57442;5u\x1b[57448;5u";
+        var allEvents = presses + "\x1b[57442;5:2u\x1b[57448;5:2u" +
+            $"\x1b[{first};5:3u\x1b[{second};1:3u";
+        foreach (var (flags, expected) in new[]
+        {
+            (0, ""), (1, ""), (2, ""), (3, ""), (8, reportAll), (10, allEvents), (11, allEvents),
+            (31, allEvents), (32, ""), (40, reportAll), (63, allEvents), (9, reportAll), (0, "")
+        })
+        {
+            terminal.ApplyTokens(AnsiTokenizer.Tokenize($"\x1b[={flags}u"));
+            using (await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken))
+                workload.AssertAndClear(expected);
+            foreach (var input in events)
+                await automator.KeyAsync(input, TestContext.Current.CancellationToken);
+            workload.AssertAndClear(expected);
+        }
+    }
+
+    [TestMethod]
+    [DataRow(57441, 57447, Hex1bModifiers.Shift, 2)]
+    [DataRow(57442, 57448, Hex1bModifiers.Control, 5)]
+    [DataRow(57443, 57449, Hex1bModifiers.Alt, 3)]
+    [DataRow(57444, 57450, Hex1bModifiers.Super, 9)]
+    [DataRow(57445, 57451, Hex1bModifiers.Hyper, 17)]
+    [DataRow(57446, 57452, Hex1bModifiers.Meta, 33)]
+    public async Task ModifierKeyEvents_LeftAndRightIdentities_AreDistinctOnBothPaths(
+        int left, int right, Hex1bModifiers modifier, int encoded)
+    {
+        var workload = new RecordingWorkload();
+        await using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().Build();
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[=10u"));
+        var automator = new Hex1bTerminalAutomator(terminal, TimeSpan.FromSeconds(5));
+        foreach (var code in new[] { left, right })
+        {
+            var expected = $"\x1b[{code};{encoded}u\x1b[{code};{encoded}:2u\x1b[{code};1:3u";
+            Hex1bKeyEvent[] events =
+            [
+                new(Hex1bKey.None, "", modifier) { UnicodeKeyCode = code },
+                new(Hex1bKey.None, "", modifier) { UnicodeKeyCode = code, EventType = Hex1bKeyEventType.Repeat },
+                new(Hex1bKey.None, "", Hex1bModifiers.None)
+                {
+                    UnicodeKeyCode = code, EventType = Hex1bKeyEventType.Release
+                }
+            ];
+            var builder = new Hex1bTerminalInputSequenceBuilder();
+            foreach (var input in events)
+                builder.Key(input);
+            using (await builder.Build().ApplyAsync(terminal, TestContext.Current.CancellationToken))
+                workload.AssertAndClear(expected);
+            foreach (var input in events)
+                await automator.KeyAsync(input, TestContext.Current.CancellationToken);
+            workload.AssertAndClear(expected);
+        }
+    }
+
     private sealed class RecordingWorkload : IHex1bTerminalWorkloadAdapter
     {
         private readonly List<byte> _input = [];
