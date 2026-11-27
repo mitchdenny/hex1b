@@ -38,6 +38,8 @@ public interface IHex1bTerminalPresentationAdapter : IAsyncDisposable
     /// <remarks>
     /// Returns raw bytes that need to be parsed into terminal events.
     /// Returns empty memory when the connection ends.
+    /// Implementations must finish a pending read when cancellation is requested,
+    /// so the terminal can release the input source before leaving raw mode.
     /// </remarks>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>Raw input bytes from the user, or empty when disconnected.</returns>

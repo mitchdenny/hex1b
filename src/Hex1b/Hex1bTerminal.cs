@@ -60,6 +60,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly IHex1bTerminalWorkloadAdapter _workload;
     private readonly Hex1bTerminalInputMode _workloadInputMode;
     private readonly Func<CancellationToken, Task<int>>? _runCallback;
+    private readonly bool _drainOutputToEof;
     private readonly IReadOnlyList<IHex1bTerminalWorkloadFilter> _workloadFilters;
     private readonly IReadOnlyList<IHex1bTerminalPresentationFilter> _presentationFilters;
     private readonly CancellationTokenSource _disposeCts = new();
@@ -113,6 +114,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _alternateScreenSavedCursorY; // Saved cursor Y for alternate screen (mode 1049)
     private Task? _inputProcessingTask;
     private Task? _outputProcessingTask;
+    private readonly object _outputReadLock = new();
+    // The output pump's in-flight read, set only while it waits for data the workload has not produced yet.
+    private Task? _pendingOutputRead;
+    private TaskCompletionSource? _outputReadPendingSignal;
     private readonly TaskCompletionSource<(string PumpName, Exception Error)> _pumpFaultTcs =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _writeSequence; // Monotonically increasing write order counter
@@ -367,6 +372,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _workload = workload;
         _workloadInputMode = inputMode;
         _runCallback = options.RunCallback;
+        _drainOutputToEof = options.DrainOutputToEof;
         _workloadFilters = options.WorkloadFilters?.ToList() ?? [];
         _presentationFilters = options.PresentationFilters?.ToList() ?? [];
         _timeProvider = options.TimeProvider ?? TimeProvider.System;
@@ -605,7 +611,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// workload lifecycle.
     /// </para>
     /// <para>
-    /// For process and HMP1 workloads, normal completion
+    /// For builder-owned app and flow workloads, processes and HMP1 workloads, normal completion
     /// also waits for remaining output to be applied to the terminal and sent to
     /// the presentation adapter. Cancellation can interrupt this drain.
     /// </para>
@@ -626,8 +632,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         finally
         {
-            // Stop pumps (via dispose cancellation token)
-            _disposeCts.Cancel();
+            // The console reader must release stdin before raw mode is restored
+            // or another terminal starts reading from the same console.
+            await StopPresentationInputAsync();
 
             // Exit raw mode
             if (_presentation != null)
@@ -707,16 +714,82 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         var exitCode = await runTask;
 
-        // Process exit drains stdout/stderr into the adapter's channel, not into
-        // the terminal. Finish applying and presenting those bytes before shutdown.
-        if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess or Hmp1WorkloadAdapter &&
-            _outputProcessingTask is not null)
-            await _outputProcessingTask.WaitAsync(ct);
+        // Completion queues final output; finish applying and presenting it
+        // before shutdown cancels the output pump.
+        // Apps acknowledge cancellation by returning normally; do not turn that
+        // graceful exit into an exception by starting a drain with a canceled token.
+        if (!ct.IsCancellationRequested && _outputProcessingTask is not null)
+        {
+            // Owned app and flow producers close their output before returning. Process and
+            // HMP1 output may trail disconnect, but also reliably reach EOF.
+            if (_drainOutputToEof ||
+                _workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess or Hmp1WorkloadAdapter)
+                await _outputProcessingTask.WaitAsync(ct);
+            else
+                await WaitForOutputDrainedAsync(_outputProcessingTask, ct);
+            if (_presentation is not null)
+                await _presentation.FlushAsync(ct);
+        }
 
         if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess)
             await ExpireLocalProgramStatusAsync(ct);
 
         return exitCode;
+    }
+
+    internal Task OutputPumpCompletion => _outputProcessingTask ?? Task.CompletedTask;
+
+    private async Task StopPresentationInputAsync()
+    {
+        _disposeCts.Cancel();
+        if (_inputProcessingTask is not null)
+            await _inputProcessingTask.ConfigureAwait(false);
+    }
+
+    // Completes when the pump reaches EOF or has an incomplete output read.
+    private async Task WaitForOutputDrainedAsync(Task outputProcessingTask, CancellationToken ct)
+    {
+        while (!outputProcessingTask.IsCompleted)
+        {
+            Task readPending;
+            lock (_outputReadLock)
+            {
+                if (_pendingOutputRead is { IsCompleted: false })
+                    return;
+                _outputReadPendingSignal ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                readPending = _outputReadPendingSignal.Task;
+            }
+
+            await Task.WhenAny(readPending, outputProcessingTask).WaitAsync(ct);
+        }
+
+        await outputProcessingTask.WaitAsync(ct);
+    }
+
+    private async ValueTask<T> AwaitOutputReadAsync<T>(ValueTask<T> read)
+    {
+        if (read.IsCompleted)
+            return await read;
+
+        var pending = read.AsTask();
+        TaskCompletionSource? signal;
+        lock (_outputReadLock)
+        {
+            _pendingOutputRead = pending;
+            signal = _outputReadPendingSignal;
+            _outputReadPendingSignal = null;
+        }
+        signal?.TrySetResult();
+
+        try
+        {
+            return await pending;
+        }
+        finally
+        {
+            lock (_outputReadLock)
+                _pendingOutputRead = null;
+        }
     }
 
     /// <summary>
@@ -822,11 +895,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private async Task PumpPresentationInputAsync(CancellationToken ct)
     {
+        var readerTask = Task.Run(() => PumpPresentationReaderAsync(ct));
         try
         {
-            // Spin up the background reader that feeds raw data into the channel.
-            _ = Task.Run(() => PumpPresentationReaderAsync(ct), ct);
-
             await foreach (var item in _presentationInputChannel.Reader.ReadAllAsync(ct))
             {
                 if (item.IsTimeout)
@@ -916,6 +987,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         catch (Exception ex)
         {
             ReportPumpFault("presentation input pump", ex);
+        }
+        finally
+        {
+            await readerTask;
         }
     }
     
@@ -1345,7 +1420,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 if (_workload is IHmp1TerminalOutputSource remoteWorkload)
                 {
-                    var item = await remoteWorkload.ReadTerminalOutputAsync(ct);
+                    var item = await AwaitOutputReadAsync(remoteWorkload.ReadTerminalOutputAsync(ct));
                     remoteState = item.State;
                     animationState = item.AnimationState;
                     activityState = item.ActivityState;
@@ -1358,7 +1433,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 else if (_workload is IHex1bTerminalTokenWorkloadAdapter tokenWorkload)
                 {
-                    var item = await tokenWorkload.ReadOutputItemAsync(ct);
+                    var item = await AwaitOutputReadAsync(tokenWorkload.ReadOutputItemAsync(ct));
                     data = item.Bytes;
                     preTokenizedTokens = item.Tokens;
                     pooledItemBuffer = item.PooledBuffer;
@@ -1367,7 +1442,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 else
                 {
-                    data = await _workload.ReadOutputAsync(ct);
+                    data = await AwaitOutputReadAsync(_workload.ReadOutputAsync(ct));
                 }
                 
                 if (data.IsEmpty && remoteState is null && animationState is null &&
@@ -1381,20 +1456,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Channel empty - this is a frame boundary
                     await NotifyWorkloadFiltersFrameCompleteAsync();
 
-                    // Process reads return empty only at EOF (or cancellation).
-                    // Other workloads can return empty between frames and must keep pumping.
-                    if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess ||
-                        _workload is Hmp1WorkloadAdapter { OutputCompleted: true })
-                    {
-                        if (_workload is Hex1bTerminalChildProcess { HasExited: false } child)
-                            await child.WaitForExitAsync(ct);
-                        localWorkloadEnded = _workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess;
-                        break;
-                    }
-                    
-                    // Small delay to prevent busy-waiting in headless mode
-                    await Task.Delay(10, ct);
-                    continue;
+                    // Some adapters report cancellation with an empty read; that is not end of output.
+                    ct.ThrowIfCancellationRequested();
+
+                    // An empty read is EOF: the workload ended and all buffered output was read.
+                    if (_workload is Hex1bTerminalChildProcess { HasExited: false } child)
+                        await child.WaitForExitAsync(ct);
+                    localWorkloadEnded = _workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess;
+                    break;
                 }
 
                 Interlocked.Add(ref _outputBytesRead, data.Length);
@@ -6993,8 +7062,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        if (!TryBeginDisposalAndResetScreenOwnedState())
+        if (!TryBeginDisposalAndResetScreenOwnedState(out var exitAlternateScreen))
             return;
+
+        StopPresentationInputAsync().GetAwaiter().GetResult();
 
         // Complete any active paste context
         if (_activePasteContext != null)
@@ -7016,7 +7087,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             var exitSequences = Input.MouseParser.DisableMouseTracking + 
                 "\x1b[?2004l" + // Disable bracketed paste mode
                 "\x1b[?25h" +   // Show cursor
-                "\x1b[?1049l";  // Exit alternate screen
+                (exitAlternateScreen ? "\x1b[?1049l" : "");
             _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default).AsTask().GetAwaiter().GetResult();
             _presentation.FlushAsync().AsTask().GetAwaiter().GetResult();
             
@@ -7030,15 +7101,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _escapeFlushTimer?.Dispose();
         _kgpAnimationTimer?.Dispose();
 
-        _disposeCts.Cancel();
         _disposeCts.Dispose();
     }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (!TryBeginDisposalAndResetScreenOwnedState())
+        if (!TryBeginDisposalAndResetScreenOwnedState(out var exitAlternateScreen))
             return;
+
+        await StopPresentationInputAsync();
 
         // Complete any active paste context
         if (_activePasteContext != null)
@@ -7062,7 +7134,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 "\x1b[?2004l" + // Disable bracketed paste mode
                 "\x1b[0m" +     // Reset text attributes (prevents inverted text from leaking)
                 "\x1b[?25h" +   // Show cursor
-                "\x1b[?1049l";  // Exit alternate screen
+                (exitAlternateScreen ? "\x1b[?1049l" : "");
             await _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default);
             await _presentation.FlushAsync();
             
@@ -7077,14 +7149,16 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _escapeFlushTimer?.Dispose();
         _kgpAnimationTimer?.Dispose();
 
-        _disposeCts.Cancel();
         _disposeCts.Dispose();
     }
 
-    private bool TryBeginDisposalAndResetScreenOwnedState()
+    private bool TryBeginDisposalAndResetScreenOwnedState(out bool exitAlternateScreen)
     {
         lock (_bufferLock)
         {
+            // DECRST 1049 restores the host cursor even when already in the
+            // normal buffer; only emit it for an outstanding alternate screen.
+            exitAlternateScreen = _inAlternateScreen;
             if (_disposed)
                 return false;
 

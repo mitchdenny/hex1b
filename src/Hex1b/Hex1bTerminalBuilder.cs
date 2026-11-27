@@ -241,7 +241,8 @@ public sealed class Hex1bTerminalBuilder
                 return 0;
             };
 
-            return new Hex1bTerminalBuildContext(appWorkloadAdapter, runCallback);
+            return new Hex1bTerminalBuildContext(appWorkloadAdapter, runCallback,
+                drainOutputToEof: ReferenceEquals(appWorkloadAdapter, workloadAdapter));
         });
 
         return this;
@@ -297,7 +298,8 @@ public sealed class Hex1bTerminalBuilder
                 return 0;
             };
 
-            return new Hex1bTerminalBuildContext(appWorkloadAdapter, runCallback);
+            return new Hex1bTerminalBuildContext(appWorkloadAdapter, runCallback,
+                drainOutputToEof: ReferenceEquals(appWorkloadAdapter, workloadAdapter));
         });
 
         return this;
@@ -1069,10 +1071,11 @@ public sealed class Hex1bTerminalBuilder
             Func<CancellationToken, Task<int>> runCallback = async ct =>
             {
                 await runner.RunAsync(ct);
+                workloadAdapter.CompleteOutput();
                 return 0;
             };
 
-            return new Hex1bTerminalBuildContext(workloadAdapter, runCallback);
+            return new Hex1bTerminalBuildContext(workloadAdapter, runCallback, drainOutputToEof: true);
         });
 
         return this;
@@ -1537,6 +1540,7 @@ public sealed class Hex1bTerminalBuilder
 
         // Resolve workload
         Func<CancellationToken, Task<int>>? runCallback = null;
+        var drainOutputToEof = false;
         IHex1bTerminalWorkloadAdapter workload;
 
         if (_workloadFactory != null)
@@ -1545,6 +1549,7 @@ public sealed class Hex1bTerminalBuilder
             var context = _workloadFactory(presentation);
             workload = context.WorkloadAdapter;
             runCallback = context.RunCallback;
+            drainOutputToEof = context.DrainOutputToEof;
         }
         else if (_workloadAdapter != null)
         {
@@ -1566,6 +1571,7 @@ public sealed class Hex1bTerminalBuilder
             Height = _height,
             TimeProvider = _timeProvider ?? TimeProvider.System,
             RunCallback = runCallback,
+            DrainOutputToEof = drainOutputToEof,
             DeferStart = deferStart,
             ScrollbackCapacity = _scrollbackCapacity,
             ScrollbackCallback = _scrollbackCallback,

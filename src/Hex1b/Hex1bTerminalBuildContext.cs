@@ -10,7 +10,8 @@ namespace Hex1b;
 /// </summary>
 internal sealed class Hex1bTerminalBuildContext(
     IHex1bTerminalWorkloadAdapter workloadAdapter,
-    Func<CancellationToken, Task<int>>? runCallback)
+    Func<CancellationToken, Task<int>>? runCallback,
+    bool drainOutputToEof = false)
 {
     /// <summary>
     /// The workload adapter to use.
@@ -22,4 +23,6 @@ internal sealed class Hex1bTerminalBuildContext(
     /// If null, the terminal will wait for the workload to disconnect.
     /// </summary>
     public Func<CancellationToken, Task<int>>? RunCallback { get; } = runCallback;
+
+    internal bool DrainOutputToEof { get; } = drainOutputToEof;
 }

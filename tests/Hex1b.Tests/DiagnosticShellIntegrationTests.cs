@@ -496,9 +496,9 @@ public class DiagnosticShellIntegrationTests
         // Act - send help command
         await ctx.SendCommandAsync("help");
 
-        // Wait for the last expected help entry so assertions observe the full render.
-        var foundDump = await ctx.WaitForTextAsync("dump", TimeSpan.FromSeconds(5));
-        Assert.IsTrue(foundDump, $"Should find 'dump' in help output\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
+        // Ping follows the other asserted entries in the help output.
+        var foundPing = await ctx.WaitForTextAsync("ping", TimeSpan.FromSeconds(5));
+        Assert.IsTrue(foundPing, $"Should find 'ping' in help output\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
 
         var content = ctx.GetOuterContent();
         

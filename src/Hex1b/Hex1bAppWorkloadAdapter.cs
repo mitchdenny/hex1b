@@ -397,6 +397,11 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         // Channel-based, no buffering needed
     }
 
+    internal void CompleteOutput()
+    {
+        _outputChannel.Writer.TryComplete();
+    }
+
     /// <summary>
     /// Channel of parsed input events from the terminal.
     /// </summary>
@@ -501,7 +506,6 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     public bool TryReadOutput(out ReadOnlyMemory<byte> data)
     {
         data = ReadOnlyMemory<byte>.Empty;
-        if (_disposed) return false;
         
         if (_outputChannel.Reader.TryRead(out var item))
         {
@@ -515,7 +519,6 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     internal bool TryReadOutputItem(out WorkloadOutputItem item)
     {
         item = default;
-        if (_disposed) return false;
 
         if (_outputChannel.Reader.TryRead(out item))
         {
@@ -536,8 +539,6 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// <inheritdoc />
     public async ValueTask<WorkloadOutputItem> ReadOutputItemAsync(CancellationToken ct = default)
     {
-        if (_disposed) return default;
-
         try
         {
             if (await _outputChannel.Reader.WaitToReadAsync(ct))
@@ -744,7 +745,9 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         };
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Stops accepting input and output while leaving queued output readable until EOF.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;
@@ -754,7 +757,9 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         // writing mouse-disable and screen-restore sequences directly to the
         // presentation layer during its disposal to avoid race conditions.
 
-        _outputChannel.Writer.TryComplete();
+        // Disposal ends production, not consumption: terminal reset sequences
+        // already queued by the app must remain readable through EOF.
+        CompleteOutput();
         _inputChannel.Writer.TryComplete();
         Disconnected?.Invoke();
     }

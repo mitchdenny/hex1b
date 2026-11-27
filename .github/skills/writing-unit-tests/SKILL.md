@@ -366,6 +366,14 @@ including removal when an animation completes. See
 
 ## Process Output Completion
 
+For app shutdown, gate the first presentation write and request stop from the
+widget builder. Wait for the workload's `Disconnected` signal to prove app
+disposal has completed, then assert terminal `RunAsync` still waits for output.
+Release the gate and verify final content and mouse-disable sequences arrive
+before raw-mode exit. Cover sync and async widget builders plus cancellation;
+see `AppOutputCompletionTests`. Adapter disposal must close production without
+discarding queued output, including the app's terminal-reset sequences.
+
 Process exit and terminal output consumption are separate events. For a controlled
 regression, start a `StandardProcessWorkloadAdapter` and await its exit before
 constructing a terminal with an already-completed run callback. Gate the first

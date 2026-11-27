@@ -101,6 +101,8 @@ public sealed class Hex1bTerminalOptions
     /// </remarks>
     public Func<CancellationToken, Task<int>>? RunCallback { get; set; }
 
+    internal bool DrainOutputToEof { get; set; }
+
     /// <summary>
     /// Maximum number of scrollback lines to retain. When null, no scrollback buffer
     /// is created (zero overhead). Default is null.
