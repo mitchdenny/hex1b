@@ -611,7 +611,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// workload lifecycle.
     /// </para>
     /// <para>
-    /// For built-in app, flow, process and HMP1 workloads, normal completion
+    /// For builder-owned app and flow workloads, processes and HMP1 workloads, normal completion
     /// also waits for remaining output to be applied to the terminal and sent to
     /// the presentation adapter. Cancellation can interrupt this drain.
     /// </para>
@@ -746,7 +746,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             await _inputProcessingTask.ConfigureAwait(false);
     }
 
-    // Completes when the pump reaches EOF or is blocked on a read with no output available.
+    // Completes when the pump reaches EOF or has an incomplete output read.
     private async Task WaitForOutputDrainedAsync(Task outputProcessingTask, CancellationToken ct)
     {
         while (!outputProcessingTask.IsCompleted)
