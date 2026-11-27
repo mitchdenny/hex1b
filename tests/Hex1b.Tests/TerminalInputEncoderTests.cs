@@ -107,7 +107,10 @@ public class TerminalInputEncoderTests
         await automator.KeyAsync(Hex1bKey.E, modifiers, TestContext.Current.CancellationToken);
 
         Assert.IsTrue(workload.InputEvents.TryRead(out var input));
-        Assert.AreEqual(new Hex1bKeyEvent(Hex1bKey.E, "", modifiers), input);
+        Assert.AreEqual(new Hex1bKeyEvent(Hex1bKey.E, "", modifiers)
+        {
+            ShiftedKeyCode = (modifiers & Hex1bModifiers.Shift) != 0 ? 69 : null
+        }, input);
     }
 
     [TestMethod]
