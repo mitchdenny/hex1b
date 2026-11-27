@@ -183,6 +183,41 @@ public class StandardProcessOutputTests
     }
 
     [TestMethod]
+    public async Task RunAsync_CanceledWhileProcessRuns_KeepsActiveProgramStatus()
+    {
+        if (OperatingSystem.IsWindows())
+            Assert.Inconclusive("The controlled process fixture uses /bin/sh.");
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var runCts = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token);
+        var start = new ProcessStartInfo("/bin/sh");
+        start.ArgumentList.Add("-c");
+        start.ArgumentList.Add("printf '\\033]7501;state=working:id=job\\007ready\\n'; read line");
+        await using var workload = new StandardProcessWorkloadAdapter(start);
+        await workload.StartAsync(timeout.Token);
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(20, 5)
+            .Build();
+
+        var running = terminal.RunAsync(runCts.Token);
+        using (await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(snapshot => snapshot.ContainsText("ready") &&
+                snapshot.ProgramStatus.Find("job")?.State == TerminalProgramStatusState.Working,
+                TimeSpan.FromSeconds(10), "working report applied")
+            .Build()
+            .ApplyAsync(terminal, timeout.Token)) { }
+
+        // The adapter reports the canceled read as empty; that must not be treated as process exit.
+        await runCts.CancelAsync();
+        await Assert.ThrowsAsync<OperationCanceledException>(() => running.WaitAsync(timeout.Token));
+        await terminal.OutputPumpCompletion.WaitAsync(timeout.Token);
+
+        Assert.IsFalse(workload.HasExited);
+        Assert.AreEqual(TerminalProgramStatusState.Working, terminal.ProgramStatus.Find("job")?.State);
+    }
+
+    [TestMethod]
     [DataRow(0, false)]
     [DataRow(7, false)]
     [DataRow(0, true)]

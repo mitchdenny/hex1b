@@ -734,6 +734,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         return exitCode;
     }
 
+    internal Task OutputPumpCompletion => _outputProcessingTask ?? Task.CompletedTask;
+
     // Completes when the pump reaches EOF or is blocked on a read with no output available.
     private async Task WaitForOutputDrainedAsync(Task outputProcessingTask, CancellationToken ct)
     {
@@ -1441,6 +1443,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                     // Channel empty - this is a frame boundary
                     await NotifyWorkloadFiltersFrameCompleteAsync();
+
+                    // Some adapters report cancellation with an empty read; that is not end of output.
+                    ct.ThrowIfCancellationRequested();
 
                     // An empty read is EOF: the workload ended and all buffered output was read.
                     if (_workload is Hex1bTerminalChildProcess { HasExited: false } child)

@@ -76,7 +76,8 @@ public interface IHex1bTerminalWorkloadAdapter : IAsyncDisposable
     /// </para>
     /// <para>
     /// Cancellation is not end of output. When <paramref name="ct"/> is canceled, throw
-    /// <see cref="OperationCanceledException"/> or return empty.
+    /// <see cref="OperationCanceledException"/>. For compatibility, the terminal treats an empty
+    /// result returned after <paramref name="ct"/> is canceled as cancellation, not end of output.
     /// </para>
     /// <para>
     /// When a run completes, the terminal applies output that is already available before it
