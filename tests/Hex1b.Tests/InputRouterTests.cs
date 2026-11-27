@@ -5,7 +5,7 @@ using Hex1b.Widgets;
 namespace Hex1b.Tests;
 
 [TestClass]
-public class InputRouterTests
+public partial class InputRouterTests
 {
     /// <summary>
     /// Mock focusable node for testing input routing.
@@ -17,6 +17,7 @@ public class InputRouterTests
         public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
         
         public List<Hex1bEvent> ReceivedInputs { get; } = new();
+        public InputResult Result { get; set; } = InputResult.Handled;
         
         // Action to configure bindings for this node
         public Action<InputBindingsBuilder>? BindingsConfig { get; set; }
@@ -32,7 +33,7 @@ public class InputRouterTests
         public override InputResult HandleInput(Hex1bEvent inputEvent)
         {
             ReceivedInputs.Add(inputEvent);
-            return InputResult.Handled;
+            return Result;
         }
     }
 
@@ -42,6 +43,13 @@ public class InputRouterTests
     private sealed class MockContainerNode : Hex1bNode
     {
         public List<Hex1bNode> Children { get; } = new();
+        public List<Hex1bEvent> ReceivedInputs { get; } = new();
+
+        public override InputResult HandleInput(Hex1bEvent inputEvent)
+        {
+            ReceivedInputs.Add(inputEvent);
+            return InputResult.NotHandled;
+        }
         
         // Action to configure bindings for this node
         public Action<InputBindingsBuilder>? BindingsConfig { get; set; }
