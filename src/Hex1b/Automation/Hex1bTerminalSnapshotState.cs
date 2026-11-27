@@ -41,4 +41,5 @@ internal sealed record Hex1bTerminalSnapshotState(
 {
     internal LineRendition[] LineRenditions { get; init; } = [];
     internal TerminalProgramStatusSnapshot ProgramStatus { get; init; } = new([]);
+    internal int KittyKeyboardFlags { get; init; }
 }
