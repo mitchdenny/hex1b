@@ -60,6 +60,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly IHex1bTerminalWorkloadAdapter _workload;
     private readonly Hex1bTerminalInputMode _workloadInputMode;
     private readonly Func<CancellationToken, Task<int>>? _runCallback;
+    private readonly bool _drainOutputToEof;
     private readonly IReadOnlyList<IHex1bTerminalWorkloadFilter> _workloadFilters;
     private readonly IReadOnlyList<IHex1bTerminalPresentationFilter> _presentationFilters;
     private readonly CancellationTokenSource _disposeCts = new();
@@ -371,6 +372,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _workload = workload;
         _workloadInputMode = inputMode;
         _runCallback = options.RunCallback;
+        _drainOutputToEof = options.DrainOutputToEof;
         _workloadFilters = options.WorkloadFilters?.ToList() ?? [];
         _presentationFilters = options.PresentationFilters?.ToList() ?? [];
         _timeProvider = options.TimeProvider ?? TimeProvider.System;
@@ -630,8 +632,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         finally
         {
-            // Stop pumps (via dispose cancellation token)
-            _disposeCts.Cancel();
+            // The console reader must release stdin before raw mode is restored
+            // or another terminal starts reading from the same console.
+            await StopPresentationInputAsync();
 
             // Exit raw mode
             if (_presentation != null)
@@ -717,10 +720,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // graceful exit into an exception by starting a drain with a canceled token.
         if (!ct.IsCancellationRequested && _outputProcessingTask is not null)
         {
-            // Process and HMP1 output can trail their disconnect, but both reliably reach EOF.
-            // Other workloads may outlive their run (for example, an adapter disposed by the caller
-            // after RunAsync), so stop once all output they have produced has been applied.
-            if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess or Hmp1WorkloadAdapter)
+            // Owned app and flow producers close their output before returning. Process and
+            // HMP1 output may trail disconnect, but also reliably reach EOF.
+            if (_drainOutputToEof ||
+                _workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess or Hmp1WorkloadAdapter)
                 await _outputProcessingTask.WaitAsync(ct);
             else
                 await WaitForOutputDrainedAsync(_outputProcessingTask, ct);
@@ -735,6 +738,13 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
 
     internal Task OutputPumpCompletion => _outputProcessingTask ?? Task.CompletedTask;
+
+    private async Task StopPresentationInputAsync()
+    {
+        _disposeCts.Cancel();
+        if (_inputProcessingTask is not null)
+            await _inputProcessingTask.ConfigureAwait(false);
+    }
 
     // Completes when the pump reaches EOF or is blocked on a read with no output available.
     private async Task WaitForOutputDrainedAsync(Task outputProcessingTask, CancellationToken ct)
@@ -885,11 +895,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private async Task PumpPresentationInputAsync(CancellationToken ct)
     {
+        var readerTask = Task.Run(() => PumpPresentationReaderAsync(ct));
         try
         {
-            // Spin up the background reader that feeds raw data into the channel.
-            _ = Task.Run(() => PumpPresentationReaderAsync(ct), ct);
-
             await foreach (var item in _presentationInputChannel.Reader.ReadAllAsync(ct))
             {
                 if (item.IsTimeout)
@@ -979,6 +987,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         catch (Exception ex)
         {
             ReportPumpFault("presentation input pump", ex);
+        }
+        finally
+        {
+            await readerTask;
         }
     }
     
@@ -7053,6 +7065,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (!TryBeginDisposalAndResetScreenOwnedState(out var exitAlternateScreen))
             return;
 
+        StopPresentationInputAsync().GetAwaiter().GetResult();
+
         // Complete any active paste context
         if (_activePasteContext != null)
         {
@@ -7087,7 +7101,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _escapeFlushTimer?.Dispose();
         _kgpAnimationTimer?.Dispose();
 
-        _disposeCts.Cancel();
         _disposeCts.Dispose();
     }
 
@@ -7096,6 +7109,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         if (!TryBeginDisposalAndResetScreenOwnedState(out var exitAlternateScreen))
             return;
+
+        await StopPresentationInputAsync();
 
         // Complete any active paste context
         if (_activePasteContext != null)
@@ -7134,7 +7149,6 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         _escapeFlushTimer?.Dispose();
         _kgpAnimationTimer?.Dispose();
 
-        _disposeCts.Cancel();
         _disposeCts.Dispose();
     }
 

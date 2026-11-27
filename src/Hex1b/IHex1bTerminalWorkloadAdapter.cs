@@ -80,9 +80,10 @@ public interface IHex1bTerminalWorkloadAdapter : IAsyncDisposable
     /// result returned after <paramref name="ct"/> is canceled as cancellation, not end of output.
     /// </para>
     /// <para>
-    /// When a run completes, the terminal applies output that is already available before it
-    /// exits raw mode. Output that the workload has not produced yet is not awaited unless the
-    /// workload is a terminal-hosted process or HMP1 connection.
+    /// On normal completion, builder-owned app and flow workloads, processes, and HMP1
+    /// workloads are drained through end of output before raw mode exits. For other workloads,
+    /// a pending read may still be in progress when the run completes, so its output is not
+    /// guaranteed to be applied before shutdown. Cancellation can interrupt draining.
     /// </para>
     /// </remarks>
     /// <param name="ct">Cancellation token.</param>
