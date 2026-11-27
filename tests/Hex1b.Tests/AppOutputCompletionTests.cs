@@ -1,4 +1,5 @@
 using System.Text;
+using System.Threading.Channels;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -99,6 +100,56 @@ public class AppOutputCompletionTests
         }
     }
 
+    [TestMethod]
+    public async Task RunAsync_CallbackReturnsWithoutOutputEof_DrainsProducedOutputWithoutWaitingForEof()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var ct = timeout.Token;
+        await using var presentation = new GatedPresentation();
+        presentation.ReleaseWrite.TrySetResult();
+        await using var workload = new ChannelWorkload();
+
+        var builder = Hex1bTerminal.CreateBuilder().WithPresentation(presentation);
+        builder.SetWorkloadFactory(_ => new Hex1bTerminalBuildContext(workload, async _ =>
+        {
+            for (var index = 0; index < 50; index++)
+                workload.Write($"chunk{index};");
+            await Task.Yield();
+            return 7;
+        }));
+        await using var terminal = builder.Build();
+
+        Assert.AreEqual(7, await terminal.RunAsync(ct).WaitAsync(ct));
+        Assert.AreEqual(Enumerable.Range(0, 50).Aggregate("", (text, index) => text + $"chunk{index};"),
+            presentation.OutputAtRawModeExit);
+        Assert.AreEqual(presentation.OutputAtRawModeExit, presentation.FlushedOutputAtRawModeExit);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_WorkloadReturnsEmptyRead_StopsReadingOutput()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var ct = timeout.Token;
+        await using var presentation = new GatedPresentation();
+        presentation.ReleaseWrite.TrySetResult();
+        await using var workload = new ChannelWorkload();
+
+        var builder = Hex1bTerminal.CreateBuilder().WithPresentation(presentation);
+        builder.SetWorkloadFactory(_ => new Hex1bTerminalBuildContext(workload, async _ =>
+        {
+            workload.Write("before");
+            workload.Write("");
+            workload.Write("after");
+            await Task.Yield();
+            return 0;
+        }));
+        await using var terminal = builder.Build();
+
+        await terminal.RunAsync(ct).WaitAsync(ct);
+        Assert.AreEqual("before", presentation.OutputAtRawModeExit);
+        Assert.AreEqual(2, workload.Reads);
+    }
+
     private sealed class GatedPresentation : IHex1bTerminalPresentationAdapter
     {
         private readonly HeadlessPresentationAdapter _headless = new(80, 24);
@@ -138,5 +189,27 @@ public class AppOutputCompletionTests
         }
         public (int Row, int Column) GetCursorPosition() => (0, 0);
         public ValueTask DisposeAsync() => _headless.DisposeAsync();
+    }
+
+    private sealed class ChannelWorkload : IHex1bTerminalWorkloadAdapter
+    {
+        private readonly Channel<byte[]> _output = Channel.CreateUnbounded<byte[]>();
+        public int Reads { get; private set; }
+        public event Action? Disconnected { add { } remove { } }
+
+        public void Write(string text) => _output.Writer.TryWrite(Encoding.UTF8.GetBytes(text));
+
+        public async ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+        {
+            var data = await _output.Reader.ReadAsync(ct);
+            Reads++;
+            return data;
+        }
+
+        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default) =>
+            ValueTask.CompletedTask;
+        public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default) =>
+            ValueTask.CompletedTask;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

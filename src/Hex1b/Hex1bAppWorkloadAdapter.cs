@@ -34,7 +34,7 @@ namespace Hex1b;
 /// await terminal.RunAsync();
 /// </code>
 /// </example>
-public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IHex1bTerminalTokenWorkloadAdapter, IRepaintableWorkloadAdapter, ICompletableOutputWorkloadAdapter, IDisposable
+public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IHex1bTerminalTokenWorkloadAdapter, IRepaintableWorkloadAdapter, IDisposable
 {
     private readonly Channel<WorkloadOutputItem> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;
@@ -397,14 +397,8 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         // Channel-based, no buffering needed
     }
 
-    private bool _outputCompletionRequested;
-
-    bool ICompletableOutputWorkloadAdapter.OutputCompletionRequested => _outputCompletionRequested;
-    bool ICompletableOutputWorkloadAdapter.OutputCompleted => _outputChannel.Reader.Completion.IsCompleted;
-
     internal void CompleteOutput()
     {
-        _outputCompletionRequested = true;
         _outputChannel.Writer.TryComplete();
     }
 

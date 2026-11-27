@@ -22,6 +22,10 @@ public interface IHex1bTerminalTokenWorkloadAdapter : IHex1bTerminalWorkloadAdap
     /// Read output FROM the workload, optionally including a pre-tokenized representation.
     /// </summary>
     /// <param name="ct">Cancellation token.</param>
+    /// <remarks>
+    /// Follows the same end-of-output contract as <see cref="IHex1bTerminalWorkloadAdapter.ReadOutputAsync"/>:
+    /// an item with empty <see cref="WorkloadOutputItem.Bytes"/> means end of output.
+    /// </remarks>
     /// <returns>A workload output item containing bytes and optional tokens.</returns>
     ValueTask<WorkloadOutputItem> ReadOutputItemAsync(CancellationToken ct = default);
 }

@@ -559,6 +559,9 @@ public class TerminalCaptureTests
 
         internal async Task WriteAsync(byte[] bytes, bool pretokenized = false)
         {
+            // An empty output item is EOF.
+            if (bytes.Length == 0)
+                return;
             var returned = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var buffer = ArrayPool<byte>.Shared.Rent(bytes.Length);
             bytes.CopyTo(buffer, 0);

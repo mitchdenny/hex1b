@@ -113,6 +113,10 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _alternateScreenSavedCursorY; // Saved cursor Y for alternate screen (mode 1049)
     private Task? _inputProcessingTask;
     private Task? _outputProcessingTask;
+    private readonly object _outputReadLock = new();
+    // The output pump's in-flight read, set only while it waits for data the workload has not produced yet.
+    private Task? _pendingOutputRead;
+    private TaskCompletionSource? _outputReadPendingSignal;
     private readonly TaskCompletionSource<(string PumpName, Exception Error)> _pumpFaultTcs =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _writeSequence; // Monotonically increasing write order counter
@@ -711,12 +715,15 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
         // before shutdown cancels the output pump.
         // Apps acknowledge cancellation by returning normally; do not turn that
         // graceful exit into an exception by starting a drain with a canceled token.
-        if ((_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess or Hmp1WorkloadAdapter ||
-             (_workload is ICompletableOutputWorkloadAdapter { OutputCompletionRequested: true } &&
-              !ct.IsCancellationRequested)) &&
-            _outputProcessingTask is not null)
+        if (!ct.IsCancellationRequested && _outputProcessingTask is not null)
         {
-            await _outputProcessingTask.WaitAsync(ct);
+            // Process and HMP1 output can trail their disconnect, but both reliably reach EOF.
+            // Other workloads may outlive their run (for example, an adapter disposed by the caller
+            // after RunAsync), so stop once all output they have produced has been applied.
+            if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess or Hmp1WorkloadAdapter)
+                await _outputProcessingTask.WaitAsync(ct);
+            else
+                await WaitForOutputDrainedAsync(_outputProcessingTask, ct);
             if (_presentation is not null)
                 await _presentation.FlushAsync(ct);
         }
@@ -725,6 +732,52 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             await ExpireLocalProgramStatusAsync(ct);
 
         return exitCode;
+    }
+
+    // Completes when the pump reaches EOF or is blocked on a read with no output available.
+    private async Task WaitForOutputDrainedAsync(Task outputProcessingTask, CancellationToken ct)
+    {
+        while (!outputProcessingTask.IsCompleted)
+        {
+            Task readPending;
+            lock (_outputReadLock)
+            {
+                if (_pendingOutputRead is { IsCompleted: false })
+                    return;
+                _outputReadPendingSignal ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                readPending = _outputReadPendingSignal.Task;
+            }
+
+            await Task.WhenAny(readPending, outputProcessingTask).WaitAsync(ct);
+        }
+
+        await outputProcessingTask.WaitAsync(ct);
+    }
+
+    private async ValueTask<T> AwaitOutputReadAsync<T>(ValueTask<T> read)
+    {
+        if (read.IsCompleted)
+            return await read;
+
+        var pending = read.AsTask();
+        TaskCompletionSource? signal;
+        lock (_outputReadLock)
+        {
+            _pendingOutputRead = pending;
+            signal = _outputReadPendingSignal;
+            _outputReadPendingSignal = null;
+        }
+        signal?.TrySetResult();
+
+        try
+        {
+            return await pending;
+        }
+        finally
+        {
+            lock (_outputReadLock)
+                _pendingOutputRead = null;
+        }
     }
 
     /// <summary>
@@ -1353,7 +1406,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 if (_workload is IHmp1TerminalOutputSource remoteWorkload)
                 {
-                    var item = await remoteWorkload.ReadTerminalOutputAsync(ct);
+                    var item = await AwaitOutputReadAsync(remoteWorkload.ReadTerminalOutputAsync(ct));
                     remoteState = item.State;
                     animationState = item.AnimationState;
                     activityState = item.ActivityState;
@@ -1366,7 +1419,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 else if (_workload is IHex1bTerminalTokenWorkloadAdapter tokenWorkload)
                 {
-                    var item = await tokenWorkload.ReadOutputItemAsync(ct);
+                    var item = await AwaitOutputReadAsync(tokenWorkload.ReadOutputItemAsync(ct));
                     data = item.Bytes;
                     preTokenizedTokens = item.Tokens;
                     pooledItemBuffer = item.PooledBuffer;
@@ -1375,7 +1428,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 else
                 {
-                    data = await _workload.ReadOutputAsync(ct);
+                    data = await AwaitOutputReadAsync(_workload.ReadOutputAsync(ct));
                 }
                 
                 if (data.IsEmpty && remoteState is null && animationState is null &&
@@ -1389,21 +1442,11 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Channel empty - this is a frame boundary
                     await NotifyWorkloadFiltersFrameCompleteAsync();
 
-                    // Process reads return empty only at EOF (or cancellation).
-                    // Other workloads can return empty between frames and must keep pumping.
-                    if (_workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess ||
-                        _workload is Hmp1WorkloadAdapter { OutputCompleted: true } ||
-                        _workload is ICompletableOutputWorkloadAdapter { OutputCompleted: true })
-                    {
-                        if (_workload is Hex1bTerminalChildProcess { HasExited: false } child)
-                            await child.WaitForExitAsync(ct);
-                        localWorkloadEnded = _workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess;
-                        break;
-                    }
-                    
-                    // Small delay to prevent busy-waiting in headless mode
-                    await Task.Delay(10, ct);
-                    continue;
+                    // An empty read is EOF: the workload ended and all buffered output was read.
+                    if (_workload is Hex1bTerminalChildProcess { HasExited: false } child)
+                        await child.WaitForExitAsync(ct);
+                    localWorkloadEnded = _workload is StandardProcessWorkloadAdapter or Hex1bTerminalChildProcess;
+                    break;
                 }
 
                 Interlocked.Add(ref _outputBytesRead, data.Length);

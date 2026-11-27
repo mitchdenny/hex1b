@@ -38,8 +38,6 @@ public class TerminalOutputByteCountTests
             .Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
         Assert.AreEqual((long)first.Length, terminal.OutputBytesRead);
 
-        await workload.Output.Writer.WriteAsync(new WorkloadOutputItem(ReadOnlyMemory<byte>.Empty, []),
-            TestContext.Current.CancellationToken);
         var second = Encoding.UTF8.GetBytes("世界");
         await workload.Output.Writer.WriteAsync(new WorkloadOutputItem(second, [new TextToken("世界")]),
             TestContext.Current.CancellationToken);
@@ -51,9 +49,9 @@ public class TerminalOutputByteCountTests
             .WaitUntil(s => s.ContainsText("é世界"), TimeSpan.FromSeconds(5), "second output applied")
             .Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
         Assert.AreEqual(total, terminal.OutputBytesRead);
-        Assert.AreEqual(preTokenized ? 0 : 3, workload.RawReads);
+        Assert.AreEqual(preTokenized ? 0 : 2, workload.RawReads);
         if (workload is TokenWorkload tokens)
-            Assert.AreEqual(3, tokens.TokenReads);
+            Assert.AreEqual(2, tokens.TokenReads);
     }
 
     private class RawWorkload : IHex1bTerminalWorkloadAdapter

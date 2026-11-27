@@ -65,9 +65,27 @@ public interface IHex1bTerminalWorkloadAdapter : IAsyncDisposable
 
     /// <summary>
     /// Read output FROM the workload (ANSI sequences to display).
-    /// The terminal calls this to get data to parse and send to presentation.
-    /// Returns empty when workload has no more output (should be called in a loop).
+    /// The terminal calls this in a loop to get data to parse and send to presentation.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Return output as soon as any is available. When no output is available yet, wait for
+    /// more instead of returning empty. Return empty only at end of output: after the workload
+    /// has ended and all of its buffered output has been returned. The terminal stops reading
+    /// output after an empty result.
+    /// </para>
+    /// <para>
+    /// Cancellation is not end of output. When <paramref name="ct"/> is canceled, throw
+    /// <see cref="OperationCanceledException"/> or return empty.
+    /// </para>
+    /// <para>
+    /// When a run completes, the terminal applies output that is already available before it
+    /// exits raw mode. Output that the workload has not produced yet is not awaited unless the
+    /// workload is a terminal-hosted process or HMP1 connection.
+    /// </para>
+    /// </remarks>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The next output bytes, or empty at end of output.</returns>
     ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default);
     
     /// <summary>
